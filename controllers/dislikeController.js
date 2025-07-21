@@ -4,11 +4,15 @@ import { StatusCodes } from 'http-status-codes'
 // 建立噓
 export const createDislike = async (req, res) => {
   try {
-    const dislike = new Dislike(req.body)
+    const { meme_id } = req.body
+    if (!meme_id) {
+      return res.status(400).json({ success: false, data: null, error: '缺少 meme_id' })
+    }
+    const dislike = new Dislike({ meme_id, user_id: req.user?._id })
     await dislike.save()
-    res.status(201).json(dislike)
+    res.status(201).json({ success: true, data: dislike, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 

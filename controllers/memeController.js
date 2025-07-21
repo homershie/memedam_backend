@@ -1,14 +1,25 @@
 import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
+import { body, validationResult } from 'express-validator'
 
 // 建立迷因
+export const validateCreateMeme = [
+  body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
+  body('content').optional().isLength({ max: 1000 }).withMessage('內容長度最多 1000 字'),
+]
+
 export const createMeme = async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, data: null, error: errors.array() })
+  }
   try {
-    const meme = new Meme(req.body)
+    const { title, content, images } = req.body
+    const meme = new Meme({ title, content, images, user_id: req.user?._id })
     await meme.save()
-    res.status(201).json(meme)
+    res.status(201).json({ success: true, data: meme, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 

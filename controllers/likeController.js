@@ -4,11 +4,15 @@ import { StatusCodes } from 'http-status-codes'
 // 建立讚
 export const createLike = async (req, res) => {
   try {
-    const like = new Like(req.body)
+    const { meme_id } = req.body
+    if (!meme_id) {
+      return res.status(400).json({ success: false, data: null, error: '缺少 meme_id' })
+    }
+    const like = new Like({ meme_id, user_id: req.user?._id })
     await like.save()
-    res.status(201).json(like)
+    res.status(201).json({ success: true, data: like, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 

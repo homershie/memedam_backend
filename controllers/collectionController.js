@@ -1,14 +1,24 @@
 import Collection from '../models/Collection.js'
 import { StatusCodes } from 'http-status-codes'
+import { body, validationResult } from 'express-validator'
+
+export const validateCreateCollection = [
+  body('name').isLength({ min: 1, max: 100 }).withMessage('收藏名稱必填，且長度需在 1~100 字'),
+]
 
 // 建立收藏
 export const createCollection = async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, data: null, error: errors.array() })
+  }
   try {
-    const collection = new Collection(req.body)
+    const { name, meme_ids } = req.body
+    const collection = new Collection({ name, meme_ids, user_id: req.user?._id })
     await collection.save()
-    res.status(201).json(collection)
+    res.status(201).json({ success: true, data: collection, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 

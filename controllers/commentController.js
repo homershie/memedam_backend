@@ -1,13 +1,23 @@
 import Comment from '../models/Comment.js'
+import { body, validationResult } from 'express-validator'
 
 // 建立留言
+export const validateCreateComment = [
+  body('content').isLength({ min: 1, max: 500 }).withMessage('留言內容必填，且長度需在 1~500 字'),
+]
+
 export const createComment = async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, data: null, error: errors.array() })
+  }
   try {
-    const comment = new Comment(req.body)
+    const { content, meme_id, parent_id } = req.body // 僅允許這三個欄位
+    const comment = new Comment({ content, meme_id, parent_id, user_id: req.user?._id })
     await comment.save()
-    res.status(201).json(comment)
+    res.status(201).json({ success: true, data: comment, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 

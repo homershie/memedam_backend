@@ -5,13 +5,14 @@ import {
   getReportById,
   updateReport,
   deleteReport,
+  validateCreateReport,
 } from '../controllers/reportController.js'
 import { token, isUser, isManager, canEditReport, canViewReport } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // 建立舉報
-router.post('/', token, isUser, createReport)
+router.post('/', token, isUser, validateCreateReport, createReport)
 // 取得所有舉報
 router.get('/', token, isManager, getReports)
 // 取得單一舉報

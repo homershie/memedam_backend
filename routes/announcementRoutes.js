@@ -5,13 +5,14 @@ import {
   getAnnouncementById,
   updateAnnouncement,
   deleteAnnouncement,
+  validateCreateAnnouncement,
 } from '../controllers/announcementController.js'
-import { token, isAdmin } from '../middleware/auth.js'
+import { token, isAdmin, isUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // 建立公告
-router.post('/', token, isAdmin, createAnnouncement)
+router.post('/', token, isUser, validateCreateAnnouncement, createAnnouncement)
 // 取得所有公告
 router.get('/', getAnnouncements)
 // 取得單一公告

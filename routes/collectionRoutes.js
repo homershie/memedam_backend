@@ -4,13 +4,14 @@ import {
   getCollections,
   deleteCollection,
   toggleCollection,
+  validateCreateCollection,
 } from '../controllers/collectionController.js'
 import { token, isUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // 收藏
-router.post('/', token, isUser, createCollection)
+router.post('/', token, isUser, validateCreateCollection, createCollection)
 // 取消收藏
 router.delete('/', token, isUser, deleteCollection) // 用 query string 或 body 傳 meme_id
 // 查詢收藏

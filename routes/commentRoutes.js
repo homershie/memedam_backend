@@ -5,13 +5,14 @@ import {
   getCommentById,
   updateComment,
   deleteComment,
+  validateCreateComment,
 } from '../controllers/commentController.js'
 import { token, isUser, canEditComment } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // 建立留言
-router.post('/', token, isUser, createComment)
+router.post('/', token, isUser, validateCreateComment, createComment)
 // 取得所有留言
 router.get('/', getComments)
 // 取得單一留言

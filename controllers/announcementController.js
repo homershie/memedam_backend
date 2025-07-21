@@ -1,13 +1,30 @@
 import Announcement from '../models/Announcement.js'
+import { body, validationResult } from 'express-validator'
 
 // 建立公告
+export const validateCreateAnnouncement = [
+  body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
+  body('content').isLength({ min: 1, max: 2000 }).withMessage('內容必填，且長度需在 1~2000 字'),
+]
+
 export const createAnnouncement = async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, data: null, error: errors.array() })
+  }
   try {
-    const announcement = new Announcement(req.body)
+    const { title, content, status, category } = req.body
+    const announcement = new Announcement({
+      title,
+      content,
+      status,
+      category,
+      user_id: req.user?._id,
+    })
     await announcement.save()
     res.status(201).json({ success: true, data: announcement, error: null })
   } catch (err) {
-    res.status(400).json({ success: false, data: null, error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 

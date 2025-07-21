@@ -1,13 +1,24 @@
 import Report from '../models/Report.js'
+import { body, validationResult } from 'express-validator'
 
 // 建立舉報
+export const validateCreateReport = [
+  body('target_id').notEmpty().withMessage('被檢舉對象必填'),
+  body('reason').isLength({ min: 1, max: 200 }).withMessage('檢舉原因必填，且長度需在 1~200 字'),
+]
+
 export const createReport = async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, data: null, error: errors.array() })
+  }
   try {
-    const report = new Report(req.body)
+    const { target_id, reason } = req.body
+    const report = new Report({ target_id, reason, user_id: req.user?._id })
     await report.save()
-    res.status(201).json(report)
+    res.status(201).json({ success: true, data: report, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 

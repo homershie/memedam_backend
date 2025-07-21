@@ -14,12 +14,13 @@ import {
   approveProposal,
   rejectProposal,
 } from '../controllers/memeEditProposalController.js'
-import { token, canEditMeme } from '../middleware/auth.js'
+import { token, canEditMeme, isUser } from '../middleware/auth.js'
+import { validateCreateMeme } from '../controllers/memeController.js'
 
 const router = express.Router()
 
 // 建立迷因
-router.post('/', token, canEditMeme, createMeme)
+router.post('/', token, isUser, validateCreateMeme, createMeme)
 // 取得所有迷因
 router.get('/', getMemes)
 // 取得單一迷因
