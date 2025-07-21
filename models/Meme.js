@@ -78,6 +78,19 @@ const MemeSchema = new mongoose.Schema(
       },
       // 迷因作者的用戶ID，對應 User 資料表
     },
+    editors: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: [],
+        validate: {
+          validator: function (v) {
+            return mongoose.Types.ObjectId.isValid(v)
+          },
+          message: '編輯者ID必須是有效的ObjectId',
+        },
+      },
+    ],
     status: {
       type: String,
       default: 'pending',

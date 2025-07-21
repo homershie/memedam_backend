@@ -1,92 +1,61 @@
-import Order from '../models/orderModel.js'
-import User from '../models/userModel.js'
-import { StatusCodes } from 'http-status-codes'
+import Comment from '../models/Comment.js'
 
-export const create = async (req, res) => {
+// 建立留言
+export const createComment = async (req, res) => {
   try {
-    // 檢查購物車是否為空
-    if (req.user.cart.length === 0) {
-      throw new Error('EMPTY')
-    }
-    // 檢查購物車內是否有已下架商品
-    const user = await User.findById(req.user._id, 'cart').populate('cart.product', 'sell')
-    const hasUnsell = user.cart.some((item) => !item.product.sell)
-    if (hasUnsell) {
-      throw new Error('UNSELL')
-    }
-
-    // 建立訂單
-    await Order.create({
-      user: req.user._id,
-      cart: user.cart,
-    })
-
-    // 清空購物車
-    req.user.cart = []
-    await req.user.save()
-
-    res.status(StatusCodes.CREATED).json({
-      success: true,
-      message: '訂單建立成功',
-    })
-  } catch (error) {
-    console.error(error)
-    if (error.message === 'EMPTY') {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: '購物車是空的',
-      })
-    } else if (error.message === 'UNSELL') {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: '購物車中有下架商品',
-      })
-    } else {
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: '伺服器內部錯誤',
-      })
-    }
+    const comment = new Comment(req.body)
+    await comment.save()
+    res.status(201).json(comment)
+  } catch (err) {
+    res.status(400).json({ error: err.message })
   }
 }
 
-export const getMy = async (req, res) => {
+// 取得所有留言（可加分頁、條件查詢）
+export const getComments = async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id })
-      .populate('cart.product')
-      .sort({ createdAt: -1 })
-
-    res.status(StatusCodes.OK).json({
-      success: true,
-      message: '',
-      result: orders,
-    })
-  } catch (error) {
-    console.error(error)
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      message: '伺服器內部錯誤',
-    })
+    const filter = {}
+    if (req.query.meme_id) filter.meme_id = req.query.meme_id
+    if (req.query.parent_id) filter.parent_id = req.query.parent_id
+    const comments = await Comment.find(filter).sort({ createdAt: 1 })
+    res.json(comments)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
   }
 }
 
-export const getAll = async (req, res) => {
+// 取得單一留言
+export const getCommentById = async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate('user', 'account')
-      .populate('cart.product')
-      .sort({ createdAt: -1 })
+    const comment = await Comment.findById(req.params.id)
+    if (!comment) return res.status(404).json({ error: '找不到留言' })
+    res.json(comment)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
 
-    res.status(StatusCodes.OK).json({
-      success: true,
-      message: '',
-      result: orders,
+// 更新留言
+export const updateComment = async (req, res) => {
+  try {
+    const comment = await Comment.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
     })
-  } catch (error) {
-    console.error(error)
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      message: '伺服器內部錯誤',
-    })
+    if (!comment) return res.status(404).json({ error: '找不到留言' })
+    res.json(comment)
+  } catch (err) {
+    res.status(400).json({ error: err.message })
+  }
+}
+
+// 刪除留言
+export const deleteComment = async (req, res) => {
+  try {
+    const comment = await Comment.findByIdAndDelete(req.params.id)
+    if (!comment) return res.status(404).json({ error: '找不到留言' })
+    res.json({ message: '留言已刪除' })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
   }
 }
