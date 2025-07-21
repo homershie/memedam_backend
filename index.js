@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import express from 'express'
 import mongoose from 'mongoose'
+import cors from 'cors'
+import { StatusCodes } from 'http-status-codes'
 import userRoutes from './routes/userRoutes.js'
 import memeRoutes from './routes/memeRoutes.js'
 import commentRoutes from './routes/commentRoutes.js'
@@ -15,8 +17,7 @@ import notificationRoutes from './routes/notificationRoutes.js'
 import announcementRoutes from './routes/announcementRoutes.js'
 import memeVersionRoutes from './routes/memeVersionRoutes.js'
 import './config/passport.js'
-import cors from 'cors'
-import { StatusCodes } from 'http-status-codes'
+import errorHandler from './middleware/errorHandler.js'
 
 mongoose
   .connect(process.env.DB_URL)
@@ -48,6 +49,7 @@ app.use('/tags', tagRoutes)
 app.use('/notifications', notificationRoutes)
 app.use('/announcements', announcementRoutes)
 app.use('/meme-versions', memeVersionRoutes)
+app.use(errorHandler)
 
 app.all(/.*/, (req, res) => {
   res.status(StatusCodes.NOT_FOUND).json({
