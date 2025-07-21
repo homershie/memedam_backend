@@ -5,22 +5,54 @@ export const createAnnouncement = async (req, res) => {
   try {
     const announcement = new Announcement(req.body)
     await announcement.save()
-    res.status(201).json(announcement)
+    res.status(201).json({ success: true, data: announcement, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(400).json({ success: false, data: null, error: err.message })
   }
 }
 
-// 取得所有公告（可加分頁、條件查詢）
+// 取得所有公告（支援分頁、關鍵字搜尋、狀態過濾、預設只查 public）
 export const getAnnouncements = async (req, res) => {
   try {
     const filter = {}
-    if (req.query.status) filter.status = req.query.status
+    // 狀態過濾，預設只查 public
+    if (req.query.status) {
+      filter.status = req.query.status
+    } else {
+      filter.status = 'public'
+    }
     if (req.query.category) filter.category = req.query.category
-    const announcements = await Announcement.find(filter).sort({ createdAt: -1 })
-    res.json(announcements)
+    // 關鍵字搜尋（標題或內容）
+    if (req.query.q) {
+      const keyword = req.query.q.trim()
+      filter.$or = [
+        { title: { $regex: keyword, $options: 'i' } },
+        { content: { $regex: keyword, $options: 'i' } },
+      ]
+    }
+    // 分頁
+    const page = parseInt(req.query.page) || 1
+    const limit = parseInt(req.query.limit) || 20
+    const skip = (page - 1) * limit
+    // 查詢
+    const announcements = await Announcement.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+    const total = await Announcement.countDocuments(filter)
+    res.json({
+      success: true,
+      data: announcements,
+      error: null,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 
@@ -28,10 +60,11 @@ export const getAnnouncements = async (req, res) => {
 export const getAnnouncementById = async (req, res) => {
   try {
     const announcement = await Announcement.findById(req.params.id)
-    if (!announcement) return res.status(404).json({ error: '找不到公告' })
-    res.json(announcement)
+    if (!announcement)
+      return res.status(404).json({ success: false, data: null, error: '找不到公告' })
+    res.json({ success: true, data: announcement, error: null })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 
@@ -42,10 +75,11 @@ export const updateAnnouncement = async (req, res) => {
       new: true,
       runValidators: true,
     })
-    if (!announcement) return res.status(404).json({ error: '找不到公告' })
-    res.json(announcement)
+    if (!announcement)
+      return res.status(404).json({ success: false, data: null, error: '找不到公告' })
+    res.json({ success: true, data: announcement, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(400).json({ success: false, data: null, error: err.message })
   }
 }
 
@@ -53,9 +87,10 @@ export const updateAnnouncement = async (req, res) => {
 export const deleteAnnouncement = async (req, res) => {
   try {
     const announcement = await Announcement.findByIdAndDelete(req.params.id)
-    if (!announcement) return res.status(404).json({ error: '找不到公告' })
-    res.json({ message: '公告已刪除' })
+    if (!announcement)
+      return res.status(404).json({ success: false, data: null, error: '找不到公告' })
+    res.json({ success: true, data: { message: '公告已刪除' }, error: null })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }

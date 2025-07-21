@@ -6,18 +6,19 @@ import {
   updateMemeVersion,
   deleteMemeVersion,
 } from '../controllers/memeVersionController.js'
+import { token, isUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // 建立迷因版本
-router.post('/', createMemeVersion)
+router.post('/', token, isUser, createMemeVersion)
 // 取得所有迷因版本
-router.get('/', getMemeVersions)
+router.get('/', token, isUser, getMemeVersions)
 // 取得單一迷因版本
-router.get('/:id', getMemeVersionById)
+router.get('/:id', token, isUser, getMemeVersionById)
 // 更新迷因版本
-router.put('/:id', updateMemeVersion)
+router.put('/:id', token, isUser, updateMemeVersion)
 // 刪除迷因版本
-router.delete('/:id', deleteMemeVersion)
+router.delete('/:id', token, isUser, deleteMemeVersion)
 
 export default router
