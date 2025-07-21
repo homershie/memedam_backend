@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import mongoose from 'mongoose'
 import cors from 'cors'
+import morgan from 'morgan'
 import { StatusCodes } from 'http-status-codes'
 import userRoutes from './routes/userRoutes.js'
 import memeRoutes from './routes/memeRoutes.js'
@@ -17,10 +18,10 @@ import notificationRoutes from './routes/notificationRoutes.js'
 import announcementRoutes from './routes/announcementRoutes.js'
 import memeVersionRoutes from './routes/memeVersionRoutes.js'
 import './config/passport.js'
+import connectDB from './config/db.js'
 import errorHandler from './middleware/errorHandler.js'
 
-mongoose
-  .connect(process.env.DB_URL)
+connectDB()
   .then(() => {
     console.log('資料庫連線成功')
     mongoose.set('sanitizeFilter', true)
@@ -33,7 +34,7 @@ mongoose
 const app = express()
 
 app.use(cors())
-
+app.use(morgan('dev'))
 app.use(express.json())
 
 app.use('/users', userRoutes)
@@ -49,7 +50,6 @@ app.use('/tags', tagRoutes)
 app.use('/notifications', notificationRoutes)
 app.use('/announcements', announcementRoutes)
 app.use('/meme-versions', memeVersionRoutes)
-app.use(errorHandler)
 
 app.all(/.*/, (req, res) => {
   res.status(StatusCodes.NOT_FOUND).json({
@@ -58,21 +58,7 @@ app.all(/.*/, (req, res) => {
   })
 })
 
-app.use((error, res) => {
-  console.error('Global error:', error)
-
-  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
-    return res.status(StatusCodes.BAD_REQUEST).json({
-      success: false,
-      message: 'JSON 格式錯誤',
-    })
-  }
-
-  res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-    success: false,
-    message: '伺服器內部錯誤',
-  })
-})
+app.use(errorHandler)
 
 app.listen(4000, () => {
   console.log('伺服器啟動')
