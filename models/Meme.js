@@ -23,9 +23,10 @@ const MemeSchema = new mongoose.Schema(
     content: {
       type: String,
       default: '',
+      required: [true, '內容為必填欄位'],
       trim: true,
       maxlength: [5000, '內容長度不能超過5000個字元'],
-      // 主要內容（文字內容或圖片/影片/音樂的補充說明）
+      // 主要內容簡介/摘要（文字內容或圖片/影片/音樂的補充說明）
     },
     image_url: {
       type: String,
@@ -303,6 +304,17 @@ const MemeSchema = new mongoose.Schema(
         message: 'Meta欄位必須是物件',
       },
       // 彈性補充欄位，存未來特殊需求/備註
+    },
+    detail_markdown: {
+      type: String,
+      default: '',
+      maxlength: [20000, '詳細介紹內容不能超過20000字元'],
+      validate: {
+        validator: function (v) {
+          return typeof v === 'string' && v.trim().length > 0
+        },
+        message: '詳細介紹內容不能為空',
+      },
     },
   },
   {

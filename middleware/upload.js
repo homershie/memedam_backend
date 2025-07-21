@@ -16,7 +16,12 @@ const storage = new CloudinaryStorage({
     if (file.fieldname === 'avatar') {
       folder = 'avatars'
     } else if (file.fieldname === 'image' || file.fieldname === 'images') {
-      folder = 'memes'
+      // 判斷是否為詳細頁圖片
+      if (req.body && req.body.isDetailImage === 'true') {
+        folder = 'memes_detail'
+      } else {
+        folder = 'memes'
+      }
     }
     return { folder }
   },
