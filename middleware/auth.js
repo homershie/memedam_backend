@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes'
 import jwt from 'jsonwebtoken'
 import Report from '../models/Report.js'
 import Meme from '../models/Meme.js'
+import Comment from '../models/Comment.js'
 
 export const login = (req, res, next) => {
   // 使用 passport 的 login 驗證方法
@@ -165,6 +166,26 @@ export const canEditMeme = async (req, res, next) => {
       return next()
     // 其他人禁止
     return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: '沒有權限編輯此迷因' })
+  } catch {
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ success: false, message: '伺服器錯誤' })
+  }
+}
+
+// 檢查是否有權限編輯/刪除留言
+export const canEditComment = async (req, res, next) => {
+  try {
+    const comment = await Comment.findById(req.params.id)
+    if (!comment) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: '找不到留言' })
+    }
+    // manager/admin 可編輯
+    if (['manager', 'admin'].includes(req.user.role)) return next()
+    // 留言者本人可編輯
+    if (comment.user_id.toString() === req.user._id.toString()) return next()
+    // 其他人禁止
+    return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: '沒有權限編輯此留言' })
   } catch {
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)

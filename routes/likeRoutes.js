@@ -1,23 +1,16 @@
 import express from 'express'
-import {
-  createLike,
-  getLikes,
-  getLikeById,
-  updateLike,
-  deleteLike,
-} from '../controllers/likeController.js'
+import { createLike, getLikes, deleteLike, toggleLike } from '../controllers/likeController.js'
+import { token, isUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // 建立讚
-router.post('/', createLike)
-// 取得所有讚
+router.post('/', token, isUser, createLike)
+// 取消讚
+router.delete('/', token, isUser, deleteLike) // 用 query string 傳 meme_id
+// 查詢某迷因讚數（可選）
 router.get('/', getLikes)
-// 取得單一讚
-router.get('/:id', getLikeById)
-// 更新讚
-router.put('/:id', updateLike)
-// 刪除讚
-router.delete('/:id', deleteLike)
+// 切換讚/取消讚
+router.post('/toggle', token, isUser, toggleLike)
 
 export default router

@@ -1,4 +1,5 @@
 import Dislike from '../models/Dislike.js'
+import { StatusCodes } from 'http-status-codes'
 
 // 建立噓
 export const createDislike = async (req, res) => {
@@ -24,31 +25,6 @@ export const getDislikes = async (req, res) => {
   }
 }
 
-// 取得單一噓
-export const getDislikeById = async (req, res) => {
-  try {
-    const dislike = await Dislike.findById(req.params.id)
-    if (!dislike) return res.status(404).json({ error: '找不到噓' })
-    res.json(dislike)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-}
-
-// 更新噓
-export const updateDislike = async (req, res) => {
-  try {
-    const dislike = await Dislike.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    })
-    if (!dislike) return res.status(404).json({ error: '找不到噓' })
-    res.json(dislike)
-  } catch (err) {
-    res.status(400).json({ error: err.message })
-  }
-}
-
 // 刪除噓
 export const deleteDislike = async (req, res) => {
   try {
@@ -57,5 +33,28 @@ export const deleteDislike = async (req, res) => {
     res.json({ message: '噓已刪除' })
   } catch (err) {
     res.status(500).json({ error: err.message })
+  }
+}
+
+// 切換噓/取消噓
+export const toggleDislike = async (req, res) => {
+  try {
+    const { meme_id } = req.body
+    if (!meme_id) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: '缺少 meme_id' })
+    }
+    const user_id = req.user._id
+    const existing = await Dislike.findOne({ meme_id, user_id })
+    if (existing) {
+      // 已經噓過，則取消噓
+      await existing.deleteOne()
+      return res.json({ success: true, action: 'removed' })
+    } else {
+      // 尚未噓過，則新增
+      await Dislike.create({ meme_id, user_id })
+      return res.json({ success: true, action: 'added' })
+    }
+  } catch {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }

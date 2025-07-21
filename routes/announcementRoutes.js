@@ -6,18 +6,19 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
 } from '../controllers/announcementController.js'
+import { token, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // 建立公告
-router.post('/', createAnnouncement)
+router.post('/', token, isAdmin, createAnnouncement)
 // 取得所有公告
 router.get('/', getAnnouncements)
 // 取得單一公告
 router.get('/:id', getAnnouncementById)
 // 更新公告
-router.put('/:id', updateAnnouncement)
+router.put('/:id', token, isAdmin, updateAnnouncement)
 // 刪除公告
-router.delete('/:id', deleteAnnouncement)
+router.delete('/:id', token, isAdmin, deleteAnnouncement)
 
 export default router

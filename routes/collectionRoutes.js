@@ -2,22 +2,20 @@ import express from 'express'
 import {
   createCollection,
   getCollections,
-  getCollectionById,
-  updateCollection,
   deleteCollection,
+  toggleCollection,
 } from '../controllers/collectionController.js'
+import { token, isUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// 建立收藏
-router.post('/', createCollection)
-// 取得所有收藏
+// 收藏
+router.post('/', token, isUser, createCollection)
+// 取消收藏
+router.delete('/', token, isUser, deleteCollection) // 用 query string 或 body 傳 meme_id
+// 查詢收藏
 router.get('/', getCollections)
-// 取得單一收藏
-router.get('/:id', getCollectionById)
-// 更新收藏
-router.put('/:id', updateCollection)
-// 刪除收藏
-router.delete('/:id', deleteCollection)
+// 切換收藏/取消收藏
+router.post('/toggle', token, isUser, toggleCollection)
 
 export default router
