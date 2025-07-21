@@ -16,6 +16,7 @@ import {
   twitterLogin,
 } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
+import { singleUpload } from '../middleware/upload.js'
 
 const router = express.Router()
 
@@ -23,10 +24,10 @@ const router = express.Router()
 router.post('/', createUser)
 router.get('/', token, isManager, getUsers)
 router.get('/:id', token, isManager, getUser)
-router.put('/:id', token, isManager, updateUser)
+router.put('/:id', token, isManager, singleUpload('avatar'), updateUser)
 router.delete('/:id', token, isManager, deleteUser)
 router.get('/me', token, isUser, getUser)
-router.put('/me', token, isUser, updateUser)
+router.put('/me', token, isUser, singleUpload('avatar'), updateUser)
 router.delete('/me', token, isUser, deleteUser)
 
 // 認證與社群登入

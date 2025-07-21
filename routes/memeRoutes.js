@@ -16,17 +16,18 @@ import {
 } from '../controllers/memeEditProposalController.js'
 import { token, canEditMeme, isUser } from '../middleware/auth.js'
 import { validateCreateMeme } from '../controllers/memeController.js'
+import { arrayUpload } from '../middleware/upload.js'
 
 const router = express.Router()
 
 // 建立迷因
-router.post('/', token, isUser, validateCreateMeme, createMeme)
+router.post('/', token, isUser, arrayUpload('images', 5), validateCreateMeme, createMeme)
 // 取得所有迷因
 router.get('/', getMemes)
 // 取得單一迷因
 router.get('/:id', getMemeById)
 // 更新迷因
-router.put('/:id', token, canEditMeme, updateMeme)
+router.put('/:id', token, canEditMeme, arrayUpload('images', 5), updateMeme)
 // 刪除迷因
 router.delete('/:id', token, canEditMeme, deleteMeme)
 // 新增協作者
