@@ -14,6 +14,14 @@ export const createUser = async (req, res) => {
         message: error.errors[key].message,
       })
     }
+    if (error.code === 11000) {
+      // 11000 是 MongoDB duplicate key error
+      const field = Object.keys(error.keyValue)[0]
+      return res.status(409).json({
+        success: false,
+        message: `${field} 已被註冊，請更換`,
+      })
+    }
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }
