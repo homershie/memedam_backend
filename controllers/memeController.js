@@ -14,8 +14,45 @@ export const createMeme = async (req, res) => {
     return res.status(400).json({ success: false, data: null, error: errors.array() })
   }
   try {
-    const { title, content, images } = req.body
-    const meme = new Meme({ title, content, images, user_id: req.user?._id })
+    // 取得圖片網址（多圖上傳，僅取第一張作為主圖）
+    let image_url = ''
+    if (req.files && req.files.length > 0) {
+      image_url = req.files[0].path || req.files[0].url || req.files[0].secure_url || ''
+    } else if (req.body.image_url) {
+      image_url = req.body.image_url
+    }
+
+    // 其他欄位
+    const {
+      title,
+      content = '',
+      author_id,
+      type,
+      detail_markdown,
+      tags_cache = [],
+      source_url = '',
+    } = req.body
+
+    // tags_cache 可能是字串（單一標籤），也可能是陣列
+    let tagsArr = tags_cache
+    if (typeof tags_cache === 'string') {
+      try {
+        tagsArr = JSON.parse(tags_cache)
+      } catch {
+        tagsArr = [tags_cache]
+      }
+    }
+
+    const meme = new Meme({
+      title,
+      content,
+      image_url,
+      author_id,
+      type,
+      detail_markdown,
+      tags_cache: tagsArr,
+      source_url,
+    })
     await meme.save()
     res.status(201).json({ success: true, data: meme, error: null })
   } catch (err) {

@@ -1,4 +1,5 @@
 import Dislike from '../models/Dislike.js'
+import Like from '../models/Like.js'
 import { StatusCodes } from 'http-status-codes'
 
 // 建立噓
@@ -48,6 +49,10 @@ export const toggleDislike = async (req, res) => {
       return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: '缺少 meme_id' })
     }
     const user_id = req.user._id
+
+    // 先檢查有沒有讚，有的話先刪除
+    await Like.deleteOne({ meme_id, user_id })
+
     const existing = await Dislike.findOne({ meme_id, user_id })
     if (existing) {
       // 已經噓過，則取消噓
