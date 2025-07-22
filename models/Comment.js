@@ -122,7 +122,6 @@ const CommentSchema = new mongoose.Schema(
   {
     collection: 'comments',
     timestamps: true,
-    versionKey: true,
   },
 )
 

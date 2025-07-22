@@ -320,7 +320,6 @@ const MemeSchema = new mongoose.Schema(
   {
     collection: 'memes',
     timestamps: true,
-    versionKey: true,
   },
 )
 

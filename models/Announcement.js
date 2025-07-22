@@ -73,7 +73,6 @@ const AnnouncementSchema = new mongoose.Schema(
   {
     collection: 'announcements',
     timestamps: true,
-    versionKey: true,
   },
 )
 

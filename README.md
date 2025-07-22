@@ -102,3 +102,25 @@ direction TB
     - 若有檔案上傳、第三方登入、通知推播、多語系、聚合查詢等需求，controller 需再擴充。
 
 > 本節僅供開發與維護參考，實際需求請依專案進度與業務邏輯調整。
+
+## 版本控制說明
+
+目前下列五個模型已啟用 Mongoose 內建的 versionKey（預設 \_\_v 欄位），可用於偵測資料異動衝突：
+
+- User
+- Comment
+- Announcement
+- Meme
+- Report
+
+> versionKey 只會記錄當前版本號，無法保留完整歷史內容。
+
+### 未來可擴充完整版本紀錄
+
+若需追蹤每次異動的詳細內容，建議可考慮以下做法：
+
+- 建立「歷史集合」：每次異動時將舊資料存入對應的 history collection（如 UserHistory、MemeHistory 等）。
+- 文件內嵌版本陣列：於原始文件內新增 versions 欄位，保存歷史版本。
+- 使用第三方套件：如 mongoose-version、mongoose-history 等。
+
+請依實際需求選擇合適的版本控制策略。

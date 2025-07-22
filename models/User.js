@@ -296,7 +296,6 @@ const UserSchema = new mongoose.Schema(
     },
   },
   {
-    versionKey: true,
     timestamps: true,
     collection: 'users',
   },

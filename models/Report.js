@@ -109,7 +109,6 @@ const ReportSchema = new mongoose.Schema(
   {
     collection: 'reports',
     timestamps: true,
-    versionKey: true,
   },
 )
 
