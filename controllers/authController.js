@@ -33,7 +33,8 @@ export const login = async (req, res) => {
       token,
       user: { _id: user._id, username: user.username, email: user.email },
     })
-  } catch {
+  } catch (e) {
+    console.error(e)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }

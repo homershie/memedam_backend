@@ -65,17 +65,6 @@ const UserSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, '密碼必填'],
-      minlength: [8, '密碼至少8個字元'],
-      maxlength: [20, '密碼最多20個字元'],
-      validate: {
-        validator(value) {
-          // 密碼必須包含至少一個字母和一個數字
-          const hasLetter = /[a-zA-Z]/.test(value)
-          const hasNumber = /\d/.test(value)
-          return hasLetter && hasNumber
-        },
-        message: '密碼必須包含至少一個字母和一個數字',
-      },
     },
     tokens: {
       type: [String],
