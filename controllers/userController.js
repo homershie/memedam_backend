@@ -76,3 +76,31 @@ export const deleteUser = async (req, res) => {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }
+
+// 綁定社群帳號
+export const bindSocialAccount = async (req, res) => {
+  const userId = req.user._id
+  const { provider } = req.params
+  const { socialId } = req.body // 前端應傳入社群平台的唯一 ID
+
+  // 支援的 provider
+  const validProviders = ['google', 'facebook', 'discord', 'twitter']
+  if (!validProviders.includes(provider)) {
+    return res.status(400).json({ success: false, message: '不支援的社群平台' })
+  }
+
+  // 檢查該社群 ID 是否已被其他帳號綁定
+  const query = {}
+  query[`${provider}_id`] = socialId
+  const existing = await User.findOne(query)
+  if (existing) {
+    return res.status(409).json({ success: false, message: '此社群帳號已被其他用戶綁定' })
+  }
+
+  // 綁定到目前登入的帳號
+  const user = await User.findById(userId)
+  user[`${provider}_id`] = socialId
+  await user.save()
+
+  res.json({ success: true, message: `成功綁定${provider}帳號` })
+}

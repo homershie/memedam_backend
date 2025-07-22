@@ -1,6 +1,10 @@
 import passport from 'passport'
 import passportLocal from 'passport-local'
 import passportJWT from 'passport-jwt'
+import GoogleStrategy from 'passport-google-oauth20'
+import FacebookStrategy from 'passport-facebook'
+import DiscordStrategy from 'passport-discord'
+import TwitterStrategy from '@superfaceai/passport-twitter-oauth2'
 import bcrypt from 'bcrypt'
 import User from '../models/userModel.js'
 
@@ -13,18 +17,18 @@ passport.use(
     {
       // 預設檢查 username 和 password 欄位
       // 可以修改檢查的欄位名稱
-      usernameField: 'account',
+      usernameField: 'username',
       passwordField: 'password',
     },
-    async (account, password, done) => {
+    async (username, password, done) => {
       // 檢查完帳號密碼欄位有資料後的處理
-      // account = 帳號欄位，password = 密碼欄位
+      // username = 帳號欄位，password = 密碼欄位
       // done = 驗證方法執行完成，繼續並把結果帶到下一步
       // done(錯誤, 使用者資料, info)
       try {
         // 檢查帳號或 email 是否存在
         const user = await User.findOne({
-          $or: [{ account: account }, { email: account }],
+          $or: [{ username: username }, { email: username }],
         }).orFail(new Error('帳號不存在'))
         // 檢查密碼是否正確
         const isMatch = bcrypt.compareSync(password, user.password)
@@ -99,3 +103,152 @@ passport.use(
     },
   ),
 )
+
+// Google
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: process.env.GOOGLE_REDIRECT_URI, // 改為用環境變數
+      passReqToCallback: true,
+    },
+    async (req, accessToken, refreshToken, profile, done) => {
+      try {
+        if (req.user) {
+          req.user.google_id = profile.id
+          await req.user.save()
+          return done(null, req.user)
+        } else {
+          let user = await User.findOne({ google_id: profile.id })
+          if (!user) {
+            user = new User({
+              username: profile.emails[0].value,
+              email: profile.emails[0].value,
+              google_id: profile.id,
+              display_name: profile.displayName,
+            })
+            await user.save()
+          }
+          return done(null, user)
+        }
+      } catch (err) {
+        return done(err, null)
+      }
+    },
+  ),
+)
+
+// Facebook
+passport.use(
+  new FacebookStrategy(
+    {
+      clientID: process.env.FACEBOOK_CLIENT_ID,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+      callbackURL: process.env.FACEBOOK_REDIRECT_URI, // 改為用環境變數
+      passReqToCallback: true,
+    },
+    async (req, accessToken, refreshToken, profile, done) => {
+      try {
+        if (req.user) {
+          req.user.facebook_id = profile.id
+          await req.user.save()
+          return done(null, req.user)
+        } else {
+          let user = await User.findOne({ facebook_id: profile.id })
+          if (!user) {
+            user = new User({
+              username: profile.emails[0].value,
+              email: profile.emails[0].value,
+              facebook_id: profile.id,
+              display_name: profile.displayName,
+            })
+            await user.save()
+          }
+          return done(null, user)
+        }
+      } catch (err) {
+        return done(err, null)
+      }
+    },
+  ),
+)
+
+// Discord
+passport.use(
+  new DiscordStrategy(
+    {
+      clientID: process.env.DISCORD_CLIENT_ID,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET,
+      callbackURL: process.env.DISCORD_REDIRECT_URI, // 改為用環境變數
+      passReqToCallback: true,
+    },
+    async (req, accessToken, refreshToken, profile, done) => {
+      try {
+        if (req.user) {
+          req.user.discord_id = profile.id
+          await req.user.save()
+          return done(null, req.user)
+        } else {
+          let user = await User.findOne({ discord_id: profile.id })
+          if (!user) {
+            user = new User({
+              username: profile.emails[0].value,
+              email: profile.emails[0].value,
+              discord_id: profile.id,
+              display_name: profile.displayName,
+            })
+            await user.save()
+          }
+          return done(null, user)
+        }
+      } catch (err) {
+        return done(err, null)
+      }
+    },
+  ),
+)
+
+// Twitter
+passport.use(
+  new TwitterStrategy(
+    {
+      clientID: process.env.TWITTER_CLIENT_ID,
+      clientSecret: process.env.TWITTER_CLIENT_SECRET,
+      callbackURL: process.env.TWITTER_REDIRECT_URI, // 改為用環境變數
+      passReqToCallback: true,
+    },
+    async (req, accessToken, refreshToken, profile, done) => {
+      try {
+        if (req.user) {
+          req.user.twitter_id = profile.id
+          await req.user.save()
+          return done(null, req.user)
+        } else {
+          let user = await User.findOne({ twitter_id: profile.id })
+          if (!user) {
+            user = new User({
+              username: profile.emails[0].value,
+              email: profile.emails?.[0]?.value || '',
+              twitter_id: profile.id,
+              display_name: profile.displayName,
+            })
+            await user.save()
+          }
+          return done(null, user)
+        }
+      } catch (err) {
+        return done(err, null)
+      }
+    },
+  ),
+)
+
+passport.serializeUser((user, done) => {
+  done(null, user.id)
+})
+
+passport.deserializeUser(async (id, done) => {
+  const user = await User.findById(id)
+  done(null, user)
+})

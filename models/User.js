@@ -89,9 +89,10 @@ const UserSchema = new mongoose.Schema(
         message: '最多只能有3個有效的登入token',
       },
     },
-    google_id: { type: String, default: '' },
-    facebook_id: { type: String, default: '' },
-    discord_id: { type: String, default: '' },
+    google_id: { type: String, unique: true, sparse: true, default: '' },
+    facebook_id: { type: String, unique: true, sparse: true, default: '' },
+    discord_id: { type: String, unique: true, sparse: true, default: '' },
+    twitter_id: { type: String, unique: true, sparse: true, default: '' },
     avatar: {
       type: String,
       default: '',
@@ -137,9 +138,9 @@ const UserSchema = new mongoose.Schema(
       enum: ['user', 'admin', 'auditor', 'manager'],
       validate: {
         validator(value) {
-          return ['user', 'admin', 'auditor', 'manager'].includes(value)
+          return ['user', 'vip', 'admin', 'manager'].includes(value)
         },
-        message: '角色只能是 user、admin、auditor 或 manager',
+        message: '角色只能是 user、vip、admin、manager',
       },
     },
     status: {
@@ -185,6 +186,7 @@ const UserSchema = new mongoose.Schema(
         message: '生日不能是未來日期',
       },
     },
+
     last_login_at: {
       type: Date,
       validate: {
