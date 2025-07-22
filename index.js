@@ -6,6 +6,9 @@ import morgan from 'morgan'
 import passport from 'passport'
 import rateLimit from 'express-rate-limit'
 import { StatusCodes } from 'http-status-codes'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import userRoutes from './routes/userRoutes.js'
 import memeRoutes from './routes/memeRoutes.js'
 import commentRoutes from './routes/commentRoutes.js'
@@ -24,6 +27,7 @@ import connectDB from './config/db.js'
 import errorHandler from './middleware/errorHandler.js'
 import apiLimiter from './middleware/rateLimit.js'
 
+// 資料庫連線
 connectDB()
   .then(() => {
     console.log('資料庫連線成功')
@@ -34,8 +38,10 @@ connectDB()
     console.error('資料庫連線失敗', error)
   })
 
+// 建立 Express 應用程式
 const app = express()
 
+// 登入路徑限流
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10, // 登入路徑每 15 分鐘最多 10 次
@@ -45,7 +51,13 @@ const loginLimiter = rateLimit({
   },
 })
 
+// 設定日誌
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' })
+
 app.use(cors())
+app.use(morgan('combined', { stream: accessLogStream }))
 app.use(morgan('dev'))
 app.use(express.json())
 app.use(passport.initialize())

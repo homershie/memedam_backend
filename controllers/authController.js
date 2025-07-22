@@ -5,20 +5,23 @@ import { signToken } from '../utils/jwt.js'
 
 // 本地帳密登入
 export const login = async (req, res) => {
-  const { username, password } = req.body
+  const { login, password } = req.body
   try {
-    const user = await User.findOne({ username })
+    // 支援帳號或信箱登入
+    const user = await User.findOne({
+      $or: [{ username: login }, { email: login }],
+    })
     if (!user) {
       return res
         .status(StatusCodes.UNAUTHORIZED)
-        .json({ success: false, message: '帳號或密碼錯誤' })
+        .json({ success: false, message: '帳號、信箱或密碼錯誤' })
     }
     // 密碼比對
     const isMatch = await bcrypt.compare(password, user.password)
     if (!isMatch) {
       return res
         .status(StatusCodes.UNAUTHORIZED)
-        .json({ success: false, message: '帳號或密碼錯誤' })
+        .json({ success: false, message: '帳號、信箱或密碼錯誤' })
     }
     // 產生 JWT token
     const token = signToken({ _id: user._id })
