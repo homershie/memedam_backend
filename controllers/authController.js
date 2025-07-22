@@ -60,32 +60,3 @@ export const refresh = async (req, res) => {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }
-
-// Google 登入（OAuth2 callback）
-export const googleLogin = async (req, res) => {
-  // 這裡應串接 Google OAuth2，取得 user profile 後查找或建立 User
-  // req.user = Google 驗證後的 user profile
-  // 實際應用請串接 passport-google-oauth20 或 Google API
-  res.json({ success: true, message: 'Google 登入成功（請串接 OAuth2）' })
-}
-
-// Facebook 登入（OAuth2 callback）
-export const facebookLogin = async (req, res) => {
-  // 這裡應串接 Facebook OAuth2，取得 user profile 後查找或建立 User
-  // req.user = Facebook 驗證後的 user profile
-  res.json({ success: true, message: 'Facebook 登入成功（請串接 OAuth2）' })
-}
-
-// Discord 登入（OAuth2 callback）
-export const discordLogin = async (req, res) => {
-  // 這裡應串接 Discord OAuth2，取得 user profile 後查找或建立 User
-  // req.user = Discord 驗證後的 user profile
-  res.json({ success: true, message: 'Discord 登入成功（請串接 OAuth2）' })
-}
-
-// Twitter 登入（OAuth2 callback）
-export const twitterLogin = async (req, res) => {
-  // 這裡應串接 Twitter OAuth2，取得 user profile 後查找或建立 User
-  // req.user = Twitter 驗證後的 user profile
-  res.json({ success: true, message: 'Twitter 登入成功（請串接 OAuth2）' })
-}

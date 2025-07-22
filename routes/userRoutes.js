@@ -7,18 +7,11 @@ import {
   deleteUser,
   bindSocialAccount,
 } from '../controllers/userController.js'
-import {
-  login,
-  logout,
-  refresh,
-  googleLogin,
-  facebookLogin,
-  discordLogin,
-  twitterLogin,
-} from '../controllers/authController.js'
+import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
 import { singleUpload } from '../middleware/upload.js'
 import passport from 'passport'
+import { signToken } from '../utils/jwt.js'
 
 const router = express.Router()
 
@@ -36,10 +29,6 @@ router.delete('/me', token, isUser, deleteUser)
 router.post('/login', login)
 router.post('/logout', token, logout)
 router.post('/refresh', token, refresh)
-router.get('/auth/google/callback', googleLogin)
-router.get('/auth/facebook/callback', facebookLogin)
-router.get('/auth/discord/callback', discordLogin)
-router.get('/auth/twitter/callback', twitterLogin)
 
 // 綁定社群帳號
 router.post('/bind/:provider', token, bindSocialAccount)
@@ -51,9 +40,20 @@ router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 
 router.get(
   '/users/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/login' }),
-  (req, res) => {
-    // 登入成功，導向前端或回傳 token
-    res.redirect('/') // 或自訂 callback 處理
+  async (req, res) => {
+    try {
+      // 登入成功，產生 JWT token
+      const token = signToken({ _id: req.user._id })
+      req.user.tokens = req.user.tokens || []
+      req.user.tokens.push(token)
+      await req.user.save()
+
+      // 可以導向前端並帶上 token，或直接回傳 JSON
+      res.redirect(`/?token=${token}`) // 或改為 res.json({ success: true, token, user: req.user })
+    } catch (error) {
+      console.error('Google OAuth callback 錯誤:', error)
+      res.redirect('/login?error=server_error')
+    }
   },
 )
 
@@ -64,9 +64,18 @@ router.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'
 router.get(
   '/users/auth/facebook/callback',
   passport.authenticate('facebook', { failureRedirect: '/login' }),
-  (req, res) => {
-    // 登入成功，導向前端或回傳 token
-    res.redirect('/') // 或自訂 callback 處理
+  async (req, res) => {
+    try {
+      const token = signToken({ _id: req.user._id })
+      req.user.tokens = req.user.tokens || []
+      req.user.tokens.push(token)
+      await req.user.save()
+
+      res.redirect(`/?token=${token}`)
+    } catch (error) {
+      console.error('Facebook OAuth callback 錯誤:', error)
+      res.redirect('/login?error=server_error')
+    }
   },
 )
 
@@ -76,10 +85,19 @@ router.get('/auth/discord', passport.authenticate('discord'))
 // Discord OAuth callback
 router.get(
   '/users/auth/discord/callback',
-  passport.authenticate('discord', { failureRedirect: '/login', successRedirect: '/' }),
-  (req, res) => {
-    // 登入成功，導向前端或回傳 token
-    res.redirect('/') // 或自訂 callback 處理
+  passport.authenticate('discord', { failureRedirect: '/login' }),
+  async (req, res) => {
+    try {
+      const token = signToken({ _id: req.user._id })
+      req.user.tokens = req.user.tokens || []
+      req.user.tokens.push(token)
+      await req.user.save()
+
+      res.redirect(`/?token=${token}`)
+    } catch (error) {
+      console.error('Discord OAuth callback 錯誤:', error)
+      res.redirect('/login?error=server_error')
+    }
   },
 )
 // Twitter OAuth callback
@@ -91,9 +109,18 @@ router.get('/auth/twitter', passport.authenticate('twitter-oauth2'))
 router.get(
   '/users/auth/twitter/callback',
   passport.authenticate('twitter-oauth2', { failureRedirect: '/login' }),
-  function (req, res) {
-    // 登入成功，導向前端或回傳 token
-    res.redirect('/') // 或自訂 callback 處理
+  async (req, res) => {
+    try {
+      const token = signToken({ _id: req.user._id })
+      req.user.tokens = req.user.tokens || []
+      req.user.tokens.push(token)
+      await req.user.save()
+
+      res.redirect(`/?token=${token}`)
+    } catch (error) {
+      console.error('Twitter OAuth callback 錯誤:', error)
+      res.redirect('/login?error=server_error')
+    }
   },
 )
 

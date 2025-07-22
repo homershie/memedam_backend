@@ -6,7 +6,7 @@ import FacebookStrategy from 'passport-facebook'
 import DiscordStrategy from 'passport-discord'
 import TwitterStrategy from '@superfaceai/passport-twitter-oauth2'
 import bcrypt from 'bcrypt'
-import User from '../models/userModel.js'
+import User from '../models/User.js'
 
 // 定義自己的驗證方法
 // passport.use(驗證方法名稱, 驗證策略(策略設定, 策略執行完畢的 callback))
@@ -123,8 +123,8 @@ passport.use(
           let user = await User.findOne({ google_id: profile.id })
           if (!user) {
             user = new User({
-              username: profile.emails[0].value,
-              email: profile.emails[0].value,
+              username: profile.emails?.[0]?.value || profile.id,
+              email: profile.emails?.[0]?.value || '',
               google_id: profile.id,
               display_name: profile.displayName,
             })
@@ -158,8 +158,8 @@ passport.use(
           let user = await User.findOne({ facebook_id: profile.id })
           if (!user) {
             user = new User({
-              username: profile.emails[0].value,
-              email: profile.emails[0].value,
+              username: profile.emails?.[0]?.value || profile.id,
+              email: profile.emails?.[0]?.value || '',
               facebook_id: profile.id,
               display_name: profile.displayName,
             })
@@ -193,8 +193,8 @@ passport.use(
           let user = await User.findOne({ discord_id: profile.id })
           if (!user) {
             user = new User({
-              username: profile.emails[0].value,
-              email: profile.emails[0].value,
+              username: profile.emails?.[0]?.value || profile.id,
+              email: profile.emails?.[0]?.value || '',
               discord_id: profile.id,
               display_name: profile.displayName,
             })
@@ -228,7 +228,7 @@ passport.use(
           let user = await User.findOne({ twitter_id: profile.id })
           if (!user) {
             user = new User({
-              username: profile.emails[0].value,
+              username: profile.username || profile.id,
               email: profile.emails?.[0]?.value || '',
               twitter_id: profile.id,
               display_name: profile.displayName,
