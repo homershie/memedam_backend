@@ -6,6 +6,9 @@ import {
   updateUser,
   deleteUser,
   bindSocialAccount,
+  getMe, // 新增 getMe
+  updateMe, // 新增
+  deleteMe, // 新增
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -18,12 +21,12 @@ const router = express.Router()
 // 使用者 CRUD
 router.post('/', createUser)
 router.get('/', token, isManager, getUsers)
+router.get('/me', token, isUser, getMe)
+router.put('/me', token, isUser, singleUpload('avatar'), updateMe)
+router.delete('/me', token, isUser, deleteMe)
 router.get('/:id', token, isManager, getUser)
 router.put('/:id', token, isManager, singleUpload('avatar'), updateUser)
 router.delete('/:id', token, isManager, deleteUser)
-router.get('/me', token, isUser, getUser)
-router.put('/me', token, isUser, singleUpload('avatar'), updateUser)
-router.delete('/me', token, isUser, deleteUser)
 
 // 認證與社群登入
 router.post('/login', login)

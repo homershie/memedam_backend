@@ -121,3 +121,52 @@ export const bindSocialAccount = async (req, res) => {
     res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 }
+
+// 取得自己的使用者資料
+export const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password -tokens')
+    if (!user) {
+      return res.status(404).json({ success: false, message: '找不到使用者' })
+    }
+    res.json({ success: true, user })
+  } catch {
+    res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+}
+
+// 更新自己的資料
+export const updateMe = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(req.user._id, req.body, {
+      new: true,
+      runValidators: true,
+    })
+    if (!user) {
+      return res.status(404).json({ success: false, message: '找不到使用者' })
+    }
+    res.json({ success: true, user })
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      const key = Object.keys(error.errors)[0]
+      return res.status(400).json({
+        success: false,
+        message: error.errors[key].message,
+      })
+    }
+    res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+}
+
+// 刪除自己的帳號
+export const deleteMe = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.user._id)
+    if (!user) {
+      return res.status(404).json({ success: false, message: '找不到使用者' })
+    }
+    res.json({ success: true, message: '使用者已刪除' })
+  } catch {
+    res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+}
