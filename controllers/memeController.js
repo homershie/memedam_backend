@@ -26,12 +26,14 @@ export const createMeme = async (req, res) => {
     const {
       title,
       content = '',
-      author_id,
       type,
       detail_markdown,
       tags_cache = [],
       source_url = '',
     } = req.body
+
+    // 從認證中間件獲取用戶ID
+    const author_id = req.user._id
 
     // tags_cache 可能是字串（單一標籤），也可能是陣列
     let tagsArr = tags_cache

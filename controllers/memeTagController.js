@@ -2,10 +2,77 @@ import MemeTag from '../models/MemeTag.js'
 import Meme from '../models/Meme.js'
 import Tag from '../models/Tag.js'
 
-// 建立迷因標籤關聯
+// 建立迷因標籤關聯（支援單一和批量創建）
 export const createMemeTag = async (req, res) => {
   try {
-    const { meme_id, tag_id, lang } = req.body
+    // 檢查是否為批量創建格式
+    const { meme_id, tag_id, tag_ids, tagIds, lang = 'zh' } = req.body
+
+    // 批量創建邏輯（兼容前端格式）
+    if (tag_ids || tagIds) {
+      const batchTagIds = tag_ids || tagIds
+
+      if (!Array.isArray(batchTagIds) || batchTagIds.length === 0) {
+        return res.status(400).json({ error: '標籤ID陣列不能為空' })
+      }
+
+      if (!meme_id) {
+        return res.status(400).json({ error: '迷因ID為必填' })
+      }
+
+      // 驗證 Meme 是否存在
+      const memeExists = await Meme.findById(meme_id)
+      if (!memeExists) {
+        return res.status(404).json({ error: '指定的迷因不存在' })
+      }
+
+      // 驗證所有 Tag 是否存在
+      const tagsExist = await Tag.find({ _id: { $in: batchTagIds } })
+      if (tagsExist.length !== batchTagIds.length) {
+        return res.status(404).json({ error: '部分標籤不存在' })
+      }
+
+      // 檢查已存在的關聯
+      const existingMemeTags = await MemeTag.find({
+        meme_id,
+        tag_id: { $in: batchTagIds },
+        lang,
+      })
+
+      const existingTagIds = existingMemeTags.map((mt) => mt.tag_id.toString())
+      const newTagIds = batchTagIds.filter((tagId) => !existingTagIds.includes(tagId))
+
+      if (newTagIds.length === 0) {
+        return res.status(400).json({ error: '所有標籤都已存在關聯' })
+      }
+
+      // 批量創建新的關聯
+      const newMemeTags = newTagIds.map((tag_id) => ({
+        meme_id,
+        tag_id,
+        lang,
+      }))
+
+      const createdMemeTags = await MemeTag.insertMany(newMemeTags)
+
+      // 返回創建結果
+      const populatedMemeTags = await MemeTag.find({
+        _id: { $in: createdMemeTags.map((mt) => mt._id) },
+      })
+        .populate('meme_id', 'title')
+        .populate('tag_id', 'name')
+
+      return res.status(201).json({
+        message: `成功添加 ${createdMemeTags.length} 個標籤關聯`,
+        created: populatedMemeTags,
+        skipped: existingTagIds.length,
+      })
+    }
+
+    // 單一創建邏輯
+    if (!meme_id || !tag_id) {
+      return res.status(400).json({ error: '迷因ID和標籤ID為必填' })
+    }
 
     // 驗證 Meme 是否存在
     const memeExists = await Meme.findById(meme_id)
@@ -23,7 +90,7 @@ export const createMemeTag = async (req, res) => {
     const existingMemeTag = await MemeTag.findOne({
       meme_id,
       tag_id,
-      lang: lang || 'zh',
+      lang,
     })
 
     if (existingMemeTag) {
@@ -32,7 +99,7 @@ export const createMemeTag = async (req, res) => {
       })
     }
 
-    const memeTag = new MemeTag(req.body)
+    const memeTag = new MemeTag({ meme_id, tag_id, lang })
     await memeTag.save()
 
     // 返回完整信息（populate）
@@ -49,9 +116,14 @@ export const createMemeTag = async (req, res) => {
 // 批量為迷因添加標籤
 export const batchCreateMemeTags = async (req, res) => {
   try {
-    const { meme_id, tag_ids, lang = 'zh' } = req.body
+    // 優先從URL參數獲取meme_id，如果沒有則從body獲取
+    const meme_id = req.params.memeId || req.body.meme_id
+    const { tag_ids, tagIds, lang = 'zh' } = req.body
 
-    if (!Array.isArray(tag_ids) || tag_ids.length === 0) {
+    // 兼容前端的tagIds格式
+    const batchTagIds = tag_ids || tagIds
+
+    if (!Array.isArray(batchTagIds) || batchTagIds.length === 0) {
       return res.status(400).json({ error: '標籤ID陣列不能為空' })
     }
 
@@ -62,20 +134,20 @@ export const batchCreateMemeTags = async (req, res) => {
     }
 
     // 驗證所有 Tag 是否存在
-    const tagsExist = await Tag.find({ _id: { $in: tag_ids } })
-    if (tagsExist.length !== tag_ids.length) {
+    const tagsExist = await Tag.find({ _id: { $in: batchTagIds } })
+    if (tagsExist.length !== batchTagIds.length) {
       return res.status(404).json({ error: '部分標籤不存在' })
     }
 
     // 檢查已存在的關聯
     const existingMemeTags = await MemeTag.find({
       meme_id,
-      tag_id: { $in: tag_ids },
+      tag_id: { $in: batchTagIds },
       lang,
     })
 
     const existingTagIds = existingMemeTags.map((mt) => mt.tag_id.toString())
-    const newTagIds = tag_ids.filter((tagId) => !existingTagIds.includes(tagId))
+    const newTagIds = batchTagIds.filter((tagId) => !existingTagIds.includes(tagId))
 
     if (newTagIds.length === 0) {
       return res.status(400).json({ error: '所有標籤都已存在關聯' })

@@ -31,24 +31,30 @@ export const getTags = async (req, res) => {
     if (req.query.lang) filter.lang = req.query.lang
     if (req.query.name) filter.name = new RegExp(req.query.name, 'i') // 模糊搜尋
 
-    // 添加分頁支援
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 50
-    const skip = (page - 1) * limit
+    // 如果有分頁參數，回傳完整格式；否則回傳簡單陣列格式
+    if (req.query.page || req.query.limit) {
+      // 添加分頁支援
+      const page = parseInt(req.query.page) || 1
+      const limit = parseInt(req.query.limit) || 50
+      const skip = (page - 1) * limit
 
-    const tags = await Tag.find(filter).sort({ name: 1 }).skip(skip).limit(limit)
+      const tags = await Tag.find(filter).sort({ name: 1 }).skip(skip).limit(limit)
+      const total = await Tag.countDocuments(filter)
 
-    const total = await Tag.countDocuments(filter)
-
-    res.json({
-      tags,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    })
+      res.json({
+        tags,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      })
+    } else {
+      // 簡單格式，直接回傳標籤陣列（適用於前端下拉選單等用途）
+      const tags = await Tag.find(filter).sort({ name: 1 }).limit(200) // 限制200個避免過多
+      res.json(tags)
+    }
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

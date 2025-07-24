@@ -16,7 +16,9 @@ const router = express.Router()
 
 // 建立迷因標籤關聯
 router.post('/', token, isUser, createMemeTag)
-// 批量為迷因添加標籤
+// 批量為迷因添加標籤（匹配前端調用格式）
+router.post('/:memeId/batch', token, isUser, batchCreateMemeTags)
+// 批量為迷因添加標籤（兼容舊格式）
 router.post('/batch', token, isUser, batchCreateMemeTags)
 // 取得所有迷因標籤關聯 - 公開API
 router.get('/', getMemeTags)
