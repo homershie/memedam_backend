@@ -327,16 +327,30 @@ UserSchema.pre('save', function (next) {
   next()
 })
 
-// 虛擬的動態欄位
-// 資料庫中不會儲存 cartTotal 欄位
-// 自動計算購物車總數量
-// 當 cart 內容改變時，cartTotal 會自動反映最新狀態
-UserSchema.virtual('cartTotal').get(function () {
-  // this = 現在的資料
+// 虛擬欄位：自動生成頭像
+// 如果用戶沒有上傳 avatar，則使用 Dicebear API 生成
+UserSchema.virtual('avatarUrl').get(function () {
   const user = this
-  return user.cart.reduce((total, item) => {
-    return total + item.quantity
-  }, 0)
+  // 如果有自訂頭像，使用自訂頭像
+  if (user.avatar && user.avatar.trim().length > 0) {
+    return user.avatar
+  }
+  // 沒有頭像時，使用 Dicebear API 生成，以 username 作為 seed
+  return `https://api.dicebear.com/9.x/notionists-neutral/svg?seed=${encodeURIComponent(user.username)}`
 })
+
+// 確保虛擬欄位在 JSON 序列化時包含進來
+UserSchema.set('toJSON', {
+  virtuals: true,
+  transform: function (doc, ret) {
+    // 移除敏感資訊
+    delete ret.password
+    delete ret.tokens
+    delete ret.__v
+    return ret
+  },
+})
+
+UserSchema.set('toObject', { virtuals: true })
 
 export default mongoose.model('User', UserSchema)

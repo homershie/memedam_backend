@@ -5,7 +5,11 @@ import { StatusCodes } from 'http-status-codes'
 export const createUser = async (req, res) => {
   try {
     const user = await User.create(req.body)
-    res.status(StatusCodes.CREATED).json({ success: true, user })
+    // 回傳完整用戶資料（包含 avatarUrl），但移除敏感資訊
+    const userObj = user.toJSON()
+    delete userObj.password
+    delete userObj.tokens
+    res.status(StatusCodes.CREATED).json({ success: true, user: userObj })
   } catch (error) {
     if (error.name === 'ValidationError') {
       const key = Object.keys(error.errors)[0]

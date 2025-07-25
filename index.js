@@ -22,6 +22,7 @@ import tagRoutes from './routes/tagRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
 import announcementRoutes from './routes/announcementRoutes.js'
 import memeVersionRoutes from './routes/memeVersionRoutes.js'
+import uploadRoutes from './routes/uploadRoutes.js'
 import './config/passport.js'
 import connectDB from './config/db.js'
 import errorHandler from './middleware/errorHandler.js'
@@ -61,10 +62,10 @@ app.use(morgan('combined', { stream: accessLogStream }))
 app.use(morgan('dev'))
 app.use(express.json())
 app.use(passport.initialize())
-app.use(apiLimiter)
+// 移除全域 apiLimiter，改成針對特定路由
 
 app.use('/users', userRoutes)
-app.use('/memes', memeRoutes)
+app.use('/memes', memeRoutes) // 迷因相關不限流，允許頻繁排序、篩選
 app.use('/comments', commentRoutes)
 app.use('/collections', collectionRoutes)
 app.use('/dislikes', dislikeRoutes)
@@ -76,7 +77,10 @@ app.use('/tags', tagRoutes)
 app.use('/notifications', notificationRoutes)
 app.use('/announcements', announcementRoutes)
 app.use('/meme-versions', memeVersionRoutes)
-app.use('/users/login', loginLimiter)
+app.use('/api/upload', uploadRoutes)
+app.use('/users/login', loginLimiter) // 登入特別限流
+app.use('/users/register', apiLimiter) // 註冊限流
+app.use('/users/forgot-password', apiLimiter) // 忘記密碼限流
 
 app.all(/.*/, (req, res) => {
   res.status(StatusCodes.NOT_FOUND).json({

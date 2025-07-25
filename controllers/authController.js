@@ -28,10 +28,16 @@ export const login = async (req, res) => {
     user.tokens = user.tokens || []
     user.tokens.push(token)
     await user.save()
+
+    // 回傳完整用戶資料（包含 avatarUrl），但移除敏感資訊
+    const userObj = user.toJSON()
+    delete userObj.password
+    delete userObj.tokens
+
     res.json({
       success: true,
       token,
-      user: { _id: user._id, username: user.username, email: user.email, role: user.role },
+      user: userObj,
     })
   } catch (e) {
     console.error(e)

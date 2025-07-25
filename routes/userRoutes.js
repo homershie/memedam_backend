@@ -24,7 +24,7 @@ router.get('/', token, isManager, getUsers)
 router.get('/me', token, isUser, getMe)
 router.put('/me', token, isUser, singleUpload('avatar'), updateMe)
 router.delete('/me', token, isUser, deleteMe)
-router.get('/:id', token, isManager, getUser)
+router.get('/:id', getUser)
 router.put('/:id', token, isManager, singleUpload('avatar'), updateUser)
 router.delete('/:id', token, isManager, deleteUser)
 
