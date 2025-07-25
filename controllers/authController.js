@@ -37,6 +37,7 @@ export const login = async (req, res) => {
     res.json({
       success: true,
       token,
+      userId: userObj._id,
       user: userObj,
     })
   } catch (e) {
