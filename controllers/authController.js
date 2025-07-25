@@ -38,6 +38,7 @@ export const login = async (req, res) => {
       success: true,
       token,
       userId: userObj._id,
+      role: userObj.role,
       user: userObj,
     })
   } catch (e) {
