@@ -2,6 +2,7 @@ import Dislike from '../models/Dislike.js'
 import Like from '../models/Like.js'
 import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
+import { executeTransaction } from '../utils/transaction.js'
 
 // 建立噓
 export const createDislike = async (req, res) => {
@@ -11,19 +12,24 @@ export const createDislike = async (req, res) => {
       return res.status(400).json({ success: false, data: null, error: '缺少 meme_id' })
     }
 
-    // 檢查迷因是否存在
-    const meme = await Meme.findById(meme_id)
-    if (!meme) {
-      return res.status(404).json({ success: false, data: null, error: '迷因不存在' })
-    }
+    // 使用事務處理
+    const result = await executeTransaction(async (session) => {
+      // 檢查迷因是否存在
+      const meme = await Meme.findById(meme_id).session(session)
+      if (!meme) {
+        throw new Error('迷因不存在')
+      }
 
-    const dislike = new Dislike({ meme_id, user_id: req.user?._id })
-    await dislike.save()
+      const dislike = new Dislike({ meme_id, user_id: req.user?._id })
+      await dislike.save({ session })
 
-    // 更新迷因的按噓數
-    await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: 1 } })
+      // 更新迷因的按噓數
+      await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: 1 } }, { session })
 
-    res.status(201).json({ success: true, data: dislike, error: null })
+      return dislike
+    })
+
+    res.status(201).json({ success: true, data: result, error: null })
   } catch (err) {
     res.status(500).json({ success: false, data: null, error: err.message })
   }
@@ -62,23 +68,28 @@ export const toggleDislike = async (req, res) => {
     }
     const user_id = req.user._id
 
-    // 先檢查有沒有讚，有的話先刪除
-    await Like.deleteOne({ meme_id, user_id })
+    // 使用事務處理
+    const result = await executeTransaction(async (session) => {
+      // 先檢查有沒有讚，有的話先刪除
+      await Like.deleteOne({ meme_id, user_id }, { session })
 
-    const existing = await Dislike.findOne({ meme_id, user_id })
-    if (existing) {
-      // 已經噓過，則取消噓
-      await existing.deleteOne()
-      // 更新迷因的按噓數（減少）
-      await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: -1 } })
-      return res.json({ success: true, action: 'removed' })
-    } else {
-      // 尚未噓過，則新增
-      await Dislike.create({ meme_id, user_id })
-      // 更新迷因的按噓數（增加）
-      await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: 1 } })
-      return res.json({ success: true, action: 'added' })
-    }
+      const existing = await Dislike.findOne({ meme_id, user_id }).session(session)
+      if (existing) {
+        // 已經噓過，則取消噓
+        await existing.deleteOne({ session })
+        // 更新迷因的按噓數（減少）
+        await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: -1 } }, { session })
+        return { action: 'removed' }
+      } else {
+        // 尚未噓過，則新增
+        await Dislike.create([{ meme_id, user_id }], { session })
+        // 更新迷因的按噓數（增加）
+        await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: 1 } }, { session })
+        return { action: 'added' }
+      }
+    })
+
+    return res.json({ success: true, ...result })
   } catch {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }

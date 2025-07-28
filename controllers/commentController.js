@@ -1,6 +1,7 @@
 import Comment from '../models/Comment.js'
 import Meme from '../models/Meme.js'
 import { body, validationResult } from 'express-validator'
+import { executeTransaction } from '../utils/transaction.js'
 
 // 建立留言
 export const validateCreateComment = [
@@ -15,19 +16,24 @@ export const createComment = async (req, res) => {
   try {
     const { content, meme_id, parent_id } = req.body // 僅允許這三個欄位
 
-    // 檢查迷因是否存在
-    const meme = await Meme.findById(meme_id)
-    if (!meme) {
-      return res.status(404).json({ success: false, data: null, error: '迷因不存在' })
-    }
+    // 使用事務處理
+    const result = await executeTransaction(async (session) => {
+      // 檢查迷因是否存在
+      const meme = await Meme.findById(meme_id).session(session)
+      if (!meme) {
+        throw new Error('迷因不存在')
+      }
 
-    const comment = new Comment({ content, meme_id, parent_id, user_id: req.user?._id })
-    await comment.save()
+      const comment = new Comment({ content, meme_id, parent_id, user_id: req.user?._id })
+      await comment.save({ session })
 
-    // 更新迷因的留言數
-    await Meme.findByIdAndUpdate(meme_id, { $inc: { comment_count: 1 } })
+      // 更新迷因的留言數
+      await Meme.findByIdAndUpdate(meme_id, { $inc: { comment_count: 1 } }, { session })
 
-    res.status(201).json({ success: true, data: comment, error: null })
+      return comment
+    })
+
+    res.status(201).json({ success: true, data: result, error: null })
   } catch (err) {
     res.status(500).json({ success: false, data: null, error: err.message })
   }
@@ -74,18 +80,25 @@ export const updateComment = async (req, res) => {
 // 刪除留言
 export const deleteComment = async (req, res) => {
   try {
-    const comment = await Comment.findById(req.params.id)
-    if (!comment) return res.status(404).json({ error: '找不到留言' })
+    // 使用事務處理
+    const result = await executeTransaction(async (session) => {
+      const comment = await Comment.findById(req.params.id).session(session)
+      if (!comment) {
+        throw new Error('找不到留言')
+      }
 
-    // 記錄迷因ID，用於更新計數
-    const meme_id = comment.meme_id
+      // 記錄迷因ID，用於更新計數
+      const meme_id = comment.meme_id
 
-    await Comment.findByIdAndDelete(req.params.id)
+      await Comment.findByIdAndDelete(req.params.id, { session })
 
-    // 更新迷因的留言數（減少）
-    await Meme.findByIdAndUpdate(meme_id, { $inc: { comment_count: -1 } })
+      // 更新迷因的留言數（減少）
+      await Meme.findByIdAndUpdate(meme_id, { $inc: { comment_count: -1 } }, { session })
 
-    res.json({ message: '留言已刪除' })
+      return { message: '留言已刪除' }
+    })
+
+    res.json(result)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
