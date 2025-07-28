@@ -30,6 +30,8 @@ export const createMeme = async (req, res) => {
       detail_markdown,
       tags_cache = [],
       source_url = '',
+      video_url = '',
+      audio_url = '',
     } = req.body
 
     // 從認證中間件獲取用戶ID
@@ -49,6 +51,8 @@ export const createMeme = async (req, res) => {
       title,
       content,
       image_url,
+      video_url,
+      audio_url,
       author_id,
       type,
       detail_markdown,
