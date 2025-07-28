@@ -1,13 +1,16 @@
 {
-  "name": "20250625_backend",
+  "name": "memedex_backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "迷因典的後端API",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "start": "node index.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "keywords": [],
-  "author": "",
+  "author": "homershie",
   "license": "ISC",
   "type": "module",
   "dependencies": {
