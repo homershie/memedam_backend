@@ -8,6 +8,7 @@ import {
   addEditor,
   removeEditor,
   getMemesByTags,
+  getSearchSuggestions,
 } from '../controllers/memeController.js'
 import {
   proposeEdit,
@@ -25,6 +26,8 @@ const router = express.Router()
 router.post('/', token, isUser, arrayUpload('images', 5), validateCreateMeme, createMeme)
 // 取得所有迷因
 router.get('/', getMemes)
+// 搜尋建議
+router.get('/search-suggestions', getSearchSuggestions)
 // 進階標籤篩選
 router.get('/by-tags', getMemesByTags)
 // 取得單一迷因

@@ -3,6 +3,8 @@ import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
 import MemeTag from '../models/MemeTag.js' // Added import for MemeTag
 import { processSearchResults, combineSearchFilters } from '../utils/search.js'
+import Tag from '../models/Tag.js'
+import User from '../models/User.js'
 
 // 建立迷因
 export const validateCreateMeme = [
@@ -659,5 +661,209 @@ export const getMemesByTags = async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ error: err.message })
+  }
+}
+
+// 取得搜尋建議
+export const getSearchSuggestions = async (req, res) => {
+  try {
+    const {
+      q = '',
+      limit = 10,
+      type = 'all', // all, keywords, tags, authors
+    } = req.query
+
+    const searchTerm = q.trim()
+    const limitNum = Math.min(parseInt(limit), 50) // 最多返回50個建議
+
+    const suggestions = {
+      keywords: [],
+      tags: [],
+      authors: [],
+    }
+
+    // 如果沒有搜尋詞，返回熱門建議
+    if (!searchTerm) {
+      // 取得熱門標籤（基於使用頻率）
+      if (type === 'all' || type === 'tags') {
+        const popularTags = await Meme.aggregate([
+          { $match: { status: 'public' } },
+          { $unwind: '$tags_cache' },
+          { $group: { _id: '$tags_cache', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: limitNum },
+          { $project: { _id: 0, name: '$_id', count: 1 } },
+        ])
+        suggestions.tags = popularTags
+      }
+
+      // 取得熱門關鍵字（基於最近搜尋的迷因標題）
+      if (type === 'all' || type === 'keywords') {
+        const popularKeywords = await Meme.aggregate([
+          { $match: { status: 'public' } },
+          { $sort: { views: -1 } },
+          { $limit: limitNum },
+          { $project: { _id: 0, title: 1, views: 1 } },
+        ])
+        suggestions.keywords = popularKeywords.map((item) => ({
+          text: item.title,
+          views: item.views,
+        }))
+      }
+
+      // 取得活躍作者
+      if (type === 'all' || type === 'authors') {
+        const activeAuthors = await Meme.aggregate([
+          { $match: { status: 'public' } },
+          {
+            $group: {
+              _id: '$author_id',
+              meme_count: { $sum: 1 },
+              total_views: { $sum: '$views' },
+            },
+          },
+          { $sort: { meme_count: -1, total_views: -1 } },
+          { $limit: limitNum },
+          {
+            $lookup: {
+              from: 'users',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'author',
+            },
+          },
+          { $unwind: '$author' },
+          {
+            $project: {
+              _id: 0,
+              username: '$author.username',
+              display_name: '$author.display_name',
+              meme_count: 1,
+              total_views: 1,
+            },
+          },
+        ])
+        suggestions.authors = activeAuthors
+      }
+
+      return res.json({
+        success: true,
+        data: suggestions,
+        query: searchTerm,
+      })
+    }
+
+    // 有搜尋詞時的建議
+    const promises = []
+
+    // 關鍵字建議（基於迷因標題和內容）
+    if (type === 'all' || type === 'keywords') {
+      promises.push(
+        Meme.aggregate([
+          {
+            $match: {
+              status: 'public',
+              $or: [
+                { title: { $regex: searchTerm, $options: 'i' } },
+                { content: { $regex: searchTerm, $options: 'i' } },
+              ],
+            },
+          },
+          { $sort: { views: -1, like_count: -1 } },
+          { $limit: limitNum },
+          {
+            $project: {
+              _id: 0,
+              title: 1,
+              content: { $substr: ['$content', 0, 100] }, // 只取前100字
+              views: 1,
+              like_count: 1,
+            },
+          },
+        ]).then((results) => {
+          suggestions.keywords = results.map((item) => ({
+            text: item.title,
+            snippet: item.content,
+            views: item.views,
+            likes: item.like_count,
+          }))
+        }),
+      )
+    }
+
+    // 標籤建議
+    if (type === 'all' || type === 'tags') {
+      promises.push(
+        Tag.find({
+          name: { $regex: searchTerm, $options: 'i' },
+        })
+          .limit(limitNum)
+          .select('name -_id')
+          .then(async (tags) => {
+            // 取得每個標籤的使用次數
+            const tagStats = await Promise.all(
+              tags.map(async (tag) => {
+                const count = await Meme.countDocuments({
+                  status: 'public',
+                  tags_cache: tag.name,
+                })
+                return {
+                  name: tag.name,
+                  count,
+                }
+              }),
+            )
+            // 按使用次數排序
+            suggestions.tags = tagStats.sort((a, b) => b.count - a.count)
+          }),
+      )
+    }
+
+    // 作者建議
+    if (type === 'all' || type === 'authors') {
+      promises.push(
+        User.find({
+          $or: [
+            { username: { $regex: searchTerm, $options: 'i' } },
+            { display_name: { $regex: searchTerm, $options: 'i' } },
+          ],
+        })
+          .limit(limitNum)
+          .select('username display_name')
+          .then(async (users) => {
+            // 取得每個作者的迷因數量
+            const authorStats = await Promise.all(
+              users.map(async (user) => {
+                const meme_count = await Meme.countDocuments({
+                  status: 'public',
+                  author_id: user._id,
+                })
+                return {
+                  username: user.username,
+                  display_name: user.display_name,
+                  meme_count,
+                }
+              }),
+            )
+            // 按迷因數量排序
+            suggestions.authors = authorStats.sort((a, b) => b.meme_count - a.meme_count)
+          }),
+      )
+    }
+
+    // 等待所有查詢完成
+    await Promise.all(promises)
+
+    res.json({
+      success: true,
+      data: suggestions,
+      query: searchTerm,
+    })
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      data: null,
+    })
   }
 }
