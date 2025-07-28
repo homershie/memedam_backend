@@ -1,5 +1,6 @@
 import Dislike from '../models/Dislike.js'
 import Like from '../models/Like.js'
+import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
 
 // 建立噓
@@ -9,8 +10,19 @@ export const createDislike = async (req, res) => {
     if (!meme_id) {
       return res.status(400).json({ success: false, data: null, error: '缺少 meme_id' })
     }
+
+    // 檢查迷因是否存在
+    const meme = await Meme.findById(meme_id)
+    if (!meme) {
+      return res.status(404).json({ success: false, data: null, error: '迷因不存在' })
+    }
+
     const dislike = new Dislike({ meme_id, user_id: req.user?._id })
     await dislike.save()
+
+    // 更新迷因的按噓數
+    await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: 1 } })
+
     res.status(201).json({ success: true, data: dislike, error: null })
   } catch (err) {
     res.status(500).json({ success: false, data: null, error: err.message })
@@ -57,10 +69,14 @@ export const toggleDislike = async (req, res) => {
     if (existing) {
       // 已經噓過，則取消噓
       await existing.deleteOne()
+      // 更新迷因的按噓數（減少）
+      await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: -1 } })
       return res.json({ success: true, action: 'removed' })
     } else {
       // 尚未噓過，則新增
       await Dislike.create({ meme_id, user_id })
+      // 更新迷因的按噓數（增加）
+      await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: 1 } })
       return res.json({ success: true, action: 'added' })
     }
   } catch {

@@ -1,8 +1,19 @@
 import Share from '../models/Share.js'
+import Meme from '../models/Meme.js'
 
 // 建立分享
 export const createShare = async (req, res) => {
   try {
+    const { meme_id } = req.body
+
+    // 檢查迷因是否存在
+    if (meme_id) {
+      const meme = await Meme.findById(meme_id)
+      if (!meme) {
+        return res.status(404).json({ success: false, data: null, error: '迷因不存在' })
+      }
+    }
+
     const share = new Share({
       ...req.body,
       user_id: req.user._id,
@@ -10,6 +21,12 @@ export const createShare = async (req, res) => {
       user_agent: req.headers['user-agent'] || '',
     })
     await share.save()
+
+    // 更新迷因的分享數
+    if (meme_id) {
+      await Meme.findByIdAndUpdate(meme_id, { $inc: { share_count: 1 } })
+    }
+
     res.status(201).json({ success: true, data: share, error: null })
   } catch (err) {
     res.status(400).json({ success: false, data: null, error: err.message })

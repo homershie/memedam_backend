@@ -1,4 +1,5 @@
 import Collection from '../models/Collection.js'
+import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
 
@@ -16,6 +17,14 @@ export const createCollection = async (req, res) => {
     const { name, meme_ids } = req.body
     const collection = new Collection({ name, meme_ids, user_id: req.user?._id })
     await collection.save()
+
+    // 更新所有相關迷因的收藏數
+    if (meme_ids && Array.isArray(meme_ids)) {
+      for (const meme_id of meme_ids) {
+        await Meme.findByIdAndUpdate(meme_id, { $inc: { collection_count: 1 } })
+      }
+    }
+
     res.status(201).json({ success: true, data: collection, error: null })
   } catch (err) {
     res.status(500).json({ success: false, data: null, error: err.message })
@@ -43,6 +52,10 @@ export const deleteCollection = async (req, res) => {
     const user_id = req.user._id
     const collection = await Collection.findOneAndDelete({ meme_id, user_id })
     if (!collection) return res.status(404).json({ error: '找不到收藏' })
+
+    // 更新迷因的收藏數（減少）
+    await Meme.findByIdAndUpdate(meme_id, { $inc: { collection_count: -1 } })
+
     res.json({ message: '收藏已刪除' })
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -60,9 +73,13 @@ export const toggleCollection = async (req, res) => {
     const existing = await Collection.findOne({ meme_id, user_id })
     if (existing) {
       await existing.deleteOne()
+      // 更新迷因的收藏數（減少）
+      await Meme.findByIdAndUpdate(meme_id, { $inc: { collection_count: -1 } })
       return res.json({ success: true, action: 'removed' })
     } else {
       await Collection.create({ meme_id, user_id })
+      // 更新迷因的收藏數（增加）
+      await Meme.findByIdAndUpdate(meme_id, { $inc: { collection_count: 1 } })
       return res.json({ success: true, action: 'added' })
     }
   } catch {
