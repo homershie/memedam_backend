@@ -70,8 +70,13 @@ export const toggleLike = async (req, res) => {
 
     // 使用事務處理
     const result = await executeTransaction(async (session) => {
-      // 先檢查有沒有噓，有的話先刪除
-      await Dislike.deleteOne({ meme_id, user_id }, { session })
+      // 先檢查有沒有噓，有的話先刪除並更新計數
+      const existingDislike = await Dislike.findOne({ meme_id, user_id }).session(session)
+      if (existingDislike) {
+        await existingDislike.deleteOne({ session })
+        // 更新迷因的按噓數（減少）
+        await Meme.findByIdAndUpdate(meme_id, { $inc: { dislike_count: -1 } }, { session })
+      }
 
       const existing = await Like.findOne({ meme_id, user_id }).session(session)
       if (existing) {
