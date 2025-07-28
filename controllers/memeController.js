@@ -1,5 +1,4 @@
 import Meme from '../models/Meme.js'
-import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
 import MemeTag from '../models/MemeTag.js' // Added import for MemeTag
@@ -119,8 +118,13 @@ export const getMemes = async (req, res) => {
 
     // 如果使用模糊搜尋且有搜尋關鍵字，先取得所有符合基本條件的資料
     if (search && useFuzzySearch === 'true') {
+      // 建立基本查詢條件（不包含搜尋和標籤條件）
+      const baseFilter = {}
+      if (type) baseFilter.type = type
+      if (status) baseFilter.status = status
+
       // 先取得所有符合基本篩選條件的迷因
-      const allMemesData = await Meme.find(filter)
+      const allMemesData = await Meme.find(baseFilter)
         .populate('author_id', 'username display_name avatar')
         .lean()
 
@@ -170,39 +174,51 @@ export const getMemes = async (req, res) => {
     } else {
       // 使用傳統的 MongoDB 查詢（當 useFuzzySearch 為 false 或沒有搜尋關鍵字時）
 
-      // 處理搜尋和標籤條件的組合
-      const searchConditions = []
-      const tagConditions = filter._tagConditions || []
+      // 建立全新的查詢條件，不依賴原有的 filter 物件
+      const mongoQuery = {}
 
-      // 標題或內容搜尋（傳統方式）
+      // 基本篩選條件
+      if (type) {
+        mongoQuery.type = type
+      }
+
+      if (status) {
+        mongoQuery.status = status
+      }
+
+      // 搜尋和標籤條件
+      const orConditions = []
+
+      // 搜尋條件：搜尋標題或內容 (使用 RegExp 避免 Mongoose 轉換問題)
       if (search) {
-        searchConditions.push(
-          { title: { $regex: search, $options: 'i' } },
-          { content: { $regex: search, $options: 'i' } },
-        )
+        const searchRegex = new RegExp(search, 'i')
+        orConditions.push({ title: searchRegex }, { content: searchRegex })
       }
 
-      // 組合搜尋和標籤條件
-      if (searchConditions.length > 0 && tagConditions.length > 0) {
-        // 有搜尋條件和標籤條件：搜尋條件 AND 標籤條件
-        filter.$and = [{ $or: searchConditions }, { $or: tagConditions }]
-      } else if (searchConditions.length > 0) {
-        // 只有搜尋條件
-        filter.$or = searchConditions
-      } else if (tagConditions.length > 0) {
-        // 只有標籤條件
-        filter.$or = tagConditions
+      // 標籤條件
+      if (tags) {
+        let tagArray = tags
+        if (typeof tags === 'string') {
+          tagArray = tags.split(',').map((tag) => tag.trim())
+        }
+
+        // 為每個標籤添加條件
+        tagArray.forEach((tag) => {
+          orConditions.push({ tags_cache: tag })
+        })
       }
 
-      // 清理臨時欄位
-      delete filter._tagConditions
+      // 如果有搜尋或標籤條件，加入 $or 查詢
+      if (orConditions.length > 0) {
+        mongoQuery.$or = orConditions
+      }
 
       // 分頁計算
       const skip = (parseInt(page) - 1) * parseInt(limit)
       const limitNum = parseInt(limit)
 
       // 查詢迷因
-      const memesData = await Meme.find(filter)
+      const memesData = await Meme.find(mongoQuery)
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
@@ -219,7 +235,7 @@ export const getMemes = async (req, res) => {
       })
 
       // 計算總數
-      const total = await Meme.countDocuments(filter)
+      const total = await Meme.countDocuments(mongoQuery)
 
       // 計算總頁數
       const totalPages = Math.ceil(total / limitNum)
@@ -406,6 +422,20 @@ export const getMemesByTags = async (req, res) => {
           },
         },
         {
+          $lookup: {
+            from: 'users',
+            localField: 'meme.author_id',
+            foreignField: '_id',
+            as: 'author',
+          },
+        },
+        {
+          $unwind: {
+            path: '$author',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
           $project: {
             _id: '$meme._id',
             title: '$meme.title',
@@ -423,31 +453,19 @@ export const getMemesByTags = async (req, res) => {
             createdAt: '$meme.createdAt',
             updatedAt: '$meme.updatedAt',
             author_id: '$meme.author_id',
+            username: '$author.username',
+            display_name: '$author.display_name',
+            author: {
+              _id: '$author._id',
+              username: '$author.username',
+              display_name: '$author.display_name',
+              avatar: '$author.avatar',
+            },
           },
         },
       ]
 
       const allMemes = await MemeTag.aggregate(basePipeline)
-
-      // 查詢作者資訊並扁平化
-      const memesWithAuthors = await Promise.all(
-        allMemes.map(async (meme) => {
-          const author = await User.findById(meme.author_id).select('username display_name avatar')
-          return {
-            ...meme,
-            username: author?.username || '',
-            display_name: author?.display_name || '',
-            author: author
-              ? {
-                  _id: author._id,
-                  username: author.username,
-                  display_name: author.display_name,
-                  avatar: author.avatar,
-                }
-              : null,
-          }
-        }),
-      )
 
       // 使用 Fuse.js 進行模糊搜尋
       const searchParams = {
@@ -456,7 +474,7 @@ export const getMemesByTags = async (req, res) => {
         status,
       }
 
-      const filteredMemes = combineSearchFilters(memesWithAuthors, searchParams)
+      const filteredMemes = combineSearchFilters(allMemes, searchParams)
 
       // 處理搜尋結果的排序和分頁
       const { results: memes, pagination: searchPagination } = processSearchResults(filteredMemes, {
@@ -508,8 +526,8 @@ export const getMemesByTags = async (req, res) => {
             'meme.status': { $ne: 'deleted' },
             ...(search && {
               $or: [
-                { 'meme.title': { $regex: search, $options: 'i' } },
-                { 'meme.content': { $regex: search, $options: 'i' } },
+                { 'meme.title': new RegExp(search, 'i') },
+                { 'meme.content': new RegExp(search, 'i') },
               ],
             }),
             ...(type && { 'meme.type': type }),
@@ -601,8 +619,8 @@ export const getMemesByTags = async (req, res) => {
             'meme.status': { $ne: 'deleted' },
             ...(search && {
               $or: [
-                { 'meme.title': { $regex: search, $options: 'i' } },
-                { 'meme.content': { $regex: search, $options: 'i' } },
+                { 'meme.title': new RegExp(search, 'i') },
+                { 'meme.content': new RegExp(search, 'i') },
               ],
             }),
             ...(type && { 'meme.type': type }),
