@@ -1,6 +1,7 @@
 import View from '../models/View.js'
 import Meme from '../models/Meme.js'
 import { executeTransaction } from '../utils/transaction.js'
+import mongoose from 'mongoose'
 
 // 記錄瀏覽
 export const recordView = async (req, res) => {
@@ -22,11 +23,26 @@ export const recordView = async (req, res) => {
 
       // 檢查最近 5 分鐘內是否有相同用戶/IP 的瀏覽記錄
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
-      const recentView = await View.findOne({
-        meme_id,
-        $or: [{ user_id: user_id }, { ip: ip }],
-        createdAt: { $gte: fiveMinutesAgo },
-      }).session(session)
+
+      // 使用 aggregate 查詢來避免 MongoDB 日期解析問題
+      let recentView = null
+
+      if (user_id || ip) {
+        const matchConditions = [
+          { $match: { meme_id: new mongoose.Types.ObjectId(meme_id) } },
+          { $match: { createdAt: { $gte: fiveMinutesAgo } } },
+        ]
+
+        if (user_id) {
+          matchConditions.push({ $match: { user_id: user_id } })
+        } else if (ip) {
+          matchConditions.push({ $match: { ip: ip } })
+        }
+
+        const results = await View.aggregate([...matchConditions, { $limit: 1 }]).session(session)
+
+        recentView = results.length > 0 ? results[0] : null
+      }
 
       const isDuplicate = !!recentView
 
@@ -87,7 +103,7 @@ export const getViewStats = async (req, res) => {
     }
 
     const stats = await View.aggregate([
-      { $match: { meme_id: meme_id, ...dateFilter } },
+      { $match: { meme_id: new mongoose.Types.ObjectId(meme_id), ...dateFilter } },
       {
         $group: {
           _id: null,
