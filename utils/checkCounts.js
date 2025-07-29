@@ -4,6 +4,7 @@ import Dislike from '../models/Dislike.js'
 import Comment from '../models/Comment.js'
 import Collection from '../models/Collection.js'
 import Share from '../models/Share.js'
+import View from '../models/View.js'
 import Follow from '../models/Follow.js'
 import User from '../models/User.js'
 
@@ -68,12 +69,14 @@ const checkSingleMemeCounts = async (meme) => {
     actualCommentCount,
     actualCollectionCount,
     actualShareCount,
+    actualViewCount,
   ] = await Promise.all([
     Like.countDocuments({ meme_id: meme._id }),
     Dislike.countDocuments({ meme_id: meme._id }),
     Comment.countDocuments({ meme_id: meme._id }),
     Collection.countDocuments({ meme_id: meme._id }),
     Share.countDocuments({ meme_id: meme._id }),
+    View.countDocuments({ meme_id: meme._id, is_duplicate: false }),
   ])
 
   // 檢查並記錄差異
@@ -102,6 +105,11 @@ const checkSingleMemeCounts = async (meme) => {
   if (meme.share_count !== actualShareCount) {
     updates.share_count = actualShareCount
     result.changes.share_count = { from: meme.share_count, to: actualShareCount }
+  }
+
+  if (meme.views !== actualViewCount) {
+    updates.views = actualViewCount
+    result.changes.views = { from: meme.views, to: actualViewCount }
   }
 
   // 如果有差異，則更新

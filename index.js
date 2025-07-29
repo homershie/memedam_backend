@@ -25,6 +25,7 @@ import announcementRoutes from './routes/announcementRoutes.js'
 import memeVersionRoutes from './routes/memeVersionRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
+import viewRoutes from './routes/viewRoutes.js'
 import './config/passport.js'
 import connectDB from './config/db.js'
 import errorHandler from './middleware/errorHandler.js'
@@ -90,6 +91,7 @@ app.use('/announcements', announcementRoutes)
 app.use('/meme-versions', memeVersionRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/admin', adminRoutes) // 管理功能路由
+app.use('/views', viewRoutes) // 瀏覽統計路由
 app.use('/users/login', loginLimiter) // 登入特別限流
 app.use('/users/register', apiLimiter) // 註冊限流
 app.use('/users/forgot-password', apiLimiter) // 忘記密碼限流

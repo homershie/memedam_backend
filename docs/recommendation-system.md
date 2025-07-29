@@ -1,0 +1,352 @@
+# 迷因推薦系統設計文檔
+
+## 概述
+
+本系統實作了一個混合推薦演算法，結合協同過濾、內容基礎推薦和熱門度排序，為用戶提供個人化的迷因推薦。
+
+## 系統架構
+
+### 1. 熱門度演算法 (Hot Score Algorithm)
+
+基於 Reddit 的熱門演算法，考慮時間衰減和互動數據。
+
+#### 演算法公式
+
+```javascript
+// 互動分數計算
+const interactionScore =
+  like_count * 1.0 + // 按讚權重 1.0
+  comment_count * 2.0 + // 留言權重 2.0 (互動性更高)
+  share_count * 3.0 + // 分享權重 3.0 (傳播性最強)
+  collection_count * 1.5 + // 收藏權重 1.5
+  views * 0.1 - // 瀏覽權重 0.1 (已實作)
+  dislike_count * 0.5 // 按噓扣分 0.5
+
+// 時間衰減因子
+const timeDecay = Math.pow(hoursSinceCreation + 2, 1.5)
+
+// 最終熱門分數
+const hotScore = interactionScore / timeDecay
+```
+
+#### 特點
+
+- **時間敏感**：新內容有機會快速上升
+- **互動加權**：不同互動類型有不同權重
+- **自動衰減**：舊內容會逐漸降低排名
+
+### 2. 協同過濾推薦 (Collaborative Filtering)
+
+基於用戶行為相似性的推薦系統。
+
+#### 演算法流程
+
+1. **用戶行為分析**
+   - 收集用戶的按讚、收藏、留言、分享歷史
+   - 建立用戶-迷因互動矩陣
+
+2. **相似用戶發現**
+   - 找到喜歡相同迷因的用戶
+   - 計算用戶相似度（基於共同喜好）
+
+3. **推薦生成**
+   - 推薦相似用戶喜歡但當前用戶未互動的迷因
+   - 按相似度加權排序
+
+#### 優點
+
+- **發現新內容**：推薦用戶可能感興趣但未發現的內容
+- **個人化**：基於實際行為而非內容特徵
+- **動態適應**：隨用戶行為變化而調整
+
+### 3. 內容基礎推薦 (Content-Based Filtering)
+
+基於迷因標籤和內容特徵的推薦。
+
+#### 演算法流程
+
+1. **用戶偏好分析**
+   - 分析用戶互動過的迷因標籤
+   - 計算標籤偏好權重
+
+2. **內容相似度計算**
+   - 基於標籤重疊度計算迷因相似度
+   - 考慮標籤權重和數量
+
+3. **推薦生成**
+   - 推薦與用戶偏好標籤相似的迷因
+   - 按相似度排序
+
+#### 優點
+
+- **可解釋性**：推薦原因明確（基於標籤）
+- **冷啟動友好**：新用戶也能獲得推薦
+- **內容多樣性**：避免過度集中在特定類型
+
+### 4. 混合推薦系統 (Hybrid Recommendation)
+
+結合多種演算法的綜合推薦系統。
+
+#### 權重配置
+
+```javascript
+const defaultWeights = {
+  collaborative: 0.4, // 協同過濾權重
+  contentBased: 0.3, // 內容基礎權重
+  hotScore: 0.3, // 熱門分數權重
+}
+```
+
+#### 分數計算
+
+```javascript
+// 協同過濾分數
+const collaborativeScore = weight * (1 - rank / totalItems)
+
+// 內容基礎分數
+const contentScore = weight * (1 - rank / totalItems)
+
+// 熱門分數（標準化）
+const normalizedHotScore = weight * (hotScore / maxHotScore)
+
+// 綜合分數
+const finalScore = collaborativeScore + contentScore + normalizedHotScore
+```
+
+## API 端點設計
+
+### 1. 個人化推薦端點
+
+```http
+GET /memes/recommended
+Authorization: Bearer <token>
+```
+
+#### 查詢參數
+
+| 參數        | 類型   | 預設值        | 說明                                                    |
+| ----------- | ------ | ------------- | ------------------------------------------------------- |
+| `algorithm` | string | `hybrid`      | 演算法類型：`hybrid`, `collaborative`, `content`, `hot` |
+| `weights`   | string | `0.4,0.3,0.3` | 混合演算法權重（協同過濾,內容基礎,熱門分數）            |
+| `limit`     | number | `20`          | 返回數量限制                                            |
+| `page`      | number | `1`           | 頁碼                                                    |
+
+#### 回應格式
+
+```json
+{
+  "success": true,
+  "data": {
+    "memes": [
+      {
+        "_id": "...",
+        "title": "...",
+        "content": "...",
+        "image_url": "...",
+        "hot_score": 123.45,
+        "recommendation_score": 0.85,
+        "author": {
+          "_id": "...",
+          "username": "user123",
+          "display_name": "顯示名稱",
+          "avatar": "..."
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 100,
+      "totalPages": 5,
+      "hasNext": true,
+      "hasPrev": false
+    },
+    "algorithm": "hybrid",
+    "weights": "0.4,0.3,0.3"
+  },
+  "error": null
+}
+```
+
+### 2. 熱門分數更新端點
+
+```http
+POST /memes/hot-scores/:memeId?
+Authorization: Bearer <admin_token>
+```
+
+#### 功能
+
+- 更新單一迷因的熱門分數
+- 批次更新所有迷因的熱門分數（管理員功能）
+
+#### 回應格式
+
+```json
+{
+  "success": true,
+  "data": {
+    "memeId": "...",
+    "hotScore": 123.45
+  },
+  "error": null
+}
+```
+
+## 實作細節
+
+### 1. 資料庫索引優化
+
+```javascript
+// 為推薦系統添加索引
+db.memes.createIndex({ hot_score: -1 })
+db.memes.createIndex({ status: 1, hot_score: -1 })
+db.likes.createIndex({ user_id: 1, meme_id: 1 })
+db.collections.createIndex({ user_id: 1, meme_id: 1 })
+db.comments.createIndex({ user_id: 1, meme_id: 1 })
+db.shares.createIndex({ user_id: 1, meme_id: 1 })
+```
+
+### 2. 快取策略
+
+```javascript
+// Redis 快取配置
+const CACHE_KEYS = {
+  USER_RECOMMENDATIONS: 'user_recommendations',
+  HOT_MEMES: 'hot_memes',
+  USER_PREFERENCES: 'user_preferences',
+}
+
+// 快取時間設定
+const CACHE_TTL = {
+  RECOMMENDATIONS: 30 * 60, // 30分鐘
+  HOT_MEMES: 10 * 60, // 10分鐘
+  USER_PREFERENCES: 60 * 60, // 1小時
+}
+```
+
+### 3. 定期任務
+
+```javascript
+// 每小時更新熱門分數
+setInterval(updateHotScoresTask, 60 * 60 * 1000)
+
+// 每日重新計算用戶偏好
+setInterval(updateUserPreferencesTask, 24 * 60 * 60 * 1000)
+
+// 每週清理過期快取
+setInterval(cleanupCacheTask, 7 * 24 * 60 * 60 * 1000)
+```
+
+## 效能優化
+
+### 1. 查詢優化
+
+- 使用 MongoDB 聚合管道減少記憶體使用
+- 實作分頁避免大量資料傳輸
+- 使用索引加速查詢
+
+### 2. 快取策略
+
+- 熱門迷因快取 10 分鐘
+- 用戶推薦快取 30 分鐘
+- 用戶偏好快取 1 小時
+
+### 3. 非同步處理
+
+- 熱門分數更新使用背景任務
+- 用戶行為分析使用佇列處理
+- 推薦計算使用工作池
+
+## 監控與分析
+
+### 1. 推薦效果指標
+
+- **點擊率 (CTR)**：推薦內容的點擊率
+- **互動率**：推薦內容的按讚、留言、分享率
+- **多樣性**：推薦內容的標籤多樣性
+- **新穎性**：推薦新內容的比例
+
+### 2. 系統效能指標
+
+- **回應時間**：推薦 API 的平均回應時間
+- **快取命中率**：Redis 快取的命中率
+- **資料庫查詢時間**：聚合查詢的執行時間
+
+### 3. 用戶行為分析
+
+- **演算法偏好**：不同用戶群體的演算法效果
+- **時間模式**：用戶活躍時間與推薦效果
+- **內容偏好**：用戶的標籤偏好變化
+
+## 未來擴展
+
+### 1. 深度學習整合
+
+- 實作神經協同過濾 (Neural Collaborative Filtering)
+- 使用深度學習模型預測用戶偏好
+- 整合自然語言處理分析迷因內容
+
+### 2. 即時推薦
+
+- 實作流式處理架構
+- 即時更新用戶偏好模型
+- 支援即時推薦調整
+
+### 3. A/B 測試框架
+
+- 實作推薦演算法 A/B 測試
+- 動態調整演算法權重
+- 自動優化推薦效果
+
+## 開發指南
+
+### 1. 本地開發
+
+```bash
+# 安裝依賴
+npm install
+
+# 啟動開發伺服器
+npm run dev
+
+# 測試推薦 API
+curl -H "Authorization: Bearer <token>" \
+     "http://localhost:3000/api/memes/recommended?algorithm=hybrid&limit=10"
+```
+
+### 2. 生產部署
+
+```bash
+# 設定環境變數
+NODE_ENV=production
+REDIS_URL=redis://localhost:6379
+
+# 啟動應用
+npm start
+
+# 監控推薦系統
+npm run monitor:recommendations
+```
+
+### 3. 效能測試
+
+```bash
+# 測試推薦 API 效能
+npm run test:recommendations
+
+# 壓力測試
+npm run stress:recommendations
+```
+
+## 注意事項
+
+1. **隱私保護**：用戶行為資料僅用於推薦，不應外洩
+2. **演算法透明度**：提供推薦原因說明
+3. **冷啟動處理**：新用戶和新內容的推薦策略
+4. **偏見防護**：避免推薦系統強化現有偏見
+5. **效能監控**：持續監控系統效能和推薦效果
+
+---
+
+_本文檔最後更新：2024年12月_
