@@ -41,13 +41,14 @@ const ShareSchema = new mongoose.Schema(
           'line',
           'twitter',
           'instagram',
+          'threads',
           'copylink',
           'whatsapp',
           'telegram',
           '',
         ],
         message:
-          '平台細節必須是 facebook、line、twitter、instagram、copylink、whatsapp、telegram 或空值',
+          '平台細節必須是 facebook、line、twitter、instagram、threads、copylink、whatsapp、telegram 或空值',
       },
     },
     ip: {

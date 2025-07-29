@@ -20,7 +20,12 @@ export const createShare = async (req, res) => {
       const share = new Share({
         ...req.body,
         user_id: req.user._id,
-        ip: req.ip || req.headers['x-forwarded-for'] || '',
+        ip:
+          req.ip ||
+          req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+          req.connection?.remoteAddress ||
+          req.socket?.remoteAddress ||
+          '',
         user_agent: req.headers['user-agent'] || '',
       })
       await share.save({ session })
