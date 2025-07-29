@@ -45,21 +45,32 @@ export const getComments = async (req, res) => {
     const filter = {}
     if (req.query.meme_id) filter.meme_id = req.query.meme_id
     if (req.query.parent_id) filter.parent_id = req.query.parent_id
-    const comments = await Comment.find(filter).sort({ createdAt: 1 })
-    res.json(comments)
+
+    const comments = await Comment.find(filter)
+      .populate('user_id', 'username display_name avatar')
+      .sort({ createdAt: 1 })
+
+    res.json({ success: true, data: comments, error: null })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 
 // 取得單一留言
 export const getCommentById = async (req, res) => {
   try {
-    const comment = await Comment.findById(req.params.id)
-    if (!comment) return res.status(404).json({ error: '找不到留言' })
-    res.json(comment)
+    const comment = await Comment.findById(req.params.id).populate(
+      'user_id',
+      'username display_name avatar',
+    )
+
+    if (!comment) {
+      return res.status(404).json({ success: false, data: null, error: '找不到留言' })
+    }
+
+    res.json({ success: true, data: comment, error: null })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
 
@@ -69,11 +80,15 @@ export const updateComment = async (req, res) => {
     const comment = await Comment.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
-    })
-    if (!comment) return res.status(404).json({ error: '找不到留言' })
-    res.json(comment)
+    }).populate('user_id', 'username display_name avatar')
+
+    if (!comment) {
+      return res.status(404).json({ success: false, data: null, error: '找不到留言' })
+    }
+
+    res.json({ success: true, data: comment, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(400).json({ success: false, data: null, error: err.message })
   }
 }
 
@@ -98,8 +113,8 @@ export const deleteComment = async (req, res) => {
       return { message: '留言已刪除' }
     })
 
-    res.json(result)
+    res.json({ success: true, data: result, error: null })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ success: false, data: null, error: err.message })
   }
 }
