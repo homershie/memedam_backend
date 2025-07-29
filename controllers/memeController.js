@@ -5,11 +5,26 @@ import MemeTag from '../models/MemeTag.js' // Added import for MemeTag
 import { processSearchResults, combineSearchFilters } from '../utils/search.js'
 import Tag from '../models/Tag.js'
 import User from '../models/User.js'
+import { deleteCloudinaryImage } from '../utils/deleteImg.js'
 
 // 建立迷因
 export const validateCreateMeme = [
   body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
   body('content').optional().isLength({ max: 1000 }).withMessage('內容長度最多 1000 字'),
+]
+
+// 更新迷因驗證
+export const validateUpdateMeme = [
+  body('title').optional().isLength({ min: 1, max: 100 }).withMessage('標題長度需在 1~100 字'),
+  body('content').optional().isLength({ max: 1000 }).withMessage('內容長度最多 1000 字'),
+  body('type')
+    .optional()
+    .isIn(['image', 'video', 'audio', 'text'])
+    .withMessage('類型必須是 image、video、audio 或 text'),
+  body('status')
+    .optional()
+    .isIn(['draft', 'public', 'private', 'deleted'])
+    .withMessage('狀態必須是 draft、public、private 或 deleted'),
 ]
 
 export const createMeme = async (req, res) => {
@@ -282,26 +297,145 @@ export const getMemeById = async (req, res) => {
 
 // 更新迷因
 export const updateMeme = async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, data: null, error: errors.array() })
+  }
+
   try {
-    const meme = await Meme.findByIdAndUpdate(req.params.id, req.body, {
+    // 先獲取原始迷因資料
+    const originalMeme = await Meme.findById(req.params.id)
+    if (!originalMeme) {
+      return res.status(404).json({ error: '找不到迷因' })
+    }
+
+    // 準備更新資料
+    const updateData = { ...req.body }
+
+    // 檢查是否有新圖片上傳
+    if (req.files && req.files.length > 0) {
+      // 取得新圖片 URL（多圖上傳，僅取第一張作為主圖）
+      const newImageUrl = req.files[0].path || req.files[0].url || req.files[0].secure_url || ''
+
+      if (newImageUrl) {
+        // 刪除舊圖片（如果存在且與新圖片不同）
+        if (originalMeme.image_url && originalMeme.image_url !== newImageUrl) {
+          try {
+            await deleteCloudinaryImage(originalMeme.image_url)
+            console.log('已刪除舊圖片:', originalMeme.image_url)
+          } catch (deleteError) {
+            console.error('刪除舊圖片失敗:', deleteError)
+            // 不中斷更新流程，只記錄錯誤
+          }
+        }
+
+        // 更新為新圖片 URL
+        updateData.image_url = newImageUrl
+      }
+    } else if (req.body.image_url && req.body.image_url !== originalMeme.image_url) {
+      // 如果是透過 body 傳入新的圖片 URL（非上傳檔案）
+      if (originalMeme.image_url) {
+        try {
+          await deleteCloudinaryImage(originalMeme.image_url)
+          console.log('已刪除舊圖片:', originalMeme.image_url)
+        } catch (deleteError) {
+          console.error('刪除舊圖片失敗:', deleteError)
+        }
+      }
+    }
+
+    // 檢查迷因類型變更，處理相關媒體檔案
+    if (updateData.type && updateData.type !== originalMeme.type) {
+      // 如果從圖片類型變更為其他類型，刪除舊圖片
+      if (originalMeme.type === 'image' && updateData.type !== 'image') {
+        if (originalMeme.image_url) {
+          try {
+            await deleteCloudinaryImage(originalMeme.image_url)
+            console.log('類型變更，已刪除舊圖片:', originalMeme.image_url)
+          } catch (deleteError) {
+            console.error('類型變更時刪除舊圖片失敗:', deleteError)
+          }
+        }
+        // 清空圖片 URL
+        updateData.image_url = ''
+      }
+
+      // 根據新類型清空不相關的媒體欄位
+      switch (updateData.type) {
+        case 'image':
+          // 變更為圖片類型，清空影片和音訊
+          updateData.video_url = ''
+          updateData.audio_url = ''
+          break
+        case 'video':
+          // 變更為影片類型，清空音訊（保留圖片作為縮圖）
+          updateData.audio_url = ''
+          break
+        case 'audio':
+          // 變更為音訊類型，清空影片（保留圖片作為封面）
+          updateData.video_url = ''
+          break
+        case 'text':
+          // 變更為文字類型，清空所有媒體（如果不是從 image 類型來的話圖片已經在上面處理了）
+          if (originalMeme.type !== 'image') {
+            updateData.image_url = ''
+          }
+          updateData.video_url = ''
+          updateData.audio_url = ''
+          break
+      }
+    }
+
+    // 處理標籤快取
+    if (updateData.tags_cache) {
+      let tagsArr = updateData.tags_cache
+      if (typeof updateData.tags_cache === 'string') {
+        try {
+          tagsArr = JSON.parse(updateData.tags_cache)
+        } catch {
+          tagsArr = [updateData.tags_cache]
+        }
+      }
+      updateData.tags_cache = tagsArr
+    }
+
+    // 執行更新
+    const updatedMeme = await Meme.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     })
-    if (!meme) return res.status(404).json({ error: '找不到迷因' })
-    res.json(meme)
+
+    res.json({ success: true, data: updatedMeme, error: null })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(400).json({ success: false, data: null, error: err.message })
   }
 }
 
 // 刪除迷因
 export const deleteMeme = async (req, res) => {
   try {
-    const meme = await Meme.findByIdAndDelete(req.params.id)
-    if (!meme) return res.status(404).json({ error: '找不到迷因' })
-    res.json({ message: '迷因已刪除' })
+    // 先獲取迷因資料以取得圖片 URL
+    const meme = await Meme.findById(req.params.id)
+    if (!meme) {
+      return res.status(404).json({ error: '找不到迷因' })
+    }
+
+    // 刪除 Cloudinary 上的圖片（如果存在）
+    if (meme.image_url) {
+      try {
+        await deleteCloudinaryImage(meme.image_url)
+        console.log('已刪除迷因圖片:', meme.image_url)
+      } catch (deleteError) {
+        console.error('刪除迷因圖片失敗:', deleteError)
+        // 不中斷刪除流程，只記錄錯誤
+      }
+    }
+
+    // 刪除迷因記錄
+    await Meme.findByIdAndDelete(req.params.id)
+    res.json({ success: true, message: '迷因已刪除', error: null })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ success: false, error: err.message })
   }
 }
 

@@ -9,6 +9,7 @@ import {
   removeEditor,
   getMemesByTags,
   getSearchSuggestions,
+  validateUpdateMeme,
 } from '../controllers/memeController.js'
 import {
   proposeEdit,
@@ -33,7 +34,7 @@ router.get('/by-tags', getMemesByTags)
 // 取得單一迷因
 router.get('/:id', getMemeById)
 // 更新迷因
-router.put('/:id', token, canEditMeme, arrayUpload('images', 5), updateMeme)
+router.put('/:id', token, canEditMeme, arrayUpload('images', 5), validateUpdateMeme, updateMeme)
 // 刪除迷因
 router.delete('/:id', token, canEditMeme, deleteMeme)
 // 新增協作者
