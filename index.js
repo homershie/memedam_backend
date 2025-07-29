@@ -17,6 +17,7 @@ import dislikeRoutes from './routes/dislikeRoutes.js'
 import likeRoutes from './routes/likeRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
 import sponsorRoutes from './routes/sponsorRoutes.js'
+import followRoutes from './routes/followRoutes.js'
 import memeTagRoutes from './routes/memeTagRoutes.js'
 import tagRoutes from './routes/tagRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
@@ -28,12 +29,20 @@ import './config/passport.js'
 import connectDB from './config/db.js'
 import errorHandler from './middleware/errorHandler.js'
 import apiLimiter from './middleware/rateLimit.js'
+import maintenanceScheduler from './utils/maintenance.js'
 
 // 資料庫連線
 connectDB()
   .then(() => {
     console.log('資料庫連線成功')
     mongoose.set('sanitizeFilter', true)
+
+    // 啟動定期維護任務
+    if (process.env.NODE_ENV === 'production') {
+      maintenanceScheduler.startAllTasks()
+    } else {
+      console.log('開發模式：跳過定期維護任務')
+    }
   })
   .catch((error) => {
     console.log('資料庫連線失敗')
@@ -73,6 +82,7 @@ app.use('/dislikes', dislikeRoutes)
 app.use('/likes', likeRoutes)
 app.use('/shares', shareRoutes)
 app.use('/sponsors', sponsorRoutes)
+app.use('/follows', followRoutes)
 app.use('/meme-tags', memeTagRoutes)
 app.use('/tags', tagRoutes)
 app.use('/notifications', notificationRoutes)

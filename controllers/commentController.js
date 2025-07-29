@@ -1,5 +1,6 @@
 import Comment from '../models/Comment.js'
 import Meme from '../models/Meme.js'
+import User from '../models/User.js'
 import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
 
@@ -29,6 +30,9 @@ export const createComment = async (req, res) => {
 
       // 更新迷因的留言數
       await Meme.findByIdAndUpdate(meme_id, { $inc: { comment_count: 1 } }, { session })
+
+      // 更新用戶的評論數
+      await User.findByIdAndUpdate(req.user._id, { $inc: { comment_count: 1 } }, { session })
 
       return comment
     })
@@ -102,13 +106,17 @@ export const deleteComment = async (req, res) => {
         throw new Error('找不到留言')
       }
 
-      // 記錄迷因ID，用於更新計數
+      // 記錄迷因ID和用戶ID，用於更新計數
       const meme_id = comment.meme_id
+      const user_id = comment.user_id
 
       await Comment.findByIdAndDelete(req.params.id, { session })
 
       // 更新迷因的留言數（減少）
       await Meme.findByIdAndUpdate(meme_id, { $inc: { comment_count: -1 } }, { session })
+
+      // 更新用戶的評論數（減少）
+      await User.findByIdAndUpdate(user_id, { $inc: { comment_count: -1 } }, { session })
 
       return { message: '留言已刪除' }
     })

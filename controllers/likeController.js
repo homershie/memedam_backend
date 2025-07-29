@@ -1,6 +1,7 @@
 import Like from '../models/Like.js'
 import Dislike from '../models/Dislike.js'
 import Meme from '../models/Meme.js'
+import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { executeTransaction } from '../utils/transaction.js'
 
@@ -25,6 +26,13 @@ export const createLike = async (req, res) => {
 
       // 更新迷因的按讚數
       await Meme.findByIdAndUpdate(meme_id, { $inc: { like_count: 1 } }, { session })
+
+      // 更新作者的總獲讚數
+      await User.findByIdAndUpdate(
+        meme.author_id,
+        { $inc: { total_likes_received: 1 } },
+        { session },
+      )
 
       return like
     })
@@ -70,6 +78,12 @@ export const toggleLike = async (req, res) => {
 
     // 使用事務處理
     const result = await executeTransaction(async (session) => {
+      // 先獲取迷因資訊以取得作者ID
+      const meme = await Meme.findById(meme_id).session(session)
+      if (!meme) {
+        throw new Error('迷因不存在')
+      }
+
       // 先檢查有沒有噓，有的話先刪除並更新計數
       const existingDislike = await Dislike.findOne({ meme_id, user_id }).session(session)
       if (existingDislike) {
@@ -84,12 +98,24 @@ export const toggleLike = async (req, res) => {
         await existing.deleteOne({ session })
         // 更新迷因的按讚數（減少）
         await Meme.findByIdAndUpdate(meme_id, { $inc: { like_count: -1 } }, { session })
+        // 更新作者的總獲讚數（減少）
+        await User.findByIdAndUpdate(
+          meme.author_id,
+          { $inc: { total_likes_received: -1 } },
+          { session },
+        )
         return { action: 'removed' }
       } else {
         // 尚未按讚過，則新增
         await Like.create([{ meme_id, user_id }], { session })
         // 更新迷因的按讚數（增加）
         await Meme.findByIdAndUpdate(meme_id, { $inc: { like_count: 1 } }, { session })
+        // 更新作者的總獲讚數（增加）
+        await User.findByIdAndUpdate(
+          meme.author_id,
+          { $inc: { total_likes_received: 1 } },
+          { session },
+        )
         return { action: 'added' }
       }
     })

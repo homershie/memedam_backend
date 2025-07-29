@@ -283,6 +283,87 @@ const UserSchema = new mongoose.Schema(
         message: '偏好設定必須是物件格式',
       },
     },
+    // 追隨功能相關統計
+    follower_count: {
+      type: Number,
+      default: 0,
+      min: [0, '粉絲數不能為負數'],
+      validate: {
+        validator(value) {
+          return Number.isInteger(value) && value >= 0
+        },
+        message: '粉絲數必須是非負整數',
+      },
+    },
+    following_count: {
+      type: Number,
+      default: 0,
+      min: [0, '追隨數不能為負數'],
+      validate: {
+        validator(value) {
+          return Number.isInteger(value) && value >= 0
+        },
+        message: '追隨數必須是非負整數',
+      },
+    },
+    // 用戶創作統計
+    meme_count: {
+      type: Number,
+      default: 0,
+      min: [0, '發布迷因數不能為負數'],
+      validate: {
+        validator(value) {
+          return Number.isInteger(value) && value >= 0
+        },
+        message: '發布迷因數必須是非負整數',
+      },
+    },
+    collection_count: {
+      type: Number,
+      default: 0,
+      min: [0, '收藏數不能為負數'],
+      validate: {
+        validator(value) {
+          return Number.isInteger(value) && value >= 0
+        },
+        message: '收藏數必須是非負整數',
+      },
+    },
+    // 獲得的總互動統計
+    total_likes_received: {
+      type: Number,
+      default: 0,
+      min: [0, '獲得讚數不能為負數'],
+      validate: {
+        validator(value) {
+          return Number.isInteger(value) && value >= 0
+        },
+        message: '獲得讚數必須是非負整數',
+      },
+    },
+    // 用戶活動統計
+    comment_count: {
+      type: Number,
+      default: 0,
+      min: [0, '評論數不能為負數'],
+      validate: {
+        validator(value) {
+          return Number.isInteger(value) && value >= 0
+        },
+        message: '評論數必須是非負整數',
+      },
+    },
+    share_count: {
+      type: Number,
+      default: 0,
+      min: [0, '分享數不能為負數'],
+      validate: {
+        validator(value) {
+          return Number.isInteger(value) && value >= 0
+        },
+        message: '分享數必須是非負整數',
+      },
+    },
   },
   {
     timestamps: true,

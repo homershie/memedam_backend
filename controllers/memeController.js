@@ -79,6 +79,10 @@ export const createMeme = async (req, res) => {
       source_url,
     })
     await meme.save()
+
+    // 更新用戶迷因數量統計
+    await User.findByIdAndUpdate(author_id, { $inc: { meme_count: 1 } })
+
     res.status(201).json({ success: true, data: meme, error: null })
   } catch (err) {
     res.status(500).json({ success: false, data: null, error: err.message })
@@ -414,11 +418,13 @@ export const updateMeme = async (req, res) => {
 // 刪除迷因
 export const deleteMeme = async (req, res) => {
   try {
-    // 先獲取迷因資料以取得圖片 URL
+    // 先獲取迷因資料以取得圖片 URL 和作者 ID
     const meme = await Meme.findById(req.params.id)
     if (!meme) {
       return res.status(404).json({ error: '找不到迷因' })
     }
+
+    const author_id = meme.author_id
 
     // 刪除 Cloudinary 上的圖片（如果存在）
     if (meme.image_url) {
@@ -433,6 +439,10 @@ export const deleteMeme = async (req, res) => {
 
     // 刪除迷因記錄
     await Meme.findByIdAndDelete(req.params.id)
+
+    // 更新用戶迷因數量統計
+    await User.findByIdAndUpdate(author_id, { $inc: { meme_count: -1 } })
+
     res.json({ success: true, message: '迷因已刪除', error: null })
   } catch (err) {
     res.status(500).json({ success: false, error: err.message })

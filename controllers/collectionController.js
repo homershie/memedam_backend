@@ -1,5 +1,6 @@
 import Collection from '../models/Collection.js'
 import Meme from '../models/Meme.js'
+import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
@@ -93,11 +94,15 @@ export const toggleCollection = async (req, res) => {
         await existing.deleteOne({ session })
         // 更新迷因的收藏數（減少）
         await Meme.findByIdAndUpdate(meme_id, { $inc: { collection_count: -1 } }, { session })
+        // 更新用戶的收藏數（減少）
+        await User.findByIdAndUpdate(user_id, { $inc: { collection_count: -1 } }, { session })
         return { action: 'removed' }
       } else {
         await Collection.create([{ meme_id, user_id }], { session })
         // 更新迷因的收藏數（增加）
         await Meme.findByIdAndUpdate(meme_id, { $inc: { collection_count: 1 } }, { session })
+        // 更新用戶的收藏數（增加）
+        await User.findByIdAndUpdate(user_id, { $inc: { collection_count: 1 } }, { session })
         return { action: 'added' }
       }
     })
