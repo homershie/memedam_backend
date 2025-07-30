@@ -38,6 +38,11 @@ export const createMeme = async (req, res) => {
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, data: null, error: errors.array() })
   }
+
+  // 使用 session 來確保原子性操作
+  const session = await Meme.startSession()
+  session.startTransaction()
+
   try {
     // 取得圖片網址（多圖上傳，僅取第一張作為主圖）
     let image_url = ''
@@ -84,14 +89,43 @@ export const createMeme = async (req, res) => {
       tags_cache: tagsArr,
       source_url,
     })
-    await meme.save()
 
-    // 更新用戶迷因數量統計
-    await User.findByIdAndUpdate(author_id, { $inc: { meme_count: 1 } })
+    // 使用 session 保存迷因
+    await meme.save({ session })
+
+    // 使用原子操作更新用戶迷因數量統計，避免 race condition
+    await User.findByIdAndUpdate(author_id, { $inc: { meme_count: 1 } }, { session, new: true })
+
+    // 提交事務
+    await session.commitTransaction()
 
     res.status(201).json({ success: true, data: meme, error: null })
   } catch (err) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    // 處理重複鍵錯誤
+    if (err.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: '迷因已存在，請檢查標題是否重複',
+      })
+    }
+
+    // 處理其他 MongoDB 錯誤
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: err.message,
+      })
+    }
+
     res.status(500).json({ success: false, data: null, error: err.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
 
@@ -312,10 +346,15 @@ export const updateMeme = async (req, res) => {
     return res.status(400).json({ success: false, data: null, error: errors.array() })
   }
 
+  // 使用 session 來確保原子性操作
+  const session = await Meme.startSession()
+  session.startTransaction()
+
   try {
     // 先獲取原始迷因資料
-    const originalMeme = await Meme.findById(req.params.id)
+    const originalMeme = await Meme.findById(req.params.id).session(session)
     if (!originalMeme) {
+      await session.abortTransaction()
       return res.status(404).json({ error: '找不到迷因' })
     }
 
@@ -409,15 +448,43 @@ export const updateMeme = async (req, res) => {
       updateData.tags_cache = tagsArr
     }
 
-    // 執行更新
+    // 執行更新，使用 session 確保原子性
     const updatedMeme = await Meme.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
+      session,
     })
+
+    // 提交事務
+    await session.commitTransaction()
 
     res.json({ success: true, data: updatedMeme, error: null })
   } catch (err) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    // 處理重複鍵錯誤
+    if (err.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: '更新失敗，可能與其他迷因產生衝突',
+      })
+    }
+
+    // 處理其他 MongoDB 錯誤
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: err.message,
+      })
+    }
+
     res.status(400).json({ success: false, data: null, error: err.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
 

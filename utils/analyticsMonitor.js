@@ -284,7 +284,7 @@ class AnalyticsMonitor {
    */
   async checkABTestResults() {
     try {
-      for (const [test] of this.activeTests) {
+      for (const [, test] of this.activeTests) {
         if (test.is_completed) {
           await this.analyzeABTestResults(test)
         }

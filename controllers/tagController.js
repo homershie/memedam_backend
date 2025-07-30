@@ -3,24 +3,53 @@ import MemeTag from '../models/MemeTag.js'
 
 // 建立標籤
 export const createTag = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await Tag.startSession()
+  session.startTransaction()
+
   try {
     // 檢查是否已存在相同名稱和語言的標籤
     const existingTag = await Tag.findOne({
       name: req.body.name,
       lang: req.body.lang || 'zh',
-    })
+    }).session(session)
 
     if (existingTag) {
+      await session.abortTransaction()
       return res.status(400).json({
         error: '該語言下已存在相同名稱的標籤',
       })
     }
 
     const tag = new Tag(req.body)
-    await tag.save()
+    await tag.save({ session })
+
+    // 提交事務
+    await session.commitTransaction()
+
     res.status(201).json(tag)
-  } catch (err) {
-    res.status(400).json({ error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    // 處理重複鍵錯誤
+    if (error.code === 11000) {
+      return res.status(409).json({
+        error: '該語言下已存在相同名稱的標籤',
+      })
+    }
+
+    // 處理驗證錯誤
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: error.message,
+      })
+    }
+
+    res.status(400).json({ error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
 
@@ -136,6 +165,10 @@ export const getTagById = async (req, res) => {
 
 // 更新標籤
 export const updateTag = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await Tag.startSession()
+  session.startTransaction()
+
   try {
     // 如果要更新名稱，檢查是否會造成重複
     if (req.body.name) {
@@ -143,9 +176,10 @@ export const updateTag = async (req, res) => {
         name: req.body.name,
         lang: req.body.lang || 'zh',
         _id: { $ne: req.params.id },
-      })
+      }).session(session)
 
       if (existingTag) {
+        await session.abortTransaction()
         return res.status(400).json({
           error: '該語言下已存在相同名稱的標籤',
         })
@@ -155,35 +189,80 @@ export const updateTag = async (req, res) => {
     const tag = await Tag.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
+      session,
     })
-    if (!tag) return res.status(404).json({ error: '找不到標籤' })
+
+    if (!tag) {
+      await session.abortTransaction()
+      return res.status(404).json({ error: '找不到標籤' })
+    }
+
+    // 提交事務
+    await session.commitTransaction()
+
     res.json(tag)
-  } catch (err) {
-    res.status(400).json({ error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    // 處理重複鍵錯誤
+    if (error.code === 11000) {
+      return res.status(409).json({
+        error: '該語言下已存在相同名稱的標籤',
+      })
+    }
+
+    // 處理驗證錯誤
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: error.message,
+      })
+    }
+
+    res.status(400).json({ error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
 
 // 刪除標籤
 export const deleteTag = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await Tag.startSession()
+  session.startTransaction()
+
   try {
     // 檢查是否有迷因正在使用此標籤
-    const usageCount = await MemeTag.countDocuments({ tag_id: req.params.id })
+    const usageCount = await MemeTag.countDocuments({ tag_id: req.params.id }).session(session)
 
     if (usageCount > 0) {
+      await session.abortTransaction()
       return res.status(400).json({
         error: `無法刪除標籤，目前有 ${usageCount} 個迷因正在使用此標籤`,
         usageCount,
       })
     }
 
-    const tag = await Tag.findByIdAndDelete(req.params.id)
-    if (!tag) return res.status(404).json({ error: '找不到標籤' })
+    const tag = await Tag.findByIdAndDelete(req.params.id).session(session)
+    if (!tag) {
+      await session.abortTransaction()
+      return res.status(404).json({ error: '找不到標籤' })
+    }
+
+    // 提交事務
+    await session.commitTransaction()
 
     res.json({
       message: '標籤已刪除',
       deletedTag: tag,
     })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+    res.status(500).json({ error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }

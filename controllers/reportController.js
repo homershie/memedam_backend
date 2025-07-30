@@ -12,13 +12,46 @@ export const createReport = async (req, res) => {
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, data: null, error: errors.array() })
   }
+
+  // 使用 session 來確保原子性操作
+  const session = await Report.startSession()
+  session.startTransaction()
+
   try {
     const { target_id, reason } = req.body
     const report = new Report({ target_id, reason, user_id: req.user?._id })
-    await report.save()
+    await report.save({ session })
+
+    // 提交事務
+    await session.commitTransaction()
+
     res.status(201).json({ success: true, data: report, error: null })
-  } catch (err) {
-    res.status(500).json({ success: false, data: null, error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    // 處理重複鍵錯誤
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: '您已經檢舉過此內容，請勿重複檢舉',
+      })
+    }
+
+    // 處理驗證錯誤
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: error.message,
+      })
+    }
+
+    res.status(500).json({ success: false, data: null, error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
 
@@ -50,25 +83,74 @@ export const getReportById = async (req, res) => {
 
 // 更新舉報
 export const updateReport = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await Report.startSession()
+  session.startTransaction()
+
   try {
     const report = await Report.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
+      session,
     })
-    if (!report) return res.status(404).json({ error: '找不到舉報' })
+
+    if (!report) {
+      await session.abortTransaction()
+      return res.status(404).json({ error: '找不到舉報' })
+    }
+
+    // 提交事務
+    await session.commitTransaction()
+
     res.json(report)
-  } catch (err) {
-    res.status(400).json({ error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    // 處理重複鍵錯誤
+    if (error.code === 11000) {
+      return res.status(409).json({
+        error: '檢舉記錄重複，請檢查是否已存在相同記錄',
+      })
+    }
+
+    // 處理驗證錯誤
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: error.message,
+      })
+    }
+
+    res.status(400).json({ error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
 
 // 刪除舉報
 export const deleteReport = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await Report.startSession()
+  session.startTransaction()
+
   try {
-    const report = await Report.findByIdAndDelete(req.params.id)
-    if (!report) return res.status(404).json({ error: '找不到舉報' })
+    const report = await Report.findByIdAndDelete(req.params.id).session(session)
+    if (!report) {
+      await session.abortTransaction()
+      return res.status(404).json({ error: '找不到舉報' })
+    }
+
+    // 提交事務
+    await session.commitTransaction()
+
     res.json({ message: '舉報已刪除' })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+    res.status(500).json({ error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }

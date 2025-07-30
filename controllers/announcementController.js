@@ -12,6 +12,11 @@ export const createAnnouncement = async (req, res) => {
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, data: null, error: errors.array() })
   }
+
+  // 使用 session 來確保原子性操作
+  const session = await Announcement.startSession()
+  session.startTransaction()
+
   try {
     const { title, content, status, category } = req.body
     const announcement = new Announcement({
@@ -21,10 +26,38 @@ export const createAnnouncement = async (req, res) => {
       category,
       user_id: req.user?._id,
     })
-    await announcement.save()
+    await announcement.save({ session })
+
+    // 提交事務
+    await session.commitTransaction()
+
     res.status(201).json({ success: true, data: announcement, error: null })
-  } catch (err) {
-    res.status(500).json({ success: false, data: null, error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    // 處理重複鍵錯誤
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: '公告標題重複，請使用不同的標題',
+      })
+    }
+
+    // 處理驗證錯誤
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: error.message,
+      })
+    }
+
+    res.status(500).json({ success: false, data: null, error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
 
@@ -87,27 +120,78 @@ export const getAnnouncementById = async (req, res) => {
 
 // 更新公告
 export const updateAnnouncement = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await Announcement.startSession()
+  session.startTransaction()
+
   try {
     const announcement = await Announcement.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
+      session,
     })
-    if (!announcement)
+
+    if (!announcement) {
+      await session.abortTransaction()
       return res.status(404).json({ success: false, data: null, error: '找不到公告' })
+    }
+
+    // 提交事務
+    await session.commitTransaction()
+
     res.json({ success: true, data: announcement, error: null })
-  } catch (err) {
-    res.status(400).json({ success: false, data: null, error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    // 處理重複鍵錯誤
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: '公告標題重複，請使用不同的標題',
+      })
+    }
+
+    // 處理驗證錯誤
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: error.message,
+      })
+    }
+
+    res.status(400).json({ success: false, data: null, error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
 
 // 刪除公告
 export const deleteAnnouncement = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await Announcement.startSession()
+  session.startTransaction()
+
   try {
-    const announcement = await Announcement.findByIdAndDelete(req.params.id)
-    if (!announcement)
+    const announcement = await Announcement.findByIdAndDelete(req.params.id).session(session)
+    if (!announcement) {
+      await session.abortTransaction()
       return res.status(404).json({ success: false, data: null, error: '找不到公告' })
+    }
+
+    // 提交事務
+    await session.commitTransaction()
+
     res.json({ success: true, data: { message: '公告已刪除' }, error: null })
-  } catch (err) {
-    res.status(500).json({ success: false, data: null, error: err.message })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+    res.status(500).json({ success: false, data: null, error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }
