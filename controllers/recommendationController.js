@@ -15,12 +15,12 @@ import {
 } from '../utils/contentBased.js'
 import {
   getCollaborativeFilteringRecommendations,
-  getCollaborativeFilteringStats,
-  updateCollaborativeFilteringCache,
   getSocialCollaborativeFilteringRecommendations,
   getSocialCollaborativeFilteringStats,
   updateSocialCollaborativeFilteringCache,
+  updateCollaborativeFilteringCache,
 } from '../utils/collaborativeFiltering.js'
+import { getCollaborativeFilteringStats } from '../utils/collaborativeFilteringScheduler.js'
 import {
   getMixedRecommendations,
   getRecommendationAlgorithmStats,

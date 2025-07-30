@@ -31,13 +31,82 @@ import { token } from '../middleware/auth.js'
 const router = express.Router()
 
 /**
- * @route GET /api/recommendations/hot
- * @desc 取得熱門推薦
- * @access Public
- * @query {number} limit - 推薦數量限制 (預設: 20)
- * @query {string} type - 迷因類型篩選 (all, image, video, audio, text)
- * @query {number} days - 時間範圍天數 (預設: 7)
- * @query {boolean} exclude_viewed - 是否排除已看過的迷因 (預設: false)
+ * @swagger
+ * components:
+ *   schemas:
+ *     RecommendationResponse:
+ *       type: object
+ *       properties:
+ *         memes:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/Meme'
+ *         algorithm:
+ *           type: string
+ *           description: 使用的推薦演算法
+ *         metadata:
+ *           type: object
+ *           properties:
+ *             totalCount:
+ *               type: integer
+ *             processingTime:
+ *               type: number
+ *             cacheStatus:
+ *               type: string
+ *     UserBehavior:
+ *       type: object
+ *       properties:
+ *         userId:
+ *           type: string
+ *         action:
+ *           type: string
+ *           enum: [view, like, dislike, share, comment]
+ *         memeId:
+ *           type: string
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ */
+
+/**
+ * @swagger
+ * /api/recommendations/hot:
+ *   get:
+ *     summary: 取得熱門推薦
+ *     tags: [Recommendations]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 推薦數量限制
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [all, image, video, audio, text]
+ *           default: all
+ *         description: 迷因類型篩選
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 7
+ *         description: 時間範圍天數
+ *       - in: query
+ *         name: exclude_viewed
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: 是否排除已看過的迷因
+ *     responses:
+ *       200:
+ *         description: 成功取得熱門推薦
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RecommendationResponse'
  */
 router.get('/hot', getHotRecommendations)
 
@@ -188,6 +257,18 @@ router.post(
 )
 
 /**
+ * @route GET /api/recommendations/social-score/:memeId
+ * @desc 計算迷因的社交層分數
+ * @access Private
+ * @param {string} memeId - 迷因ID
+ * @query {boolean} include_distance - 是否包含社交距離計算 (預設: true)
+ * @query {boolean} include_influence - 是否包含影響力計算 (預設: true)
+ * @query {boolean} include_interactions - 是否包含互動計算 (預設: true)
+ * @query {number} max_distance - 最大社交距離 (預設: 3)
+ */
+router.get('/social-score/:memeId', token, calculateMemeSocialScoreController)
+
+/**
  * @route GET /api/recommendations/stats
  * @desc 取得推薦統計資訊
  * @access Public
@@ -208,18 +289,6 @@ router.get('/algorithm-stats', token, getRecommendationAlgorithmStatsController)
  * @body {Object} userBehavior - 用戶行為數據
  */
 router.post('/adjust-strategy', token, adjustRecommendationStrategyController)
-
-/**
- * @route GET /api/recommendations/social-score/:memeId
- * @desc 計算迷因的社交層分數
- * @access Private
- * @param {string} memeId - 迷因ID
- * @query {boolean} include_distance - 是否包含社交距離計算 (預設: true)
- * @query {boolean} include_influence - 是否包含影響力計算 (預設: true)
- * @query {boolean} include_interactions - 是否包含互動計算 (預設: true)
- * @query {number} max_distance - 最大社交距離 (預設: 3)
- */
-router.get('/social-score/:memeId', token, calculateMemeSocialScoreController)
 
 /**
  * @route GET /api/recommendations/social-influence-stats

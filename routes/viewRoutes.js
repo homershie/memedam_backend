@@ -10,9 +10,6 @@ import { token, optionalToken, isManager } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// 記錄瀏覽（支援匿名和登入用戶）
-router.post('/:meme_id', optionalToken, recordView)
-
 // 取得迷因瀏覽統計（公開）
 router.get('/stats/:meme_id', getViewStats)
 
@@ -24,5 +21,8 @@ router.get('/popular', getPopularMemes)
 
 // 清理過期瀏覽記錄（管理員功能）
 router.delete('/cleanup', token, isManager, cleanupOldViews)
+
+// 記錄瀏覽（支援匿名和登入用戶，必須在最後）
+router.post('/:meme_id', optionalToken, recordView)
 
 export default router

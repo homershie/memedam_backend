@@ -20,28 +20,152 @@ import { token } from '../middleware/auth.js'
 const router = express.Router()
 
 /**
- * @route POST /api/analytics/track-recommendation
- * @desc 記錄推薦指標
- * @access Private
- * @body {
- *   meme_id: string,
- *   algorithm: string,
- *   recommendation_score: number,
- *   recommendation_rank: number,
- *   ab_test_id?: string,
- *   ab_test_variant?: string,
- *   recommendation_context?: {
- *     page: string,
- *     position: number,
- *     session_id?: string
- *   },
- *   user_features?: {
- *     is_new_user: boolean,
- *     user_activity_level: string,
- *     user_preferences: object
- *   },
- *   meme_features?: object
- * }
+ * @swagger
+ * components:
+ *   schemas:
+ *     RecommendationTracking:
+ *       type: object
+ *       required:
+ *         - meme_id
+ *         - algorithm
+ *         - recommendation_score
+ *         - recommendation_rank
+ *       properties:
+ *         meme_id:
+ *           type: string
+ *           description: 迷因ID
+ *         algorithm:
+ *           type: string
+ *           description: 推薦演算法
+ *         recommendation_score:
+ *           type: number
+ *           description: 推薦分數
+ *         recommendation_rank:
+ *           type: integer
+ *           description: 推薦排名
+ *         ab_test_id:
+ *           type: string
+ *           description: A/B測試ID
+ *         ab_test_variant:
+ *           type: string
+ *           description: A/B測試變體
+ *         recommendation_context:
+ *           type: object
+ *           properties:
+ *             page:
+ *               type: string
+ *             position:
+ *               type: integer
+ *             session_id:
+ *               type: string
+ *         user_features:
+ *           type: object
+ *           properties:
+ *             is_new_user:
+ *               type: boolean
+ *             user_activity_level:
+ *               type: string
+ *             user_preferences:
+ *               type: object
+ *         meme_features:
+ *           type: object
+ *     ABTest:
+ *       type: object
+ *       required:
+ *         - test_id
+ *         - name
+ *         - test_type
+ *         - primary_metric
+ *         - variants
+ *         - start_date
+ *         - end_date
+ *       properties:
+ *         test_id:
+ *           type: string
+ *           description: 測試ID
+ *         name:
+ *           type: string
+ *           description: 測試名稱
+ *         description:
+ *           type: string
+ *           description: 測試描述
+ *         test_type:
+ *           type: string
+ *           description: 測試類型
+ *         primary_metric:
+ *           type: string
+ *           description: 主要指標
+ *         secondary_metrics:
+ *           type: array
+ *           items:
+ *             type: string
+ *           description: 次要指標
+ *         variants:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               variant_id:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               configuration:
+ *                 type: object
+ *               traffic_percentage:
+ *                 type: number
+ *         target_audience:
+ *           type: object
+ *           properties:
+ *             user_segments:
+ *               type: array
+ *               items:
+ *                 type: string
+ *             user_activity_levels:
+ *               type: array
+ *               items:
+ *                 type: string
+ *             geographic_regions:
+ *               type: array
+ *               items:
+ *                 type: string
+ *             device_types:
+ *               type: array
+ *               items:
+ *                 type: string
+ *         start_date:
+ *           type: string
+ *           format: date-time
+ *         end_date:
+ *           type: string
+ *           format: date-time
+ *         status:
+ *           type: string
+ *           enum: [draft, active, paused, completed]
+ */
+
+/**
+ * @swagger
+ * /api/analytics/track-recommendation:
+ *   post:
+ *     summary: 記錄推薦指標
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RecommendationTracking'
+ *     responses:
+ *       200:
+ *         description: 推薦指標記錄成功
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
  */
 router.post('/track-recommendation', token, trackRecommendation)
 
@@ -136,14 +260,6 @@ router.post('/ab-tests', token, createABTest)
 router.get('/ab-tests', token, getABTests)
 
 /**
- * @route GET /api/analytics/ab-tests/:testId
- * @desc 取得 A/B 測試詳細資訊
- * @access Private
- * @param {string} testId - 測試 ID
- */
-router.get('/ab-tests/:testId', token, getABTestDetails)
-
-/**
  * @route PUT /api/analytics/ab-tests/:testId/status
  * @desc 更新 A/B 測試狀態
  * @access Private
@@ -151,6 +267,14 @@ router.get('/ab-tests/:testId', token, getABTestDetails)
  * @body {string} status - 新狀態
  */
 router.put('/ab-tests/:testId/status', token, updateABTestStatus)
+
+/**
+ * @route GET /api/analytics/ab-tests/:testId
+ * @desc 取得 A/B 測試詳細資訊
+ * @access Private
+ * @param {string} testId - 測試 ID
+ */
+router.get('/ab-tests/:testId', token, getABTestDetails)
 
 /**
  * @route GET /api/analytics/dashboard

@@ -7,10 +7,12 @@ import mongoose from 'mongoose'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import swaggerUi from 'swagger-ui-express'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
+import swaggerSpecs from './config/swagger.js'
 import { performanceMonitor } from './utils/asyncProcessor.js'
-import logger from './utils/logger.js'
+import { logger } from './utils/logger.js'
 import { loginLimiter, registerLimiter, forgotPasswordLimiter } from './middleware/rateLimit.js'
 import errorHandler from './middleware/errorHandler.js'
 import maintenanceScheduler from './utils/maintenance.js'
@@ -67,6 +69,29 @@ app.use('/api/users/login', loginLimiter) // 登入特別限流
 app.use('/api/users/register', registerLimiter) // 註冊限流
 app.use('/api/users/forgot-password', forgotPasswordLimiter) // 忘記密碼限流
 
+// Swagger API 文檔
+// app.use(
+//   '/api-docs',
+//   swaggerUi.serve,
+//   swaggerUi.setup(swaggerSpecs, {
+//     customCss: '.swagger-ui .topbar { display: none }',
+//     customSiteTitle: '迷因典 API 文檔',
+//     customfavIcon: '/favicon.ico',
+//     swaggerOptions: {
+//       docExpansion: 'none',
+//       filter: true,
+//       showRequestHeaders: true,
+//       showCommonExtensions: true,
+//     },
+//   }),
+// )
+
+// API 文檔 JSON 端點
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json')
+  res.send(swaggerSpecs)
+})
+
 // 路由
 import userRoutes from './routes/userRoutes.js'
 import memeRoutes from './routes/memeRoutes.js'
@@ -81,7 +106,7 @@ import memeTagRoutes from './routes/memeTagRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
 import reportRoutes from './routes/reportRoutes.js'
 import memeVersionRoutes from './routes/memeVersionRoutes.js'
-import memeEditProposalRoutes from './routes/memeEditProposalRoutes.js'
+
 import announcementRoutes from './routes/announcementRoutes.js'
 import sponsorRoutes from './routes/sponsorRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
@@ -103,7 +128,7 @@ app.use('/api/meme-tags', memeTagRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/meme-versions', memeVersionRoutes)
-app.use('/api/meme-edit-proposals', memeEditProposalRoutes)
+
 app.use('/api/announcements', announcementRoutes)
 app.use('/api/sponsors', sponsorRoutes)
 app.use('/api/upload', uploadRoutes)
@@ -235,6 +260,30 @@ app.use(errorHandler)
 // 啟動伺服器
 const PORT = process.env.PORT || 4000
 
+// 調試函數：列印所有註冊的路徑
+const printAllRoutes = (app) => {
+  logger.info('=== 註冊的路徑列表 ===')
+
+  const printRoutes = (stack, prefix = '') => {
+    stack.forEach((layer) => {
+      if (layer.route) {
+        // 這是一個路由層
+        const methods = Object.keys(layer.route.methods)
+        const path = prefix + layer.route.path
+        logger.info(`${methods.join(',').toUpperCase()} ${path}`)
+      } else if (layer.name === 'router') {
+        // 這是一個路由器層
+        const newPrefix =
+          prefix + (layer.regexp.source.replace('^\\/', '').replace('\\/?(?=\\/|$)', '') || '')
+        printRoutes(layer.handle.stack, newPrefix)
+      }
+    })
+  }
+
+  printRoutes(app._router.stack)
+  logger.info('=== 路徑列表結束 ===')
+}
+
 const startServer = async () => {
   try {
     // 連線資料庫
@@ -257,6 +306,9 @@ const startServer = async () => {
     // 啟動分析監控
     await analyticsMonitor.startMonitoring()
     logger.info('已啟動分析監控系統')
+
+    // 列印所有註冊的路徑（調試用）
+    printAllRoutes(app)
 
     app.listen(PORT, () => {
       logger.info(`伺服器運行在端口 ${PORT}`)

@@ -7,7 +7,7 @@ import { StatusCodes } from 'http-status-codes'
 import RecommendationMetrics from '../models/RecommendationMetrics.js'
 import ABTest from '../models/ABTest.js'
 import Meme from '../models/Meme.js'
-import logger from '../utils/logger.js'
+import { logger } from '../utils/logger.js'
 
 /**
  * 記錄推薦指標

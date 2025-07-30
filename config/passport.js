@@ -211,6 +211,7 @@ passport.use(
 
 // Twitter
 passport.use(
+  'twitter-oauth2',
   new TwitterStrategy(
     {
       clientID: process.env.TWITTER_CLIENT_ID,

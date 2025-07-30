@@ -5,7 +5,7 @@
 
 import RecommendationMetrics from '../models/RecommendationMetrics.js'
 import ABTest from '../models/ABTest.js'
-import logger from './logger.js'
+import { logger } from './logger.js'
 import redisCache from '../config/redis.js'
 
 class AnalyticsMonitor {

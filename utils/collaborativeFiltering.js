@@ -973,6 +973,37 @@ const calculateNetworkDensity = (userSocialData) => {
 }
 
 /**
+ * 更新協同過濾快取
+ * @param {Array} userIds - 用戶ID列表（可選）
+ * @returns {Object} 更新結果
+ */
+export const updateCollaborativeFilteringCache = async (userIds = []) => {
+  try {
+    console.log('開始更新協同過濾快取...')
+
+    const startTime = Date.now()
+
+    // 建立互動矩陣
+    const interactionMatrix = await buildInteractionMatrix(userIds)
+
+    const cacheResults = {
+      total_users: Object.keys(interactionMatrix).length,
+      total_interactions: Object.values(interactionMatrix).reduce(
+        (sum, interactions) => sum + Object.keys(interactions).length,
+        0,
+      ),
+      processing_time: Date.now() - startTime,
+    }
+
+    console.log(`協同過濾快取更新完成，處理時間: ${cacheResults.processing_time}ms`)
+    return cacheResults
+  } catch (error) {
+    console.error('更新協同過濾快取時發生錯誤:', error)
+    throw error
+  }
+}
+
+/**
  * 更新社交協同過濾快取
  * @param {Array} userIds - 用戶ID列表（可選）
  * @returns {Object} 更新結果

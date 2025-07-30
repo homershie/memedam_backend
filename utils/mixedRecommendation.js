@@ -23,7 +23,7 @@ import {
 import { calculateMultipleMemeSocialScores } from './socialScoreCalculator.js'
 import redisCache from '../config/redis.js'
 import { cacheProcessor, performanceMonitor } from './asyncProcessor.js'
-import logger from './logger.js'
+import { logger } from './logger.js'
 
 /**
  * 演算法權重配置

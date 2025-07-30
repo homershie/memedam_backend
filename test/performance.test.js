@@ -13,7 +13,7 @@ import {
   performanceMonitor,
 } from '../utils/asyncProcessor.js'
 import { getMixedRecommendations } from '../utils/mixedRecommendation.js'
-import logger from '../utils/logger.js'
+import { logger } from '../utils/logger.js'
 
 /**
  * 效能測試類別
