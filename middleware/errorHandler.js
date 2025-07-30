@@ -22,6 +22,11 @@ const errorHandler = (err, req, res, next) => {
     success: false,
     message,
   })
+
+  // 如果這不是最終錯誤處理器，可以傳遞給下一個
+  if (next) {
+    next(err)
+  }
 }
 
 export default errorHandler

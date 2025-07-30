@@ -4,9 +4,7 @@
 
 import {
   calculateSocialDistance,
-  buildSocialGraph,
   calculateSocialInfluenceScore,
-  calculateMemeSocialScore,
   calculateMultipleMemeSocialScores,
   getUserSocialInfluenceStats,
   generateSocialRecommendationReasons,

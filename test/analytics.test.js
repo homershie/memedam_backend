@@ -29,7 +29,6 @@ jest.mock('../utils/logger.js', () => ({
 describe('Analytics and Monitoring System', () => {
   let testUserId
   let testMemeId
-  let testMetricsId
 
   beforeAll(async () => {
     // 建立測試用戶和迷因 ID

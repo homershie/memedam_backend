@@ -6,7 +6,6 @@
 import { StatusCodes } from 'http-status-codes'
 import RecommendationMetrics from '../models/RecommendationMetrics.js'
 import ABTest from '../models/ABTest.js'
-import User from '../models/User.js'
 import Meme from '../models/Meme.js'
 import logger from '../utils/logger.js'
 
@@ -26,7 +25,6 @@ export const trackRecommendation = async (req, res) => {
       ab_test_variant,
       recommendation_context,
       user_features,
-      meme_features,
     } = req.body
 
     const userId = req.user._id
