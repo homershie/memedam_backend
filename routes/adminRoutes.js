@@ -11,6 +11,23 @@ import {
   scheduledHotScoreUpdate,
   getHotScoreStats,
 } from '../utils/hotScoreScheduler.js'
+import {
+  updateAllRecommendationSystems,
+  getRecommendationSystemStatus,
+  updateRecommendationConfig,
+} from '../utils/recommendationScheduler.js'
+import {
+  batchUpdateUserPreferences,
+  scheduledContentBasedUpdate,
+  getContentBasedStats,
+  updateContentBasedConfig,
+} from '../utils/contentBasedScheduler.js'
+import {
+  batchUpdateCollaborativeFilteringCache,
+  scheduledCollaborativeFilteringUpdate,
+  getCollaborativeFilteringStats,
+  updateCollaborativeFilteringConfig,
+} from '../utils/collaborativeFilteringScheduler.js'
 import { token, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -191,6 +208,225 @@ router.get('/hot-score-statistics', token, isAdmin, async (req, res) => {
       success: true,
       data: statistics,
       message: '已獲取熱門分數統計資訊',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 推薦系統管理端點
+// 執行所有推薦系統更新
+router.post('/update-all-recommendation-systems', token, isAdmin, async (req, res) => {
+  try {
+    const { options = {} } = req.body
+    const result = await updateAllRecommendationSystems(options)
+    res.json({
+      success: true,
+      data: result,
+      message: '所有推薦系統更新已完成',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 取得推薦系統狀態
+router.get('/recommendation-system-status', token, isAdmin, async (req, res) => {
+  try {
+    const status = await getRecommendationSystemStatus()
+    res.json({
+      success: true,
+      data: status,
+      message: '已獲取推薦系統狀態',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 更新推薦系統配置
+router.put('/recommendation-system-config', token, isAdmin, async (req, res) => {
+  try {
+    const { config } = req.body
+    const result = await updateRecommendationConfig(config)
+    res.json({
+      success: true,
+      data: result,
+      message: '推薦系統配置已更新',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 內容基礎推薦管理端點
+// 批次更新用戶偏好快取
+router.post('/batch-update-user-preferences', token, isAdmin, async (req, res) => {
+  try {
+    const { maxUsers = 1000, batchSize = 100 } = req.body
+    const result = await batchUpdateUserPreferences({ maxUsers, batchSize })
+    res.json({
+      success: true,
+      data: result,
+      message: '用戶偏好快取批次更新已完成',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 執行定期內容基礎推薦更新任務
+router.post('/scheduled-content-based-update', token, isAdmin, async (req, res) => {
+  try {
+    const { updateInterval = '24h', maxUsers = 1000, batchSize = 100 } = req.body
+    const result = await scheduledContentBasedUpdate({ updateInterval, maxUsers, batchSize })
+    res.json({
+      success: true,
+      data: result,
+      message: '定期內容基礎推薦更新任務已完成',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 取得內容基礎推薦統計資訊
+router.get('/content-based-statistics', token, isAdmin, async (req, res) => {
+  try {
+    const statistics = await getContentBasedStats()
+    res.json({
+      success: true,
+      data: statistics,
+      message: '已獲取內容基礎推薦統計資訊',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 更新內容基礎推薦配置
+router.put('/content-based-config', token, isAdmin, async (req, res) => {
+  try {
+    const { config } = req.body
+    const result = await updateContentBasedConfig(config)
+    res.json({
+      success: true,
+      data: result,
+      message: '內容基礎推薦配置已更新',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 協同過濾推薦管理端點
+// 批次更新協同過濾快取
+router.post('/batch-update-collaborative-filtering', token, isAdmin, async (req, res) => {
+  try {
+    const { maxUsers = 1000, maxMemes = 5000 } = req.body
+    const result = await batchUpdateCollaborativeFilteringCache({ maxUsers, maxMemes })
+    res.json({
+      success: true,
+      data: result,
+      message: '協同過濾快取批次更新已完成',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 執行定期協同過濾推薦更新任務
+router.post('/scheduled-collaborative-filtering-update', token, isAdmin, async (req, res) => {
+  try {
+    const {
+      updateInterval = '24h',
+      maxUsers = 1000,
+      maxMemes = 5000,
+      includeSocial = true,
+    } = req.body
+    const result = await scheduledCollaborativeFilteringUpdate({
+      updateInterval,
+      maxUsers,
+      maxMemes,
+      includeSocial,
+    })
+    res.json({
+      success: true,
+      data: result,
+      message: '定期協同過濾推薦更新任務已完成',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 取得協同過濾推薦統計資訊
+router.get('/collaborative-filtering-statistics', token, isAdmin, async (req, res) => {
+  try {
+    const statistics = await getCollaborativeFilteringStats()
+    res.json({
+      success: true,
+      data: statistics,
+      message: '已獲取協同過濾推薦統計資訊',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 更新協同過濾推薦配置
+router.put('/collaborative-filtering-config', token, isAdmin, async (req, res) => {
+  try {
+    const { config } = req.body
+    const result = await updateCollaborativeFilteringConfig(config)
+    res.json({
+      success: true,
+      data: result,
+      message: '協同過濾推薦配置已更新',
     })
   } catch (error) {
     res.status(500).json({
