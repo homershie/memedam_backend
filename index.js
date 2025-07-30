@@ -14,6 +14,7 @@ import logger from './utils/logger.js'
 import { loginLimiter, registerLimiter, forgotPasswordLimiter } from './middleware/rateLimit.js'
 import errorHandler from './middleware/errorHandler.js'
 import maintenanceScheduler from './utils/maintenance.js'
+import analyticsMonitor from './utils/analyticsMonitor.js'
 
 // 載入環境變數
 dotenv.config()
@@ -87,6 +88,7 @@ import uploadRoutes from './routes/uploadRoutes.js'
 import recommendationRoutes from './routes/recommendationRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import dislikeRoutes from './routes/dislikeRoutes.js'
+import analyticsRoutes from './routes/analyticsRoutes.js'
 
 app.use('/api/users', userRoutes)
 app.use('/api/memes', memeRoutes)
@@ -108,6 +110,7 @@ app.use('/api/upload', uploadRoutes)
 app.use('/api/recommendations', recommendationRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/dislikes', dislikeRoutes)
+app.use('/api/analytics', analyticsRoutes)
 
 // 健康檢查端點
 app.get('/health', async (req, res) => {
@@ -121,6 +124,7 @@ app.get('/health', async (req, res) => {
     const redisStatus = await redisCache.getStats()
 
     const performanceMetrics = performanceMonitor.getAllMetrics()
+    const analyticsStatus = analyticsMonitor.getMonitoringStatus()
 
     res.json({
       status: 'healthy',
@@ -139,6 +143,7 @@ app.get('/health', async (req, res) => {
             duration: metric.duration,
           })),
       },
+      analytics: analyticsStatus,
     })
   } catch (error) {
     logger.error('健康檢查失敗:', error)
@@ -248,6 +253,10 @@ const startServer = async () => {
     } else {
       logger.info('開發模式：跳過定期維護任務')
     }
+
+    // 啟動分析監控
+    await analyticsMonitor.startMonitoring()
+    logger.info('已啟動分析監控系統')
 
     app.listen(PORT, () => {
       logger.info(`伺服器運行在端口 ${PORT}`)
