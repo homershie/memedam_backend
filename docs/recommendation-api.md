@@ -99,6 +99,17 @@
 - **適用場景**: 個人化推薦
 - **特點**: 需要登入，分析用戶互動歷史
 
+### 9. 社交層分數計算 (Social Score Calculation)
+
+- **演算法**: 基於社交關係的詳細分數計算
+- **適用場景**: 社交推薦和影響力分析
+- **特點**:
+  - 考慮社交距離（直接關注、互相關注、二度關係、三度關係）
+  - 計算社交影響力分數
+  - 分析不同類型的社交互動（發佈、按讚、留言、分享、收藏、瀏覽）
+  - 生成具體的推薦原因說明
+  - 限制分數上限避免單一迷因爆分
+
 ### 9. 混合推薦 (Mixed Recommendations)
 
 - **演算法**: 結合多種演算法
@@ -758,15 +769,16 @@
 
 **GET** `/api/recommendations/mixed`
 
-取得結合多種演算法的混合推薦。
+取得結合多種演算法的混合推薦，支援動態權重調整和冷啟動處理。
 
 **查詢參數**:
 
 - `limit` (number): 推薦數量 (預設: 30)
-- `hot_weight` (number): 熱門分數權重 (預設: 0.25)
-- `latest_weight` (number): 最新分數權重 (預設: 0.25)
-- `content_weight` (number): 內容基礎權重 (預設: 0.25)
-- `similar_weight` (number): 相似分數權重 (預設: 0.25)
+- `custom_weights` (string): 自定義權重 JSON 字串 (預設: {})
+- `include_diversity` (boolean): 是否包含多樣性計算 (預設: true)
+- `include_cold_start_analysis` (boolean): 是否包含冷啟動分析 (預設: true)
+- `include_social_scores` (boolean): 是否包含社交層分數計算 (預設: true)
+- `include_recommendation_reasons` (boolean): 是否包含推薦原因生成 (預設: true)
 
 **回應範例**:
 
@@ -780,35 +792,271 @@
         "title": "混合推薦迷因",
         "recommendation_score": 234.56,
         "recommendation_type": "mixed",
-        "hot_score_weight": 0.25,
-        "latest_weight": 0.25,
-        "content_weight": 0.25,
-        "similar_weight": 0.25,
+        "recommendation_reason": "你的好友 user123 按讚了這則迷因",
+        "recommendation_reasons": [
+          {
+            "type": "like",
+            "text": "你的好友 user123 按讚了這則迷因",
+            "weight": 12.5,
+            "userId": "60f7b3b3b3b3b3b3b3b3b3b4",
+            "username": "user123"
+          }
+        ],
+        "social_score": 15.2,
+        "social_distance_score": 3.5,
+        "social_influence_score": 8.7,
+        "social_interaction_score": 3.0,
+        "social_interactions": [
+          {
+            "userId": "60f7b3b3b3b3b3b3b3b3b3b4",
+            "username": "user123",
+            "displayName": "用戶123",
+            "action": "like",
+            "weight": 12.5,
+            "distance": 1,
+            "distanceType": "direct_follow",
+            "influenceScore": 25.3,
+            "influenceLevel": "active"
+          }
+        ],
+        "algorithm_scores": {
+          "hot": 567.89,
+          "latest": 0.000123,
+          "content_based": 0.85
+        },
+        "total_score": 234.56,
         "hot_level": "popular"
       }
     ],
     "filters": {
       "limit": 30,
-      "hot_weight": 0.25,
-      "latest_weight": 0.25,
-      "content_weight": 0.25,
-      "similar_weight": 0.25
+      "custom_weights": {},
+      "include_diversity": true,
+      "include_cold_start_analysis": true
     },
     "algorithm": "mixed",
     "weights": {
       "hot": 0.25,
       "latest": 0.25,
-      "content": 0.25,
-      "similar": 0.25
+      "content_based": 0.2,
+      "collaborative_filtering": 0.15,
+      "social_collaborative_filtering": 0.15
+    },
+    "cold_start_status": {
+      "isColdStart": false,
+      "activityScore": {
+        "score": 45.2,
+        "level": "active",
+        "totalInteractions": 156
+      },
+      "userPreferences": {
+        "preferences": {
+          "funny": 0.8,
+          "meme": 0.6,
+          "viral": 0.4
+        }
+      }
+    },
+    "diversity": {
+      "tagDiversity": 0.75,
+      "authorDiversity": 0.6,
+      "uniqueTags": 15,
+      "uniqueAuthors": 12,
+      "totalTags": 20,
+      "totalAuthors": 20
     },
     "user_authenticated": true,
-    "content_based_included": true
+    "algorithm_details": {
+      "description": "整合所有推薦演算法的混合推薦系統",
+      "features": [
+        "支援動態權重調整",
+        "冷啟動處理機制",
+        "多樣性計算",
+        "用戶活躍度分析",
+        "個人化推薦策略"
+      ]
+    }
   },
   "error": null
 }
 ```
 
-#### 10. 推薦統計
+#### 13. 推薦演算法統計
+
+**GET** `/api/recommendations/algorithm-stats`
+
+取得推薦演算法統計，包含用戶活躍度和冷啟動分析。
+
+**權限**: 需要登入
+
+#### 14. 社交層分數計算
+
+**GET** `/api/recommendations/social-score/:memeId`
+
+計算迷因的社交層分數，包含社交距離、影響力和互動分析。
+
+**權限**: 需要登入
+
+**路徑參數**:
+
+- `memeId` (string): 迷因ID
+
+**查詢參數**:
+
+- `include_distance` (boolean): 是否包含社交距離計算 (預設: true)
+- `include_influence` (boolean): 是否包含影響力計算 (預設: true)
+- `include_interactions` (boolean): 是否包含互動計算 (預設: true)
+- `max_distance` (number): 最大社交距離 (預設: 3)
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "socialScore": 15.2,
+    "distanceScore": 3.5,
+    "influenceScore": 8.7,
+    "interactionScore": 3.0,
+    "reasons": [
+      {
+        "type": "like",
+        "text": "你的好友 user123 按讚了這則迷因",
+        "weight": 12.5,
+        "userId": "60f7b3b3b3b3b3b3b3b3b3b4",
+        "username": "user123"
+      }
+    ],
+    "socialInteractions": [
+      {
+        "userId": "60f7b3b3b3b3b3b3b3b3b3b4",
+        "username": "user123",
+        "displayName": "用戶123",
+        "action": "like",
+        "weight": 12.5,
+        "distance": 1,
+        "distanceType": "direct_follow",
+        "influenceScore": 25.3,
+        "influenceLevel": "active"
+      }
+    ],
+    "algorithm_details": {
+      "description": "基於社交關係的詳細分數計算",
+      "features": [
+        "考慮社交距離（直接關注、互相關注、二度關係、三度關係）",
+        "計算社交影響力分數",
+        "分析不同類型的社交互動（發佈、按讚、留言、分享、收藏、瀏覽）",
+        "生成具體的推薦原因說明",
+        "限制分數上限避免單一迷因爆分"
+      ]
+    }
+  },
+  "error": null
+}
+```
+
+#### 15. 用戶社交影響力統計
+
+**GET** `/api/recommendations/social-influence-stats`
+
+取得用戶的社交影響力統計，包含追隨者、影響力等級等資訊。
+
+**權限**: 需要登入
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "influenceScore": 25.3,
+    "influenceLevel": "active",
+    "followers": 45,
+    "following": 32,
+    "mutualFollows": 18,
+    "networkDensity": 0.77,
+    "socialReach": 63
+  },
+  "error": null
+}
+```
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalMemes": 1500,
+    "hotMemes": 200,
+    "trendingMemes": 80,
+    "viralMemes": 20,
+    "userActivity": {
+      "score": 45.2,
+      "level": "active",
+      "totalInteractions": 156,
+      "breakdown": {
+        "likes": 45,
+        "comments": 23,
+        "shares": 12,
+        "collections": 34,
+        "views": 42
+      }
+    },
+    "coldStart": false,
+    "userPreferences": {
+      "preferences": {
+        "funny": 0.8,
+        "meme": 0.6,
+        "viral": 0.4
+      }
+    }
+  },
+  "error": null
+}
+```
+
+#### 14. 動態調整推薦策略
+
+**POST** `/api/recommendations/adjust-strategy`
+
+根據用戶行為動態調整推薦策略。
+
+**權限**: 需要登入
+
+**請求體**:
+
+```json
+{
+  "userBehavior": {
+    "clickRate": 0.35,
+    "engagementRate": 0.6,
+    "diversityPreference": 0.8
+  }
+}
+```
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "weights": {
+      "content_based": 0.35,
+      "collaborative_filtering": 0.25,
+      "social_collaborative_filtering": 0.2,
+      "hot": 0.1,
+      "latest": 0.1
+    },
+    "focus": "personalization",
+    "coldStartHandling": false
+  },
+  "error": null
+}
+```
+
+#### 15. 推薦統計
 
 **GET** `/api/recommendations/stats`
 

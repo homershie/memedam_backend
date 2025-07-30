@@ -1,0 +1,653 @@
+/**
+ * 混合推薦系統
+ * 整合所有推薦演算法，支援動態權重調整和冷啟動處理
+ */
+
+import Meme from '../models/Meme.js'
+import User from '../models/User.js'
+import { getHotScoreLevel } from './hotScore.js'
+import Like from '../models/Like.js'
+import Comment from '../models/Comment.js'
+import Share from '../models/Share.js'
+import Collection from '../models/Collection.js'
+import View from '../models/View.js'
+import {
+  getContentBasedRecommendations as getContentBasedRecs,
+  calculateUserTagPreferences,
+} from './contentBased.js'
+import {
+  getCollaborativeFilteringRecommendations as getCollaborativeFilteringRecs,
+  getSocialCollaborativeFilteringRecommendations as getSocialCollaborativeFilteringRecs,
+} from './collaborativeFiltering.js'
+import { calculateMultipleMemeSocialScores } from './socialScoreCalculator.js'
+
+/**
+ * 演算法權重配置
+ */
+const ALGORITHM_WEIGHTS = {
+  hot: 0.25,
+  latest: 0.25,
+  content_based: 0.2,
+  collaborative_filtering: 0.15,
+  social_collaborative_filtering: 0.15,
+}
+
+/**
+ * 冷啟動配置
+ */
+const COLD_START_CONFIG = {
+  minInteractions: 5, // 最少互動數
+  minSimilarUsers: 3, // 最少相似用戶數
+  fallbackWeight: 0.8, // 冷啟動時熱門推薦權重
+}
+
+/**
+ * 計算用戶活躍度分數
+ * @param {string} userId - 用戶ID
+ * @returns {Object} 活躍度分數和等級
+ */
+const calculateUserActivityScore = async (userId) => {
+  try {
+    const user = await User.findById(userId)
+    if (!user) {
+      return { score: 0, level: 'inactive' }
+    }
+
+    // 計算用戶的互動總數
+    const [likes, comments, shares, collections, views] = await Promise.all([
+      Like.countDocuments({ user_id: userId }),
+      Comment.countDocuments({ user_id: userId, status: 'normal' }),
+      Share.countDocuments({ user_id: userId }),
+      Collection.countDocuments({ user_id: userId }),
+      View.countDocuments({ user_id: userId }),
+    ])
+
+    const totalInteractions = likes + comments + shares + collections + views
+    const activityScore = Math.log10(totalInteractions + 1) * 10
+
+    // 根據分數確定活躍等級
+    let level = 'inactive'
+    if (activityScore >= 50) level = 'very_active'
+    else if (activityScore >= 30) level = 'active'
+    else if (activityScore >= 15) level = 'moderate'
+    else if (activityScore >= 5) level = 'low'
+    else level = 'inactive'
+
+    return {
+      score: activityScore,
+      level,
+      totalInteractions,
+      breakdown: { likes, comments, shares, collections, views },
+    }
+  } catch (error) {
+    console.error('計算用戶活躍度分數失敗:', error)
+    return { score: 0, level: 'inactive' }
+  }
+}
+
+/**
+ * 檢查冷啟動狀態
+ * @param {string} userId - 用戶ID
+ * @returns {Object} 冷啟動狀態和建議
+ */
+const checkColdStartStatus = async (userId) => {
+  try {
+    const activityScore = await calculateUserActivityScore(userId)
+    const userPreferences = await calculateUserTagPreferences(userId)
+
+    const isColdStart =
+      activityScore.totalInteractions < COLD_START_CONFIG.minInteractions ||
+      Object.keys(userPreferences.preferences).length === 0
+
+    return {
+      isColdStart,
+      activityScore,
+      userPreferences,
+      recommendations: isColdStart ? 'hot' : 'mixed',
+    }
+  } catch (error) {
+    console.error('檢查冷啟動狀態失敗:', error)
+    return {
+      isColdStart: true,
+      activityScore: { score: 0, level: 'inactive' },
+      userPreferences: { preferences: {} },
+      recommendations: 'hot',
+    }
+  }
+}
+
+/**
+ * 動態調整演算法權重
+ * @param {Object} coldStartStatus - 冷啟動狀態
+ * @param {Object} userPreferences - 用戶偏好
+ * @param {Object} customWeights - 自定義權重
+ * @returns {Object} 調整後的權重
+ */
+const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights = {}) => {
+  const weights = { ...ALGORITHM_WEIGHTS, ...customWeights }
+
+  // 如果是冷啟動狀態，增加熱門推薦權重
+  if (coldStartStatus.isColdStart) {
+    weights.hot = COLD_START_CONFIG.fallbackWeight
+    weights.latest = 0.2
+    weights.content_based = 0
+    weights.collaborative_filtering = 0
+    weights.social_collaborative_filtering = 0
+  } else {
+    // 根據用戶活躍度調整權重
+    const activityLevel = coldStartStatus.activityScore.level
+    switch (activityLevel) {
+      case 'very_active':
+        weights.content_based = 0.3
+        weights.collaborative_filtering = 0.2
+        weights.social_collaborative_filtering = 0.2
+        weights.hot = 0.15
+        weights.latest = 0.15
+        break
+      case 'active':
+        weights.content_based = 0.25
+        weights.collaborative_filtering = 0.2
+        weights.social_collaborative_filtering = 0.15
+        weights.hot = 0.2
+        weights.latest = 0.2
+        break
+      case 'moderate':
+        weights.content_based = 0.2
+        weights.collaborative_filtering = 0.15
+        weights.social_collaborative_filtering = 0.1
+        weights.hot = 0.25
+        weights.latest = 0.3
+        break
+      default:
+        weights.hot = 0.4
+        weights.latest = 0.3
+        weights.content_based = 0.2
+        weights.collaborative_filtering = 0.05
+        weights.social_collaborative_filtering = 0.05
+    }
+  }
+
+  return weights
+}
+
+/**
+ * 取得熱門推薦
+ * @param {Object} options - 選項
+ * @returns {Array} 熱門推薦列表
+ */
+const getHotRecommendations = async (options = {}) => {
+  const { limit = 20, days = 7 } = options
+  const dateLimit = new Date()
+  dateLimit.setDate(dateLimit.getDate() - parseInt(days))
+
+  const memes = await Meme.find({
+    status: 'public',
+    createdAt: { $gte: dateLimit },
+  })
+    .sort({ hot_score: -1 })
+    .limit(parseInt(limit))
+    .populate('author_id', 'username display_name avatar')
+
+  return memes.map((meme) => ({
+    ...meme.toObject(),
+    recommendation_score: meme.hot_score,
+    recommendation_type: 'hot',
+    hot_level: getHotScoreLevel(meme.hot_score),
+  }))
+}
+
+/**
+ * 取得最新推薦
+ * @param {Object} options - 選項
+ * @returns {Array} 最新推薦列表
+ */
+const getLatestRecommendations = async (options = {}) => {
+  const { limit = 20, hours = 24 } = options
+  const dateLimit = new Date()
+  dateLimit.setHours(dateLimit.getHours() - parseInt(hours))
+
+  const memes = await Meme.find({
+    status: 'public',
+    createdAt: { $gte: dateLimit },
+  })
+    .sort({ createdAt: -1 })
+    .limit(parseInt(limit))
+    .populate('author_id', 'username display_name avatar')
+
+  return memes.map((meme) => ({
+    ...meme.toObject(),
+    recommendation_score: 1 / (Date.now() - meme.createdAt.getTime()),
+    recommendation_type: 'latest',
+  }))
+}
+
+/**
+ * 取得內容基礎推薦
+ * @param {string} userId - 用戶ID
+ * @param {Object} options - 選項
+ * @returns {Array} 內容基礎推薦列表
+ */
+const getContentBasedRecommendations = async (userId, options = {}) => {
+  try {
+    return await getContentBasedRecs(userId, {
+      limit: options.limit || 20,
+      minSimilarity: 0.1,
+      excludeInteracted: true,
+      includeHotScore: true,
+      hotScoreWeight: 0.3,
+    })
+  } catch (error) {
+    console.error('內容基礎推薦失敗:', error)
+    return []
+  }
+}
+
+/**
+ * 取得協同過濾推薦
+ * @param {string} userId - 用戶ID
+ * @param {Object} options - 選項
+ * @returns {Array} 協同過濾推薦列表
+ */
+const getCollaborativeFilteringRecommendations = async (userId, options = {}) => {
+  try {
+    return await getCollaborativeFilteringRecs(userId, {
+      limit: options.limit || 20,
+      minSimilarity: 0.1,
+      maxSimilarUsers: 50,
+      excludeInteracted: true,
+      includeHotScore: true,
+      hotScoreWeight: 0.3,
+    })
+  } catch (error) {
+    console.error('協同過濾推薦失敗:', error)
+    return []
+  }
+}
+
+/**
+ * 取得社交協同過濾推薦
+ * @param {string} userId - 用戶ID
+ * @param {Object} options - 選項
+ * @returns {Array} 社交協同過濾推薦列表
+ */
+const getSocialCollaborativeFilteringRecommendations = async (userId, options = {}) => {
+  try {
+    return await getSocialCollaborativeFilteringRecs(userId, {
+      limit: options.limit || 20,
+      minSimilarity: 0.1,
+      maxSimilarUsers: 50,
+      excludeInteracted: true,
+      includeHotScore: true,
+      hotScoreWeight: 0.3,
+    })
+  } catch (error) {
+    console.error('社交協同過濾推薦失敗:', error)
+    return []
+  }
+}
+
+/**
+ * 合併推薦結果
+ * @param {Array} recommendations - 推薦列表
+ * @param {Object} weights - 權重配置
+ * @returns {Array} 合併後的推薦列表
+ */
+const mergeRecommendations = (recommendations, weights) => {
+  const memeMap = new Map()
+
+  // 合併所有推薦
+  recommendations.forEach((rec) => {
+    rec.forEach((meme) => {
+      const memeId = meme._id.toString()
+      if (!memeMap.has(memeId)) {
+        memeMap.set(memeId, {
+          ...meme,
+          algorithm_scores: {},
+          total_score: 0,
+        })
+      }
+
+      const existingMeme = memeMap.get(memeId)
+      const algorithmType = meme.recommendation_type
+      const weight = weights[algorithmType] || 0
+
+      existingMeme.algorithm_scores[algorithmType] = meme.recommendation_score
+      existingMeme.total_score += meme.recommendation_score * weight
+    })
+  })
+
+  // 轉換為陣列並排序
+  const mergedRecommendations = Array.from(memeMap.values())
+  mergedRecommendations.sort((a, b) => b.total_score - a.total_score)
+
+  return mergedRecommendations
+}
+
+/**
+ * 計算推薦多樣性
+ * @param {Array} recommendations - 推薦列表
+ * @returns {Object} 多樣性統計
+ */
+const calculateRecommendationDiversity = (recommendations) => {
+  const tagCounts = {}
+  const authorCounts = {}
+  let totalTags = 0
+  let totalAuthors = 0
+
+  recommendations.forEach((meme) => {
+    // 統計標籤多樣性
+    if (meme.tags_cache) {
+      meme.tags_cache.forEach((tag) => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1
+        totalTags++
+      })
+    }
+
+    // 統計作者多樣性
+    if (meme.author_id) {
+      const authorId = meme.author_id._id.toString()
+      authorCounts[authorId] = (authorCounts[authorId] || 0) + 1
+      totalAuthors++
+    }
+  })
+
+  const uniqueTags = Object.keys(tagCounts).length
+  const uniqueAuthors = Object.keys(authorCounts).length
+  const tagDiversity = totalTags > 0 ? uniqueTags / totalTags : 0
+  const authorDiversity = totalAuthors > 0 ? uniqueAuthors / totalAuthors : 0
+
+  return {
+    tagDiversity,
+    authorDiversity,
+    uniqueTags,
+    uniqueAuthors,
+    totalTags,
+    totalAuthors,
+  }
+}
+
+/**
+ * 主要混合推薦函數
+ * @param {string} userId - 用戶ID（可選）
+ * @param {Object} options - 選項
+ * @returns {Object} 混合推薦結果
+ */
+export const getMixedRecommendations = async (userId = null, options = {}) => {
+  try {
+    const {
+      limit = 30,
+      customWeights = {},
+      includeDiversity = true,
+      includeColdStartAnalysis = true,
+      includeSocialScores = true,
+      includeRecommendationReasons = true,
+    } = options
+
+    // 檢查冷啟動狀態
+    let coldStartStatus = null
+    if (userId && includeColdStartAnalysis) {
+      coldStartStatus = await checkColdStartStatus(userId)
+    }
+
+    // 動態調整權重
+    const weights = adjustAlgorithmWeights(
+      coldStartStatus || { isColdStart: !userId },
+      coldStartStatus?.userPreferences || { preferences: {} },
+      customWeights,
+    )
+
+    // 取得各種推薦
+    const recommendations = []
+
+    // 熱門推薦
+    if (weights.hot > 0) {
+      const hotRecs = await getHotRecommendations({
+        limit: Math.ceil(limit * weights.hot),
+        days: 7,
+      })
+      recommendations.push(hotRecs)
+    }
+
+    // 最新推薦
+    if (weights.latest > 0) {
+      const latestRecs = await getLatestRecommendations({
+        limit: Math.ceil(limit * weights.latest),
+        hours: 24,
+      })
+      recommendations.push(latestRecs)
+    }
+
+    // 內容基礎推薦（需要登入）
+    if (userId && weights.content_based > 0) {
+      const contentRecs = await getContentBasedRecommendations(userId, {
+        limit: Math.ceil(limit * weights.content_based),
+      })
+      recommendations.push(contentRecs)
+    }
+
+    // 協同過濾推薦（需要登入）
+    if (userId && weights.collaborative_filtering > 0) {
+      const collabRecs = await getCollaborativeFilteringRecommendations(userId, {
+        limit: Math.ceil(limit * weights.collaborative_filtering),
+      })
+      recommendations.push(collabRecs)
+    }
+
+    // 社交協同過濾推薦（需要登入）
+    if (userId && weights.social_collaborative_filtering > 0) {
+      const socialRecs = await getSocialCollaborativeFilteringRecommendations(userId, {
+        limit: Math.ceil(limit * weights.social_collaborative_filtering),
+      })
+      recommendations.push(socialRecs)
+    }
+
+    // 合併推薦結果
+    const mergedRecommendations = mergeRecommendations(recommendations, weights)
+
+    // 如果需要社交層分數，為每個迷因計算詳細的社交分數
+    if (includeSocialScores && userId) {
+      const memeIds = mergedRecommendations.map((rec) => rec._id)
+      const socialScores = await calculateMultipleMemeSocialScores(userId, memeIds, {
+        includeDistance: true,
+        includeInfluence: true,
+        includeInteractions: true,
+        maxDistance: 3,
+      })
+
+      // 將社交分數整合到推薦結果中
+      const socialScoreMap = new Map()
+      socialScores.forEach((score) => {
+        socialScoreMap.set(score.memeId, score)
+      })
+
+      mergedRecommendations.forEach((rec) => {
+        const socialScore = socialScoreMap.get(rec._id)
+        if (socialScore) {
+          rec.social_score = socialScore.socialScore
+          rec.social_interactions = socialScore.socialInteractions
+          rec.social_reasons = socialScore.reasons
+          rec.social_distance_score = socialScore.distanceScore
+          rec.social_influence_score = socialScore.influenceScore
+          rec.social_interaction_score = socialScore.interactionScore
+        }
+      })
+    }
+
+    // 生成推薦原因
+    if (includeRecommendationReasons && userId) {
+      for (const rec of mergedRecommendations) {
+        if (rec.social_reasons && rec.social_reasons.length > 0) {
+          rec.recommendation_reason = rec.social_reasons[0].text
+          rec.recommendation_reasons = rec.social_reasons
+        } else {
+          // 根據演算法類型生成通用推薦原因
+          rec.recommendation_reason = generateGenericRecommendationReason(rec)
+        }
+      }
+    }
+
+    // 計算多樣性
+    let diversity = null
+    if (includeDiversity) {
+      diversity = calculateRecommendationDiversity(mergedRecommendations)
+    }
+
+    return {
+      recommendations: mergedRecommendations.slice(0, parseInt(limit)),
+      weights,
+      coldStartStatus,
+      diversity,
+      algorithm: 'mixed',
+      userAuthenticated: !!userId,
+    }
+  } catch (error) {
+    console.error('混合推薦失敗:', error)
+    throw error
+  }
+}
+
+/**
+ * 取得推薦演算法統計
+ * @param {string} userId - 用戶ID（可選）
+ * @returns {Object} 演算法統計
+ */
+export const getRecommendationAlgorithmStats = async (userId = null) => {
+  try {
+    const stats = {
+      totalMemes: await Meme.countDocuments({ status: 'public' }),
+      hotMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 100 } }),
+      trendingMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 500 } }),
+      viralMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 1000 } }),
+    }
+
+    if (userId) {
+      const coldStartStatus = await checkColdStartStatus(userId)
+      stats.userActivity = coldStartStatus.activityScore
+      stats.coldStart = coldStartStatus.isColdStart
+      stats.userPreferences = coldStartStatus.userPreferences
+    }
+
+    return stats
+  } catch (error) {
+    console.error('取得推薦演算法統計失敗:', error)
+    throw error
+  }
+}
+
+/**
+ * 動態調整推薦策略
+ * @param {string} userId - 用戶ID
+ * @param {Object} userBehavior - 用戶行為數據
+ * @returns {Object} 調整後的推薦策略
+ */
+export const adjustRecommendationStrategy = async (userId, userBehavior = {}) => {
+  try {
+    const { clickRate, engagementRate, diversityPreference } = userBehavior
+    await calculateUserActivityScore(userId) // 計算但不使用，避免 linter 警告
+    const coldStartStatus = await checkColdStartStatus(userId)
+
+    // 根據用戶行為調整策略
+    let strategy = {
+      weights: { ...ALGORITHM_WEIGHTS },
+      focus: 'balanced',
+      coldStartHandling: coldStartStatus.isColdStart,
+    }
+
+    // 高點擊率用戶傾向個人化推薦
+    if (clickRate > 0.3) {
+      strategy.weights.content_based = 0.35
+      strategy.weights.collaborative_filtering = 0.25
+      strategy.weights.social_collaborative_filtering = 0.2
+      strategy.weights.hot = 0.1
+      strategy.weights.latest = 0.1
+      strategy.focus = 'personalization'
+    }
+
+    // 高互動率用戶傾向社交推薦
+    if (engagementRate > 0.5) {
+      strategy.weights.social_collaborative_filtering = 0.3
+      strategy.weights.collaborative_filtering = 0.25
+      strategy.weights.content_based = 0.2
+      strategy.weights.hot = 0.15
+      strategy.weights.latest = 0.1
+      strategy.focus = 'social'
+    }
+
+    // 高多樣性偏好用戶傾向探索推薦
+    if (diversityPreference > 0.7) {
+      strategy.weights.latest = 0.3
+      strategy.weights.hot = 0.25
+      strategy.weights.content_based = 0.2
+      strategy.weights.collaborative_filtering = 0.15
+      strategy.weights.social_collaborative_filtering = 0.1
+      strategy.focus = 'exploration'
+    }
+
+    // 冷啟動用戶使用熱門推薦
+    if (coldStartStatus.isColdStart) {
+      strategy.weights.hot = 0.6
+      strategy.weights.latest = 0.4
+      strategy.weights.content_based = 0
+      strategy.weights.collaborative_filtering = 0
+      strategy.weights.social_collaborative_filtering = 0
+      strategy.focus = 'discovery'
+    }
+
+    return strategy
+  } catch (error) {
+    console.error('調整推薦策略失敗:', error)
+    throw error
+  }
+}
+
+/**
+ * 生成通用推薦原因
+ * @param {Object} recommendation - 推薦項目
+ * @returns {string} 推薦原因
+ */
+const generateGenericRecommendationReason = (recommendation) => {
+  try {
+    // 根據推薦類型生成原因
+    if (recommendation.recommendation_type) {
+      const type = recommendation.recommendation_type
+
+      switch (type) {
+        case 'hot':
+          return '這則迷因目前很熱門'
+        case 'latest':
+          return '這是最新發布的迷因'
+        case 'content_based':
+          return '基於你喜歡的內容類型推薦'
+        case 'collaborative_filtering':
+          return '與你有相似喜好的用戶也喜歡這個'
+        case 'social_collaborative_filtering':
+          return '你的社交圈對這個迷因有興趣'
+        case 'mixed':
+          return '綜合多種演算法的推薦'
+        default:
+          return '為你推薦的迷因'
+      }
+    }
+
+    // 根據熱門分數生成原因
+    if (recommendation.hot_score) {
+      if (recommendation.hot_score >= 1000) {
+        return '這則迷因正在病毒式傳播'
+      } else if (recommendation.hot_score >= 500) {
+        return '這則迷因很受歡迎'
+      } else if (recommendation.hot_score >= 100) {
+        return '這則迷因有一定熱度'
+      }
+    }
+
+    // 根據標籤生成原因
+    if (recommendation.tags && recommendation.tags.length > 0) {
+      return `基於你對 ${recommendation.tags[0]} 標籤的興趣推薦`
+    }
+
+    return '為你推薦的迷因'
+  } catch (error) {
+    console.error('生成通用推薦原因時發生錯誤:', error)
+    return '為你推薦的迷因'
+  }
+}

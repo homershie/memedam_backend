@@ -13,14 +13,18 @@ import {
   getTagBasedRecommendationsController,
   getUserTagPreferences,
   updateUserPreferences,
-  getMixedRecommendations,
+  getMixedRecommendationsController,
   getRecommendationStats,
+  getRecommendationAlgorithmStatsController,
+  adjustRecommendationStrategyController,
   getCollaborativeFilteringRecommendationsController,
   getCollaborativeFilteringStatsController,
   updateCollaborativeFilteringCacheController,
   getSocialCollaborativeFilteringRecommendationsController,
   getSocialCollaborativeFilteringStatsController,
   updateSocialCollaborativeFilteringCacheController,
+  calculateMemeSocialScoreController,
+  getUserSocialInfluenceStatsController,
 } from '../controllers/recommendationController.js'
 import { token } from '../middleware/auth.js'
 
@@ -104,15 +108,14 @@ router.post('/update-preferences', token, updateUserPreferences)
 
 /**
  * @route GET /api/recommendations/mixed
- * @desc 取得混合推薦（結合多種演算法，包括內容基礎推薦）
+ * @desc 取得混合推薦（結合多種演算法，支援動態權重調整和冷啟動處理）
  * @access Public
  * @query {number} limit - 推薦數量限制 (預設: 30)
- * @query {number} hot_weight - 熱門分數權重 (預設: 0.25)
- * @query {number} latest_weight - 最新分數權重 (預設: 0.25)
- * @query {number} content_weight - 內容基礎權重 (預設: 0.25)
- * @query {number} similar_weight - 相似分數權重 (預設: 0.25)
+ * @query {string} custom_weights - 自定義權重 JSON 字串 (預設: {})
+ * @query {boolean} include_diversity - 是否包含多樣性計算 (預設: true)
+ * @query {boolean} include_cold_start_analysis - 是否包含冷啟動分析 (預設: true)
  */
-router.get('/mixed', getMixedRecommendations)
+router.get('/mixed', getMixedRecommendationsController)
 
 /**
  * @route GET /api/recommendations/collaborative-filtering
@@ -192,6 +195,40 @@ router.post(
 router.get('/stats', getRecommendationStats)
 
 /**
+ * @route GET /api/recommendations/algorithm-stats
+ * @desc 取得推薦演算法統計（包含用戶活躍度和冷啟動分析）
+ * @access Private
+ */
+router.get('/algorithm-stats', token, getRecommendationAlgorithmStatsController)
+
+/**
+ * @route POST /api/recommendations/adjust-strategy
+ * @desc 動態調整推薦策略（根據用戶行為）
+ * @access Private
+ * @body {Object} userBehavior - 用戶行為數據
+ */
+router.post('/adjust-strategy', token, adjustRecommendationStrategyController)
+
+/**
+ * @route GET /api/recommendations/social-score/:memeId
+ * @desc 計算迷因的社交層分數
+ * @access Private
+ * @param {string} memeId - 迷因ID
+ * @query {boolean} include_distance - 是否包含社交距離計算 (預設: true)
+ * @query {boolean} include_influence - 是否包含影響力計算 (預設: true)
+ * @query {boolean} include_interactions - 是否包含互動計算 (預設: true)
+ * @query {number} max_distance - 最大社交距離 (預設: 3)
+ */
+router.get('/social-score/:memeId', token, calculateMemeSocialScoreController)
+
+/**
+ * @route GET /api/recommendations/social-influence-stats
+ * @desc 取得用戶社交影響力統計
+ * @access Private
+ */
+router.get('/social-influence-stats', token, getUserSocialInfluenceStatsController)
+
+/**
  * @route GET /api/recommendations
  * @desc 取得綜合推薦（預設使用混合推薦）
  * @access Public
@@ -219,7 +256,7 @@ router.get('/', (req, res) => {
       return getSocialCollaborativeFilteringRecommendationsController(req, res)
     case 'mixed':
     default:
-      return getMixedRecommendations(req, res)
+      return getMixedRecommendationsController(req, res)
   }
 })
 

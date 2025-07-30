@@ -150,7 +150,85 @@
 - `getSocialCollaborativeFilteringStats()`: 取得用戶社交協同過濾統計
 - `updateSocialCollaborativeFilteringCache()`: 更新社交協同過濾快取
 
-### 5. 控制器實作 (`controllers/recommendationController.js`)
+### 5. 混合推薦系統 (`utils/mixedRecommendation.js`)
+
+#### 整合所有演算法
+
+- `getMixedRecommendations()`: 主要混合推薦函數
+- 整合熱門、最新、內容基礎、協同過濾、社交協同過濾等所有演算法
+- 支援動態權重調整和冷啟動處理
+- 提供多樣性計算和用戶活躍度分析
+
+#### 動態權重調整
+
+- `adjustAlgorithmWeights()`: 根據用戶活躍度動態調整演算法權重
+- `calculateUserActivityScore()`: 計算用戶活躍度分數和等級
+- 支援不同活躍等級的權重配置（very_active, active, moderate, low, inactive）
+
+#### 冷啟動處理
+
+- `checkColdStartStatus()`: 檢查用戶冷啟動狀態
+- 根據互動數量和偏好數據判斷冷啟動
+- 冷啟動時自動調整為熱門推薦為主
+- 逐步收集用戶數據，提升推薦準確度
+
+#### 推薦多樣性
+
+- `calculateRecommendationDiversity()`: 計算推薦內容的多樣性
+- 分析標籤多樣性和作者多樣性
+- 提供多樣性統計指標
+
+#### 推薦策略調整
+
+- `adjustRecommendationStrategy()`: 根據用戶行為調整推薦策略
+- 支援點擊率、互動率、多樣性偏好等行為分析
+- 提供個人化、社交、探索、發現等不同策略焦點
+
+#### 社交層分數計算
+
+- 整合 `calculateMultipleMemeSocialScores()`: 批量計算迷因社交層分數
+- 支援社交距離、影響力、互動分析
+- 生成具體的推薦原因說明
+
+#### 推薦原因生成
+
+- `generateGenericRecommendationReason()`: 生成通用推薦原因
+- 根據演算法類型和熱門分數生成原因
+- 提升推薦的可解釋性
+
+### 6. 社交層分數計算系統 (`utils/socialScoreCalculator.js`)
+
+#### 社交距離計算
+
+- `calculateSocialDistance()`: 計算用戶間的社交距離
+- 支援直接關注、互相關注、二度關係、三度關係
+- 根據距離調整權重
+
+#### 社交影響力計算
+
+- `calculateSocialInfluenceScore()`: 計算用戶社交影響力分數
+- 考慮追隨者、追隨中、互相關注數量
+- 提供影響力等級分類
+
+#### 迷因社交分數計算
+
+- `calculateMemeSocialScore()`: 計算迷因的社交層分數
+- 分析所有社交互動（發佈、按讚、留言、分享、收藏、瀏覽）
+- 結合社交距離和影響力權重
+
+#### 推薦原因生成
+
+- `generateSocialRecommendationReasons()`: 生成社交推薦原因
+- 提供具體的推薦原因說明
+- 增強推薦的信任感和互動率
+
+#### 批量計算功能
+
+- `calculateMultipleMemeSocialScores()`: 批量計算多個迷因的社交分數
+- 支援批次處理提升效能
+- 整合到混合推薦系統中
+
+### 6. 控制器實作 (`controllers/recommendationController.js`)
 
 #### 推薦演算法端點
 
@@ -168,8 +246,12 @@
 - `getUserTagPreferences()`: 用戶標籤偏好分析端點
 - `updateUserPreferences()`: 更新用戶偏好快取端點
 - `getUserInterestRecommendations()`: 用戶興趣推薦端點
-- `getMixedRecommendations()`: 混合推薦端點
+- `getMixedRecommendationsController()`: 混合推薦端點（支援動態權重調整和冷啟動處理）
+- `getRecommendationAlgorithmStatsController()`: 推薦演算法統計端點
+- `adjustRecommendationStrategyController()`: 動態調整推薦策略端點
 - `getRecommendationStats()`: 推薦統計端點
+- `calculateMemeSocialScoreController()`: 計算迷因社交層分數端點
+- `getUserSocialInfluenceStatsController()`: 取得用戶社交影響力統計端點
 
 #### 熱門分數管理端點
 
@@ -197,7 +279,11 @@
 - `GET /api/recommendations/user-preferences`: 用戶偏好分析
 - `POST /api/recommendations/update-preferences`: 更新偏好快取
 - `GET /api/recommendations/user-interest`: 用戶興趣推薦
-- `GET /api/recommendations/mixed`: 混合推薦
+- `GET /api/recommendations/mixed`: 混合推薦（支援動態權重調整和冷啟動處理）
+- `GET /api/recommendations/algorithm-stats`: 推薦演算法統計
+- `POST /api/recommendations/adjust-strategy`: 動態調整推薦策略
+- `GET /api/recommendations/social-score/:memeId`: 計算迷因社交層分數
+- `GET /api/recommendations/social-influence-stats`: 取得用戶社交影響力統計
 - `GET /api/recommendations/stats`: 推薦統計
 - `GET /api/recommendations`: 綜合推薦（可指定演算法）
 
@@ -358,12 +444,25 @@ const finalScore =
 ### 6. 混合推薦分數計算
 
 ```javascript
+// 動態權重調整
+const weights = adjustAlgorithmWeights(coldStartStatus, userPreferences, customWeights)
+
+// 冷啟動處理
+if (coldStartStatus.isColdStart) {
+  weights.hot = 0.8
+  weights.latest = 0.2
+  weights.content_based = 0
+  weights.collaborative_filtering = 0
+  weights.social_collaborative_filtering = 0
+}
+
 // 混合分數計算
-const mixedScore =
-  hotScore * parseFloat(hot_weight) +
-  timeScore * parseFloat(latest_weight) +
-  contentScore * parseFloat(content_weight) +
-  similarScore * parseFloat(similar_weight)
+const mixedScore = Object.entries(algorithm_scores).reduce((total, [algorithm, score]) => {
+  return total + score * weights[algorithm]
+}, 0)
+
+// 多樣性計算
+const diversity = calculateRecommendationDiversity(recommendations)
 ```
 
 ## API 端點總覽
@@ -685,7 +784,8 @@ db.views.createIndex({ user_id: 1, meme_id: 1 })
 ✅ **標籤相關推薦**：基於指定標籤的相關迷因推薦  
 ✅ **協同過濾推薦**：基於用戶行為相似性的推薦，支援用戶-迷因互動矩陣  
 ✅ **社交協同過濾推薦**：基於社交關係和用戶行為相似性的推薦，支援社交影響力分析  
-✅ **混合推薦系統**：結合熱門、最新、內容基礎、相似、協同過濾、社交協同過濾等多種演算法  
+✅ **混合推薦系統**：整合所有演算法，支援動態權重調整、冷啟動處理、多樣性計算、用戶活躍度分析和社交層分數計算
+✅ **社交層分數計算系統**：詳細的社交距離計算、影響力分析、互動分析和推薦原因生成  
 ✅ **熱門分數管理**：提供完整的熱門分數更新和統計功能  
 ✅ **API 端點**：提供完整的 RESTful API 端點，包含推薦和管理功能  
 ✅ **測試覆蓋**：包含內容基礎推薦和協同過濾推薦的單元測試  
@@ -699,6 +799,7 @@ db.views.createIndex({ user_id: 1, meme_id: 1 })
 - **協同過濾推薦**：✅ 已完成
 - **社交協同過濾推薦**：✅ 已完成
 - **混合推薦系統**：✅ 已完成
+- **社交層分數計算系統**：✅ 已完成
 - **API 端點**：✅ 已完成
 - **測試覆蓋**：✅ 已完成
 - **文檔說明**：✅ 已完成

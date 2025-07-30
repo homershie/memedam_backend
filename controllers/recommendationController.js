@@ -21,6 +21,15 @@ import {
   getSocialCollaborativeFilteringStats,
   updateSocialCollaborativeFilteringCache,
 } from '../utils/collaborativeFiltering.js'
+import {
+  getMixedRecommendations,
+  getRecommendationAlgorithmStats,
+  adjustRecommendationStrategy,
+} from '../utils/mixedRecommendation.js'
+import {
+  calculateMemeSocialScore,
+  getUserSocialInfluenceStats,
+} from '../utils/socialScoreCalculator.js'
 
 /**
  * 取得熱門推薦
@@ -518,135 +527,57 @@ export const getUserInterestRecommendations = async (req, res) => {
  * 取得混合推薦
  * 結合多種推薦演算法，包括內容基礎推薦
  */
-export const getMixedRecommendations = async (req, res) => {
+export const getMixedRecommendationsController = async (req, res) => {
   try {
     const {
       limit = 30,
-      hot_weight = 0.25,
-      latest_weight = 0.25,
-      content_weight = 0.25,
-      similar_weight = 0.25,
+      custom_weights = '{}',
+      include_diversity = 'true',
+      include_cold_start_analysis = 'true',
     } = req.query
     const userId = req.user?._id
 
-    const dateLimit = new Date()
-    dateLimit.setDate(dateLimit.getDate() - 7)
-
-    // 取得熱門推薦
-    const hotMemes = await Meme.find({
-      status: 'public',
-      createdAt: { $gte: dateLimit },
-    })
-      .sort({ hot_score: -1 })
-      .limit(parseInt(limit * hot_weight))
-      .populate('author_id', 'username display_name avatar')
-
-    // 取得最新推薦
-    const latestMemes = await Meme.find({
-      status: 'public',
-      createdAt: { $gte: dateLimit },
-    })
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit * latest_weight))
-      .populate('author_id', 'username display_name avatar')
-
-    // 取得內容基礎推薦（如果用戶已登入）
-    let contentBasedMemes = []
-    if (userId) {
-      try {
-        contentBasedMemes = await getContentBasedRecommendations(userId, {
-          limit: parseInt(limit * content_weight),
-          minSimilarity: 0.1,
-          excludeInteracted: true,
-          includeHotScore: true,
-          hotScoreWeight: 0.3,
-        })
-      } catch (error) {
-        console.log('內容基礎推薦失敗，使用熱門推薦作為備選:', error.message)
-        // 如果內容基礎推薦失敗，使用熱門推薦作為備選
-        const fallbackMemes = await Meme.find({
-          status: 'public',
-          createdAt: { $gte: dateLimit },
-        })
-          .sort({ hot_score: -1 })
-          .limit(parseInt(limit * content_weight))
-          .populate('author_id', 'username display_name avatar')
-
-        contentBasedMemes = fallbackMemes.map((meme) => ({
-          ...meme.toObject(),
-          recommendation_score: meme.hot_score,
-          recommendation_type: 'content_based_fallback',
-        }))
-      }
+    // 解析自定義權重
+    let customWeights = {}
+    try {
+      customWeights = JSON.parse(custom_weights)
+    } catch {
+      console.log('自定義權重解析失敗，使用預設權重')
     }
 
-    // 合併所有推薦
-    const allMemes = [...hotMemes, ...latestMemes, ...contentBasedMemes]
-    const uniqueMemes = []
-    const seenIds = new Set()
-
-    for (const meme of allMemes) {
-      if (!seenIds.has(meme._id.toString())) {
-        seenIds.add(meme._id.toString())
-        uniqueMemes.push(meme)
-      }
-    }
-
-    // 計算混合推薦分數
-    const recommendations = uniqueMemes.map((meme) => {
-      const memeObj = meme.toObject()
-      const hotScore = memeObj.hot_score || 0
-      const timeScore = 1 / (Date.now() - memeObj.createdAt.getTime())
-
-      // 根據推薦類型計算分數
-      let contentScore = 0
-      if (memeObj.recommendation_type === 'content_based') {
-        contentScore = memeObj.recommendation_score || 0
-      } else if (memeObj.recommendation_type === 'content_based_fallback') {
-        contentScore = memeObj.recommendation_score || 0
-      }
-
-      // 混合分數計算
-      const mixedScore =
-        hotScore * parseFloat(hot_weight) +
-        timeScore * parseFloat(latest_weight) +
-        contentScore * parseFloat(content_weight)
-
-      return {
-        ...memeObj,
-        recommendation_score: mixedScore,
-        recommendation_type: 'mixed',
-        hot_score_weight: parseFloat(hot_weight),
-        latest_weight: parseFloat(latest_weight),
-        content_weight: parseFloat(content_weight),
-        similar_weight: parseFloat(similar_weight),
-        hot_level: getHotScoreLevel(hotScore),
-      }
+    // 使用新的混合推薦系統
+    const result = await getMixedRecommendations(userId, {
+      limit: parseInt(limit),
+      customWeights,
+      includeDiversity: include_diversity === 'true',
+      includeColdStartAnalysis: include_cold_start_analysis === 'true',
     })
-
-    // 按混合分數排序
-    recommendations.sort((a, b) => b.recommendation_score - a.recommendation_score)
 
     res.json({
       success: true,
       data: {
-        recommendations: recommendations.slice(0, parseInt(limit)),
+        recommendations: result.recommendations,
         filters: {
           limit: parseInt(limit),
-          hot_weight: parseFloat(hot_weight),
-          latest_weight: parseFloat(latest_weight),
-          content_weight: parseFloat(content_weight),
-          similar_weight: parseFloat(similar_weight),
+          custom_weights: customWeights,
+          include_diversity: include_diversity === 'true',
+          include_cold_start_analysis: include_cold_start_analysis === 'true',
         },
         algorithm: 'mixed',
-        weights: {
-          hot: parseFloat(hot_weight),
-          latest: parseFloat(latest_weight),
-          content: parseFloat(content_weight),
-          similar: parseFloat(similar_weight),
-        },
+        weights: result.weights,
+        cold_start_status: result.coldStartStatus,
+        diversity: result.diversity,
         user_authenticated: !!userId,
-        content_based_included: contentBasedMemes.length > 0,
+        algorithm_details: {
+          description: '整合所有推薦演算法的混合推薦系統',
+          features: [
+            '支援動態權重調整',
+            '冷啟動處理機制',
+            '多樣性計算',
+            '用戶活躍度分析',
+            '個人化推薦策略',
+          ],
+        },
       },
       error: null,
     })
@@ -1010,6 +941,111 @@ export const updateSocialCollaborativeFilteringCacheController = async (req, res
   }
 }
 
+/**
+ * 取得推薦演算法統計
+ */
+export const getRecommendationAlgorithmStatsController = async (req, res) => {
+  try {
+    const userId = req.user?._id
+    const stats = await getRecommendationAlgorithmStats(userId)
+
+    res.json({
+      success: true,
+      data: stats,
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 動態調整推薦策略
+ */
+export const adjustRecommendationStrategyController = async (req, res) => {
+  try {
+    const userId = req.user?._id
+    const { userBehavior = {} } = req.body
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能調整推薦策略',
+      })
+    }
+
+    const strategy = await adjustRecommendationStrategy(userId, userBehavior)
+
+    res.json({
+      success: true,
+      data: strategy,
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 計算迷因社交層分數控制器
+ * @param {Object} req - 請求對象
+ * @param {Object} res - 回應對象
+ */
+export const calculateMemeSocialScoreController = async (req, res) => {
+  try {
+    const { userId } = req.user
+    const { memeId } = req.params
+    const options = req.query
+
+    const socialScore = await calculateMemeSocialScore(userId, memeId, options)
+
+    res.json({
+      success: true,
+      data: socialScore,
+      error: null,
+    })
+  } catch (error) {
+    console.error('計算迷因社交層分數失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: '計算迷因社交層分數失敗',
+    })
+  }
+}
+
+/**
+ * 取得用戶社交影響力統計控制器
+ * @param {Object} req - 請求對象
+ * @param {Object} res - 回應對象
+ */
+export const getUserSocialInfluenceStatsController = async (req, res) => {
+  try {
+    const { userId } = req.user
+
+    const stats = await getUserSocialInfluenceStats(userId)
+
+    res.json({
+      success: true,
+      data: stats,
+      error: null,
+    })
+  } catch (error) {
+    console.error('取得用戶社交影響力統計失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: '取得用戶社交影響力統計失敗',
+    })
+  }
+}
+
 export default {
   getHotRecommendations,
   getLatestRecommendations,
@@ -1019,12 +1055,16 @@ export default {
   getTagBasedRecommendationsController,
   getUserTagPreferences,
   updateUserPreferences,
-  getMixedRecommendations,
+  getMixedRecommendationsController,
   getRecommendationStats,
+  getRecommendationAlgorithmStatsController,
+  adjustRecommendationStrategyController,
   getCollaborativeFilteringRecommendationsController,
   getCollaborativeFilteringStatsController,
   updateCollaborativeFilteringCacheController,
   getSocialCollaborativeFilteringRecommendationsController,
   getSocialCollaborativeFilteringStatsController,
   updateSocialCollaborativeFilteringCacheController,
+  calculateMemeSocialScoreController,
+  getUserSocialInfluenceStatsController,
 }
