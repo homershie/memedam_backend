@@ -10,6 +10,11 @@ import {
   getMemesByTags,
   getSearchSuggestions,
   validateUpdateMeme,
+  updateMemeHotScore,
+  batchUpdateHotScores,
+  getHotMemes,
+  getTrendingMemes,
+  getMemeScoreAnalysis,
 } from '../controllers/memeController.js'
 import {
   proposeEdit,
@@ -49,5 +54,17 @@ router.get('/:id/proposals', token, canEditMeme, listProposals)
 router.post('/:id/proposals/:proposalId/approve', token, canEditMeme, approveProposal)
 // 駁回提案
 router.post('/:id/proposals/:proposalId/reject', token, canEditMeme, rejectProposal)
+
+// 熱門分數相關端點
+// 更新單一迷因的熱門分數
+router.put('/:id/hot-score', token, updateMemeHotScore)
+// 批次更新所有迷因的熱門分數
+router.post('/batch-update-hot-scores', token, batchUpdateHotScores)
+// 取得熱門迷因列表
+router.get('/hot/list', getHotMemes)
+// 取得趨勢迷因列表
+router.get('/trending/list', getTrendingMemes)
+// 取得迷因的詳細分數分析
+router.get('/:id/score-analysis', getMemeScoreAnalysis)
 
 export default router

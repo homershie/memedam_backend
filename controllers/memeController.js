@@ -6,6 +6,12 @@ import { processSearchResults, combineSearchFilters } from '../utils/search.js'
 import Tag from '../models/Tag.js'
 import User from '../models/User.js'
 import { deleteCloudinaryImage } from '../utils/deleteImg.js'
+import {
+  calculateMemeHotScore,
+  getHotScoreLevel,
+  calculateEngagementScore,
+  calculateQualityScore,
+} from '../utils/hotScore.js'
 
 // 建立迷因
 export const validateCreateMeme = [
@@ -1009,5 +1015,234 @@ export const getSearchSuggestions = async (req, res) => {
       error: err.message,
       data: null,
     })
+  }
+}
+
+// 更新單一迷因的熱門分數
+export const updateMemeHotScore = async (req, res) => {
+  try {
+    const meme = await Meme.findById(req.params.id)
+    if (!meme) {
+      return res.status(404).json({ success: false, error: '找不到迷因' })
+    }
+
+    // 計算新的熱門分數
+    const hotScore = calculateMemeHotScore(meme)
+    const hotLevel = getHotScoreLevel(hotScore)
+    const engagementScore = calculateEngagementScore(meme)
+    const qualityScore = calculateQualityScore(meme)
+
+    // 更新迷因的熱門分數
+    meme.hot_score = hotScore
+    await meme.save()
+
+    res.json({
+      success: true,
+      data: {
+        meme_id: meme._id,
+        hot_score: hotScore,
+        hot_level: hotLevel,
+        engagement_score: engagementScore,
+        quality_score: qualityScore,
+        updated_at: meme.updatedAt,
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
+// 批次更新所有迷因的熱門分數
+export const batchUpdateHotScores = async (req, res) => {
+  try {
+    const { limit = 1000 } = req.query
+
+    // 取得需要更新的迷因（排除已刪除的）
+    const memes = await Meme.find({ status: { $ne: 'deleted' } })
+      .limit(parseInt(limit))
+      .sort({ updatedAt: -1 })
+
+    let updatedCount = 0
+    const results = []
+
+    for (const meme of memes) {
+      const hotScore = calculateMemeHotScore(meme)
+      const hotLevel = getHotScoreLevel(hotScore)
+
+      // 更新熱門分數
+      meme.hot_score = hotScore
+      await meme.save()
+
+      results.push({
+        meme_id: meme._id,
+        title: meme.title,
+        hot_score: hotScore,
+        hot_level: hotLevel,
+      })
+
+      updatedCount++
+    }
+
+    res.json({
+      success: true,
+      data: {
+        updated_count: updatedCount,
+        results: results.slice(0, 10), // 只返回前10個結果作為範例
+        message: `成功更新 ${updatedCount} 個迷因的熱門分數`,
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
+// 取得熱門迷因列表
+export const getHotMemes = async (req, res) => {
+  try {
+    const { limit = 50, days = 7, type = 'all', status = 'public' } = req.query
+
+    const dateLimit = new Date()
+    dateLimit.setDate(dateLimit.getDate() - parseInt(days))
+
+    const filter = {
+      status: status,
+      createdAt: { $gte: dateLimit },
+    }
+
+    // 根據類型篩選
+    if (type !== 'all') {
+      filter.type = type
+    }
+
+    const memes = await Meme.find(filter)
+      .sort({ hot_score: -1 })
+      .limit(parseInt(limit))
+      .populate('author_id', 'username display_name avatar')
+
+    // 為每個迷因添加熱門等級和分數資訊
+    const memesWithScores = memes.map((meme) => {
+      const memeObj = meme.toObject()
+      return {
+        ...memeObj,
+        hot_level: getHotScoreLevel(memeObj.hot_score),
+        engagement_score: calculateEngagementScore(memeObj),
+        quality_score: calculateQualityScore(memeObj),
+      }
+    })
+
+    res.json({
+      success: true,
+      data: {
+        memes: memesWithScores,
+        filters: {
+          limit: parseInt(limit),
+          days: parseInt(days),
+          type,
+          status,
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
+// 取得趨勢迷因列表
+export const getTrendingMemes = async (req, res) => {
+  try {
+    const { limit = 50, hours = 24, type = 'all', status = 'public' } = req.query
+
+    const dateLimit = new Date()
+    dateLimit.setHours(dateLimit.getHours() - parseInt(hours))
+
+    const filter = {
+      status: status,
+      createdAt: { $gte: dateLimit },
+    }
+
+    // 根據類型篩選
+    if (type !== 'all') {
+      filter.type = type
+    }
+
+    const memes = await Meme.find(filter)
+      .sort({ hot_score: -1, views: -1 })
+      .limit(parseInt(limit))
+      .populate('author_id', 'username display_name avatar')
+
+    // 為每個迷因添加熱門等級和分數資訊
+    const memesWithScores = memes.map((meme) => {
+      const memeObj = meme.toObject()
+      return {
+        ...memeObj,
+        hot_level: getHotScoreLevel(memeObj.hot_score),
+        engagement_score: calculateEngagementScore(memeObj),
+        quality_score: calculateQualityScore(memeObj),
+      }
+    })
+
+    res.json({
+      success: true,
+      data: {
+        memes: memesWithScores,
+        filters: {
+          limit: parseInt(limit),
+          days: parseInt(hours),
+          type,
+          status,
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
+// 取得迷因的詳細分數分析
+export const getMemeScoreAnalysis = async (req, res) => {
+  try {
+    const meme = await Meme.findById(req.params.id)
+    if (!meme) {
+      return res.status(404).json({ success: false, error: '找不到迷因' })
+    }
+
+    const memeObj = meme.toObject()
+    const hotScore = calculateMemeHotScore(memeObj)
+    const hotLevel = getHotScoreLevel(hotScore)
+    const engagementScore = calculateEngagementScore(memeObj)
+    const qualityScore = calculateQualityScore(memeObj)
+
+    res.json({
+      success: true,
+      data: {
+        meme_id: meme._id,
+        title: meme.title,
+        hot_score: hotScore,
+        hot_level: hotLevel,
+        engagement_score: engagementScore,
+        quality_score: qualityScore,
+        stats: {
+          views: meme.views,
+          likes: meme.like_count,
+          dislikes: meme.dislike_count,
+          comments: meme.comment_count,
+          collections: meme.collection_count,
+          shares: meme.share_count,
+        },
+        analysis: {
+          hot_score_formula: '基礎分數 * 時間衰減因子',
+          engagement_rate: `${engagementScore.toFixed(2)}%`,
+          quality_ratio: `${qualityScore.toFixed(2)}%`,
+          time_factor: `${(1 / (1 + Math.log((new Date() - meme.createdAt) / (1000 * 60 * 60 * 24) + 1))).toFixed(3)}`,
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
   }
 }

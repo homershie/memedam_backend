@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import validator from 'validator'
+import { calculateMemeHotScore, getHotScoreLevel } from '../utils/hotScore.js'
 
 const MemeSchema = new mongoose.Schema(
   {
@@ -361,5 +362,57 @@ MemeSchema.pre('validate', function (next) {
 
   next()
 })
+
+// 添加實例方法：計算並更新熱門分數
+MemeSchema.methods.updateHotScore = function () {
+  const hotScore = calculateMemeHotScore(this)
+  this.hot_score = hotScore
+  return this.save()
+}
+
+// 添加實例方法：取得熱門等級
+MemeSchema.methods.getHotLevel = function () {
+  return getHotScoreLevel(this.hot_score)
+}
+
+// 添加靜態方法：批次更新熱門分數
+MemeSchema.statics.batchUpdateHotScores = async function () {
+  const memes = await this.find({ status: { $ne: 'deleted' } })
+
+  const updatePromises = memes.map(async (meme) => {
+    const hotScore = calculateMemeHotScore(meme)
+    return this.findByIdAndUpdate(meme._id, { hot_score: hotScore }, { new: true })
+  })
+
+  return Promise.all(updatePromises)
+}
+
+// 添加靜態方法：取得熱門迷因
+MemeSchema.statics.getHotMemes = async function (limit = 50, days = 7) {
+  const dateLimit = new Date()
+  dateLimit.setDate(dateLimit.getDate() - days)
+
+  return this.find({
+    status: 'public',
+    createdAt: { $gte: dateLimit },
+  })
+    .sort({ hot_score: -1 })
+    .limit(limit)
+    .populate('author_id', 'username display_name avatar')
+}
+
+// 添加靜態方法：取得趨勢迷因（基於熱門分數變化）
+MemeSchema.statics.getTrendingMemes = async function (limit = 50, hours = 24) {
+  const dateLimit = new Date()
+  dateLimit.setHours(dateLimit.getHours() - hours)
+
+  return this.find({
+    status: 'public',
+    createdAt: { $gte: dateLimit },
+  })
+    .sort({ hot_score: -1, views: -1 })
+    .limit(limit)
+    .populate('author_id', 'username display_name avatar')
+}
 
 export default mongoose.model('Meme', MemeSchema)

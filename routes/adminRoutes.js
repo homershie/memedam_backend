@@ -6,6 +6,11 @@ import {
   checkAndFixUserCounts,
 } from '../utils/checkCounts.js'
 import maintenanceScheduler from '../utils/maintenance.js'
+import {
+  batchUpdateHotScores,
+  scheduledHotScoreUpdate,
+  getHotScoreStats,
+} from '../utils/hotScoreScheduler.js'
 import { token, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -129,6 +134,63 @@ router.get('/maintenance-status', token, isAdmin, async (req, res) => {
       success: true,
       data: status,
       message: '已獲取維護任務狀態',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 熱門分數管理端點
+// 批次更新熱門分數
+router.post('/batch-update-hot-scores', token, isAdmin, async (req, res) => {
+  try {
+    const { limit = 1000, force = false } = req.body
+    const result = await batchUpdateHotScores({ limit, force })
+    res.json({
+      success: true,
+      data: result,
+      message: '批次更新熱門分數已完成',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 執行定期熱門分數更新任務
+router.post('/scheduled-hot-score-update', token, isAdmin, async (req, res) => {
+  try {
+    const { updateInterval = '1h', maxUpdates = 1000, force = false } = req.body
+    const result = await scheduledHotScoreUpdate({ updateInterval, maxUpdates, force })
+    res.json({
+      success: true,
+      data: result,
+      message: '定期熱門分數更新任務已完成',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+// 取得熱門分數統計資訊
+router.get('/hot-score-statistics', token, isAdmin, async (req, res) => {
+  try {
+    const statistics = await getHotScoreStats()
+    res.json({
+      success: true,
+      data: statistics,
+      message: '已獲取熱門分數統計資訊',
     })
   } catch (error) {
     res.status(500).json({
