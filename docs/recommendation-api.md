@@ -2,7 +2,32 @@
 
 ## 概述
 
-推薦系統為迷因平台提供智能內容推薦功能，支援多種推薦演算法，包括熱門推薦、最新推薦、相似推薦、用戶興趣推薦和混合推薦。
+推薦系統為迷因平台提供智能內容推薦功能，支援多種推薦演算法，包括熱門推薦、最新推薦、相似推薦、內容基礎推薦、用戶興趣推薦和混合推薦。系統會分析用戶的互動歷史和內容特徵，為用戶提供個人化的迷因推薦。
+
+## 熱門分數系統
+
+### 熱門分數演算法
+
+#### 自定義迷因熱門分數演算法
+
+綜合考慮以下因素：
+
+- **讚數** (權重: 1.0)
+- **噓數** (權重: -0.5，會降低分數)
+- **瀏覽數** (權重: 0.1)
+- **留言數** (權重: 2.0)
+- **收藏數** (權重: 3.0)
+- **分享數** (權重: 2.5)
+- **時間衰減因子** (對數衰減)
+
+#### 熱門等級分類
+
+- **viral** (≥1000): 病毒式傳播
+- **trending** (≥500): 趨勢熱門
+- **popular** (≥100): 受歡迎
+- **active** (≥50): 活躍
+- **normal** (≥10): 一般
+- **new** (<10): 新內容
 
 ## 推薦演算法
 
@@ -24,13 +49,33 @@
 - **適用場景**: 用戶喜歡某個迷因時，推薦相似內容
 - **特點**: 分析標籤重疊度，提供相關內容
 
-### 4. 用戶興趣推薦 (User Interest Recommendations)
+### 4. 內容基礎推薦 (Content-Based Recommendations)
+
+- **演算法**: 基於用戶標籤偏好和迷因標籤相似度
+- **適用場景**: 個人化推薦，需要登入
+- **特點**:
+  - 分析用戶的互動歷史（按讚、留言、分享、收藏、瀏覽）
+  - 計算用戶對不同標籤的偏好權重
+  - 支援時間衰減，新互動權重更高
+  - 基於 Jaccard 相似度計算標籤重疊度
+  - 結合用戶偏好進行加權計算
+
+### 5. 標籤相關推薦 (Tag-Based Recommendations)
+
+- **演算法**: 基於指定標籤的相關迷因推薦
+- **適用場景**: "更多相似內容"功能
+- **特點**:
+  - 計算迷因標籤與查詢標籤的相似度
+  - 結合熱門分數提升推薦品質
+  - 支援多標籤查詢
+
+### 6. 用戶興趣推薦 (User Interest Recommendations)
 
 - **演算法**: 基於用戶行為分析（未來實作）
 - **適用場景**: 個人化推薦
 - **特點**: 需要登入，分析用戶互動歷史
 
-### 5. 混合推薦 (Mixed Recommendations)
+### 7. 混合推薦 (Mixed Recommendations)
 
 - **演算法**: 結合多種演算法
 - **適用場景**: 平衡多種推薦策略
@@ -38,9 +83,11 @@
 
 ## API 端點
 
-### 1. 熱門推薦
+### 推薦系統端點
 
-**GET** `/recommendations/hot`
+#### 1. 熱門推薦
+
+**GET** `/api/recommendations/hot`
 
 取得基於熱門分數的推薦。
 
@@ -85,9 +132,9 @@
 }
 ```
 
-### 2. 最新推薦
+#### 2. 最新推薦
 
-**GET** `/recommendations/latest`
+**GET** `/api/recommendations/latest`
 
 取得基於時間的最新推薦。
 
@@ -123,9 +170,9 @@
 }
 ```
 
-### 3. 相似推薦
+#### 3. 相似推薦
 
-**GET** `/recommendations/similar/:memeId`
+**GET** `/api/recommendations/similar/:memeId`
 
 取得與指定迷因相似的推薦。
 
@@ -167,9 +214,208 @@
 }
 ```
 
-### 4. 用戶興趣推薦
+#### 4. 內容基礎推薦
 
-**GET** `/recommendations/user-interest`
+**GET** `/api/recommendations/content-based`
+
+取得基於用戶標籤偏好的個人化推薦。
+
+**權限**: 需要登入
+
+**查詢參數**:
+
+- `limit` (number): 推薦數量 (預設: 20)
+- `min_similarity` (number): 最小相似度閾值 (預設: 0.1)
+- `exclude_interacted` (boolean): 是否排除已互動的迷因 (預設: true)
+- `include_hot_score` (boolean): 是否結合熱門分數 (預設: true)
+- `hot_score_weight` (number): 熱門分數權重 (預設: 0.3)
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+        "title": "Funny Meme",
+        "content": "...",
+        "image_url": "...",
+        "tags_cache": ["funny", "meme", "viral"],
+        "recommendation_score": 0.85,
+        "recommendation_type": "content_based",
+        "content_similarity": 0.75,
+        "preference_match": 0.82,
+        "matched_tags": ["funny", "meme"],
+        "user_preferences": {
+          "funny": 0.8,
+          "meme": 0.6,
+          "viral": 0.4
+        },
+        "author": {
+          "_id": "60f7b3b3b3b3b3b3b3b3b3b4",
+          "username": "user123",
+          "display_name": "用戶123",
+          "avatar": "https://example.com/avatar.jpg"
+        }
+      }
+    ],
+    "user_id": "user123",
+    "filters": {
+      "limit": 20,
+      "min_similarity": 0.1,
+      "exclude_interacted": true,
+      "include_hot_score": true,
+      "hot_score_weight": 0.3
+    },
+    "algorithm": "content_based",
+    "algorithm_details": {
+      "description": "基於用戶標籤偏好和迷因標籤相似度的推薦演算法",
+      "features": [
+        "分析用戶的按讚、留言、分享、收藏、瀏覽歷史",
+        "計算用戶對不同標籤的偏好權重",
+        "基於標籤相似度計算迷因推薦分數",
+        "結合熱門分數提升推薦品質",
+        "支援時間衰減，新互動權重更高"
+      ]
+    }
+  },
+  "error": null
+}
+```
+
+#### 5. 標籤相關推薦
+
+**GET** `/api/recommendations/tag-based`
+
+取得基於指定標籤的相關迷因推薦。
+
+**查詢參數**:
+
+- `tags` (string): 標籤列表（逗號分隔，必填）
+- `limit` (number): 推薦數量 (預設: 20)
+- `min_similarity` (number): 最小相似度閾值 (預設: 0.1)
+- `include_hot_score` (boolean): 是否結合熱門分數 (預設: true)
+- `hot_score_weight` (number): 熱門分數權重 (預設: 0.3)
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+        "title": "Funny Meme",
+        "content": "...",
+        "image_url": "...",
+        "tags_cache": ["funny", "meme", "viral"],
+        "recommendation_score": 0.75,
+        "recommendation_type": "tag_based",
+        "tag_similarity": 0.75,
+        "matched_tags": ["funny", "meme"],
+        "query_tags": ["funny", "meme", "viral"],
+        "author": {
+          "_id": "60f7b3b3b3b3b3b3b3b3b3b4",
+          "username": "user123",
+          "display_name": "用戶123",
+          "avatar": "https://example.com/avatar.jpg"
+        }
+      }
+    ],
+    "query_tags": ["funny", "meme", "viral"],
+    "filters": {
+      "limit": 20,
+      "min_similarity": 0.1,
+      "include_hot_score": true,
+      "hot_score_weight": 0.3
+    },
+    "algorithm": "tag_based",
+    "algorithm_details": {
+      "description": "基於指定標籤的相關迷因推薦",
+      "features": ["計算迷因標籤與查詢標籤的相似度", "結合熱門分數提升推薦品質", "支援多標籤查詢"]
+    }
+  },
+  "error": null
+}
+```
+
+#### 6. 用戶標籤偏好分析
+
+**GET** `/api/recommendations/user-preferences`
+
+取得用戶的標籤偏好分析。
+
+**權限**: 需要登入
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user_id": "user123",
+    "preferences": {
+      "funny": 0.8,
+      "meme": 0.6,
+      "viral": 0.4,
+      "comedy": 0.3
+    },
+    "interaction_counts": {
+      "funny": 15,
+      "meme": 12,
+      "viral": 8,
+      "comedy": 6
+    },
+    "total_interactions": 41,
+    "confidence": 0.75,
+    "analysis": {
+      "top_tags": [
+        { "tag": "funny", "score": 0.8 },
+        { "tag": "meme", "score": 0.6 },
+        { "tag": "viral", "score": 0.4 }
+      ],
+      "total_tags": 4,
+      "confidence_level": "high"
+    }
+  },
+  "error": null
+}
+```
+
+#### 7. 更新用戶偏好快取
+
+**POST** `/api/recommendations/update-preferences`
+
+重新計算並更新用戶的標籤偏好快取。
+
+**權限**: 需要登入
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user_id": "user123",
+    "preferences": {
+      "funny": 0.8,
+      "meme": 0.6,
+      "viral": 0.4
+    },
+    "confidence": 0.75,
+    "updated_at": "2024-12-01T10:00:00.000Z",
+    "message": "用戶偏好已成功更新"
+  },
+  "error": null
+}
+```
+
+#### 8. 用戶興趣推薦
+
+**GET** `/api/recommendations/user-interest`
 
 取得基於用戶興趣的個人化推薦。
 
@@ -205,18 +451,19 @@
 }
 ```
 
-### 5. 混合推薦
+#### 9. 混合推薦
 
-**GET** `/recommendations/mixed`
+**GET** `/api/recommendations/mixed`
 
 取得結合多種演算法的混合推薦。
 
 **查詢參數**:
 
 - `limit` (number): 推薦數量 (預設: 30)
-- `hot_weight` (number): 熱門分數權重 (預設: 0.4)
-- `latest_weight` (number): 最新分數權重 (預設: 0.3)
-- `similar_weight` (number): 相似分數權重 (預設: 0.3)
+- `hot_weight` (number): 熱門分數權重 (預設: 0.25)
+- `latest_weight` (number): 最新分數權重 (預設: 0.25)
+- `content_weight` (number): 內容基礎權重 (預設: 0.25)
+- `similar_weight` (number): 相似分數權重 (預設: 0.25)
 
 **回應範例**:
 
@@ -230,31 +477,37 @@
         "title": "混合推薦迷因",
         "recommendation_score": 234.56,
         "recommendation_type": "mixed",
-        "hot_score_weight": 0.4,
-        "latest_weight": 0.3,
+        "hot_score_weight": 0.25,
+        "latest_weight": 0.25,
+        "content_weight": 0.25,
+        "similar_weight": 0.25,
         "hot_level": "popular"
       }
     ],
     "filters": {
       "limit": 30,
-      "hot_weight": 0.4,
-      "latest_weight": 0.3,
-      "similar_weight": 0.3
+      "hot_weight": 0.25,
+      "latest_weight": 0.25,
+      "content_weight": 0.25,
+      "similar_weight": 0.25
     },
     "algorithm": "mixed",
     "weights": {
-      "hot": 0.4,
-      "latest": 0.3,
-      "similar": 0.3
-    }
+      "hot": 0.25,
+      "latest": 0.25,
+      "content": 0.25,
+      "similar": 0.25
+    },
+    "user_authenticated": true,
+    "content_based_included": true
   },
   "error": null
 }
 ```
 
-### 6. 推薦統計
+#### 10. 推薦統計
 
-**GET** `/recommendations/stats`
+**GET** `/api/recommendations/stats`
 
 取得推薦系統統計資訊。
 
@@ -273,15 +526,15 @@
 }
 ```
 
-### 7. 綜合推薦
+#### 11. 綜合推薦
 
-**GET** `/recommendations`
+**GET** `/api/recommendations`
 
 取得綜合推薦，可指定演算法。
 
 **查詢參數**:
 
-- `algorithm` (string): 推薦演算法 (hot, latest, mixed, user-interest)
+- `algorithm` (string): 推薦演算法 (hot, latest, mixed, user-interest, content-based, tag-based)
 - `limit` (number): 推薦數量 (預設: 20)
 
 **回應範例**:
@@ -304,30 +557,360 @@
 }
 ```
 
-## 推薦分數說明
+### 熱門分數管理端點
 
-### 熱門推薦分數
+#### 1. 更新單一迷因熱門分數
+
+**PUT** `/api/memes/:id/hot-score`
+
+更新指定迷因的熱門分數。
+
+**權限**: 需要登入
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "meme_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+    "hot_score": 245.67,
+    "hot_level": "popular",
+    "engagement_score": 12.5,
+    "quality_score": 85.2,
+    "updated_at": "2024-01-15T10:30:00.000Z"
+  },
+  "error": null
+}
+```
+
+#### 2. 批次更新熱門分數
+
+**POST** `/api/memes/batch-update-hot-scores`
+
+批次更新所有迷因的熱門分數。
+
+**權限**: 需要登入
+
+**查詢參數**:
+
+- `limit` (number): 更新數量限制 (預設: 1000)
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "updated_count": 150,
+    "results": [
+      {
+        "meme_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+        "title": "搞笑迷因",
+        "hot_score": 245.67,
+        "hot_level": "popular"
+      }
+    ],
+    "message": "成功更新 150 個迷因的熱門分數"
+  },
+  "error": null
+}
+```
+
+#### 3. 取得熱門迷因列表
+
+**GET** `/api/memes/hot/list`
+
+取得基於熱門分數排序的迷因列表。
+
+**查詢參數**:
+
+- `limit` (number): 返回數量 (預設: 50)
+- `days` (number): 時間範圍天數 (預設: 7)
+- `type` (string): 迷因類型篩選 (all, image, video, audio, text)
+- `status` (string): 狀態篩選 (預設: public)
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "memes": [
+      {
+        "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+        "title": "搞笑迷因",
+        "content": "超好笑的迷因",
+        "hot_score": 245.67,
+        "hot_level": "popular",
+        "engagement_score": 12.5,
+        "quality_score": 85.2,
+        "author": {
+          "_id": "60f7b3b3b3b3b3b3b3b3b3b4",
+          "username": "user123",
+          "display_name": "用戶123",
+          "avatar": "https://example.com/avatar.jpg"
+        }
+      }
+    ],
+    "filters": {
+      "limit": 50,
+      "days": 7,
+      "type": "all",
+      "status": "public"
+    }
+  },
+  "error": null
+}
+```
+
+#### 4. 取得趨勢迷因列表
+
+**GET** `/api/memes/trending/list`
+
+取得基於熱門分數和瀏覽數的趨勢迷因列表。
+
+**查詢參數**:
+
+- `limit` (number): 返回數量 (預設: 50)
+- `hours` (number): 時間範圍小時數 (預設: 24)
+- `type` (string): 迷因類型篩選
+- `status` (string): 狀態篩選
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "memes": [
+      {
+        "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+        "title": "趨勢迷因",
+        "hot_score": 567.89,
+        "hot_level": "trending",
+        "engagement_score": 18.3,
+        "quality_score": 92.1
+      }
+    ],
+    "filters": {
+      "limit": 50,
+      "hours": 24,
+      "type": "all",
+      "status": "public"
+    }
+  },
+  "error": null
+}
+```
+
+#### 5. 取得迷因分數分析
+
+**GET** `/api/memes/:id/score-analysis`
+
+取得指定迷因的詳細分數分析。
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "meme_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+    "title": "分析迷因",
+    "hot_score": 245.67,
+    "hot_level": "popular",
+    "engagement_score": 12.5,
+    "quality_score": 85.2,
+    "stats": {
+      "views": 1500,
+      "likes": 120,
+      "dislikes": 5,
+      "comments": 25,
+      "collections": 15,
+      "shares": 8
+    },
+    "analysis": {
+      "hot_score_formula": "基礎分數 * 時間衰減因子",
+      "engagement_rate": "12.50%",
+      "quality_ratio": "85.20%",
+      "time_factor": "0.847"
+    }
+  },
+  "error": null
+}
+```
+
+### 管理端點
+
+#### 1. 批次更新熱門分數 (管理員)
+
+**POST** `/api/admin/batch-update-hot-scores`
+
+**權限**: 管理員
+
+**請求體**:
+
+```json
+{
+  "limit": 1000,
+  "force": false
+}
+```
+
+#### 2. 執行定期更新任務 (管理員)
+
+**POST** `/api/admin/scheduled-hot-score-update`
+
+**權限**: 管理員
+
+**請求體**:
+
+```json
+{
+  "updateInterval": "1h",
+  "maxUpdates": 1000,
+  "force": false
+}
+```
+
+#### 3. 取得熱門分數統計 (管理員)
+
+**GET** `/api/admin/hot-score-statistics`
+
+**權限**: 管理員
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "overall": {
+      "total_memes": 1500,
+      "avg_hot_score": 45.67,
+      "max_hot_score": 1234.56,
+      "min_hot_score": 0,
+      "total_hot_score": 68505
+    },
+    "by_level": [
+      {
+        "_id": "normal",
+        "count": 800
+      },
+      {
+        "_id": "active",
+        "count": 400
+      },
+      {
+        "_id": "popular",
+        "count": 200
+      },
+      {
+        "_id": "trending",
+        "count": 80
+      },
+      {
+        "_id": "viral",
+        "count": 20
+      }
+    ]
+  },
+  "message": "已獲取熱門分數統計資訊"
+}
+```
+
+## 演算法詳情
+
+### 1. 用戶標籤偏好計算
+
+```javascript
+// 互動權重配置
+const interactionWeights = {
+  like: 1.0, // 按讚權重
+  comment: 2.0, // 留言權重（互動性更高）
+  share: 3.0, // 分享權重（傳播性最強）
+  collection: 1.5, // 收藏權重
+  view: 0.1, // 瀏覽權重
+}
+
+// 時間衰減計算
+const timeDecay = Math.pow(decayFactor, daysSince)
+
+// 最終偏好分數
+const preferenceScore = interactionWeight * timeDecay
+```
+
+### 2. 標籤相似度計算
+
+```javascript
+// Jaccard 相似度
+const jaccardSimilarity = intersection.length / union.length
+
+// 結合用戶偏好的相似度
+const weightedSimilarity = jaccardSimilarity * 0.6 + preferenceWeight * 0.4
+```
+
+### 3. 內容基礎推薦分數計算
+
+```javascript
+// 偏好匹配度
+const preferenceMatch = matchRatio * 0.4 + averagePreference * 0.6
+
+// 內容相似度
+const contentSimilarity = calculateTagSimilarity(memeTags, userTopTags)
+
+// 最終推薦分數
+const finalScore = preferenceMatch * 0.6 + contentSimilarity * 0.4
+
+// 結合熱門分數
+const finalScoreWithHot = finalScore * 0.7 + normalizedHotScore * 0.3
+```
+
+### 4. 熱門分數計算
+
+```javascript
+// 基礎分數計算
+const baseScore =
+  likes * 1.0 + dislikes * -0.5 + views * 0.1 + comments * 2.0 + collections * 3.0 + shares * 2.5
+
+// 時間衰減因子
+const timeFactor = Math.log10(Date.now() - createdAt + 1) / Math.log10(86400000 + 1)
+
+// 最終熱門分數
+const hotScore = baseScore * timeFactor
+```
+
+### 5. 推薦分數說明
+
+#### 熱門推薦分數
 
 - 直接使用迷因的熱門分數
 - 範圍: 0 到無限大
 - 越高表示越受歡迎
 
-### 最新推薦分數
+#### 最新推薦分數
 
 - 基於時間倒數計算
 - 公式: `1 / (當前時間 - 創建時間)`
 - 越新的內容分數越高
 
-### 相似推薦分數
+#### 相似推薦分數
 
 - 基於標籤重疊度計算
 - 公式: `共同標籤數 / 目標迷因標籤總數`
 - 範圍: 0 到 1
 
-### 混合推薦分數
+#### 內容基礎推薦分數
+
+- 基於用戶標籤偏好和迷因標籤相似度
+- 結合偏好匹配度和內容相似度
+- 範圍: 0 到 1
+
+#### 混合推薦分數
 
 - 結合多種演算法的加權分數
-- 公式: `(熱門分數 × 熱門權重) + (時間分數 × 最新權重)`
+- 公式: `(熱門分數 × 熱門權重) + (時間分數 × 最新權重) + (內容分數 × 內容權重)`
 - 可調整權重平衡不同策略
 
 ## 使用建議
@@ -337,45 +920,142 @@
 1. **首頁推薦**:
 
    ```javascript
-   // 使用混合推薦，平衡熱門和最新
-   const response = await fetch('/recommendations/mixed?limit=20&hot_weight=0.6&latest_weight=0.4')
+   // 使用混合推薦，平衡熱門、最新和內容基礎
+   const response = await fetch(
+     '/api/recommendations/mixed?limit=20&hot_weight=0.4&latest_weight=0.3&content_weight=0.3',
+   )
    ```
 
 2. **探索頁面**:
 
    ```javascript
    // 使用熱門推薦，發現最受歡迎內容
-   const response = await fetch('/recommendations/hot?limit=30&days=7')
+   const response = await fetch('/api/recommendations/hot?limit=30&days=7')
    ```
 
-3. **相似內容**:
+3. **個人化推薦**:
 
-   ```javascript
-   // 在迷因詳情頁面推薦相似內容
-   const response = await fetch(`/recommendations/similar/${memeId}?limit=10`)
-   ```
-
-4. **個人化推薦**:
    ```javascript
    // 需要登入，提供個人化內容
-   const response = await fetch('/recommendations/user-interest?limit=20', {
+   const response = await fetch('/api/recommendations/content-based?limit=20', {
      headers: { Authorization: `Bearer ${token}` },
    })
    ```
 
+4. **相似內容**:
+
+   ```javascript
+   // 在迷因詳情頁面推薦相似內容
+   const response = await fetch(`/api/recommendations/similar/${memeId}?limit=10`)
+   ```
+
+5. **標籤相關推薦**:
+
+   ```javascript
+   // 基於標籤的相關內容推薦
+   const response = await fetch('/api/recommendations/tag-based?tags=funny,meme,viral&limit=15')
+   ```
+
+6. **用戶偏好分析**:
+
+   ```javascript
+   // 分析用戶的標籤偏好
+   const response = await fetch('/api/recommendations/user-preferences', {
+     headers: { Authorization: `Bearer ${token}` },
+   })
+   ```
+
+7. **熱門分數管理**:
+
+   ```javascript
+   // 更新迷因熱門分數
+   const response = await fetch(`/api/memes/${memeId}/hot-score`, {
+     method: 'PUT',
+     headers: { Authorization: `Bearer ${token}` },
+   })
+
+   // 取得熱門迷因列表
+   const response = await fetch('/api/memes/hot/list?limit=50&days=7')
+   ```
+
 ### 效能優化建議
 
-1. **快取策略**: 熱門推薦可快取 5-10 分鐘
+1. **快取策略**:
+   - 熱門推薦可快取 5-10 分鐘
+   - 用戶偏好快取 1 小時
+   - 推薦結果快取 30 分鐘
+   - 標籤相似度快取 15 分鐘
+
 2. **分頁處理**: 大量推薦時使用分頁
+
 3. **條件篩選**: 根據用戶偏好篩選內容類型
+
 4. **A/B 測試**: 測試不同演算法的效果
 
-### 未來擴展
+5. **資料庫索引**:
+
+   ```javascript
+   // 建議的索引
+   db.memes.createIndex({ tags_cache: 1, status: 1 })
+   db.likes.createIndex({ user_id: 1, meme_id: 1 })
+   db.collections.createIndex({ user_id: 1, meme_id: 1 })
+   db.comments.createIndex({ user_id: 1, meme_id: 1 })
+   db.shares.createIndex({ user_id: 1, meme_id: 1 })
+   db.views.createIndex({ user_id: 1, meme_id: 1 })
+   ```
+
+6. **定期更新**: 建議每小時執行一次熱門分數批次更新
+
+### 冷啟動處理
+
+- 新用戶互動歷史不足時，使用熱門推薦作為備選
+- 逐步收集用戶互動數據，提升推薦準確度
+- 提供推薦原因說明，增強用戶信任
+
+## 監控指標
+
+### 1. 推薦效果指標
+
+- **點擊率 (CTR)**：推薦內容的點擊率
+- **互動率**：推薦內容的按讚、留言、分享率
+- **多樣性**：推薦內容的標籤多樣性
+- **新穎性**：推薦新內容的比例
+
+### 2. 系統效能指標
+
+- **回應時間**：推薦 API 的平均回應時間
+- **快取命中率**：Redis 快取的命中率
+- **資料庫查詢時間**：聚合查詢的執行時間
+
+### 3. 用戶行為分析
+
+- **標籤偏好變化**：用戶標籤偏好的時間變化
+- **互動模式分析**：不同互動類型的分布
+- **推薦接受度**：用戶對推薦內容的接受程度
+
+### 4. 熱門分數監控
+
+- **熱門分數分布**：各等級迷因的數量分布
+- **更新頻率**：熱門分數更新的頻率和效能
+- **分數變化趨勢**：熱門分數的時間變化趨勢
+
+## 未來擴展
 
 1. **機器學習**: 實作基於用戶行為的 ML 推薦
 2. **協同過濾**: 基於相似用戶的推薦
 3. **內容分析**: 分析迷因內容特徵
 4. **實時推薦**: 支援實時更新推薦結果
+5. **個人化熱門分數**: 結合用戶偏好的個人化熱門分數
+
+## 注意事項
+
+1. **隱私保護**：用戶行為資料僅用於推薦，不應外洩
+2. **演算法透明度**：提供推薦原因說明
+3. **冷啟動處理**：新用戶和新內容的推薦策略
+4. **偏見防護**：避免推薦系統強化現有偏見
+5. **效能監控**：持續監控系統效能和推薦效果
+6. **用戶控制**：允許用戶查看和調整個人偏好
+7. **定期維護**：定期更新熱門分數，保持系統活躍度
 
 ## 錯誤處理
 
@@ -390,6 +1070,12 @@
 
 常見錯誤：
 
-- `401`: 用戶興趣推薦需要登入
+- `400`: 請求參數錯誤
+- `401`: 需要登入的端點（如內容基礎推薦、用戶偏好分析）
+- `403`: 權限不足（管理員端點）
 - `404`: 相似推薦的目標迷因不存在
 - `500`: 伺服器內部錯誤
+
+---
+
+_本文檔最後更新：2024年12月_
