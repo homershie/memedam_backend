@@ -318,11 +318,16 @@ ABTestSchema.pre('save', function (next) {
 // 靜態方法：取得活躍的測試
 ABTestSchema.statics.getActiveTests = async function () {
   const now = new Date()
-  return this.find({
-    status: 'active',
-    start_date: { $lte: now },
-    end_date: { $gte: now },
-  }).lean()
+  try {
+    return await this.find({
+      status: 'active',
+      start_date: { $lte: now },
+      end_date: { $gte: now },
+    }).lean()
+  } catch (error) {
+    logger.error('取得活躍測試失敗:', error)
+    return []
+  }
 }
 
 // 靜態方法：取得測試統計

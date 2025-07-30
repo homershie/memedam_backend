@@ -15,13 +15,6 @@ class RedisCache {
    */
   async connect() {
     try {
-      // 在開發環境中，如果 Redis 不可用就跳過連線
-      if (process.env.NODE_ENV === 'development') {
-        logger.warn('開發環境：跳過 Redis 連線')
-        this.isConnected = false
-        return
-      }
-
       this.client = new Redis({
         host: process.env.REDIS_HOST || 'localhost',
         port: process.env.REDIS_PORT || 6379,
