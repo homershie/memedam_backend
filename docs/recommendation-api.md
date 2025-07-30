@@ -81,13 +81,25 @@
   - 支援時間衰減，新互動權重更高
   - 結合熱門分數提升推薦品質
 
-### 7. 用戶興趣推薦 (User Interest Recommendations)
+### 7. 社交協同過濾推薦 (Social Collaborative Filtering Recommendations)
+
+- **演算法**: 基於社交關係和用戶行為相似性
+- **適用場景**: 個人化推薦，需要登入
+- **特點**:
+  - 分析用戶的社交關係圖譜（追隨者、追隨中、互追）
+  - 計算社交影響力分數和社交相似度
+  - 結合行為相似度和社交相似度進行推薦
+  - 考慮社交影響力加權，影響力高的用戶推薦權重更大
+  - 支援時間衰減，新互動權重更高
+  - 結合熱門分數提升推薦品質
+
+### 8. 用戶興趣推薦 (User Interest Recommendations)
 
 - **演算法**: 基於用戶行為分析（未來實作）
 - **適用場景**: 個人化推薦
 - **特點**: 需要登入，分析用戶互動歷史
 
-### 8. 混合推薦 (Mixed Recommendations)
+### 9. 混合推薦 (Mixed Recommendations)
 
 - **演算法**: 結合多種演算法
 - **適用場景**: 平衡多種推薦策略
@@ -492,6 +504,74 @@
 }
 ```
 
+#### 9. 社交協同過濾推薦
+
+**GET** `/api/recommendations/social-collaborative-filtering`
+
+取得基於社交關係和用戶行為相似性的社交協同過濾推薦。
+
+**權限**: 需要登入
+
+**查詢參數**:
+
+- `limit` (number): 推薦數量 (預設: 20)
+- `min_similarity` (number): 最小相似度閾值 (預設: 0.1)
+- `max_similar_users` (number): 最大相似用戶數 (預設: 50)
+- `exclude_interacted` (boolean): 是否排除已互動的迷因 (預設: true)
+- `include_hot_score` (boolean): 是否結合熱門分數 (預設: true)
+- `hot_score_weight` (number): 熱門分數權重 (預設: 0.3)
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+        "title": "Funny Meme",
+        "content": "...",
+        "image_url": "...",
+        "recommendation_score": 0.85,
+        "recommendation_type": "social_collaborative_filtering",
+        "social_collaborative_score": 0.75,
+        "similar_users_count": 12,
+        "average_similarity": 0.68,
+        "average_influence_score": 25.5,
+        "author": {
+          "_id": "60f7b3b3b3b3b3b3b3b3b3b4",
+          "username": "user123",
+          "display_name": "用戶123",
+          "avatar": "https://example.com/avatar.jpg"
+        }
+      }
+    ],
+    "user_id": "user123",
+    "filters": {
+      "limit": 20,
+      "min_similarity": 0.1,
+      "max_similar_users": 50,
+      "exclude_interacted": true,
+      "include_hot_score": true,
+      "hot_score_weight": 0.3
+    },
+    "algorithm": "social_collaborative_filtering",
+    "algorithm_details": {
+      "description": "基於社交關係和用戶行為相似性的社交協同過濾推薦演算法",
+      "features": [
+        "分析用戶的社交關係圖譜（追隨者、追隨中、互追）",
+        "計算社交影響力分數和社交相似度",
+        "結合行為相似度和社交相似度進行推薦",
+        "考慮社交影響力加權，影響力高的用戶推薦權重更大",
+        "支援時間衰減，新互動權重更高"
+      ]
+    }
+  },
+  "error": null
+}
+```
+
 #### 9. 用戶協同過濾統計
 
 **GET** `/api/recommendations/collaborative-filtering-stats`
@@ -532,6 +612,54 @@
 }
 ```
 
+#### 10. 用戶社交協同過濾統計
+
+**GET** `/api/recommendations/social-collaborative-filtering-stats`
+
+取得用戶的社交協同過濾相關統計資訊。
+
+**權限**: 需要登入
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user_id": "user123",
+    "interaction_count": 45,
+    "social_connections": 25,
+    "followers_count": 15,
+    "following_count": 10,
+    "mutual_follows_count": 5,
+    "influence_score": 28.5,
+    "social_similar_users_count": 8,
+    "average_social_similarity": 0.72,
+    "top_social_similar_users": [
+      {
+        "user_id": "user456",
+        "similarity": 0.85,
+        "influence_score": 35.2,
+        "social_connections": 30
+      },
+      {
+        "user_id": "user789",
+        "similarity": 0.72,
+        "influence_score": 22.1,
+        "social_connections": 18
+      }
+    ],
+    "social_network_analysis": {
+      "total_connections": 25,
+      "influence_level": "medium",
+      "social_activity": "active",
+      "network_density": 0.2
+    }
+  },
+  "error": null
+}
+```
+
 #### 10. 更新協同過濾快取
 
 **POST** `/api/recommendations/update-collaborative-filtering-cache`
@@ -554,6 +682,35 @@
     },
     "updated_at": "2024-12-01T10:00:00.000Z",
     "message": "協同過濾快取已成功更新"
+  },
+  "error": null
+}
+```
+
+#### 11. 更新社交協同過濾快取
+
+**POST** `/api/recommendations/update-social-collaborative-filtering-cache`
+
+重新計算並更新社交協同過濾相關的快取數據。
+
+**權限**: 需要登入
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user_id": "user123",
+    "cache_results": {
+      "total_users": 150,
+      "total_interactions": 2500,
+      "total_social_connections": 1200,
+      "average_influence_score": 15.8,
+      "processing_time": 1850
+    },
+    "updated_at": "2024-12-01T10:00:00.000Z",
+    "message": "社交協同過濾快取已成功更新"
   },
   "error": null
 }
@@ -1040,7 +1197,44 @@ const collaborativeScore = (totalScore * similarity) / totalSimilarity
 const finalScore = collaborativeScore * (1 - hotScoreWeight) + normalizedHotScore * hotScoreWeight
 ```
 
-### 5. 熱門分數計算
+### 5. 社交協同過濾推薦分數計算
+
+```javascript
+// 社交影響力配置
+const socialInfluenceConfig = {
+  followerWeight: 0.3, // 追隨者權重
+  followingWeight: 0.2, // 追隨中權重
+  mutualFollowWeight: 0.5, // 互追權重
+  influenceDecayFactor: 0.9, // 影響力衰減因子
+}
+
+// 社交影響力分數計算
+const influenceScore =
+  followerCount * socialInfluenceConfig.followerWeight +
+  followingCount * socialInfluenceConfig.followingWeight +
+  mutualCount * socialInfluenceConfig.mutualFollowWeight
+
+// 應用對數衰減
+const finalInfluenceScore = Math.log10(influenceScore + 1) * 10
+
+// 社交相似度計算
+const socialSimilarity = calculateSocialSimilarity(user1Id, user2Id, socialGraph)
+
+// 社交加權相似度
+const socialWeightedSimilarity =
+  behaviorSimilarity * 0.6 + // 行為相似度權重
+  socialSimilarity * 0.3 + // 社交相似度權重
+  influenceWeight * 0.1 // 影響力權重
+
+// 社交協同過濾推薦分數
+const socialCollaborativeScore = (totalScore * socialWeightedSimilarity) / totalSimilarity
+
+// 結合熱門分數
+const finalScore =
+  socialCollaborativeScore * (1 - hotScoreWeight) + normalizedHotScore * hotScoreWeight
+```
+
+### 6. 熱門分數計算
 
 ```javascript
 // 基礎分數計算
@@ -1084,6 +1278,14 @@ const hotScore = baseScore * timeFactor
 
 - 基於用戶行為相似性
 - 計算相似用戶的加權平均分數
+- 範圍: 0 到無限大
+- 結合熱門分數提升推薦品質
+
+#### 社交協同過濾推薦分數
+
+- 基於社交關係和用戶行為相似性
+- 結合行為相似度、社交相似度和影響力分數
+- 考慮社交影響力加權，影響力高的用戶推薦權重更大
 - 範圍: 0 到無限大
 - 結合熱門分數提升推薦品質
 
@@ -1140,41 +1342,59 @@ const hotScore = baseScore * timeFactor
    })
    ```
 
-6. **相似內容**:
+6. **社交協同過濾推薦**:
+
+   ```javascript
+   // 基於社交關係和用戶行為相似性的推薦
+   const response = await fetch('/api/recommendations/social-collaborative-filtering?limit=20', {
+     headers: { Authorization: `Bearer ${token}` },
+   })
+   ```
+
+7. **社交協同過濾統計**:
+
+   ```javascript
+   // 分析用戶的社交協同過濾相關統計
+   const response = await fetch('/api/recommendations/social-collaborative-filtering-stats', {
+     headers: { Authorization: `Bearer ${token}` },
+   })
+   ```
+
+8. **相似內容**:
 
    ```javascript
    // 在迷因詳情頁面推薦相似內容
    const response = await fetch(`/api/recommendations/similar/${memeId}?limit=10`)
    ```
 
-7. **標籤相關推薦**:
+9. **標籤相關推薦**:
 
    ```javascript
    // 基於標籤的相關內容推薦
    const response = await fetch('/api/recommendations/tag-based?tags=funny,meme,viral&limit=15')
    ```
 
-8. **用戶偏好分析**:
+10. **用戶偏好分析**:
 
-   ```javascript
-   // 分析用戶的標籤偏好
-   const response = await fetch('/api/recommendations/user-preferences', {
-     headers: { Authorization: `Bearer ${token}` },
-   })
-   ```
+    ```javascript
+    // 分析用戶的標籤偏好
+    const response = await fetch('/api/recommendations/user-preferences', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    ```
 
-9. **熱門分數管理**:
+11. **熱門分數管理**:
 
-   ```javascript
-   // 更新迷因熱門分數
-   const response = await fetch(`/api/memes/${memeId}/hot-score`, {
-     method: 'PUT',
-     headers: { Authorization: `Bearer ${token}` },
-   })
+    ```javascript
+    // 更新迷因熱門分數
+    const response = await fetch(`/api/memes/${memeId}/hot-score`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+    })
 
-   // 取得熱門迷因列表
-   const response = await fetch('/api/memes/hot/list?limit=50&days=7')
-   ```
+    // 取得熱門迷因列表
+    const response = await fetch('/api/memes/hot/list?limit=50&days=7')
+    ```
 
 ### 效能優化建議
 
@@ -1276,4 +1496,4 @@ const hotScore = baseScore * timeFactor
 
 ---
 
-_本文檔最後更新：2024年12月_
+_本文檔最後更新：2025年8月_

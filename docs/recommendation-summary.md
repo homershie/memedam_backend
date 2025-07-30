@@ -10,8 +10,9 @@
 2. **內容基礎推薦** - 基於用戶標籤偏好的個人化推薦
 3. **標籤相關推薦** - 基於指定標籤的相關迷因推薦
 4. **協同過濾推薦** - 基於用戶行為相似性的推薦
-5. **混合推薦系統** - 結合多種演算法的綜合推薦
-6. **熱門分數管理** - 批次更新和統計分析功能
+5. **社交協同過濾推薦** - 基於社交關係和用戶行為相似性的推薦
+6. **混合推薦系統** - 結合多種演算法的綜合推薦
+7. **熱門分數管理** - 批次更新和統計分析功能
 
 ## 實作內容
 
@@ -100,7 +101,56 @@
 - `getCollaborativeFilteringStats()`: 取得用戶協同過濾統計
 - `updateCollaborativeFilteringCache()`: 更新協同過濾快取
 
-### 4. 控制器實作 (`controllers/recommendationController.js`)
+### 4. 社交協同過濾推薦系統 (`utils/collaborativeFiltering.js`)
+
+#### 社交關係圖譜建立
+
+- `buildSocialGraph()`: 建立社交關係圖譜
+- 分析用戶的追隨者、追隨中、互追關係
+- 計算社交影響力分數
+- 支援大規模社交網絡分析
+
+#### 社交影響力計算
+
+- `calculateSocialInfluenceScore()`: 計算用戶社交影響力分數
+- 考慮追隨者數量、追隨中數量、互追關係
+- 應用對數衰減避免分數過高
+- 提供影響力等級分類
+
+#### 社交相似度計算
+
+- `calculateSocialSimilarity()`: 計算用戶間的社交相似度
+- 分析共同追隨者、共同追隨中、直接關係
+- 考慮互追關係的強連接
+- 提供多維度社交相似度評估
+
+#### 社交相似用戶發現
+
+- `findSocialSimilarUsers()`: 找到社交相似的用戶
+- 結合相似度和影響力進行排序
+- 支援相似度閾值篩選
+- 限制返回用戶數量，提升效能
+
+#### 社交加權相似度計算
+
+- `calculateSocialWeightedSimilarity()`: 計算社交影響力加權的用戶相似度
+- 結合行為相似度、社交相似度、影響力分數
+- 提供可調整的權重配置
+- 平衡多種相似度指標
+
+#### 社交協同過濾推薦生成
+
+- `getSocialCollaborativeFilteringRecommendations()`: 生成社交協同過濾推薦
+- 支援冷啟動處理（互動歷史不足時使用熱門推薦）
+- 結合熱門分數提升推薦品質
+- 考慮社交影響力加權，影響力高的用戶推薦權重更大
+
+#### 社交統計和快取功能
+
+- `getSocialCollaborativeFilteringStats()`: 取得用戶社交協同過濾統計
+- `updateSocialCollaborativeFilteringCache()`: 更新社交協同過濾快取
+
+### 5. 控制器實作 (`controllers/recommendationController.js`)
 
 #### 推薦演算法端點
 
@@ -112,6 +162,9 @@
 - `getCollaborativeFilteringRecommendationsController()`: 協同過濾推薦端點
 - `getCollaborativeFilteringStatsController()`: 協同過濾統計端點
 - `updateCollaborativeFilteringCacheController()`: 更新協同過濾快取端點
+- `getSocialCollaborativeFilteringRecommendationsController()`: 社交協同過濾推薦端點
+- `getSocialCollaborativeFilteringStatsController()`: 社交協同過濾統計端點
+- `updateSocialCollaborativeFilteringCacheController()`: 更新社交協同過濾快取端點
 - `getUserTagPreferences()`: 用戶標籤偏好分析端點
 - `updateUserPreferences()`: 更新用戶偏好快取端點
 - `getUserInterestRecommendations()`: 用戶興趣推薦端點
@@ -126,7 +179,7 @@
 - `getTrendingMemeList()`: 取得趨勢迷因列表
 - `getMemeScoreAnalysis()`: 取得迷因分數分析
 
-### 5. 路由配置 (`routes/recommendationRoutes.js`)
+### 6. 路由配置 (`routes/recommendationRoutes.js`)
 
 #### 推薦系統端點
 
@@ -138,6 +191,9 @@
 - `GET /api/recommendations/collaborative-filtering`: 協同過濾推薦
 - `GET /api/recommendations/collaborative-filtering-stats`: 協同過濾統計
 - `POST /api/recommendations/update-collaborative-filtering-cache`: 更新協同過濾快取
+- `GET /api/recommendations/social-collaborative-filtering`: 社交協同過濾推薦
+- `GET /api/recommendations/social-collaborative-filtering-stats`: 社交協同過濾統計
+- `POST /api/recommendations/update-social-collaborative-filtering-cache`: 更新社交協同過濾快取
 - `GET /api/recommendations/user-preferences`: 用戶偏好分析
 - `POST /api/recommendations/update-preferences`: 更新偏好快取
 - `GET /api/recommendations/user-interest`: 用戶興趣推薦
@@ -159,7 +215,7 @@
 - `POST /api/admin/scheduled-hot-score-update`: 執行定期更新任務（管理員）
 - `GET /api/admin/hot-score-statistics`: 取得熱門分數統計（管理員）
 
-### 6. 測試覆蓋
+### 7. 測試覆蓋
 
 #### 內容基礎推薦測試 (`test/contentBasedRecommendation.test.js`)
 
@@ -262,7 +318,44 @@ const collaborativeScore = (totalScore * similarity) / totalSimilarity
 const finalScore = collaborativeScore * (1 - hotScoreWeight) + normalizedHotScore * hotScoreWeight
 ```
 
-### 5. 混合推薦分數計算
+### 5. 社交協同過濾推薦分數計算
+
+```javascript
+// 社交影響力配置
+const socialInfluenceConfig = {
+  followerWeight: 0.3, // 追隨者權重
+  followingWeight: 0.2, // 追隨中權重
+  mutualFollowWeight: 0.5, // 互追權重
+  influenceDecayFactor: 0.9, // 影響力衰減因子
+}
+
+// 社交影響力分數計算
+const influenceScore =
+  followerCount * socialInfluenceConfig.followerWeight +
+  followingCount * socialInfluenceConfig.followingWeight +
+  mutualCount * socialInfluenceConfig.mutualFollowWeight
+
+// 應用對數衰減
+const finalInfluenceScore = Math.log10(influenceScore + 1) * 10
+
+// 社交相似度計算
+const socialSimilarity = calculateSocialSimilarity(user1Id, user2Id, socialGraph)
+
+// 社交加權相似度
+const socialWeightedSimilarity =
+  behaviorSimilarity * 0.6 + // 行為相似度權重
+  socialSimilarity * 0.3 + // 社交相似度權重
+  influenceWeight * 0.1 // 影響力權重
+
+// 社交協同過濾推薦分數
+const socialCollaborativeScore = (totalScore * socialWeightedSimilarity) / totalSimilarity
+
+// 結合熱門分數
+const finalScore =
+  socialCollaborativeScore * (1 - hotScoreWeight) + normalizedHotScore * hotScoreWeight
+```
+
+### 6. 混合推薦分數計算
 
 ```javascript
 // 混合分數計算
@@ -277,22 +370,25 @@ const mixedScore =
 
 ### 推薦系統端點
 
-| 端點                                                        | 方法 | 權限    | 說明             |
-| ----------------------------------------------------------- | ---- | ------- | ---------------- |
-| `/api/recommendations/hot`                                  | GET  | Public  | 熱門推薦         |
-| `/api/recommendations/latest`                               | GET  | Public  | 最新推薦         |
-| `/api/recommendations/similar/:memeId`                      | GET  | Public  | 相似推薦         |
-| `/api/recommendations/content-based`                        | GET  | Private | 內容基礎推薦     |
-| `/api/recommendations/tag-based`                            | GET  | Public  | 標籤相關推薦     |
-| `/api/recommendations/collaborative-filtering`              | GET  | Private | 協同過濾推薦     |
-| `/api/recommendations/collaborative-filtering-stats`        | GET  | Private | 協同過濾統計     |
-| `/api/recommendations/update-collaborative-filtering-cache` | POST | Private | 更新協同過濾快取 |
-| `/api/recommendations/user-preferences`                     | GET  | Private | 用戶偏好分析     |
-| `/api/recommendations/update-preferences`                   | POST | Private | 更新偏好快取     |
-| `/api/recommendations/user-interest`                        | GET  | Private | 用戶興趣推薦     |
-| `/api/recommendations/mixed`                                | GET  | Public  | 混合推薦         |
-| `/api/recommendations/stats`                                | GET  | Public  | 推薦統計         |
-| `/api/recommendations`                                      | GET  | Public  | 綜合推薦         |
+| 端點                                                               | 方法 | 權限    | 說明                 |
+| ------------------------------------------------------------------ | ---- | ------- | -------------------- |
+| `/api/recommendations/hot`                                         | GET  | Public  | 熱門推薦             |
+| `/api/recommendations/latest`                                      | GET  | Public  | 最新推薦             |
+| `/api/recommendations/similar/:memeId`                             | GET  | Public  | 相似推薦             |
+| `/api/recommendations/content-based`                               | GET  | Private | 內容基礎推薦         |
+| `/api/recommendations/tag-based`                                   | GET  | Public  | 標籤相關推薦         |
+| `/api/recommendations/collaborative-filtering`                     | GET  | Private | 協同過濾推薦         |
+| `/api/recommendations/collaborative-filtering-stats`               | GET  | Private | 協同過濾統計         |
+| `/api/recommendations/update-collaborative-filtering-cache`        | POST | Private | 更新協同過濾快取     |
+| `/api/recommendations/social-collaborative-filtering`              | GET  | Private | 社交協同過濾推薦     |
+| `/api/recommendations/social-collaborative-filtering-stats`        | GET  | Private | 社交協同過濾統計     |
+| `/api/recommendations/update-social-collaborative-filtering-cache` | POST | Private | 更新社交協同過濾快取 |
+| `/api/recommendations/user-preferences`                            | GET  | Private | 用戶偏好分析         |
+| `/api/recommendations/update-preferences`                          | POST | Private | 更新偏好快取         |
+| `/api/recommendations/user-interest`                               | GET  | Private | 用戶興趣推薦         |
+| `/api/recommendations/mixed`                                       | GET  | Public  | 混合推薦             |
+| `/api/recommendations/stats`                                       | GET  | Public  | 推薦統計             |
+| `/api/recommendations`                                             | GET  | Public  | 綜合推薦             |
 
 ### 熱門分數管理端點
 
@@ -394,6 +490,56 @@ const mixedScore =
         "計算用戶間的相似度",
         "推薦相似用戶喜歡但當前用戶未互動的內容",
         "結合熱門分數提升推薦品質",
+        "支援時間衰減，新互動權重更高"
+      ]
+    }
+  }
+}
+```
+
+### 社交協同過濾推薦回應
+
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "_id": "...",
+        "title": "Funny Meme",
+        "content": "...",
+        "image_url": "...",
+        "recommendation_score": 0.85,
+        "recommendation_type": "social_collaborative_filtering",
+        "social_collaborative_score": 0.75,
+        "similar_users_count": 12,
+        "average_similarity": 0.68,
+        "average_influence_score": 25.5,
+        "author": {
+          "_id": "...",
+          "username": "user123",
+          "display_name": "用戶123",
+          "avatar": "https://example.com/avatar.jpg"
+        }
+      }
+    ],
+    "user_id": "user123",
+    "filters": {
+      "limit": 20,
+      "min_similarity": 0.1,
+      "max_similar_users": 50,
+      "exclude_interacted": true,
+      "include_hot_score": true,
+      "hot_score_weight": 0.3
+    },
+    "algorithm": "social_collaborative_filtering",
+    "algorithm_details": {
+      "description": "基於社交關係和用戶行為相似性的社交協同過濾推薦演算法",
+      "features": [
+        "分析用戶的社交關係圖譜（追隨者、追隨中、互追）",
+        "計算社交影響力分數和社交相似度",
+        "結合行為相似度和社交相似度進行推薦",
+        "考慮社交影響力加權，影響力高的用戶推薦權重更大",
         "支援時間衰減，新互動權重更高"
       ]
     }
@@ -538,7 +684,8 @@ db.views.createIndex({ user_id: 1, meme_id: 1 })
 ✅ **內容基礎推薦**：基於用戶標籤偏好和迷因標籤相似度的個人化推薦  
 ✅ **標籤相關推薦**：基於指定標籤的相關迷因推薦  
 ✅ **協同過濾推薦**：基於用戶行為相似性的推薦，支援用戶-迷因互動矩陣  
-✅ **混合推薦系統**：結合熱門、最新、內容基礎、相似、協同過濾等多種演算法  
+✅ **社交協同過濾推薦**：基於社交關係和用戶行為相似性的推薦，支援社交影響力分析  
+✅ **混合推薦系統**：結合熱門、最新、內容基礎、相似、協同過濾、社交協同過濾等多種演算法  
 ✅ **熱門分數管理**：提供完整的熱門分數更新和統計功能  
 ✅ **API 端點**：提供完整的 RESTful API 端點，包含推薦和管理功能  
 ✅ **測試覆蓋**：包含內容基礎推薦和協同過濾推薦的單元測試  
@@ -550,6 +697,7 @@ db.views.createIndex({ user_id: 1, meme_id: 1 })
 - **內容基礎推薦**：✅ 已完成
 - **標籤相關推薦**：✅ 已完成
 - **協同過濾推薦**：✅ 已完成
+- **社交協同過濾推薦**：✅ 已完成
 - **混合推薦系統**：✅ 已完成
 - **API 端點**：✅ 已完成
 - **測試覆蓋**：✅ 已完成
@@ -559,4 +707,4 @@ db.views.createIndex({ user_id: 1, meme_id: 1 })
 
 ---
 
-_實作完成時間：2024年12月_
+_實作完成時間：2025年8月_

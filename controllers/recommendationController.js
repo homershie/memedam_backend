@@ -17,6 +17,9 @@ import {
   getCollaborativeFilteringRecommendations,
   getCollaborativeFilteringStats,
   updateCollaborativeFilteringCache,
+  getSocialCollaborativeFilteringRecommendations,
+  getSocialCollaborativeFilteringStats,
+  updateSocialCollaborativeFilteringCache,
 } from '../utils/collaborativeFiltering.js'
 
 /**
@@ -848,6 +851,165 @@ export const updateCollaborativeFilteringCacheController = async (req, res) => {
   }
 }
 
+/**
+ * 取得社交協同過濾推薦
+ * 基於社交關係和用戶行為相似性的推薦
+ */
+export const getSocialCollaborativeFilteringRecommendationsController = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能取得社交協同過濾推薦',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    const {
+      limit = 20,
+      min_similarity = 0.1,
+      max_similar_users = 50,
+      exclude_interacted = 'true',
+      include_hot_score = 'true',
+      hot_score_weight = 0.3,
+    } = req.query
+
+    const options = {
+      limit: parseInt(limit),
+      minSimilarity: parseFloat(min_similarity),
+      maxSimilarUsers: parseInt(max_similar_users),
+      excludeInteracted: exclude_interacted === 'true',
+      includeHotScore: include_hot_score === 'true',
+      hotScoreWeight: parseFloat(hot_score_weight),
+    }
+
+    const recommendations = await getSocialCollaborativeFilteringRecommendations(userId, options)
+
+    res.json({
+      success: true,
+      data: {
+        recommendations,
+        user_id: userId,
+        filters: {
+          limit: parseInt(limit),
+          min_similarity: parseFloat(min_similarity),
+          max_similar_users: parseInt(max_similar_users),
+          exclude_interacted: exclude_interacted === 'true',
+          include_hot_score: include_hot_score === 'true',
+          hot_score_weight: parseFloat(hot_score_weight),
+        },
+        algorithm: 'social_collaborative_filtering',
+        algorithm_details: {
+          description: '基於社交關係和用戶行為相似性的社交協同過濾推薦演算法',
+          features: [
+            '分析用戶的社交關係圖譜（追隨者、追隨中、互追）',
+            '計算社交影響力分數和社交相似度',
+            '結合行為相似度和社交相似度進行推薦',
+            '考慮社交影響力加權，影響力高的用戶推薦權重更大',
+            '支援時間衰減，新互動權重更高',
+          ],
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 取得用戶社交協同過濾統計
+ * 分析用戶的社交協同過濾相關統計資訊
+ */
+export const getSocialCollaborativeFilteringStatsController = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能取得社交協同過濾統計',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    const stats = await getSocialCollaborativeFilteringStats(userId)
+
+    res.json({
+      success: true,
+      data: stats,
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 更新社交協同過濾快取
+ * 重新計算並更新社交協同過濾相關的快取數據
+ */
+export const updateSocialCollaborativeFilteringCacheController = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能更新社交協同過濾快取',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    const cacheResults = await updateSocialCollaborativeFilteringCache([userId])
+
+    res.json({
+      success: true,
+      data: {
+        user_id: userId,
+        cache_results: cacheResults,
+        updated_at: new Date().toISOString(),
+        message: '社交協同過濾快取已成功更新',
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
 export default {
   getHotRecommendations,
   getLatestRecommendations,
@@ -862,4 +1024,7 @@ export default {
   getCollaborativeFilteringRecommendationsController,
   getCollaborativeFilteringStatsController,
   updateCollaborativeFilteringCacheController,
+  getSocialCollaborativeFilteringRecommendationsController,
+  getSocialCollaborativeFilteringStatsController,
+  updateSocialCollaborativeFilteringCacheController,
 }
