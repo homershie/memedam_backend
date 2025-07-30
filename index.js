@@ -263,23 +263,36 @@ const PORT = process.env.PORT || 4000
 const printAllRoutes = (app) => {
   logger.info('=== 註冊的路徑列表 ===')
 
-  const printRoutes = (stack, prefix = '') => {
-    stack.forEach((layer) => {
-      if (layer.route) {
-        // 這是一個路由層
-        const methods = Object.keys(layer.route.methods)
-        const path = prefix + layer.route.path
-        logger.info(`${methods.join(',').toUpperCase()} ${path}`)
-      } else if (layer.name === 'router') {
-        // 這是一個路由器層
-        const newPrefix =
-          prefix + (layer.regexp.source.replace('^\\/', '').replace('\\/?(?=\\/|$)', '') || '')
-        printRoutes(layer.handle.stack, newPrefix)
+  try {
+    const printRoutes = (stack, prefix = '') => {
+      if (!stack || !Array.isArray(stack)) {
+        return
       }
-    })
+
+      stack.forEach((layer) => {
+        if (layer.route) {
+          // 這是一個路由層
+          const methods = Object.keys(layer.route.methods)
+          const path = prefix + layer.route.path
+          logger.info(`${methods.join(',').toUpperCase()} ${path}`)
+        } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
+          // 這是一個路由器層
+          const newPrefix =
+            prefix + (layer.regexp.source.replace('^\\/', '').replace('\\/?(?=\\/|$)', '') || '')
+          printRoutes(layer.handle.stack, newPrefix)
+        }
+      })
+    }
+
+    if (app._router && app._router.stack) {
+      printRoutes(app._router.stack)
+    } else {
+      logger.info('無法取得路由資訊')
+    }
+  } catch (error) {
+    logger.error('列印路由時發生錯誤:', error)
   }
 
-  printRoutes(app._router.stack)
   logger.info('=== 路徑列表結束 ===')
 }
 
@@ -291,8 +304,12 @@ const startServer = async () => {
     // 設定 Mongoose 配置
     mongoose.set('sanitizeFilter', true)
 
-    // 連線 Redis
-    await redisCache.connect()
+    // 連線 Redis（可選）
+    try {
+      await redisCache.connect()
+    } catch (error) {
+      logger.warn('Redis 連線失敗，將繼續運行但快取功能可能受限:', error.message)
+    }
 
     // 啟動定期維護任務
     if (process.env.NODE_ENV === 'production') {

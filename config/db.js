@@ -6,15 +6,16 @@ import { logger } from '../utils/logger.js'
  */
 const connectDB = async () => {
   try {
-    // 設定連線選項
+    // 設定連線選項 - Mongoose 8.x 相容配置
     const options = {
       maxPoolSize: 10, // 連線池大小
       serverSelectionTimeoutMS: 5000, // 伺服器選擇超時
       socketTimeoutMS: 45000, // Socket 超時
-      bufferMaxEntries: 0, // 禁用 mongoose 緩衝
-      bufferCommands: false, // 禁用命令緩衝
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      connectTimeoutMS: 10000, // 連線超時
+      heartbeatFrequencyMS: 10000, // 心跳頻率
+      // 確保與最新版本相容
+      retryWrites: true,
+      retryReads: true,
     }
 
     await mongoose.connect(process.env.MONGO_URI, options)
@@ -95,12 +96,17 @@ const createModelIndexes = async (model, modelName) => {
           status: 1,
           hot_score: -1,
         })
-        // 複合索引用於搜尋
-        await model.collection.createIndex({
-          status: 1,
-          title: 'text',
-          description: 'text',
-        })
+        // 暫時移除全文搜尋索引以避免相容性問題
+        // await model.collection.createIndex(
+        //   {
+        //     status: 1,
+        //     title: 'text',
+        //     description: 'text',
+        //   },
+        //   {
+        //     default_language: 'none',
+        //   },
+        // )
         break
 
       case 'Like':

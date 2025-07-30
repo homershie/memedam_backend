@@ -100,7 +100,6 @@ const options = {
   maxPoolSize: 10, // 連線池大小
   serverSelectionTimeoutMS: 5000, // 伺服器選擇超時
   socketTimeoutMS: 45000, // Socket 超時
-  bufferMaxEntries: 0, // 禁用 mongoose 緩衝
   bufferCommands: false, // 禁用命令緩衝
   useNewUrlParser: true,
   useUnifiedTopology: true,

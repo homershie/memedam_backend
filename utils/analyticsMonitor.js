@@ -77,15 +77,17 @@ class AnalyticsMonitor {
       60 * 60 * 1000,
     )
 
-    // 每 5 分鐘更新快取統計
-    setInterval(
-      async () => {
-        if (this.isMonitoring) {
-          await this.updateMetricsCache()
-        }
-      },
-      5 * 60 * 1000,
-    )
+    // 每 5 分鐘更新快取統計（僅在開發環境中啟用）
+    if (process.env.NODE_ENV === 'production') {
+      setInterval(
+        async () => {
+          if (this.isMonitoring) {
+            await this.updateMetricsCache()
+          }
+        },
+        5 * 60 * 1000,
+      )
+    }
 
     // 每小時檢查 A/B 測試結果
     setInterval(

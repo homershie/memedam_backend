@@ -21,9 +21,12 @@ class RedisCache {
         password: process.env.REDIS_PASSWORD,
         db: process.env.REDIS_DB || 0,
         retryDelayOnFailover: 100,
-        maxRetriesPerRequest: 3,
         lazyConnect: true,
         showFriendlyErrorStack: process.env.NODE_ENV === 'development',
+        // 在開發環境中禁用自動重連
+        retryDelayOnClusterDown: process.env.NODE_ENV === 'development' ? 0 : 300,
+        enableOfflineQueue: false,
+        maxRetriesPerRequest: process.env.NODE_ENV === 'development' ? 0 : 3,
       })
 
       this.client.on('connect', () => {

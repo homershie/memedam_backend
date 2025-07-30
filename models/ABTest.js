@@ -322,7 +322,7 @@ ABTestSchema.statics.getActiveTests = async function () {
     status: 'active',
     start_date: { $lte: now },
     end_date: { $gte: now },
-  })
+  }).lean()
 }
 
 // 靜態方法：取得測試統計
