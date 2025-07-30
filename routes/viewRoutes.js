@@ -6,12 +6,12 @@ import {
   getPopularMemes,
   cleanupOldViews,
 } from '../controllers/viewController.js'
-import { token, isManager } from '../middleware/auth.js'
+import { token, optionalToken, isManager } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// 記錄瀏覽（公開，不需要登入）
-router.post('/:meme_id', recordView)
+// 記錄瀏覽（支援匿名和登入用戶）
+router.post('/:meme_id', optionalToken, recordView)
 
 // 取得迷因瀏覽統計（公開）
 router.get('/stats/:meme_id', getViewStats)

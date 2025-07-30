@@ -66,6 +66,22 @@ export const token = (req, res, next) => {
   })(req, res, next)
 }
 
+// 可選的 token 驗證（允許匿名用戶，但會設置 req.user 如果 token 有效）
+export const optionalToken = (req, res, next) => {
+  passport.authenticate('jwt', { session: false }, (err, data) => {
+    // 如果沒有 token 或 token 無效，繼續執行（不阻擋）
+    if (!data || err) {
+      req.user = undefined
+      req.token = undefined
+      return next()
+    }
+    // 如果驗證成功，設置用戶資料
+    req.user = data.user
+    req.token = data.token
+    next()
+  })(req, res, next)
+}
+
 // 會員（user、vip、manager、admin）皆可
 export const isUser = (req, res, next) => {
   if (!req.user || !['user', 'vip', 'manager', 'admin'].includes(req.user.role)) {
