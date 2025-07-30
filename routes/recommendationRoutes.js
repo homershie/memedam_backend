@@ -15,6 +15,9 @@ import {
   updateUserPreferences,
   getMixedRecommendations,
   getRecommendationStats,
+  getCollaborativeFilteringRecommendationsController,
+  getCollaborativeFilteringStatsController,
+  updateCollaborativeFilteringCacheController,
 } from '../controllers/recommendationController.js'
 import { token } from '../middleware/auth.js'
 
@@ -109,6 +112,37 @@ router.post('/update-preferences', token, updateUserPreferences)
 router.get('/mixed', getMixedRecommendations)
 
 /**
+ * @route GET /api/recommendations/collaborative-filtering
+ * @desc 取得協同過濾推薦（基於用戶行為相似性）
+ * @access Private
+ * @query {number} limit - 推薦數量限制 (預設: 20)
+ * @query {number} min_similarity - 最小相似度閾值 (預設: 0.1)
+ * @query {number} max_similar_users - 最大相似用戶數 (預設: 50)
+ * @query {boolean} exclude_interacted - 是否排除已互動的迷因 (預設: true)
+ * @query {boolean} include_hot_score - 是否結合熱門分數 (預設: true)
+ * @query {number} hot_score_weight - 熱門分數權重 (預設: 0.3)
+ */
+router.get('/collaborative-filtering', token, getCollaborativeFilteringRecommendationsController)
+
+/**
+ * @route GET /api/recommendations/collaborative-filtering-stats
+ * @desc 取得用戶協同過濾統計
+ * @access Private
+ */
+router.get('/collaborative-filtering-stats', token, getCollaborativeFilteringStatsController)
+
+/**
+ * @route POST /api/recommendations/update-collaborative-filtering-cache
+ * @desc 更新協同過濾快取
+ * @access Private
+ */
+router.post(
+  '/update-collaborative-filtering-cache',
+  token,
+  updateCollaborativeFilteringCacheController,
+)
+
+/**
  * @route GET /api/recommendations/stats
  * @desc 取得推薦統計資訊
  * @access Public
@@ -119,7 +153,7 @@ router.get('/stats', getRecommendationStats)
  * @route GET /api/recommendations
  * @desc 取得綜合推薦（預設使用混合推薦）
  * @access Public
- * @query {string} algorithm - 推薦演算法 (hot, latest, mixed, user-interest, content-based, tag-based)
+ * @query {string} algorithm - 推薦演算法 (hot, latest, mixed, user-interest, content-based, tag-based, collaborative-filtering)
  * @query {number} limit - 推薦數量限制 (預設: 20)
  */
 router.get('/', (req, res) => {
@@ -137,6 +171,8 @@ router.get('/', (req, res) => {
       return getContentBasedRecommendationsController(req, res)
     case 'tag-based':
       return getTagBasedRecommendationsController(req, res)
+    case 'collaborative-filtering':
+      return getCollaborativeFilteringRecommendationsController(req, res)
     case 'mixed':
     default:
       return getMixedRecommendations(req, res)

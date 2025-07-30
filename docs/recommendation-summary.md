@@ -9,8 +9,9 @@
 1. **熱門分數系統** - 自定義迷因熱門分數演算法
 2. **內容基礎推薦** - 基於用戶標籤偏好的個人化推薦
 3. **標籤相關推薦** - 基於指定標籤的相關迷因推薦
-4. **混合推薦系統** - 結合多種演算法的綜合推薦
-5. **熱門分數管理** - 批次更新和統計分析功能
+4. **協同過濾推薦** - 基於用戶行為相似性的推薦
+5. **混合推薦系統** - 結合多種演算法的綜合推薦
+6. **熱門分數管理** - 批次更新和統計分析功能
 
 ## 實作內容
 
@@ -38,7 +39,7 @@
 - `calculateEngagementScore()`: 計算互動分數
 - `calculateQualityScore()`: 計算品質分數
 
-### 2. 內容基礎推薦系統 (`utils/contentBasedRecommendation.js`)
+### 2. 內容基礎推薦系統 (`utils/contentBased.js`)
 
 #### 用戶標籤偏好分析
 
@@ -66,7 +67,40 @@
 - 支援冷啟動處理（互動歷史不足時使用熱門推薦）
 - 結合熱門分數提升推薦品質
 
-### 3. 控制器實作 (`controllers/recommendationController.js`)
+### 3. 協同過濾推薦系統 (`utils/collaborativeFiltering.js`)
+
+#### 用戶-迷因互動矩陣建立
+
+- `buildInteractionMatrix()`: 建立用戶-迷因互動矩陣
+- 支援多種互動類型：按讚、留言、分享、收藏、瀏覽
+- 實作時間衰減機制，新互動權重更高
+- 限制處理規模，避免效能問題
+
+#### 用戶相似度計算
+
+- `calculateUserSimilarity()`: 基於皮爾遜相關係數計算用戶相似度
+- 考慮共同互動的迷因和互動強度
+- 處理邊界情況（無共同互動、空數據等）
+
+#### 相似用戶發現
+
+- `findSimilarUsers()`: 找到與目標用戶相似的用戶
+- 支援相似度閾值篩選
+- 限制返回用戶數量，提升效能
+
+#### 協同過濾推薦生成
+
+- `getCollaborativeFilteringRecommendations()`: 生成協同過濾推薦
+- 支援冷啟動處理（互動歷史不足時使用熱門推薦）
+- 結合熱門分數提升推薦品質
+- 排除已互動的迷因
+
+#### 統計和快取功能
+
+- `getCollaborativeFilteringStats()`: 取得用戶協同過濾統計
+- `updateCollaborativeFilteringCache()`: 更新協同過濾快取
+
+### 4. 控制器實作 (`controllers/recommendationController.js`)
 
 #### 推薦演算法端點
 
@@ -75,6 +109,9 @@
 - `getSimilarRecommendations()`: 相似推薦端點
 - `getContentBasedRecommendationsController()`: 內容基礎推薦端點
 - `getTagBasedRecommendationsController()`: 標籤相關推薦端點
+- `getCollaborativeFilteringRecommendationsController()`: 協同過濾推薦端點
+- `getCollaborativeFilteringStatsController()`: 協同過濾統計端點
+- `updateCollaborativeFilteringCacheController()`: 更新協同過濾快取端點
 - `getUserTagPreferences()`: 用戶標籤偏好分析端點
 - `updateUserPreferences()`: 更新用戶偏好快取端點
 - `getUserInterestRecommendations()`: 用戶興趣推薦端點
@@ -89,7 +126,7 @@
 - `getTrendingMemeList()`: 取得趨勢迷因列表
 - `getMemeScoreAnalysis()`: 取得迷因分數分析
 
-### 4. 路由配置 (`routes/recommendationRoutes.js`)
+### 5. 路由配置 (`routes/recommendationRoutes.js`)
 
 #### 推薦系統端點
 
@@ -98,6 +135,9 @@
 - `GET /api/recommendations/similar/:memeId`: 相似推薦
 - `GET /api/recommendations/content-based`: 內容基礎推薦
 - `GET /api/recommendations/tag-based`: 標籤相關推薦
+- `GET /api/recommendations/collaborative-filtering`: 協同過濾推薦
+- `GET /api/recommendations/collaborative-filtering-stats`: 協同過濾統計
+- `POST /api/recommendations/update-collaborative-filtering-cache`: 更新協同過濾快取
 - `GET /api/recommendations/user-preferences`: 用戶偏好分析
 - `POST /api/recommendations/update-preferences`: 更新偏好快取
 - `GET /api/recommendations/user-interest`: 用戶興趣推薦
@@ -119,15 +159,23 @@
 - `POST /api/admin/scheduled-hot-score-update`: 執行定期更新任務（管理員）
 - `GET /api/admin/hot-score-statistics`: 取得熱門分數統計（管理員）
 
-### 5. 測試覆蓋 (`test/contentBasedRecommendation.test.js`)
+### 6. 測試覆蓋
 
-#### 測試覆蓋範圍
+#### 內容基礎推薦測試 (`test/contentBasedRecommendation.test.js`)
 
 - 用戶標籤偏好計算測試
 - 標籤相似度計算測試
 - 偏好匹配度計算測試
 - 推薦生成功能測試
 - 工具函數測試
+
+#### 協同過濾推薦測試 (`test/collaborativeFiltering.test.js`)
+
+- 用戶相似度計算測試
+- 相似用戶發現測試
+- 互動矩陣建立測試
+- 協同過濾推薦生成測試
+- 統計功能測試
 
 ## 演算法特色
 
@@ -187,7 +235,34 @@ const jaccardSimilarity = intersection.length / union.length
 const weightedSimilarity = jaccardSimilarity * 0.6 + preferenceWeight * 0.4
 ```
 
-### 4. 混合推薦分數計算
+### 4. 協同過濾推薦分數計算
+
+```javascript
+// 互動權重配置
+const interactionWeights = {
+  like: 1.0, // 按讚權重
+  dislike: -0.5, // 按噓權重（負面）
+  comment: 2.0, // 留言權重（互動性更高）
+  share: 3.0, // 分享權重（傳播性最強）
+  collection: 1.5, // 收藏權重
+  view: 0.1, // 瀏覽權重
+}
+
+// 時間衰減計算
+const timeDecay = Math.pow(decayFactor, daysSince)
+const interactionScore = interactionWeight * timeDecay
+
+// 用戶相似度計算（皮爾遜相關係數）
+const similarity = calculatePearsonCorrelation(user1Interactions, user2Interactions)
+
+// 協同過濾推薦分數
+const collaborativeScore = (totalScore * similarity) / totalSimilarity
+
+// 結合熱門分數
+const finalScore = collaborativeScore * (1 - hotScoreWeight) + normalizedHotScore * hotScoreWeight
+```
+
+### 5. 混合推薦分數計算
 
 ```javascript
 // 混合分數計算
@@ -202,19 +277,22 @@ const mixedScore =
 
 ### 推薦系統端點
 
-| 端點                                      | 方法 | 權限    | 說明         |
-| ----------------------------------------- | ---- | ------- | ------------ |
-| `/api/recommendations/hot`                | GET  | Public  | 熱門推薦     |
-| `/api/recommendations/latest`             | GET  | Public  | 最新推薦     |
-| `/api/recommendations/similar/:memeId`    | GET  | Public  | 相似推薦     |
-| `/api/recommendations/content-based`      | GET  | Private | 內容基礎推薦 |
-| `/api/recommendations/tag-based`          | GET  | Public  | 標籤相關推薦 |
-| `/api/recommendations/user-preferences`   | GET  | Private | 用戶偏好分析 |
-| `/api/recommendations/update-preferences` | POST | Private | 更新偏好快取 |
-| `/api/recommendations/user-interest`      | GET  | Private | 用戶興趣推薦 |
-| `/api/recommendations/mixed`              | GET  | Public  | 混合推薦     |
-| `/api/recommendations/stats`              | GET  | Public  | 推薦統計     |
-| `/api/recommendations`                    | GET  | Public  | 綜合推薦     |
+| 端點                                                        | 方法 | 權限    | 說明             |
+| ----------------------------------------------------------- | ---- | ------- | ---------------- |
+| `/api/recommendations/hot`                                  | GET  | Public  | 熱門推薦         |
+| `/api/recommendations/latest`                               | GET  | Public  | 最新推薦         |
+| `/api/recommendations/similar/:memeId`                      | GET  | Public  | 相似推薦         |
+| `/api/recommendations/content-based`                        | GET  | Private | 內容基礎推薦     |
+| `/api/recommendations/tag-based`                            | GET  | Public  | 標籤相關推薦     |
+| `/api/recommendations/collaborative-filtering`              | GET  | Private | 協同過濾推薦     |
+| `/api/recommendations/collaborative-filtering-stats`        | GET  | Private | 協同過濾統計     |
+| `/api/recommendations/update-collaborative-filtering-cache` | POST | Private | 更新協同過濾快取 |
+| `/api/recommendations/user-preferences`                     | GET  | Private | 用戶偏好分析     |
+| `/api/recommendations/update-preferences`                   | POST | Private | 更新偏好快取     |
+| `/api/recommendations/user-interest`                        | GET  | Private | 用戶興趣推薦     |
+| `/api/recommendations/mixed`                                | GET  | Public  | 混合推薦         |
+| `/api/recommendations/stats`                                | GET  | Public  | 推薦統計         |
+| `/api/recommendations`                                      | GET  | Public  | 綜合推薦         |
 
 ### 熱門分數管理端點
 
@@ -266,6 +344,55 @@ const mixedScore =
         "分析用戶的按讚、留言、分享、收藏、瀏覽歷史",
         "計算用戶對不同標籤的偏好權重",
         "基於標籤相似度計算迷因推薦分數",
+        "結合熱門分數提升推薦品質",
+        "支援時間衰減，新互動權重更高"
+      ]
+    }
+  }
+}
+```
+
+### 協同過濾推薦回應
+
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "_id": "...",
+        "title": "Funny Meme",
+        "content": "...",
+        "image_url": "...",
+        "recommendation_score": 0.85,
+        "recommendation_type": "collaborative_filtering",
+        "collaborative_score": 0.75,
+        "similar_users_count": 12,
+        "average_similarity": 0.68,
+        "author": {
+          "_id": "...",
+          "username": "user123",
+          "display_name": "用戶123",
+          "avatar": "https://example.com/avatar.jpg"
+        }
+      }
+    ],
+    "user_id": "user123",
+    "filters": {
+      "limit": 20,
+      "min_similarity": 0.1,
+      "max_similar_users": 50,
+      "exclude_interacted": true,
+      "include_hot_score": true,
+      "hot_score_weight": 0.3
+    },
+    "algorithm": "collaborative_filtering",
+    "algorithm_details": {
+      "description": "基於用戶行為相似性的協同過濾推薦演算法",
+      "features": [
+        "分析用戶的按讚、留言、分享、收藏、瀏覽歷史",
+        "計算用戶間的相似度",
+        "推薦相似用戶喜歡但當前用戶未互動的內容",
         "結合熱門分數提升推薦品質",
         "支援時間衰減，新互動權重更高"
       ]
@@ -410,10 +537,11 @@ db.views.createIndex({ user_id: 1, meme_id: 1 })
 ✅ **熱門分數系統**：自定義迷因熱門分數演算法，支援批次更新和等級分類  
 ✅ **內容基礎推薦**：基於用戶標籤偏好和迷因標籤相似度的個人化推薦  
 ✅ **標籤相關推薦**：基於指定標籤的相關迷因推薦  
-✅ **混合推薦系統**：結合熱門、最新、內容基礎、相似等多種演算法  
+✅ **協同過濾推薦**：基於用戶行為相似性的推薦，支援用戶-迷因互動矩陣  
+✅ **混合推薦系統**：結合熱門、最新、內容基礎、相似、協同過濾等多種演算法  
 ✅ **熱門分數管理**：提供完整的熱門分數更新和統計功能  
 ✅ **API 端點**：提供完整的 RESTful API 端點，包含推薦和管理功能  
-✅ **測試覆蓋**：包含內容基礎推薦的單元測試  
+✅ **測試覆蓋**：包含內容基礎推薦和協同過濾推薦的單元測試  
 ✅ **文檔說明**：提供詳細的 API 文檔和使用說明
 
 ### 實作狀態
@@ -421,6 +549,7 @@ db.views.createIndex({ user_id: 1, meme_id: 1 })
 - **熱門分數系統**：✅ 已完成
 - **內容基礎推薦**：✅ 已完成
 - **標籤相關推薦**：✅ 已完成
+- **協同過濾推薦**：✅ 已完成
 - **混合推薦系統**：✅ 已完成
 - **API 端點**：✅ 已完成
 - **測試覆蓋**：✅ 已完成

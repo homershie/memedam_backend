@@ -69,13 +69,25 @@
   - 結合熱門分數提升推薦品質
   - 支援多標籤查詢
 
-### 6. 用戶興趣推薦 (User Interest Recommendations)
+### 6. 協同過濾推薦 (Collaborative Filtering Recommendations)
+
+- **演算法**: 基於用戶行為相似性
+- **適用場景**: 個人化推薦，發現新內容
+- **特點**:
+  - 分析用戶的互動歷史（按讚、留言、分享、收藏、瀏覽）
+  - 建立用戶-迷因互動矩陣
+  - 計算用戶間的相似度（基於皮爾遜相關係數）
+  - 推薦相似用戶喜歡但當前用戶未互動的內容
+  - 支援時間衰減，新互動權重更高
+  - 結合熱門分數提升推薦品質
+
+### 7. 用戶興趣推薦 (User Interest Recommendations)
 
 - **演算法**: 基於用戶行為分析（未來實作）
 - **適用場景**: 個人化推薦
 - **特點**: 需要登入，分析用戶互動歷史
 
-### 7. 混合推薦 (Mixed Recommendations)
+### 8. 混合推薦 (Mixed Recommendations)
 
 - **演算法**: 結合多種演算法
 - **適用場景**: 平衡多種推薦策略
@@ -413,7 +425,141 @@
 }
 ```
 
-#### 8. 用戶興趣推薦
+#### 8. 協同過濾推薦
+
+**GET** `/api/recommendations/collaborative-filtering`
+
+取得基於用戶行為相似性的協同過濾推薦。
+
+**權限**: 需要登入
+
+**查詢參數**:
+
+- `limit` (number): 推薦數量 (預設: 20)
+- `min_similarity` (number): 最小相似度閾值 (預設: 0.1)
+- `max_similar_users` (number): 最大相似用戶數 (預設: 50)
+- `exclude_interacted` (boolean): 是否排除已互動的迷因 (預設: true)
+- `include_hot_score` (boolean): 是否結合熱門分數 (預設: true)
+- `hot_score_weight` (number): 熱門分數權重 (預設: 0.3)
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+        "title": "Funny Meme",
+        "content": "...",
+        "image_url": "...",
+        "recommendation_score": 0.85,
+        "recommendation_type": "collaborative_filtering",
+        "collaborative_score": 0.75,
+        "similar_users_count": 12,
+        "average_similarity": 0.68,
+        "author": {
+          "_id": "60f7b3b3b3b3b3b3b3b3b3b4",
+          "username": "user123",
+          "display_name": "用戶123",
+          "avatar": "https://example.com/avatar.jpg"
+        }
+      }
+    ],
+    "user_id": "user123",
+    "filters": {
+      "limit": 20,
+      "min_similarity": 0.1,
+      "max_similar_users": 50,
+      "exclude_interacted": true,
+      "include_hot_score": true,
+      "hot_score_weight": 0.3
+    },
+    "algorithm": "collaborative_filtering",
+    "algorithm_details": {
+      "description": "基於用戶行為相似性的協同過濾推薦演算法",
+      "features": [
+        "分析用戶的按讚、留言、分享、收藏、瀏覽歷史",
+        "計算用戶間的相似度",
+        "推薦相似用戶喜歡但當前用戶未互動的內容",
+        "結合熱門分數提升推薦品質",
+        "支援時間衰減，新互動權重更高"
+      ]
+    }
+  },
+  "error": null
+}
+```
+
+#### 9. 用戶協同過濾統計
+
+**GET** `/api/recommendations/collaborative-filtering-stats`
+
+取得用戶的協同過濾相關統計資訊。
+
+**權限**: 需要登入
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user_id": "user123",
+    "interaction_count": 45,
+    "similar_users_count": 12,
+    "average_similarity": 0.68,
+    "top_similar_users": [
+      {
+        "user_id": "user456",
+        "similarity": 0.85,
+        "interaction_count": 38
+      },
+      {
+        "user_id": "user789",
+        "similarity": 0.72,
+        "interaction_count": 42
+      }
+    ],
+    "interaction_distribution": {
+      "total_interactions": 156.5,
+      "positive_interactions": 42,
+      "negative_interactions": 3
+    }
+  },
+  "error": null
+}
+```
+
+#### 10. 更新協同過濾快取
+
+**POST** `/api/recommendations/update-collaborative-filtering-cache`
+
+重新計算並更新協同過濾相關的快取數據。
+
+**權限**: 需要登入
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user_id": "user123",
+    "cache_results": {
+      "total_users": 150,
+      "total_interactions": 2500,
+      "processing_time": 1250
+    },
+    "updated_at": "2024-12-01T10:00:00.000Z",
+    "message": "協同過濾快取已成功更新"
+  },
+  "error": null
+}
+```
+
+#### 11. 用戶興趣推薦
 
 **GET** `/api/recommendations/user-interest`
 
@@ -451,7 +597,7 @@
 }
 ```
 
-#### 9. 混合推薦
+#### 12. 混合推薦
 
 **GET** `/api/recommendations/mixed`
 
@@ -526,7 +672,7 @@
 }
 ```
 
-#### 11. 綜合推薦
+#### 13. 綜合推薦
 
 **GET** `/api/recommendations`
 
@@ -534,7 +680,7 @@
 
 **查詢參數**:
 
-- `algorithm` (string): 推薦演算法 (hot, latest, mixed, user-interest, content-based, tag-based)
+- `algorithm` (string): 推薦演算法 (hot, latest, mixed, user-interest, content-based, tag-based, collaborative-filtering)
 - `limit` (number): 推薦數量 (預設: 20)
 
 **回應範例**:
@@ -867,7 +1013,34 @@ const finalScore = preferenceMatch * 0.6 + contentSimilarity * 0.4
 const finalScoreWithHot = finalScore * 0.7 + normalizedHotScore * 0.3
 ```
 
-### 4. 熱門分數計算
+### 4. 協同過濾推薦分數計算
+
+```javascript
+// 互動權重配置
+const interactionWeights = {
+  like: 1.0, // 按讚權重
+  dislike: -0.5, // 按噓權重（負面）
+  comment: 2.0, // 留言權重（互動性更高）
+  share: 3.0, // 分享權重（傳播性最強）
+  collection: 1.5, // 收藏權重
+  view: 0.1, // 瀏覽權重
+}
+
+// 時間衰減計算
+const timeDecay = Math.pow(decayFactor, daysSince)
+const interactionScore = interactionWeight * timeDecay
+
+// 用戶相似度計算（皮爾遜相關係數）
+const similarity = calculatePearsonCorrelation(user1Interactions, user2Interactions)
+
+// 協同過濾推薦分數
+const collaborativeScore = (totalScore * similarity) / totalSimilarity
+
+// 結合熱門分數
+const finalScore = collaborativeScore * (1 - hotScoreWeight) + normalizedHotScore * hotScoreWeight
+```
+
+### 5. 熱門分數計算
 
 ```javascript
 // 基礎分數計算
@@ -907,10 +1080,17 @@ const hotScore = baseScore * timeFactor
 - 結合偏好匹配度和內容相似度
 - 範圍: 0 到 1
 
+#### 協同過濾推薦分數
+
+- 基於用戶行為相似性
+- 計算相似用戶的加權平均分數
+- 範圍: 0 到無限大
+- 結合熱門分數提升推薦品質
+
 #### 混合推薦分數
 
 - 結合多種演算法的加權分數
-- 公式: `(熱門分數 × 熱門權重) + (時間分數 × 最新權重) + (內容分數 × 內容權重)`
+- 公式: `(熱門分數 × 熱門權重) + (時間分數 × 最新權重) + (內容分數 × 內容權重) + (協同過濾分數 × 協同過濾權重)`
 - 可調整權重平衡不同策略
 
 ## 使用建議
@@ -942,21 +1122,39 @@ const hotScore = baseScore * timeFactor
    })
    ```
 
-4. **相似內容**:
+4. **協同過濾推薦**:
+
+   ```javascript
+   // 基於用戶行為相似性的推薦
+   const response = await fetch('/api/recommendations/collaborative-filtering?limit=20', {
+     headers: { Authorization: `Bearer ${token}` },
+   })
+   ```
+
+5. **協同過濾統計**:
+
+   ```javascript
+   // 分析用戶的協同過濾相關統計
+   const response = await fetch('/api/recommendations/collaborative-filtering-stats', {
+     headers: { Authorization: `Bearer ${token}` },
+   })
+   ```
+
+6. **相似內容**:
 
    ```javascript
    // 在迷因詳情頁面推薦相似內容
    const response = await fetch(`/api/recommendations/similar/${memeId}?limit=10`)
    ```
 
-5. **標籤相關推薦**:
+7. **標籤相關推薦**:
 
    ```javascript
    // 基於標籤的相關內容推薦
    const response = await fetch('/api/recommendations/tag-based?tags=funny,meme,viral&limit=15')
    ```
 
-6. **用戶偏好分析**:
+8. **用戶偏好分析**:
 
    ```javascript
    // 分析用戶的標籤偏好
@@ -965,7 +1163,7 @@ const hotScore = baseScore * timeFactor
    })
    ```
 
-7. **熱門分數管理**:
+9. **熱門分數管理**:
 
    ```javascript
    // 更新迷因熱門分數

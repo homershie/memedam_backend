@@ -12,7 +12,12 @@ import {
   getTagBasedRecommendations,
   calculateUserTagPreferences,
   updateUserPreferencesCache,
-} from '../utils/contentBasedRecommendation.js'
+} from '../utils/contentBased.js'
+import {
+  getCollaborativeFilteringRecommendations,
+  getCollaborativeFilteringStats,
+  updateCollaborativeFilteringCache,
+} from '../utils/collaborativeFiltering.js'
 
 /**
  * 取得熱門推薦
@@ -684,6 +689,165 @@ export const getRecommendationStats = async (req, res) => {
   }
 }
 
+/**
+ * 取得協同過濾推薦
+ * 基於用戶行為相似性的推薦
+ */
+export const getCollaborativeFilteringRecommendationsController = async (req, res) => {
+  try {
+    const {
+      limit = 20,
+      min_similarity = 0.1,
+      max_similar_users = 50,
+      exclude_interacted = 'true',
+      include_hot_score = 'true',
+      hot_score_weight = 0.3,
+    } = req.query
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能取得協同過濾推薦',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    // 取得協同過濾推薦
+    const recommendations = await getCollaborativeFilteringRecommendations(userId, {
+      limit: parseInt(limit),
+      minSimilarity: parseFloat(min_similarity),
+      maxSimilarUsers: parseInt(max_similar_users),
+      excludeInteracted: exclude_interacted === 'true',
+      includeHotScore: include_hot_score === 'true',
+      hotScoreWeight: parseFloat(hot_score_weight),
+    })
+
+    res.json({
+      success: true,
+      data: {
+        recommendations,
+        user_id: userId,
+        filters: {
+          limit: parseInt(limit),
+          min_similarity: parseFloat(min_similarity),
+          max_similar_users: parseInt(max_similar_users),
+          exclude_interacted: exclude_interacted === 'true',
+          include_hot_score: include_hot_score === 'true',
+          hot_score_weight: parseFloat(hot_score_weight),
+        },
+        algorithm: 'collaborative_filtering',
+        algorithm_details: {
+          description: '基於用戶行為相似性的協同過濾推薦演算法',
+          features: [
+            '分析用戶的按讚、留言、分享、收藏、瀏覽歷史',
+            '計算用戶間的相似度',
+            '推薦相似用戶喜歡但當前用戶未互動的內容',
+            '結合熱門分數提升推薦品質',
+            '支援時間衰減，新互動權重更高',
+          ],
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 取得用戶協同過濾統計
+ * 分析用戶的協同過濾相關統計資訊
+ */
+export const getCollaborativeFilteringStatsController = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能取得協同過濾統計',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    // 取得協同過濾統計
+    const stats = await getCollaborativeFilteringStats(userId)
+
+    res.json({
+      success: true,
+      data: stats,
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 更新協同過濾快取
+ * 重新計算並更新協同過濾相關的快取數據
+ */
+export const updateCollaborativeFilteringCacheController = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能更新協同過濾快取',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    // 更新協同過濾快取
+    const cacheResults = await updateCollaborativeFilteringCache([userId])
+
+    res.json({
+      success: true,
+      data: {
+        user_id: userId,
+        cache_results: cacheResults,
+        updated_at: new Date().toISOString(),
+        message: '協同過濾快取已成功更新',
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
 export default {
   getHotRecommendations,
   getLatestRecommendations,
@@ -695,4 +859,7 @@ export default {
   updateUserPreferences,
   getMixedRecommendations,
   getRecommendationStats,
+  getCollaborativeFilteringRecommendationsController,
+  getCollaborativeFilteringStatsController,
+  updateCollaborativeFilteringCacheController,
 }

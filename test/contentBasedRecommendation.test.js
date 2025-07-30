@@ -9,7 +9,7 @@ import {
   calculatePreferenceMatch,
   getContentBasedRecommendations,
   getTagBasedRecommendations,
-} from '../utils/contentBasedRecommendation.js'
+} from '../utils/contentBased.js'
 
 // Mock 模型
 jest.mock('../models/Meme.js')
