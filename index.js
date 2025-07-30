@@ -7,7 +7,6 @@ import mongoose from 'mongoose'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import swaggerUi from 'swagger-ui-express'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
 import swaggerSpecs from './config/swagger.js'
@@ -247,7 +246,7 @@ app.delete('/api/cache/clear', async (req, res) => {
 })
 
 // 404 處理
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     error: '找不到路徑',
     path: req.originalUrl,
