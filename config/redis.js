@@ -15,18 +15,25 @@ class RedisCache {
    */
   async connect() {
     try {
+      // 在開發環境中，如果 Redis 不可用就跳過連線
+      if (process.env.NODE_ENV === 'development') {
+        logger.warn('開發環境：跳過 Redis 連線')
+        this.isConnected = false
+        return
+      }
+
       this.client = new Redis({
         host: process.env.REDIS_HOST || 'localhost',
         port: process.env.REDIS_PORT || 6379,
         password: process.env.REDIS_PASSWORD,
         db: process.env.REDIS_DB || 0,
-        retryDelayOnFailover: 100,
         lazyConnect: true,
         showFriendlyErrorStack: process.env.NODE_ENV === 'development',
-        // 在開發環境中禁用自動重連
-        retryDelayOnClusterDown: process.env.NODE_ENV === 'development' ? 0 : 300,
-        enableOfflineQueue: false,
-        maxRetriesPerRequest: process.env.NODE_ENV === 'development' ? 0 : 3,
+        retryDelayOnFailover: 100,
+        retryDelayOnClusterDown: 300,
+        enableOfflineQueue: true,
+        maxRetriesPerRequest: 3,
+        connectTimeout: 10000,
       })
 
       this.client.on('connect', () => {

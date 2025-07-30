@@ -384,6 +384,16 @@ class AnalyticsMonitor {
    */
   async getCachedStats() {
     try {
+      // 在開發環境中，如果 Redis 不可用，返回基本統計
+      if (process.env.NODE_ENV === 'development' && !redisCache.isConnected) {
+        return {
+          realtime_stats: null,
+          daily_stats: null,
+          algorithm_comparison: null,
+          active_tests_count: this.activeTests.size,
+        }
+      }
+
       const [realtimeStats, dailyStats, algorithmComparison] = await Promise.all([
         redisCache.get(`${this.cachePrefix}realtime_stats`),
         redisCache.get(`${this.cachePrefix}daily_stats`),
@@ -398,7 +408,12 @@ class AnalyticsMonitor {
       }
     } catch (error) {
       logger.error('取得快取統計失敗:', error)
-      return null
+      return {
+        realtime_stats: null,
+        daily_stats: null,
+        algorithm_comparison: null,
+        active_tests_count: this.activeTests.size,
+      }
     }
   }
 
@@ -449,8 +464,10 @@ class AnalyticsMonitor {
 
       await metrics.save()
 
-      // 更新即時統計快取
-      await this.updateMetricsCache()
+      // 更新即時統計快取（僅在生產環境中）
+      if (process.env.NODE_ENV === 'production') {
+        await this.updateMetricsCache()
+      }
 
       logger.debug(`記錄推薦事件: 用戶 ${user_id}, 迷因 ${meme_id}, 演算法 ${algorithm}`)
 
