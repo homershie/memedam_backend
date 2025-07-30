@@ -1,7 +1,7 @@
 // middleware/errorHandler.js
 import { StatusCodes } from 'http-status-codes'
 
-const errorHandler = (err, res) => {
+const errorHandler = (err, req, res, next) => {
   // 處理 JSON 格式錯誤
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(StatusCodes.BAD_REQUEST).json({
@@ -16,7 +16,7 @@ const errorHandler = (err, res) => {
   const message = err.message || '伺服器發生錯誤'
 
   // 可以在這裡加上 log 紀錄
-  // console.error(err)
+  console.error('應用程式錯誤:', err)
 
   res.status(statusCode).json({
     success: false,

@@ -1,6 +1,7 @@
 /**
  * 混合推薦系統
  * 整合所有推薦演算法，支援動態權重調整和冷啟動處理
+ * 效能優化版本 - 包含 Redis 快取和非同步處理
  */
 
 import Meme from '../models/Meme.js'
@@ -20,6 +21,9 @@ import {
   getSocialCollaborativeFilteringRecommendations as getSocialCollaborativeFilteringRecs,
 } from './collaborativeFiltering.js'
 import { calculateMultipleMemeSocialScores } from './socialScoreCalculator.js'
+import redisCache from '../config/redis.js'
+import { cacheProcessor, performanceMonitor } from './asyncProcessor.js'
+import logger from './logger.js'
 
 /**
  * 演算法權重配置
@@ -42,78 +46,111 @@ const COLD_START_CONFIG = {
 }
 
 /**
- * 計算用戶活躍度分數
+ * 快取配置
+ */
+const CACHE_CONFIG = {
+  userActivity: 1800, // 30分鐘
+  userPreferences: 3600, // 1小時
+  hotRecommendations: 900, // 15分鐘
+  latestRecommendations: 300, // 5分鐘
+  contentBasedRecommendations: 1800, // 30分鐘
+  collaborativeFilteringRecommendations: 3600, // 1小時
+  socialRecommendations: 3600, // 1小時
+  mixedRecommendations: 600, // 10分鐘
+  socialScores: 1800, // 30分鐘
+}
+
+/**
+ * 計算用戶活躍度分數（快取版本）
  * @param {string} userId - 用戶ID
  * @returns {Object} 活躍度分數和等級
  */
 const calculateUserActivityScore = async (userId) => {
-  try {
-    const user = await User.findById(userId)
-    if (!user) {
-      return { score: 0, level: 'inactive' }
-    }
+  const cacheKey = `user_activity:${userId}`
 
-    // 計算用戶的互動總數
-    const [likes, comments, shares, collections, views] = await Promise.all([
-      Like.countDocuments({ user_id: userId }),
-      Comment.countDocuments({ user_id: userId, status: 'normal' }),
-      Share.countDocuments({ user_id: userId }),
-      Collection.countDocuments({ user_id: userId }),
-      View.countDocuments({ user_id: userId }),
-    ])
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const user = await User.findById(userId)
+        if (!user) {
+          return { score: 0, level: 'inactive' }
+        }
 
-    const totalInteractions = likes + comments + shares + collections + views
-    const activityScore = Math.log10(totalInteractions + 1) * 10
+        // 並行計算用戶的互動總數
+        const [likes, comments, shares, collections, views] = await Promise.all([
+          Like.countDocuments({ user_id: userId }),
+          Comment.countDocuments({ user_id: userId, status: 'normal' }),
+          Share.countDocuments({ user_id: userId }),
+          Collection.countDocuments({ user_id: userId }),
+          View.countDocuments({ user_id: userId }),
+        ])
 
-    // 根據分數確定活躍等級
-    let level = 'inactive'
-    if (activityScore >= 50) level = 'very_active'
-    else if (activityScore >= 30) level = 'active'
-    else if (activityScore >= 15) level = 'moderate'
-    else if (activityScore >= 5) level = 'low'
-    else level = 'inactive'
+        const totalInteractions = likes + comments + shares + collections + views
+        const activityScore = Math.log10(totalInteractions + 1) * 10
 
-    return {
-      score: activityScore,
-      level,
-      totalInteractions,
-      breakdown: { likes, comments, shares, collections, views },
-    }
-  } catch (error) {
-    console.error('計算用戶活躍度分數失敗:', error)
-    return { score: 0, level: 'inactive' }
-  }
+        // 根據分數確定活躍等級
+        let level = 'inactive'
+        if (activityScore >= 50) level = 'very_active'
+        else if (activityScore >= 30) level = 'active'
+        else if (activityScore >= 15) level = 'moderate'
+        else if (activityScore >= 5) level = 'low'
+        else level = 'inactive'
+
+        return {
+          score: activityScore,
+          level,
+          totalInteractions,
+          breakdown: { likes, comments, shares, collections, views },
+        }
+      } catch (error) {
+        logger.error('計算用戶活躍度分數失敗:', error)
+        return { score: 0, level: 'inactive' }
+      }
+    },
+    { ttl: CACHE_CONFIG.userActivity },
+  )
 }
 
 /**
- * 檢查冷啟動狀態
+ * 檢查冷啟動狀態（快取版本）
  * @param {string} userId - 用戶ID
  * @returns {Object} 冷啟動狀態和建議
  */
 const checkColdStartStatus = async (userId) => {
-  try {
-    const activityScore = await calculateUserActivityScore(userId)
-    const userPreferences = await calculateUserTagPreferences(userId)
+  const cacheKey = `cold_start:${userId}`
 
-    const isColdStart =
-      activityScore.totalInteractions < COLD_START_CONFIG.minInteractions ||
-      Object.keys(userPreferences.preferences).length === 0
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const [activityScore, userPreferences] = await Promise.all([
+          calculateUserActivityScore(userId),
+          calculateUserTagPreferences(userId),
+        ])
 
-    return {
-      isColdStart,
-      activityScore,
-      userPreferences,
-      recommendations: isColdStart ? 'hot' : 'mixed',
-    }
-  } catch (error) {
-    console.error('檢查冷啟動狀態失敗:', error)
-    return {
-      isColdStart: true,
-      activityScore: { score: 0, level: 'inactive' },
-      userPreferences: { preferences: {} },
-      recommendations: 'hot',
-    }
-  }
+        const isColdStart =
+          activityScore.totalInteractions < COLD_START_CONFIG.minInteractions ||
+          Object.keys(userPreferences.preferences).length === 0
+
+        return {
+          isColdStart,
+          activityScore,
+          userPreferences,
+          recommendations: isColdStart ? 'hot' : 'mixed',
+        }
+      } catch (error) {
+        logger.error('檢查冷啟動狀態失敗:', error)
+        return {
+          isColdStart: true,
+          activityScore: { score: 0, level: 'inactive' },
+          userPreferences: { preferences: {} },
+          recommendations: 'hot',
+        }
+      }
+    },
+    { ttl: CACHE_CONFIG.userPreferences },
+  )
 }
 
 /**
@@ -171,119 +208,164 @@ const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights 
 }
 
 /**
- * 取得熱門推薦
+ * 取得熱門推薦（快取版本）
  * @param {Object} options - 選項
  * @returns {Array} 熱門推薦列表
  */
 const getHotRecommendations = async (options = {}) => {
   const { limit = 20, days = 7 } = options
-  const dateLimit = new Date()
-  dateLimit.setDate(dateLimit.getDate() - parseInt(days))
+  const cacheKey = `hot_recommendations:${limit}:${days}`
 
-  const memes = await Meme.find({
-    status: 'public',
-    createdAt: { $gte: dateLimit },
-  })
-    .sort({ hot_score: -1 })
-    .limit(parseInt(limit))
-    .populate('author_id', 'username display_name avatar')
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      const dateLimit = new Date()
+      dateLimit.setDate(dateLimit.getDate() - parseInt(days))
 
-  return memes.map((meme) => ({
-    ...meme.toObject(),
-    recommendation_score: meme.hot_score,
-    recommendation_type: 'hot',
-    hot_level: getHotScoreLevel(meme.hot_score),
-  }))
+      const memes = await Meme.find({
+        status: 'public',
+        createdAt: { $gte: dateLimit },
+      })
+        .sort({ hot_score: -1 })
+        .limit(parseInt(limit))
+        .populate('author_id', 'username display_name avatar')
+        .lean() // 使用 lean() 提升效能
+
+      return memes.map((meme) => ({
+        ...meme,
+        recommendation_score: meme.hot_score,
+        recommendation_type: 'hot',
+        hot_level: getHotScoreLevel(meme.hot_score),
+      }))
+    },
+    { ttl: CACHE_CONFIG.hotRecommendations },
+  )
 }
 
 /**
- * 取得最新推薦
+ * 取得最新推薦（快取版本）
  * @param {Object} options - 選項
  * @returns {Array} 最新推薦列表
  */
 const getLatestRecommendations = async (options = {}) => {
   const { limit = 20, hours = 24 } = options
-  const dateLimit = new Date()
-  dateLimit.setHours(dateLimit.getHours() - parseInt(hours))
+  const cacheKey = `latest_recommendations:${limit}:${hours}`
 
-  const memes = await Meme.find({
-    status: 'public',
-    createdAt: { $gte: dateLimit },
-  })
-    .sort({ createdAt: -1 })
-    .limit(parseInt(limit))
-    .populate('author_id', 'username display_name avatar')
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      const dateLimit = new Date()
+      dateLimit.setHours(dateLimit.getHours() - parseInt(hours))
 
-  return memes.map((meme) => ({
-    ...meme.toObject(),
-    recommendation_score: 1 / (Date.now() - meme.createdAt.getTime()),
-    recommendation_type: 'latest',
-  }))
+      const memes = await Meme.find({
+        status: 'public',
+        createdAt: { $gte: dateLimit },
+      })
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit))
+        .populate('author_id', 'username display_name avatar')
+        .lean()
+
+      return memes.map((meme) => ({
+        ...meme,
+        recommendation_score: 1 / (Date.now() - meme.createdAt.getTime()),
+        recommendation_type: 'latest',
+      }))
+    },
+    { ttl: CACHE_CONFIG.latestRecommendations },
+  )
 }
 
 /**
- * 取得內容基礎推薦
+ * 取得內容基礎推薦（快取版本）
  * @param {string} userId - 用戶ID
  * @param {Object} options - 選項
  * @returns {Array} 內容基礎推薦列表
  */
 const getContentBasedRecommendations = async (userId, options = {}) => {
-  try {
-    return await getContentBasedRecs(userId, {
-      limit: options.limit || 20,
-      minSimilarity: 0.1,
-      excludeInteracted: true,
-      includeHotScore: true,
-      hotScoreWeight: 0.3,
-    })
-  } catch (error) {
-    console.error('內容基礎推薦失敗:', error)
-    return []
-  }
+  const { limit = 20 } = options
+  const cacheKey = `content_based:${userId}:${limit}`
+
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      try {
+        return await getContentBasedRecs(userId, {
+          limit: limit,
+          minSimilarity: 0.1,
+          excludeInteracted: true,
+          includeHotScore: true,
+          hotScoreWeight: 0.3,
+        })
+      } catch (error) {
+        logger.error('內容基礎推薦失敗:', error)
+        return []
+      }
+    },
+    { ttl: CACHE_CONFIG.contentBasedRecommendations },
+  )
 }
 
 /**
- * 取得協同過濾推薦
+ * 取得協同過濾推薦（快取版本）
  * @param {string} userId - 用戶ID
  * @param {Object} options - 選項
  * @returns {Array} 協同過濾推薦列表
  */
 const getCollaborativeFilteringRecommendations = async (userId, options = {}) => {
-  try {
-    return await getCollaborativeFilteringRecs(userId, {
-      limit: options.limit || 20,
-      minSimilarity: 0.1,
-      maxSimilarUsers: 50,
-      excludeInteracted: true,
-      includeHotScore: true,
-      hotScoreWeight: 0.3,
-    })
-  } catch (error) {
-    console.error('協同過濾推薦失敗:', error)
-    return []
-  }
+  const { limit = 20 } = options
+  const cacheKey = `collaborative_filtering:${userId}:${limit}`
+
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      try {
+        return await getCollaborativeFilteringRecs(userId, {
+          limit: limit,
+          minSimilarity: 0.1,
+          maxSimilarUsers: 50,
+          excludeInteracted: true,
+          includeHotScore: true,
+          hotScoreWeight: 0.3,
+        })
+      } catch (error) {
+        logger.error('協同過濾推薦失敗:', error)
+        return []
+      }
+    },
+    { ttl: CACHE_CONFIG.collaborativeFilteringRecommendations },
+  )
 }
 
 /**
- * 取得社交協同過濾推薦
+ * 取得社交協同過濾推薦（快取版本）
  * @param {string} userId - 用戶ID
  * @param {Object} options - 選項
  * @returns {Array} 社交協同過濾推薦列表
  */
 const getSocialCollaborativeFilteringRecommendations = async (userId, options = {}) => {
-  try {
-    return await getSocialCollaborativeFilteringRecs(userId, {
-      limit: options.limit || 20,
-      minSimilarity: 0.1,
-      maxSimilarUsers: 50,
-      excludeInteracted: true,
-      includeHotScore: true,
-      hotScoreWeight: 0.3,
-    })
-  } catch (error) {
-    console.error('社交協同過濾推薦失敗:', error)
-    return []
-  }
+  const { limit = 20 } = options
+  const cacheKey = `social_collaborative_filtering:${userId}:${limit}`
+
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      try {
+        return await getSocialCollaborativeFilteringRecs(userId, {
+          limit: limit,
+          minSimilarity: 0.1,
+          maxSimilarUsers: 50,
+          excludeInteracted: true,
+          includeHotScore: true,
+          hotScoreWeight: 0.3,
+        })
+      } catch (error) {
+        logger.error('社交協同過濾推薦失敗:', error)
+        return []
+      }
+    },
+    { ttl: CACHE_CONFIG.socialRecommendations },
+  )
 }
 
 /**
@@ -367,12 +449,14 @@ const calculateRecommendationDiversity = (recommendations) => {
 }
 
 /**
- * 主要混合推薦函數
+ * 主要混合推薦函數（優化版本）
  * @param {string} userId - 用戶ID（可選）
  * @param {Object} options - 選項
  * @returns {Object} 混合推薦結果
  */
 export const getMixedRecommendations = async (userId = null, options = {}) => {
+  performanceMonitor.start('mixed_recommendations')
+
   try {
     const {
       limit = 30,
@@ -381,7 +465,19 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       includeColdStartAnalysis = true,
       includeSocialScores = true,
       includeRecommendationReasons = true,
+      useCache = true,
     } = options
+
+    // 快取鍵
+    const cacheKey = `mixed_recommendations:${userId || 'anonymous'}:${limit}:${JSON.stringify(customWeights)}`
+
+    if (useCache) {
+      const cached = await redisCache.get(cacheKey)
+      if (cached !== null) {
+        performanceMonitor.end('mixed_recommendations')
+        return cached
+      }
+    }
 
     // 檢查冷啟動狀態
     let coldStartStatus = null
@@ -396,50 +492,58 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       customWeights,
     )
 
-    // 取得各種推薦
-    const recommendations = []
+    // 並行取得各種推薦
+    const recommendationTasks = []
 
     // 熱門推薦
     if (weights.hot > 0) {
-      const hotRecs = await getHotRecommendations({
-        limit: Math.ceil(limit * weights.hot),
-        days: 7,
-      })
-      recommendations.push(hotRecs)
+      recommendationTasks.push(
+        getHotRecommendations({
+          limit: Math.ceil(limit * weights.hot),
+          days: 7,
+        }),
+      )
     }
 
     // 最新推薦
     if (weights.latest > 0) {
-      const latestRecs = await getLatestRecommendations({
-        limit: Math.ceil(limit * weights.latest),
-        hours: 24,
-      })
-      recommendations.push(latestRecs)
+      recommendationTasks.push(
+        getLatestRecommendations({
+          limit: Math.ceil(limit * weights.latest),
+          hours: 24,
+        }),
+      )
     }
 
     // 內容基礎推薦（需要登入）
     if (userId && weights.content_based > 0) {
-      const contentRecs = await getContentBasedRecommendations(userId, {
-        limit: Math.ceil(limit * weights.content_based),
-      })
-      recommendations.push(contentRecs)
+      recommendationTasks.push(
+        getContentBasedRecommendations(userId, {
+          limit: Math.ceil(limit * weights.content_based),
+        }),
+      )
     }
 
     // 協同過濾推薦（需要登入）
     if (userId && weights.collaborative_filtering > 0) {
-      const collabRecs = await getCollaborativeFilteringRecommendations(userId, {
-        limit: Math.ceil(limit * weights.collaborative_filtering),
-      })
-      recommendations.push(collabRecs)
+      recommendationTasks.push(
+        getCollaborativeFilteringRecommendations(userId, {
+          limit: Math.ceil(limit * weights.collaborative_filtering),
+        }),
+      )
     }
 
     // 社交協同過濾推薦（需要登入）
     if (userId && weights.social_collaborative_filtering > 0) {
-      const socialRecs = await getSocialCollaborativeFilteringRecommendations(userId, {
-        limit: Math.ceil(limit * weights.social_collaborative_filtering),
-      })
-      recommendations.push(socialRecs)
+      recommendationTasks.push(
+        getSocialCollaborativeFilteringRecommendations(userId, {
+          limit: Math.ceil(limit * weights.social_collaborative_filtering),
+        }),
+      )
     }
+
+    // 並行執行所有推薦任務
+    const recommendations = await Promise.all(recommendationTasks)
 
     // 合併推薦結果
     const mergedRecommendations = mergeRecommendations(recommendations, weights)
@@ -492,7 +596,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       diversity = calculateRecommendationDiversity(mergedRecommendations)
     }
 
-    return {
+    const result = {
       recommendations: mergedRecommendations.slice(0, parseInt(limit)),
       weights,
       coldStartStatus,
@@ -500,104 +604,128 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       algorithm: 'mixed',
       userAuthenticated: !!userId,
     }
+
+    // 設定快取
+    if (useCache) {
+      await redisCache.set(cacheKey, result, CACHE_CONFIG.mixedRecommendations)
+    }
+
+    performanceMonitor.end('mixed_recommendations')
+    return result
   } catch (error) {
-    console.error('混合推薦失敗:', error)
+    performanceMonitor.end('mixed_recommendations')
+    logger.error('混合推薦失敗:', error)
     throw error
   }
 }
 
 /**
- * 取得推薦演算法統計
+ * 取得推薦演算法統計（快取版本）
  * @param {string} userId - 用戶ID（可選）
  * @returns {Object} 演算法統計
  */
 export const getRecommendationAlgorithmStats = async (userId = null) => {
-  try {
-    const stats = {
-      totalMemes: await Meme.countDocuments({ status: 'public' }),
-      hotMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 100 } }),
-      trendingMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 500 } }),
-      viralMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 1000 } }),
-    }
+  const cacheKey = `recommendation_stats:${userId || 'anonymous'}`
 
-    if (userId) {
-      const coldStartStatus = await checkColdStartStatus(userId)
-      stats.userActivity = coldStartStatus.activityScore
-      stats.coldStart = coldStartStatus.isColdStart
-      stats.userPreferences = coldStartStatus.userPreferences
-    }
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const stats = {
+          totalMemes: await Meme.countDocuments({ status: 'public' }),
+          hotMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 100 } }),
+          trendingMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 500 } }),
+          viralMemes: await Meme.countDocuments({ status: 'public', hot_score: { $gte: 1000 } }),
+        }
 
-    return stats
-  } catch (error) {
-    console.error('取得推薦演算法統計失敗:', error)
-    throw error
-  }
+        if (userId) {
+          const coldStartStatus = await checkColdStartStatus(userId)
+          stats.userActivity = coldStartStatus.activityScore
+          stats.coldStart = coldStartStatus.isColdStart
+          stats.userPreferences = coldStartStatus.userPreferences
+        }
+
+        return stats
+      } catch (error) {
+        logger.error('取得推薦演算法統計失敗:', error)
+        throw error
+      }
+    },
+    { ttl: 1800 }, // 30分鐘快取
+  )
 }
 
 /**
- * 動態調整推薦策略
+ * 動態調整推薦策略（快取版本）
  * @param {string} userId - 用戶ID
  * @param {Object} userBehavior - 用戶行為數據
  * @returns {Object} 調整後的推薦策略
  */
 export const adjustRecommendationStrategy = async (userId, userBehavior = {}) => {
-  try {
-    const { clickRate, engagementRate, diversityPreference } = userBehavior
-    await calculateUserActivityScore(userId) // 計算但不使用，避免 linter 警告
-    const coldStartStatus = await checkColdStartStatus(userId)
+  const cacheKey = `recommendation_strategy:${userId}:${JSON.stringify(userBehavior)}`
 
-    // 根據用戶行為調整策略
-    let strategy = {
-      weights: { ...ALGORITHM_WEIGHTS },
-      focus: 'balanced',
-      coldStartHandling: coldStartStatus.isColdStart,
-    }
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const { clickRate, engagementRate, diversityPreference } = userBehavior
+        const coldStartStatus = await checkColdStartStatus(userId)
 
-    // 高點擊率用戶傾向個人化推薦
-    if (clickRate > 0.3) {
-      strategy.weights.content_based = 0.35
-      strategy.weights.collaborative_filtering = 0.25
-      strategy.weights.social_collaborative_filtering = 0.2
-      strategy.weights.hot = 0.1
-      strategy.weights.latest = 0.1
-      strategy.focus = 'personalization'
-    }
+        // 根據用戶行為調整策略
+        let strategy = {
+          weights: { ...ALGORITHM_WEIGHTS },
+          focus: 'balanced',
+          coldStartHandling: coldStartStatus.isColdStart,
+        }
 
-    // 高互動率用戶傾向社交推薦
-    if (engagementRate > 0.5) {
-      strategy.weights.social_collaborative_filtering = 0.3
-      strategy.weights.collaborative_filtering = 0.25
-      strategy.weights.content_based = 0.2
-      strategy.weights.hot = 0.15
-      strategy.weights.latest = 0.1
-      strategy.focus = 'social'
-    }
+        // 高點擊率用戶傾向個人化推薦
+        if (clickRate > 0.3) {
+          strategy.weights.content_based = 0.35
+          strategy.weights.collaborative_filtering = 0.25
+          strategy.weights.social_collaborative_filtering = 0.2
+          strategy.weights.hot = 0.1
+          strategy.weights.latest = 0.1
+          strategy.focus = 'personalization'
+        }
 
-    // 高多樣性偏好用戶傾向探索推薦
-    if (diversityPreference > 0.7) {
-      strategy.weights.latest = 0.3
-      strategy.weights.hot = 0.25
-      strategy.weights.content_based = 0.2
-      strategy.weights.collaborative_filtering = 0.15
-      strategy.weights.social_collaborative_filtering = 0.1
-      strategy.focus = 'exploration'
-    }
+        // 高互動率用戶傾向社交推薦
+        if (engagementRate > 0.5) {
+          strategy.weights.social_collaborative_filtering = 0.3
+          strategy.weights.collaborative_filtering = 0.25
+          strategy.weights.content_based = 0.2
+          strategy.weights.hot = 0.15
+          strategy.weights.latest = 0.1
+          strategy.focus = 'social'
+        }
 
-    // 冷啟動用戶使用熱門推薦
-    if (coldStartStatus.isColdStart) {
-      strategy.weights.hot = 0.6
-      strategy.weights.latest = 0.4
-      strategy.weights.content_based = 0
-      strategy.weights.collaborative_filtering = 0
-      strategy.weights.social_collaborative_filtering = 0
-      strategy.focus = 'discovery'
-    }
+        // 高多樣性偏好用戶傾向探索推薦
+        if (diversityPreference > 0.7) {
+          strategy.weights.latest = 0.3
+          strategy.weights.hot = 0.25
+          strategy.weights.content_based = 0.2
+          strategy.weights.collaborative_filtering = 0.15
+          strategy.weights.social_collaborative_filtering = 0.1
+          strategy.focus = 'exploration'
+        }
 
-    return strategy
-  } catch (error) {
-    console.error('調整推薦策略失敗:', error)
-    throw error
-  }
+        // 冷啟動用戶使用熱門推薦
+        if (coldStartStatus.isColdStart) {
+          strategy.weights.hot = 0.6
+          strategy.weights.latest = 0.4
+          strategy.weights.content_based = 0
+          strategy.weights.collaborative_filtering = 0
+          strategy.weights.social_collaborative_filtering = 0
+          strategy.focus = 'discovery'
+        }
+
+        return strategy
+      } catch (error) {
+        logger.error('調整推薦策略失敗:', error)
+        throw error
+      }
+    },
+    { ttl: 3600 }, // 1小時快取
+  )
 }
 
 /**
@@ -647,7 +775,39 @@ const generateGenericRecommendationReason = (recommendation) => {
 
     return '為你推薦的迷因'
   } catch (error) {
-    console.error('生成通用推薦原因時發生錯誤:', error)
+    logger.error('生成通用推薦原因時發生錯誤:', error)
     return '為你推薦的迷因'
   }
+}
+
+/**
+ * 清除用戶相關快取
+ * @param {string} userId - 用戶ID
+ */
+export const clearUserCache = async (userId) => {
+  try {
+    const patterns = [
+      `user_activity:${userId}`,
+      `cold_start:${userId}`,
+      `content_based:${userId}:*`,
+      `collaborative_filtering:${userId}:*`,
+      `social_collaborative_filtering:${userId}:*`,
+      `mixed_recommendations:${userId}:*`,
+      `recommendation_stats:${userId}`,
+      `recommendation_strategy:${userId}:*`,
+    ]
+
+    await Promise.all(patterns.map((pattern) => redisCache.delPattern(pattern)))
+
+    logger.info(`已清除用戶 ${userId} 的快取`)
+  } catch (error) {
+    logger.error('清除用戶快取失敗:', error)
+  }
+}
+
+/**
+ * 取得效能監控數據
+ */
+export const getPerformanceMetrics = () => {
+  return performanceMonitor.getAllMetrics()
 }
