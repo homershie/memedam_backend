@@ -312,6 +312,14 @@ ABTestSchema.pre('save', function (next) {
     return next(new Error('結束日期必須在開始日期之後'))
   }
 
+  // 新增/更新時加強日期驗證
+  if (!(this.start_date instanceof Date) || isNaN(this.start_date)) {
+    return next(new Error('start_date 必須是有效的日期'))
+  }
+  if (!(this.end_date instanceof Date) || isNaN(this.end_date)) {
+    return next(new Error('end_date 必須是有效的日期'))
+  }
+
   next()
 })
 
@@ -319,13 +327,15 @@ ABTestSchema.pre('save', function (next) {
 ABTestSchema.statics.getActiveTests = async function () {
   const now = new Date()
   try {
+    // 強制型態轉換，避免查詢時型態錯誤
     return await this.find({
       status: 'active',
       start_date: { $lte: now },
       end_date: { $gte: now },
     }).lean()
   } catch (error) {
-    logger.error('取得活躍測試失敗:', error)
+    // 更詳細的錯誤日誌
+    console.error('[ABTest] 取得活躍測試失敗:', error.message, error)
     return []
   }
 }
