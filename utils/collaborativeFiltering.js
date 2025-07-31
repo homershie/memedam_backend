@@ -300,6 +300,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     excludeInteracted = true,
     includeHotScore = true,
     hotScoreWeight = 0.3,
+    tags = [],
   } = options
 
   try {
@@ -314,7 +315,14 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       Object.keys(interactionMatrix[targetUserId]).length === 0
     ) {
       console.log('用戶沒有互動歷史，使用熱門推薦作為備選')
-      const hotMemes = await Meme.find({ status: 'public' })
+      const filter = { status: 'public' }
+
+      // 如果有標籤篩選，加入標籤條件
+      if (tags && tags.length > 0) {
+        filter.tags_cache = { $in: tags }
+      }
+
+      const hotMemes = await Meme.find(filter)
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -338,7 +346,14 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
 
     if (similarUsers.length === 0) {
       console.log('沒有找到相似用戶，使用熱門推薦作為備選')
-      const hotMemes = await Meme.find({ status: 'public' })
+      const filter = { status: 'public' }
+
+      // 如果有標籤篩選，加入標籤條件
+      if (tags && tags.length > 0) {
+        filter.tags_cache = { $in: tags }
+      }
+
+      const hotMemes = await Meme.find(filter)
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -398,12 +413,19 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     // 按協同過濾分數排序
     recommendations.sort((a, b) => b.collaborativeScore - a.collaborativeScore)
 
-    // 取得迷因詳細資訊
-    const memeIds = recommendations.slice(0, limit).map((r) => r.memeId)
-    const memes = await Meme.find({
-      _id: { $in: memeIds },
+    // 建立查詢條件
+    const filter = {
+      _id: { $in: recommendations.slice(0, limit).map((r) => r.memeId) },
       status: 'public',
-    }).populate('author_id', 'username display_name avatar')
+    }
+
+    // 如果有標籤篩選，加入標籤條件
+    if (tags && tags.length > 0) {
+      filter.tags_cache = { $in: tags }
+    }
+
+    // 取得迷因詳細資訊
+    const memes = await Meme.find(filter).populate('author_id', 'username display_name avatar')
 
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()
@@ -439,6 +461,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
             '推薦相似用戶喜歡但當前用戶未互動的內容',
             '結合熱門分數提升推薦品質',
             '支援時間衰減，新互動權重更高',
+            '標籤篩選支援',
           ],
         },
       }
@@ -447,10 +470,11 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     console.log(
       `協同過濾推薦生成完成，找到 ${similarUsers.length} 個相似用戶，推薦 ${finalRecommendations.length} 個迷因`,
     )
+
     return finalRecommendations
   } catch (error) {
-    console.error('生成協同過濾推薦時發生錯誤:', error)
-    throw error
+    console.error('協同過濾推薦生成失敗:', error)
+    return []
   }
 }
 
@@ -729,6 +753,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     excludeInteracted = true,
     includeHotScore = true,
     hotScoreWeight = 0.3,
+    tags = [],
   } = options
 
   try {
@@ -746,7 +771,14 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       Object.keys(interactionMatrix[targetUserId]).length === 0
     ) {
       console.log('用戶沒有互動歷史，使用熱門推薦作為備選')
-      const hotMemes = await Meme.find({ status: 'public' })
+      const filter = { status: 'public' }
+
+      // 如果有標籤篩選，加入標籤條件
+      if (tags && tags.length > 0) {
+        filter.tags_cache = { $in: tags }
+      }
+
+      const hotMemes = await Meme.find(filter)
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -771,7 +803,14 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     if (socialSimilarUsers.length === 0) {
       console.log('沒有找到社交相似用戶，使用熱門推薦作為備選')
-      const hotMemes = await Meme.find({ status: 'public' })
+      const filter = { status: 'public' }
+
+      // 如果有標籤篩選，加入標籤條件
+      if (tags && tags.length > 0) {
+        filter.tags_cache = { $in: tags }
+      }
+
+      const hotMemes = await Meme.find(filter)
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -838,12 +877,19 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 按社交協同過濾分數排序
     recommendations.sort((a, b) => b.socialCollaborativeScore - a.socialCollaborativeScore)
 
-    // 取得迷因詳細資訊
-    const memeIds = recommendations.slice(0, limit).map((r) => r.memeId)
-    const memes = await Meme.find({
-      _id: { $in: memeIds },
+    // 建立查詢條件
+    const filter = {
+      _id: { $in: recommendations.slice(0, limit).map((r) => r.memeId) },
       status: 'public',
-    }).populate('author_id', 'username display_name avatar')
+    }
+
+    // 如果有標籤篩選，加入標籤條件
+    if (tags && tags.length > 0) {
+      filter.tags_cache = { $in: tags }
+    }
+
+    // 取得迷因詳細資訊
+    const memes = await Meme.find(filter).populate('author_id', 'username display_name avatar')
 
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()
@@ -880,6 +926,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
             '結合行為相似度和社交相似度進行推薦',
             '考慮社交影響力加權，影響力高的用戶推薦權重更大',
             '支援時間衰減，新互動權重更高',
+            '標籤篩選支援',
           ],
         },
       }

@@ -38,7 +38,7 @@ import {
  */
 export const getHotRecommendations = async (req, res) => {
   try {
-    const { limit = 20, type = 'all', days = 7, exclude_viewed = 'false' } = req.query
+    const { limit = 20, type = 'all', days = 7, exclude_viewed = 'false', tags } = req.query
 
     const userId = req.user?._id
     const parsedDays = parseInt(days)
@@ -54,6 +54,14 @@ export const getHotRecommendations = async (req, res) => {
 
     if (type !== 'all') {
       filter.type = type
+    }
+
+    // 如果有標籤篩選，加入標籤條件
+    if (tags) {
+      const tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+      if (tagArray.length > 0) {
+        filter.tags_cache = { $in: tagArray }
+      }
     }
 
     // 排除用戶已看過的迷因
@@ -86,6 +94,7 @@ export const getHotRecommendations = async (req, res) => {
           type,
           days: parseInt(days),
           limit: parseInt(limit),
+          tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())) : [],
         },
         algorithm: 'hot_score',
       },
@@ -105,7 +114,7 @@ export const getHotRecommendations = async (req, res) => {
  */
 export const getLatestRecommendations = async (req, res) => {
   try {
-    const { limit = 20, type = 'all', hours = 24 } = req.query
+    const { limit = 20, type = 'all', hours = 24, tags } = req.query
 
     const parsedHours = parseInt(hours)
     const validHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 24
@@ -120,6 +129,14 @@ export const getLatestRecommendations = async (req, res) => {
 
     if (type !== 'all') {
       filter.type = type
+    }
+
+    // 如果有標籤篩選，加入標籤條件
+    if (tags) {
+      const tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+      if (tagArray.length > 0) {
+        filter.tags_cache = { $in: tagArray }
+      }
     }
 
     const memes = await Meme.find(filter)
@@ -145,6 +162,7 @@ export const getLatestRecommendations = async (req, res) => {
           type,
           hours: parseInt(hours),
           limit: parseInt(limit),
+          tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())) : [],
         },
         algorithm: 'latest',
       },
@@ -234,6 +252,7 @@ export const getContentBasedRecommendationsController = async (req, res) => {
       exclude_interacted = 'true',
       include_hot_score = 'true',
       hot_score_weight = 0.3,
+      tags,
     } = req.query
     const userId = req.user?._id
 
@@ -252,6 +271,12 @@ export const getContentBasedRecommendationsController = async (req, res) => {
       })
     }
 
+    // 解析標籤參數
+    let tagArray = []
+    if (tags) {
+      tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
     // 取得內容基礎推薦
     const recommendations = await getContentBasedRecommendations(userId, {
       limit: parseInt(limit),
@@ -259,6 +284,7 @@ export const getContentBasedRecommendationsController = async (req, res) => {
       excludeInteracted: exclude_interacted === 'true',
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
+      tags: tagArray,
     })
 
     res.json({
@@ -272,6 +298,7 @@ export const getContentBasedRecommendationsController = async (req, res) => {
           exclude_interacted: exclude_interacted === 'true',
           include_hot_score: include_hot_score === 'true',
           hot_score_weight: parseFloat(hot_score_weight),
+          tags: tagArray,
         },
         algorithm: 'content_based',
         algorithm_details: {
@@ -282,6 +309,7 @@ export const getContentBasedRecommendationsController = async (req, res) => {
             '基於標籤相似度計算迷因推薦分數',
             '結合熱門分數提升推薦品質',
             '支援時間衰減，新互動權重更高',
+            '標籤篩選支援',
           ],
         },
       },
@@ -469,7 +497,7 @@ export const updateUserPreferences = async (req, res) => {
  */
 export const getUserInterestRecommendations = async (req, res) => {
   try {
-    const { limit = 20 } = req.query
+    const { limit = 20, tags } = req.query
     const userId = req.user?._id
 
     if (!userId) {
@@ -489,11 +517,23 @@ export const getUserInterestRecommendations = async (req, res) => {
       })
     }
 
+    // 解析標籤參數
+    let tagArray = []
+    if (tags) {
+      tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
+    // 建立查詢條件
+    const filter = { status: 'public' }
+
+    // 如果有標籤篩選，加入標籤條件
+    if (tagArray.length > 0) {
+      filter.tags_cache = { $in: tagArray }
+    }
+
     // 這裡可以加入更複雜的用戶興趣分析
     // 暫時返回熱門推薦，未來可以實作真正的個人化推薦
-    const recommendations = await Meme.find({
-      status: 'public',
-    })
+    const recommendations = await Meme.find(filter)
       .sort({ hot_score: -1 })
       .limit(parseInt(limit))
       .populate('author_id', 'username display_name avatar')
@@ -515,6 +555,7 @@ export const getUserInterestRecommendations = async (req, res) => {
         user_id: userId,
         filters: {
           limit: parseInt(limit),
+          tags: tagArray,
         },
         algorithm: 'user_interest',
         note: '目前使用基礎推薦，未來將實作更進階的個人化演算法',
@@ -540,6 +581,7 @@ export const getMixedRecommendationsController = async (req, res) => {
       custom_weights = '{}',
       include_diversity = 'true',
       include_cold_start_analysis = 'true',
+      tags,
     } = req.query
     const userId = req.user?._id
 
@@ -551,12 +593,19 @@ export const getMixedRecommendationsController = async (req, res) => {
       console.log('自定義權重解析失敗，使用預設權重')
     }
 
+    // 解析標籤參數
+    let tagArray = []
+    if (tags) {
+      tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
     // 使用新的混合推薦系統
     const result = await getMixedRecommendations(userId, {
       limit: parseInt(limit),
       customWeights,
       includeDiversity: include_diversity === 'true',
       includeColdStartAnalysis: include_cold_start_analysis === 'true',
+      tags: tagArray,
     })
 
     res.json({
@@ -568,6 +617,7 @@ export const getMixedRecommendationsController = async (req, res) => {
           custom_weights: customWeights,
           include_diversity: include_diversity === 'true',
           include_cold_start_analysis: include_cold_start_analysis === 'true',
+          tags: tagArray,
         },
         algorithm: 'mixed',
         weights: result.weights,
@@ -582,6 +632,7 @@ export const getMixedRecommendationsController = async (req, res) => {
             '多樣性計算',
             '用戶活躍度分析',
             '個人化推薦策略',
+            '標籤篩選支援',
           ],
         },
       },
@@ -642,6 +693,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       exclude_interacted = 'true',
       include_hot_score = 'true',
       hot_score_weight = 0.3,
+      tags,
     } = req.query
     const userId = req.user?._id
 
@@ -660,6 +712,12 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       })
     }
 
+    // 解析標籤參數
+    let tagArray = []
+    if (tags) {
+      tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
     // 取得協同過濾推薦
     const recommendations = await getCollaborativeFilteringRecommendations(userId, {
       limit: parseInt(limit),
@@ -668,6 +726,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       excludeInteracted: exclude_interacted === 'true',
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
+      tags: tagArray,
     })
 
     res.json({
@@ -682,6 +741,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
           exclude_interacted: exclude_interacted === 'true',
           include_hot_score: include_hot_score === 'true',
           hot_score_weight: parseFloat(hot_score_weight),
+          tags: tagArray,
         },
         algorithm: 'collaborative_filtering',
         algorithm_details: {
@@ -692,6 +752,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
             '推薦相似用戶喜歡但當前用戶未互動的內容',
             '結合熱門分數提升推薦品質',
             '支援時間衰減，新互動權重更高',
+            '標籤篩選支援',
           ],
         },
       },
@@ -818,7 +879,14 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       exclude_interacted = 'true',
       include_hot_score = 'true',
       hot_score_weight = 0.3,
+      tags,
     } = req.query
+
+    // 解析標籤參數
+    let tagArray = []
+    if (tags) {
+      tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
 
     const options = {
       limit: parseInt(limit),
@@ -827,6 +895,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       excludeInteracted: exclude_interacted === 'true',
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
+      tags: tagArray,
     }
 
     const recommendations = await getSocialCollaborativeFilteringRecommendations(userId, options)
@@ -843,6 +912,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
           exclude_interacted: exclude_interacted === 'true',
           include_hot_score: include_hot_score === 'true',
           hot_score_weight: parseFloat(hot_score_weight),
+          tags: tagArray,
         },
         algorithm: 'social_collaborative_filtering',
         algorithm_details: {
@@ -853,6 +923,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
             '結合行為相似度和社交相似度進行推薦',
             '考慮社交影響力加權，影響力高的用戶推薦權重更大',
             '支援時間衰減，新互動權重更高',
+            '標籤篩選支援',
           ],
         },
       },

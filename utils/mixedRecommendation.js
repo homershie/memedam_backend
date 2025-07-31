@@ -214,8 +214,8 @@ const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights 
  * @returns {Array} 熱門推薦列表
  */
 const getHotRecommendations = async (options = {}) => {
-  const { limit = 20, days = 7 } = options
-  const cacheKey = `hot_recommendations:${limit}:${days}`
+  const { limit = 20, days = 7, tags = [] } = options
+  const cacheKey = `hot_recommendations:${limit}:${days}:${JSON.stringify(tags)}`
 
   return await cacheProcessor.processWithCache(
     cacheKey,
@@ -223,10 +223,18 @@ const getHotRecommendations = async (options = {}) => {
       const dateLimit = new Date()
       dateLimit.setDate(dateLimit.getDate() - parseInt(days))
 
-      const memes = await Meme.find({
+      // 建立查詢條件
+      const filter = {
         status: 'public',
         createdAt: mongoose.trusted({ $gte: dateLimit }),
-      })
+      }
+
+      // 如果有標籤篩選，加入標籤條件
+      if (tags && tags.length > 0) {
+        filter.tags_cache = { $in: tags }
+      }
+
+      const memes = await Meme.find(filter)
         .sort({ hot_score: -1 })
         .limit(parseInt(limit))
         .populate('author_id', 'username display_name avatar')
@@ -264,8 +272,8 @@ const getHotRecommendations = async (options = {}) => {
  * @returns {Array} 最新推薦列表
  */
 const getLatestRecommendations = async (options = {}) => {
-  const { limit = 20, hours = 24 } = options
-  const cacheKey = `latest_recommendations:${limit}:${hours}`
+  const { limit = 20, hours = 24, tags = [] } = options
+  const cacheKey = `latest_recommendations:${limit}:${hours}:${JSON.stringify(tags)}`
 
   return await cacheProcessor.processWithCache(
     cacheKey,
@@ -273,10 +281,18 @@ const getLatestRecommendations = async (options = {}) => {
       const dateLimit = new Date()
       dateLimit.setHours(dateLimit.getHours() - parseInt(hours))
 
-      const memes = await Meme.find({
+      // 建立查詢條件
+      const filter = {
         status: 'public',
         createdAt: mongoose.trusted({ $gte: dateLimit }),
-      })
+      }
+
+      // 如果有標籤篩選，加入標籤條件
+      if (tags && tags.length > 0) {
+        filter.tags_cache = { $in: tags }
+      }
+
+      const memes = await Meme.find(filter)
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .populate('author_id', 'username display_name avatar')
@@ -314,8 +330,8 @@ const getLatestRecommendations = async (options = {}) => {
  * @returns {Array} 內容基礎推薦列表
  */
 const getContentBasedRecommendations = async (userId, options = {}) => {
-  const { limit = 20 } = options
-  const cacheKey = `content_based:${userId}:${limit}`
+  const { limit = 20, tags = [] } = options
+  const cacheKey = `content_based:${userId}:${limit}:${JSON.stringify(tags)}`
 
   return await cacheProcessor.processWithCache(
     cacheKey,
@@ -327,6 +343,7 @@ const getContentBasedRecommendations = async (userId, options = {}) => {
           excludeInteracted: true,
           includeHotScore: true,
           hotScoreWeight: 0.3,
+          tags,
         })
       } catch (error) {
         logger.error('內容基礎推薦失敗:', error)
@@ -344,8 +361,8 @@ const getContentBasedRecommendations = async (userId, options = {}) => {
  * @returns {Array} 協同過濾推薦列表
  */
 const getCollaborativeFilteringRecommendations = async (userId, options = {}) => {
-  const { limit = 20 } = options
-  const cacheKey = `collaborative_filtering:${userId}:${limit}`
+  const { limit = 20, tags = [] } = options
+  const cacheKey = `collaborative_filtering:${userId}:${limit}:${JSON.stringify(tags)}`
 
   return await cacheProcessor.processWithCache(
     cacheKey,
@@ -358,6 +375,7 @@ const getCollaborativeFilteringRecommendations = async (userId, options = {}) =>
           excludeInteracted: true,
           includeHotScore: true,
           hotScoreWeight: 0.3,
+          tags,
         })
       } catch (error) {
         logger.error('協同過濾推薦失敗:', error)
@@ -375,8 +393,8 @@ const getCollaborativeFilteringRecommendations = async (userId, options = {}) =>
  * @returns {Array} 社交協同過濾推薦列表
  */
 const getSocialCollaborativeFilteringRecommendations = async (userId, options = {}) => {
-  const { limit = 20 } = options
-  const cacheKey = `social_collaborative_filtering:${userId}:${limit}`
+  const { limit = 20, tags = [] } = options
+  const cacheKey = `social_collaborative_filtering:${userId}:${limit}:${JSON.stringify(tags)}`
 
   return await cacheProcessor.processWithCache(
     cacheKey,
@@ -389,6 +407,7 @@ const getSocialCollaborativeFilteringRecommendations = async (userId, options = 
           excludeInteracted: true,
           includeHotScore: true,
           hotScoreWeight: 0.3,
+          tags,
         })
       } catch (error) {
         logger.error('社交協同過濾推薦失敗:', error)
@@ -499,10 +518,11 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       includeSocialScores = true,
       includeRecommendationReasons = true,
       useCache = true,
+      tags = [],
     } = options
 
     // 快取鍵
-    const cacheKey = `mixed_recommendations:${userId || 'anonymous'}:${limit}:${JSON.stringify(customWeights)}`
+    const cacheKey = `mixed_recommendations:${userId || 'anonymous'}:${limit}:${JSON.stringify(customWeights)}:${JSON.stringify(tags)}`
 
     if (useCache) {
       const cached = await redisCache.get(cacheKey)
@@ -534,6 +554,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
         getHotRecommendations({
           limit: Math.ceil(limit * weights.hot),
           days: 7,
+          tags,
         }),
       )
     }
@@ -544,6 +565,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
         getLatestRecommendations({
           limit: Math.ceil(limit * weights.latest),
           hours: 24,
+          tags,
         }),
       )
     }
@@ -553,6 +575,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       recommendationTasks.push(
         getContentBasedRecommendations(userId, {
           limit: Math.ceil(limit * weights.content_based),
+          tags,
         }),
       )
     }
@@ -562,6 +585,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       recommendationTasks.push(
         getCollaborativeFilteringRecommendations(userId, {
           limit: Math.ceil(limit * weights.collaborative_filtering),
+          tags,
         }),
       )
     }
@@ -571,6 +595,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       recommendationTasks.push(
         getSocialCollaborativeFilteringRecommendations(userId, {
           limit: Math.ceil(limit * weights.social_collaborative_filtering),
+          tags,
         }),
       )
     }
@@ -636,6 +661,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       diversity,
       algorithm: 'mixed',
       userAuthenticated: !!userId,
+      appliedTags: tags,
     }
 
     // 設定快取

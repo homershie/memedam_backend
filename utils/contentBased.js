@@ -194,6 +194,7 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
     excludeInteracted = true,
     includeHotScore = true,
     hotScoreWeight = 0.3,
+    tags = [],
   } = options
 
   try {
@@ -214,7 +215,14 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
     // 如果用戶沒有足夠的互動歷史，返回熱門推薦
     if (userPreferences.confidence < 0.1) {
       console.log('用戶互動歷史不足，使用熱門推薦作為備選')
-      const hotMemes = await Meme.find({ status: 'public' })
+      const filter = { status: 'public' }
+
+      // 如果有標籤篩選，加入標籤條件
+      if (tags && tags.length > 0) {
+        filter.tags_cache = { $in: tags }
+      }
+
+      const hotMemes = await Meme.find(filter)
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -228,11 +236,16 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
       }))
     }
 
+    // 建立查詢條件
+    const filter = { status: 'public' }
+
+    // 如果有標籤篩選，加入標籤條件
+    if (tags && tags.length > 0) {
+      filter.tags_cache = { $in: tags }
+    }
+
     // 取得所有公開的迷因
-    const allMemes = await Meme.find({ status: 'public' }).populate(
-      'author_id',
-      'username display_name avatar',
-    )
+    const allMemes = await Meme.find(filter).populate('author_id', 'username display_name avatar')
 
     // 排除用戶已互動的迷因
     let candidateMemes = allMemes

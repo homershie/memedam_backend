@@ -76,6 +76,11 @@ const router = express.Router()
  *     tags: [Recommendations]
  *     parameters:
  *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
+ *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
@@ -117,6 +122,11 @@ router.get('/hot', getHotRecommendations)
  *     summary: 取得最新推薦
  *     tags: [Recommendations]
  *     parameters:
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
  *       - in: query
  *         name: limit
  *         schema:
@@ -187,6 +197,11 @@ router.get('/similar/:memeId', getSimilarRecommendations)
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
+ *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
@@ -213,6 +228,11 @@ router.get('/user-interest', token, getUserInterestRecommendations)
  *     security:
  *       - bearerAuth: []
  *     parameters:
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
  *       - in: query
  *         name: limit
  *         schema:
@@ -356,6 +376,11 @@ router.post('/update-preferences', token, updateUserPreferences)
  *     tags: [Recommendations]
  *     parameters:
  *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
+ *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
@@ -397,6 +422,11 @@ router.get('/mixed', getMixedRecommendationsController)
  *     security:
  *       - bearerAuth: []
  *     parameters:
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
  *       - in: query
  *         name: limit
  *         schema:
@@ -505,6 +535,11 @@ router.post(
  *     security:
  *       - bearerAuth: []
  *     parameters:
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
  *       - in: query
  *         name: limit
  *         schema:
