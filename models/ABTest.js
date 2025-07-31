@@ -327,14 +327,16 @@ ABTestSchema.pre('save', function (next) {
 ABTestSchema.statics.getActiveTests = async function () {
   const now = new Date()
   try {
-    // 強制型態轉換，避免查詢時型態錯誤
-    return await this.find({
-      status: 'active',
-      start_date: { $lte: now },
-      end_date: { $gte: now },
-    }).lean()
+    // 使用最簡單的查詢方法，避免複雜的查詢運算子
+    const tests = await this.find({ status: 'active' }).lean()
+
+    // 在記憶體中過濾日期
+    return tests.filter((test) => {
+      const startDate = new Date(test.start_date)
+      const endDate = new Date(test.end_date)
+      return startDate <= now && endDate >= now
+    })
   } catch (error) {
-    // 更詳細的錯誤日誌
     console.error('[ABTest] 取得活躍測試失敗:', error.message, error)
     return []
   }
