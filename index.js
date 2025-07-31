@@ -284,8 +284,10 @@ const printAllRoutes = (app) => {
       })
     }
 
-    if (app._router && app._router.stack) {
-      printRoutes(app._router.stack)
+    const routerStack = (app._router && app._router.stack) || (app.router && app.router.stack)
+
+    if (routerStack) {
+      printRoutes(routerStack)
     } else {
       logger.info('無法取得路由資訊')
     }
