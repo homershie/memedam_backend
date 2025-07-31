@@ -95,12 +95,12 @@ const MemeSchema = new mongoose.Schema(
     ],
     status: {
       type: String,
-      default: 'pending',
+      default: 'public',
       enum: {
-        values: ['pending', 'public', 'deleted', 'banned', 'hidden', 'draft'],
-        message: '狀態必須是 pending、public、deleted、banned、hidden 或 draft',
+        values: ['public', 'deleted', 'banned', 'hidden', 'draft'],
+        message: '狀態必須是 public、deleted、banned、hidden 或 draft',
       },
-      // 狀態：pending(待審)、public(公開)、deleted(刪除)、banned(封鎖)、hidden(隱藏)、draft(草稿)
+      // 狀態：public(公開)、deleted(刪除)、banned(封鎖)、hidden(隱藏)、draft(草稿)
     },
     slug: {
       type: String,
@@ -188,31 +188,7 @@ const MemeSchema = new mongoose.Schema(
       },
       // 來源網址或原圖連結（有引用時用）
     },
-    audit_status: {
-      type: String,
-      default: '',
-      trim: true,
-      maxlength: [100, '審核狀態長度不能超過100個字元'],
-      // 投稿審核狀態（如審核通過、待審、退稿等）
-    },
-    audit_reason: {
-      type: String,
-      default: '',
-      trim: true,
-      maxlength: [1000, '審核備註長度不能超過1000個字元'],
-      // 最近一次審核備註（退稿理由、說明等）
-    },
-    audit_at: {
-      type: Date,
-      validate: {
-        validator: function (v) {
-          if (!v) return true // 允許空值
-          return v instanceof Date && !isNaN(v)
-        },
-        message: '審核時間必須是有效的日期',
-      },
-      // 最近一次審核時間
-    },
+
     last_report_at: {
       type: Date,
       validate: {

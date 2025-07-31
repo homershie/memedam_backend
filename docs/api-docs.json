@@ -221,12 +221,7 @@
       },
       "RecommendationTracking": {
         "type": "object",
-        "required": [
-          "meme_id",
-          "algorithm",
-          "recommendation_score",
-          "recommendation_rank"
-        ],
+        "required": ["meme_id", "algorithm", "recommendation_score", "recommendation_rank"],
         "properties": {
           "meme_id": {
             "type": "string",
@@ -1070,14 +1065,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "like",
-              "comment",
-              "follow",
-              "mention",
-              "system",
-              "announcement"
-            ],
+            "enum": ["like", "comment", "follow", "mention", "system", "announcement"],
             "description": "通知類型"
           },
           "recipient": {
@@ -1123,14 +1111,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": [
-              "like",
-              "comment",
-              "follow",
-              "mention",
-              "system",
-              "announcement"
-            ],
+            "enum": ["like", "comment", "follow", "mention", "system", "announcement"],
             "description": "通知類型"
           },
           "recipient": {
@@ -1222,13 +1203,7 @@
       },
       "Report": {
         "type": "object",
-        "required": [
-          "reporter",
-          "targetType",
-          "targetId",
-          "reason",
-          "description"
-        ],
+        "required": ["reporter", "targetType", "targetId", "reason", "description"],
         "properties": {
           "_id": {
             "type": "string",
@@ -1249,13 +1224,7 @@
           },
           "reason": {
             "type": "string",
-            "enum": [
-              "spam",
-              "inappropriate",
-              "copyright",
-              "harassment",
-              "other"
-            ],
+            "enum": ["spam", "inappropriate", "copyright", "harassment", "other"],
             "description": "舉報原因"
           },
           "description": {
@@ -1299,13 +1268,7 @@
           },
           "reason": {
             "type": "string",
-            "enum": [
-              "spam",
-              "inappropriate",
-              "copyright",
-              "harassment",
-              "other"
-            ],
+            "enum": ["spam", "inappropriate", "copyright", "harassment", "other"],
             "description": "舉報原因"
           },
           "description": {
@@ -1346,14 +1309,7 @@
           },
           "platform": {
             "type": "string",
-            "enum": [
-              "facebook",
-              "twitter",
-              "instagram",
-              "line",
-              "whatsapp",
-              "copy_link"
-            ],
+            "enum": ["facebook", "twitter", "instagram", "line", "whatsapp", "copy_link"],
             "description": "分享平台"
           },
           "shareUrl": {
@@ -1382,14 +1338,7 @@
           },
           "platform": {
             "type": "string",
-            "enum": [
-              "facebook",
-              "twitter",
-              "instagram",
-              "line",
-              "whatsapp",
-              "copy_link"
-            ],
+            "enum": ["facebook", "twitter", "instagram", "line", "whatsapp", "copy_link"],
             "description": "分享平台"
           }
         }
@@ -1399,14 +1348,7 @@
         "properties": {
           "platform": {
             "type": "string",
-            "enum": [
-              "facebook",
-              "twitter",
-              "instagram",
-              "line",
-              "whatsapp",
-              "copy_link"
-            ],
+            "enum": ["facebook", "twitter", "instagram", "line", "whatsapp", "copy_link"],
             "description": "分享平台"
           }
         }
@@ -1957,6 +1899,791 @@
         }
       }
     },
+    "/api/admin/check-all-user-counts": {
+      "post": {
+        "summary": "檢查並修正所有用戶的統計計數",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "檢查完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/run-full-check": {
+      "post": {
+        "summary": "手動觸發完整數據檢查",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "檢查完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/maintenance-status": {
+      "get": {
+        "summary": "獲取維護任務狀態",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功獲取維護狀態",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/batch-update-hot-scores": {
+      "post": {
+        "summary": "批次更新熱門分數",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "更新數量限制"
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "是否強制更新"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/scheduled-hot-score-update": {
+      "post": {
+        "summary": "執行定期熱門分數更新任務",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "updateInterval": {
+                    "type": "string",
+                    "default": "1h",
+                    "description": "更新間隔"
+                  },
+                  "maxUpdates": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "最大更新數量"
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "是否強制更新"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/hot-score-statistics": {
+      "get": {
+        "summary": "取得熱門分數統計資訊",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得統計資訊",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/HotScoreStats"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/update-all-recommendation-systems": {
+      "post": {
+        "summary": "執行所有推薦系統更新",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "options": {
+                    "type": "object",
+                    "description": "更新選項"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/recommendation-system-status": {
+      "get": {
+        "summary": "取得推薦系統狀態",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得系統狀態",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RecommendationSystemStatus"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/recommendation-system-config": {
+      "put": {
+        "summary": "更新推薦系統配置",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["config"],
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "description": "系統配置"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "配置更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/batch-update-user-preferences": {
+      "post": {
+        "summary": "批次更新用戶偏好快取",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "maxUsers": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "最大用戶數"
+                  },
+                  "batchSize": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "批次大小"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/scheduled-content-based-update": {
+      "post": {
+        "summary": "執行定期內容基礎推薦更新任務",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "updateInterval": {
+                    "type": "string",
+                    "default": "24h",
+                    "description": "更新間隔"
+                  },
+                  "maxUsers": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "最大用戶數"
+                  },
+                  "batchSize": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "批次大小"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/content-based-statistics": {
+      "get": {
+        "summary": "取得內容基礎推薦統計資訊",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得統計資訊",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/content-based-config": {
+      "put": {
+        "summary": "更新內容基礎推薦配置",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["config"],
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "description": "配置參數"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "配置更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/batch-update-collaborative-filtering": {
+      "post": {
+        "summary": "批次更新協同過濾快取",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "maxUsers": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "最大用戶數"
+                  },
+                  "maxMemes": {
+                    "type": "integer",
+                    "default": 5000,
+                    "description": "最大迷因數"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/scheduled-collaborative-filtering-update": {
+      "post": {
+        "summary": "執行定期協同過濾推薦更新任務",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "updateInterval": {
+                    "type": "string",
+                    "default": "24h",
+                    "description": "更新間隔"
+                  },
+                  "maxUsers": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "最大用戶數"
+                  },
+                  "maxMemes": {
+                    "type": "integer",
+                    "default": 5000,
+                    "description": "最大迷因數"
+                  },
+                  "includeSocial": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "是否包含社交因素"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/collaborative-filtering-statistics": {
+      "get": {
+        "summary": "取得協同過濾推薦統計資訊",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得統計資訊",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/admin/collaborative-filtering-config": {
+      "put": {
+        "summary": "更新協同過濾推薦配置",
+        "tags": ["Admin"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["config"],
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "description": "配置參數"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "配置更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
     "/api/analytics/track-recommendation": {
       "post": {
         "summary": "記錄推薦指標",
@@ -1982,6 +2709,465 @@
           },
           "400": {
             "description": "請求參數錯誤"
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/analytics/update-interaction": {
+      "put": {
+        "summary": "更新推薦互動指標",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["metrics_id", "interaction_type"],
+                "properties": {
+                  "metrics_id": {
+                    "type": "string",
+                    "description": "指標ID"
+                  },
+                  "interaction_type": {
+                    "type": "string",
+                    "description": "互動類型"
+                  },
+                  "view_duration": {
+                    "type": "number",
+                    "description": "觀看時長（秒）"
+                  },
+                  "user_rating": {
+                    "type": "number",
+                    "description": "用戶評分"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "互動指標更新成功"
+          },
+          "400": {
+            "description": "請求參數錯誤"
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/analytics/algorithm-stats": {
+      "get": {
+        "summary": "取得推薦演算法統計",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "algorithm",
+            "schema": {
+              "type": "string"
+            },
+            "description": "特定演算法（可選）"
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "開始日期（ISO 格式）"
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "結束日期（ISO 格式）"
+          },
+          {
+            "in": "query",
+            "name": "group_by",
+            "schema": {
+              "type": "string",
+              "enum": ["day", "week", "month"]
+            },
+            "description": "分組方式"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得演算法統計",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": {
+                      "type": "object",
+                      "description": "統計數據"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/analytics/user-effectiveness": {
+      "get": {
+        "summary": "取得用戶推薦效果分析",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "開始日期（ISO 格式）"
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "結束日期（ISO 格式）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得用戶效果分析",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "effectiveness": {
+                      "type": "object",
+                      "description": "效果分析數據"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/analytics/ab-tests": {
+      "post": {
+        "summary": "建立 A/B 測試",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ABTest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "A/B 測試創建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "test": {
+                      "$ref": "#/components/schemas/ABTest"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "請求參數錯誤"
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      },
+      "get": {
+        "summary": "取得 A/B 測試列表",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            },
+            "description": "測試狀態篩選"
+          },
+          {
+            "in": "query",
+            "name": "test_type",
+            "schema": {
+              "type": "string"
+            },
+            "description": "測試類型篩選"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "頁碼"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "每頁數量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得 A/B 測試列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tests": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ABTest"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/analytics/ab-tests/{testId}/status": {
+      "put": {
+        "summary": "更新 A/B 測試狀態",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "testId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "測試 ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["draft", "active", "paused", "completed"],
+                    "description": "新狀態"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "測試狀態更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "請求參數錯誤"
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "404": {
+            "description": "測試不存在"
+          }
+        }
+      }
+    },
+    "/api/analytics/ab-tests/{testId}": {
+      "get": {
+        "summary": "取得 A/B 測試詳細資訊",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "testId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "測試 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得測試詳細資訊",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ABTest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "404": {
+            "description": "測試不存在"
+          }
+        }
+      }
+    },
+    "/api/analytics/dashboard": {
+      "get": {
+        "summary": "取得推薦效果儀表板",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "開始日期（ISO 格式）"
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "結束日期（ISO 格式）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得儀表板數據",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dashboard": {
+                      "type": "object",
+                      "description": "儀表板數據"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "未授權"
@@ -3832,6 +5018,648 @@
         }
       }
     },
+    "/api/memes/batch-update-hot-scores": {
+      "post": {
+        "summary": "批次更新所有迷因的熱門分數",
+        "tags": ["Memes"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "批次更新完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "updatedCount": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "500": {
+            "description": "伺服器錯誤"
+          }
+        }
+      }
+    },
+    "/api/memes/hot/list": {
+      "get": {
+        "summary": "取得熱門迷因列表",
+        "tags": ["Memes"],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "返回數量限制"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "頁碼"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得熱門迷因列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "memes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Meme"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memes/trending/list": {
+      "get": {
+        "summary": "取得趨勢迷因列表",
+        "tags": ["Memes"],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "返回數量限制"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "頁碼"
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": ["1h", "24h", "7d", "30d"],
+              "default": "24h"
+            },
+            "description": "趨勢計算週期"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得趨勢迷因列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "memes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Meme"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memes/{id}/score-analysis": {
+      "get": {
+        "summary": "取得迷因的詳細分數分析",
+        "tags": ["Memes"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得分數分析",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "hotScore": {
+                      "type": "number",
+                      "description": "熱門分數"
+                    },
+                    "scoreBreakdown": {
+                      "type": "object",
+                      "description": "分數細項分析"
+                    },
+                    "recommendations": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "改進建議"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "迷因不存在"
+          }
+        }
+      }
+    },
+    "/api/memes/{id}/editors": {
+      "post": {
+        "summary": "新增協作者",
+        "tags": ["Memes"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["editorId"],
+                "properties": {
+                  "editorId": {
+                    "type": "string",
+                    "description": "協作者用戶ID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "協作者新增成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "請求參數錯誤"
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "404": {
+            "description": "迷因不存在"
+          }
+        }
+      },
+      "delete": {
+        "summary": "移除協作者",
+        "tags": ["Memes"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          },
+          {
+            "in": "query",
+            "name": "editorId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "協作者用戶ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "協作者移除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "請求參數錯誤"
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "404": {
+            "description": "迷因不存在"
+          }
+        }
+      }
+    },
+    "/api/memes/{id}/proposals": {
+      "post": {
+        "summary": "提交修改提案",
+        "tags": ["Memes"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["changes"],
+                "properties": {
+                  "changes": {
+                    "type": "object",
+                    "description": "修改內容"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "修改說明"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "提案提交成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "proposalId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "請求參數錯誤"
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "404": {
+            "description": "迷因不存在"
+          }
+        }
+      },
+      "get": {
+        "summary": "查詢所有提案",
+        "tags": ["Memes"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得提案列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "proposals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "提案資訊"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "404": {
+            "description": "迷因不存在"
+          }
+        }
+      }
+    },
+    "/api/memes/{id}/proposals/{proposalId}/approve": {
+      "post": {
+        "summary": "審核通過提案",
+        "tags": ["Memes"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "提案ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "提案審核通過成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "404": {
+            "description": "迷因或提案不存在"
+          }
+        }
+      }
+    },
+    "/api/memes/{id}/proposals/{proposalId}/reject": {
+      "post": {
+        "summary": "駁回提案",
+        "tags": ["Memes"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "提案ID"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "駁回原因"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "提案駁回成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "403": {
+            "description": "權限不足"
+          },
+          "404": {
+            "description": "迷因或提案不存在"
+          }
+        }
+      }
+    },
+    "/api/memes/{id}/hot-score": {
+      "put": {
+        "summary": "更新單一迷因的熱門分數",
+        "tags": ["Memes"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "熱門分數更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "newHotScore": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "404": {
+            "description": "迷因不存在"
+          }
+        }
+      }
+    },
     "/api/meme-tags": {
       "post": {
         "summary": "建立迷因標籤關聯",
@@ -4734,14 +6562,7 @@
             "name": "type",
             "schema": {
               "type": "string",
-              "enum": [
-                "like",
-                "comment",
-                "follow",
-                "mention",
-                "system",
-                "announcement"
-              ]
+              "enum": ["like", "comment", "follow", "mention", "system", "announcement"]
             },
             "description": "篩選通知類型"
           },
@@ -5143,6 +6964,946 @@
         }
       }
     },
+    "/api/recommendations/latest": {
+      "get": {
+        "summary": "取得最新推薦",
+        "tags": ["Recommendations"],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "推薦數量限制"
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string",
+              "enum": ["all", "image", "video", "audio", "text"],
+              "default": "all"
+            },
+            "description": "迷因類型篩選"
+          },
+          {
+            "in": "query",
+            "name": "hours",
+            "schema": {
+              "type": "integer",
+              "default": 24
+            },
+            "description": "時間範圍小時數"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得最新推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recommendations/similar/{memeId}": {
+      "get": {
+        "summary": "取得相似迷因推薦",
+        "tags": ["Recommendations"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "memeId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "目標迷因ID"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "推薦數量限制"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得相似推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "迷因不存在"
+          }
+        }
+      }
+    },
+    "/api/recommendations/user-interest": {
+      "get": {
+        "summary": "取得用戶興趣推薦",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "推薦數量限制"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得用戶興趣推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/content-based": {
+      "get": {
+        "summary": "取得內容基礎推薦",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "推薦數量限制"
+          },
+          {
+            "in": "query",
+            "name": "min_similarity",
+            "schema": {
+              "type": "number",
+              "default": 0.1
+            },
+            "description": "最小相似度閾值"
+          },
+          {
+            "in": "query",
+            "name": "exclude_interacted",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否排除已互動的迷因"
+          },
+          {
+            "in": "query",
+            "name": "include_hot_score",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否結合熱門分數"
+          },
+          {
+            "in": "query",
+            "name": "hot_score_weight",
+            "schema": {
+              "type": "number",
+              "default": 0.3
+            },
+            "description": "熱門分數權重"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得內容基礎推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/tag-based": {
+      "get": {
+        "summary": "取得標籤相關推薦",
+        "tags": ["Recommendations"],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tags",
+            "schema": {
+              "type": "string"
+            },
+            "description": "標籤列表（逗號分隔）"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "推薦數量限制"
+          },
+          {
+            "in": "query",
+            "name": "min_similarity",
+            "schema": {
+              "type": "number",
+              "default": 0.1
+            },
+            "description": "最小相似度閾值"
+          },
+          {
+            "in": "query",
+            "name": "include_hot_score",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否結合熱門分數"
+          },
+          {
+            "in": "query",
+            "name": "hot_score_weight",
+            "schema": {
+              "type": "number",
+              "default": 0.3
+            },
+            "description": "熱門分數權重"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得標籤相關推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recommendations/user-preferences": {
+      "get": {
+        "summary": "取得用戶標籤偏好分析",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得用戶偏好",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "preferences": {
+                      "type": "object",
+                      "description": "用戶偏好數據"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/update-preferences": {
+      "post": {
+        "summary": "更新用戶偏好快取",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "偏好更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/mixed": {
+      "get": {
+        "summary": "取得混合推薦",
+        "tags": ["Recommendations"],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 30
+            },
+            "description": "推薦數量限制"
+          },
+          {
+            "in": "query",
+            "name": "custom_weights",
+            "schema": {
+              "type": "string"
+            },
+            "description": "自定義權重 JSON 字串"
+          },
+          {
+            "in": "query",
+            "name": "include_diversity",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否包含多樣性計算"
+          },
+          {
+            "in": "query",
+            "name": "include_cold_start_analysis",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否包含冷啟動分析"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得混合推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recommendations/collaborative-filtering": {
+      "get": {
+        "summary": "取得協同過濾推薦",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "推薦數量限制"
+          },
+          {
+            "in": "query",
+            "name": "min_similarity",
+            "schema": {
+              "type": "number",
+              "default": 0.1
+            },
+            "description": "最小相似度閾值"
+          },
+          {
+            "in": "query",
+            "name": "max_similar_users",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "最大相似用戶數"
+          },
+          {
+            "in": "query",
+            "name": "exclude_interacted",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否排除已互動的迷因"
+          },
+          {
+            "in": "query",
+            "name": "include_hot_score",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否結合熱門分數"
+          },
+          {
+            "in": "query",
+            "name": "hot_score_weight",
+            "schema": {
+              "type": "number",
+              "default": 0.3
+            },
+            "description": "熱門分數權重"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得協同過濾推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/collaborative-filtering-stats": {
+      "get": {
+        "summary": "取得用戶協同過濾統計",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得協同過濾統計",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": {
+                      "type": "object",
+                      "description": "統計數據"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/update-collaborative-filtering-cache": {
+      "post": {
+        "summary": "更新協同過濾快取",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "快取更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/social-collaborative-filtering": {
+      "get": {
+        "summary": "取得社交協同過濾推薦",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "推薦數量限制"
+          },
+          {
+            "in": "query",
+            "name": "min_similarity",
+            "schema": {
+              "type": "number",
+              "default": 0.1
+            },
+            "description": "最小相似度閾值"
+          },
+          {
+            "in": "query",
+            "name": "max_similar_users",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "最大相似用戶數"
+          },
+          {
+            "in": "query",
+            "name": "exclude_interacted",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否排除已互動的迷因"
+          },
+          {
+            "in": "query",
+            "name": "include_hot_score",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否結合熱門分數"
+          },
+          {
+            "in": "query",
+            "name": "hot_score_weight",
+            "schema": {
+              "type": "number",
+              "default": 0.3
+            },
+            "description": "熱門分數權重"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得社交協同過濾推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/social-collaborative-filtering-stats": {
+      "get": {
+        "summary": "取得用戶社交協同過濾統計",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得社交協同過濾統計",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": {
+                      "type": "object",
+                      "description": "統計數據"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/update-social-collaborative-filtering-cache": {
+      "post": {
+        "summary": "更新社交協同過濾快取",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "快取更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/social-score/{memeId}": {
+      "get": {
+        "summary": "計算迷因的社交層分數",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "memeId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "迷因ID"
+          },
+          {
+            "in": "query",
+            "name": "include_distance",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否包含社交距離計算"
+          },
+          {
+            "in": "query",
+            "name": "include_influence",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否包含影響力計算"
+          },
+          {
+            "in": "query",
+            "name": "include_interactions",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否包含互動計算"
+          },
+          {
+            "in": "query",
+            "name": "max_distance",
+            "schema": {
+              "type": "integer",
+              "default": 3
+            },
+            "description": "最大社交距離"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功計算社交分數",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "socialScore": {
+                      "type": "number",
+                      "description": "社交分數"
+                    },
+                    "details": {
+                      "type": "object",
+                      "description": "詳細計算結果"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          },
+          "404": {
+            "description": "迷因不存在"
+          }
+        }
+      }
+    },
+    "/api/recommendations/stats": {
+      "get": {
+        "summary": "取得推薦統計資訊",
+        "tags": ["Recommendations"],
+        "responses": {
+          "200": {
+            "description": "成功取得推薦統計",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": {
+                      "type": "object",
+                      "description": "統計數據"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recommendations/algorithm-stats": {
+      "get": {
+        "summary": "取得推薦演算法統計",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得演算法統計",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "algorithmStats": {
+                      "type": "object",
+                      "description": "演算法統計數據"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/adjust-strategy": {
+      "post": {
+        "summary": "動態調整推薦策略",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userBehavior": {
+                    "type": "object",
+                    "description": "用戶行為數據"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "策略調整成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations/social-influence-stats": {
+      "get": {
+        "summary": "取得用戶社交影響力統計",
+        "tags": ["Recommendations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得社交影響力統計",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "influenceStats": {
+                      "type": "object",
+                      "description": "影響力統計數據"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授權"
+          }
+        }
+      }
+    },
+    "/api/recommendations": {
+      "get": {
+        "summary": "取得綜合推薦",
+        "tags": ["Recommendations"],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "algorithm",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hot",
+                "latest",
+                "mixed",
+                "user-interest",
+                "content-based",
+                "tag-based",
+                "collaborative-filtering",
+                "social-collaborative-filtering"
+              ],
+              "default": "mixed"
+            },
+            "description": "推薦演算法"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "推薦數量限制"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得推薦",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reports": {
       "post": {
         "summary": "建立舉報",
@@ -5524,14 +8285,7 @@
             "name": "platform",
             "schema": {
               "type": "string",
-              "enum": [
-                "facebook",
-                "twitter",
-                "instagram",
-                "line",
-                "whatsapp",
-                "copy_link"
-              ]
+              "enum": ["facebook", "twitter", "instagram", "line", "whatsapp", "copy_link"]
             },
             "description": "篩選平台"
           }
