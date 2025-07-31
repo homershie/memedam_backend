@@ -1,12 +1,20 @@
+// 載入環境變數（必須在所有導入之前）
+import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// 明確指定 .env 檔案路徑
+dotenv.config({ path: path.join(__dirname, '.env') })
+
 import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
-import dotenv from 'dotenv'
 import passport from 'passport'
 import mongoose from 'mongoose'
 import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
 import swaggerSpecs from './config/swagger.js'
@@ -17,13 +25,7 @@ import { loginLimiter, registerLimiter, forgotPasswordLimiter } from './middlewa
 import errorHandler, { notFound } from './middleware/errorHandler.js'
 import maintenanceScheduler from './utils/maintenance.js'
 import analyticsMonitor from './utils/analyticsMonitor.js'
-
-// 載入環境變數
-dotenv.config()
-
-// 設定日誌文件
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import './config/passport.js'
 const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' })
 
 const app = express()
