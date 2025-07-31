@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
 import swaggerSpecs from './config/swagger.js'
+import swaggerUi from 'swagger-ui-express'
 import { performanceMonitor } from './utils/asyncProcessor.js'
 import { logger } from './utils/logger.js'
 import { loginLimiter, registerLimiter, forgotPasswordLimiter } from './middleware/rateLimit.js'
@@ -69,21 +70,26 @@ app.use('/api/users/register', registerLimiter) // 註冊限流
 app.use('/api/users/forgot-password', forgotPasswordLimiter) // 忘記密碼限流
 
 // Swagger API 文檔
-// app.use(
-//   '/api-docs',
-//   swaggerUi.serve,
-//   swaggerUi.setup(swaggerSpecs, {
-//     customCss: '.swagger-ui .topbar { display: none }',
-//     customSiteTitle: '迷因典 API 文檔',
-//     customfavIcon: '/favicon.ico',
-//     swaggerOptions: {
-//       docExpansion: 'none',
-//       filter: true,
-//       showRequestHeaders: true,
-//       showCommonExtensions: true,
-//     },
-//   }),
-// )
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpecs, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: '迷因典 API 文檔',
+    customfavIcon: '/favicon.ico',
+    swaggerOptions: {
+      docExpansion: 'none',
+      filter: true,
+      showRequestHeaders: true,
+      showCommonExtensions: true,
+      defaultModelsExpandDepth: 1,
+      defaultModelExpandDepth: 1,
+      displayRequestDuration: true,
+      displayOperationId: false,
+      tryItOutEnabled: true,
+    },
+  }),
+)
 
 // API 文檔 JSON 端點
 app.get('/api-docs.json', (req, res) => {
@@ -277,8 +283,9 @@ const printAllRoutes = (app) => {
           logger.info(`${methods.join(',').toUpperCase()} ${path}`)
         } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
           // 這是一個路由器層
-          const newPrefix =
-            prefix + (layer.regexp.source.replace('^\\/', '').replace('\\/?(?=\\/|$)', '') || '')
+          const regexp = layer.regexp && layer.regexp.source ? layer.regexp.source : ''
+          const cleaned = regexp.replace('^\\/', '').replace('\\/?(?=\\/|$)', '')
+          const newPrefix = prefix + cleaned
           printRoutes(layer.handle.stack, newPrefix)
         }
       })

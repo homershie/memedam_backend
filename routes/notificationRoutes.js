@@ -13,6 +13,379 @@ import { token, isUser, isManager } from '../middleware/auth.js'
 
 const router = express.Router()
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Notification:
+ *       type: object
+ *       required:
+ *         - type
+ *         - recipient
+ *         - title
+ *         - message
+ *       properties:
+ *         _id:
+ *           type: string
+ *           description: 通知唯一ID
+ *         type:
+ *           type: string
+ *           enum: [like, comment, follow, mention, system, announcement]
+ *           description: 通知類型
+ *         recipient:
+ *           type: string
+ *           description: 接收者ID
+ *         sender:
+ *           type: string
+ *           description: 發送者ID（可選）
+ *         title:
+ *           type: string
+ *           description: 通知標題
+ *         message:
+ *           type: string
+ *           description: 通知內容
+ *         data:
+ *           type: object
+ *           description: 額外數據（如迷因ID、留言ID等）
+ *         isRead:
+ *           type: boolean
+ *           default: false
+ *           description: 是否已讀
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           description: 創建時間
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *           description: 更新時間
+ *     CreateNotificationRequest:
+ *       type: object
+ *       required:
+ *         - type
+ *         - recipient
+ *         - title
+ *         - message
+ *       properties:
+ *         type:
+ *           type: string
+ *           enum: [like, comment, follow, mention, system, announcement]
+ *           description: 通知類型
+ *         recipient:
+ *           type: string
+ *           description: 接收者ID
+ *         sender:
+ *           type: string
+ *           description: 發送者ID（可選）
+ *         title:
+ *           type: string
+ *           description: 通知標題
+ *         message:
+ *           type: string
+ *           description: 通知內容
+ *         data:
+ *           type: object
+ *           description: 額外數據
+ *     UpdateNotificationRequest:
+ *       type: object
+ *       properties:
+ *         title:
+ *           type: string
+ *           description: 通知標題
+ *         message:
+ *           type: string
+ *           description: 通知內容
+ *         data:
+ *           type: object
+ *           description: 額外數據
+ */
+
+/**
+ * @swagger
+ * /api/notifications:
+ *   post:
+ *     summary: 建立通知（管理員功能）
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateNotificationRequest'
+ *     responses:
+ *       201:
+ *         description: 通知創建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 notification:
+ *                   $ref: '#/components/schemas/Notification'
+ *       400:
+ *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *   get:
+ *     summary: 取得用戶的通知列表
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: 每頁數量
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [like, comment, follow, mention, system, announcement]
+ *         description: 篩選通知類型
+ *       - in: query
+ *         name: unread
+ *         schema:
+ *           type: boolean
+ *         description: 只顯示未讀通知
+ *     responses:
+ *       200:
+ *         description: 成功取得通知列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 notifications:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Notification'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                 unreadCount:
+ *                   type: integer
+ *                   description: 未讀通知數量
+ *       401:
+ *         description: 未授權
+ */
+
+/**
+ * @swagger
+ * /api/notifications/read/all:
+ *   patch:
+ *     summary: 標記所有通知為已讀
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 標記成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 updatedCount:
+ *                   type: integer
+ *                   description: 更新的通知數量
+ *       401:
+ *         description: 未授權
+ */
+
+/**
+ * @swagger
+ * /api/notifications/batch:
+ *   delete:
+ *     summary: 批量刪除通知
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - notification_ids
+ *             properties:
+ *               notification_ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 要刪除的通知ID陣列
+ *     responses:
+ *       200:
+ *         description: 批量刪除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 deletedCount:
+ *                   type: integer
+ *                   description: 刪除的通知數量
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
+ */
+
+/**
+ * @swagger
+ * /api/notifications/{id}/read:
+ *   patch:
+ *     summary: 標記單一通知為已讀
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 通知ID
+ *     responses:
+ *       200:
+ *         description: 標記成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 notification:
+ *                   $ref: '#/components/schemas/Notification'
+ *       401:
+ *         description: 未授權
+ *       404:
+ *         description: 通知不存在
+ */
+
+/**
+ * @swagger
+ * /api/notifications/{id}:
+ *   get:
+ *     summary: 取得單一通知
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 通知ID
+ *     responses:
+ *       200:
+ *         description: 成功取得通知
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Notification'
+ *       401:
+ *         description: 未授權
+ *       404:
+ *         description: 通知不存在
+ *   put:
+ *     summary: 更新通知（管理員功能）
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 通知ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateNotificationRequest'
+ *     responses:
+ *       200:
+ *         description: 通知更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 notification:
+ *                   $ref: '#/components/schemas/Notification'
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       404:
+ *         description: 通知不存在
+ *   delete:
+ *     summary: 刪除通知（管理員功能）
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 通知ID
+ *     responses:
+ *       200:
+ *         description: 通知刪除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       404:
+ *         description: 通知不存在
+ */
+
 // 建立通知
 router.post('/', token, isManager, createNotification)
 // 取得所有通知

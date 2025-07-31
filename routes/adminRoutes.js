@@ -32,6 +32,192 @@ import { token, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     AdminResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           description: 操作是否成功
+ *         data:
+ *           type: object
+ *           description: 回應數據
+ *         error:
+ *           type: string
+ *           description: 錯誤訊息
+ *         message:
+ *           type: string
+ *           description: 成功訊息
+ *     CountStatistics:
+ *       type: object
+ *       properties:
+ *         totalMemes:
+ *           type: integer
+ *           description: 總迷因數
+ *         memesWithIncorrectCounts:
+ *           type: integer
+ *           description: 計數錯誤的迷因數
+ *         totalUsers:
+ *           type: integer
+ *           description: 總用戶數
+ *         usersWithIncorrectCounts:
+ *           type: integer
+ *           description: 計數錯誤的用戶數
+ *     HotScoreStats:
+ *       type: object
+ *       properties:
+ *         lastUpdate:
+ *           type: string
+ *           format: date-time
+ *           description: 最後更新時間
+ *         updatedCount:
+ *           type: integer
+ *           description: 更新的迷因數量
+ *         averageHotScore:
+ *           type: number
+ *           description: 平均熱門分數
+ *     RecommendationSystemStatus:
+ *       type: object
+ *       properties:
+ *         contentBased:
+ *           type: object
+ *           description: 內容基礎推薦系統狀態
+ *         collaborativeFiltering:
+ *           type: object
+ *           description: 協同過濾推薦系統狀態
+ *         lastUpdate:
+ *           type: string
+ *           format: date-time
+ *           description: 最後更新時間
+ */
+
+/**
+ * @swagger
+ * /api/admin/check-counts/{memeId}:
+ *   post:
+ *     summary: 檢查並修正單一迷因的計數
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: memeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *     responses:
+ *       200:
+ *         description: 檢查完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+
+/**
+ * @swagger
+ * /api/admin/check-all-counts:
+ *   post:
+ *     summary: 檢查並修正所有迷因的計數
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               batchSize:
+ *                 type: integer
+ *                 default: 100
+ *                 description: 批次處理大小
+ *     responses:
+ *       200:
+ *         description: 檢查完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+
+/**
+ * @swagger
+ * /api/admin/count-statistics:
+ *   get:
+ *     summary: 取得計數統計資訊
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功取得統計資訊
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/CountStatistics'
+ *                 error:
+ *                   type: string
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+
+/**
+ * @swagger
+ * /api/admin/check-user-counts/{userId}:
+ *   post:
+ *     summary: 檢查並修正單一用戶的統計計數
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 用戶ID
+ *     responses:
+ *       200:
+ *         description: 檢查完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+
 // 檢查並修正單一迷因的計數
 router.post('/check-counts/:memeId', token, isAdmin, async (req, res) => {
   try {
