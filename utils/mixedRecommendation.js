@@ -232,12 +232,27 @@ const getHotRecommendations = async (options = {}) => {
         .populate('author_id', 'username display_name avatar')
         .lean() // 使用 lean() 提升效能
 
-      return memes.map((meme) => ({
-        ...meme,
-        recommendation_score: meme.hot_score,
-        recommendation_type: 'hot',
-        hot_level: getHotScoreLevel(meme.hot_score),
-      }))
+      return memes.map((meme) => {
+        // 確保 author_id 是字串格式
+        let authorId = null
+        if (meme.author_id) {
+          if (typeof meme.author_id === 'object' && meme.author_id._id) {
+            authorId = meme.author_id._id.toString()
+          } else if (typeof meme.author_id === 'object') {
+            authorId = meme.author_id.toString()
+          } else {
+            authorId = meme.author_id.toString()
+          }
+        }
+
+        return {
+          ...meme,
+          author_id: authorId,
+          recommendation_score: meme.hot_score,
+          recommendation_type: 'hot',
+          hot_level: getHotScoreLevel(meme.hot_score),
+        }
+      })
     },
     { ttl: CACHE_CONFIG.hotRecommendations },
   )
@@ -267,11 +282,26 @@ const getLatestRecommendations = async (options = {}) => {
         .populate('author_id', 'username display_name avatar')
         .lean()
 
-      return memes.map((meme) => ({
-        ...meme,
-        recommendation_score: 1 / (Date.now() - meme.createdAt.getTime()),
-        recommendation_type: 'latest',
-      }))
+      return memes.map((meme) => {
+        // 確保 author_id 是字串格式
+        let authorId = null
+        if (meme.author_id) {
+          if (typeof meme.author_id === 'object' && meme.author_id._id) {
+            authorId = meme.author_id._id.toString()
+          } else if (typeof meme.author_id === 'object') {
+            authorId = meme.author_id.toString()
+          } else {
+            authorId = meme.author_id.toString()
+          }
+        }
+
+        return {
+          ...meme,
+          author_id: authorId,
+          recommendation_score: 1 / (Date.now() - meme.createdAt.getTime()),
+          recommendation_type: 'latest',
+        }
+      })
     },
     { ttl: CACHE_CONFIG.latestRecommendations },
   )
@@ -428,7 +458,9 @@ const calculateRecommendationDiversity = (recommendations) => {
 
     // 統計作者多樣性
     if (meme.author_id) {
-      const authorId = meme.author_id._id.toString()
+      // author_id 現在已經是字串格式
+      const authorId =
+        typeof meme.author_id === 'string' ? meme.author_id : meme.author_id.toString()
       authorCounts[authorId] = (authorCounts[authorId] || 0) + 1
       totalAuthors++
     }

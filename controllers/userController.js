@@ -1,5 +1,6 @@
 import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
+import mongoose from 'mongoose'
 
 // 建立新使用者
 export const createUser = async (req, res) => {
@@ -76,13 +77,29 @@ export const createUser = async (req, res) => {
 // 取得單一使用者
 export const getUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password -tokens')
+    const { id } = req.params
+
+    // 檢查 ID 是否有效
+    if (!id || id === '[object Object]' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '無效的用戶ID',
+        debug: { receivedId: id, type: typeof id },
+      })
+    }
+
+    const user = await User.findById(id).select('-password -tokens')
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: '找不到使用者' })
     }
     res.json({ success: true, user })
-  } catch {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
+  } catch (error) {
+    console.error('getUser 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+      debug: { error: error.message },
+    })
   }
 }
 

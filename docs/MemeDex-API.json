@@ -1,0 +1,1790 @@
+{
+  "info": {
+    "_postman_id": "2c7b8dfe-2155-41c1-bd0a-70b7f49f6338",
+    "name": "迷因典 MemeDex API",
+    "description": "迷因典的API集合，用於維護和檢查系統數據",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:4000",
+      "type": "string"
+    },
+    {
+      "key": "test_username",
+      "value": "testuser1",
+      "type": "string"
+    },
+    {
+      "key": "test_email",
+      "value": "test1@example.com",
+      "type": "string"
+    },
+    {
+      "key": "test_password",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "test_display_name",
+      "value": "測試用戶1",
+      "type": "string"
+    },
+    {
+      "key": "test_meme_title",
+      "value": "超好笑迷因",
+      "type": "string"
+    },
+    {
+      "key": "test_meme_content",
+      "value": "這是一個測試用迷因...",
+      "type": "string"
+    },
+    {
+      "key": "test_comment_content",
+      "value": "這是測試留言",
+      "type": "string"
+    },
+    {
+      "key": "test_report_reason",
+      "value": "不當內容",
+      "type": "string"
+    },
+    {
+      "key": "test_tag_name",
+      "value": "新標籤",
+      "type": "string"
+    },
+    {
+      "key": "test_tag_description",
+      "value": "標籤描述",
+      "type": "string"
+    },
+    {
+      "key": "test_sponsor_message",
+      "value": "加油！",
+      "type": "string"
+    },
+    {
+      "key": "test_sponsor_nickname",
+      "value": "贊助者A",
+      "type": "string"
+    },
+    {
+      "key": "test_announcement_title",
+      "value": "新公告",
+      "type": "string"
+    },
+    {
+      "key": "test_announcement_content",
+      "value": "這是公告內容",
+      "type": "string"
+    },
+    {
+      "key": "test_community_name",
+      "value": "資深迷因玩家",
+      "type": "string"
+    },
+    {
+      "key": "test_community_description",
+      "value": "這是一個社群介紹",
+      "type": "string"
+    },
+    {
+      "key": "test_version_changes",
+      "value": "版本變更說明",
+      "type": "string"
+    },
+    {
+      "key": "test_image_url",
+      "value": "https://example.com/image.jpg",
+      "type": "string"
+    },
+    {
+      "key": "test_tags_cache",
+      "value": "[\"梗圖\",\"爆笑\"]",
+      "type": "string"
+    },
+    {
+      "key": "test_preferences_tags",
+      "value": "[\"梗圖\",\"爆笑\"]",
+      "type": "string"
+    },
+    {
+      "key": "test_preferences_categories",
+      "value": "[\"搞笑\"]",
+      "type": "string"
+    },
+    {
+      "key": "test_id",
+      "value": "test_id_123",
+      "type": "string"
+    },
+    {
+      "key": "test_interaction_type",
+      "value": "click",
+      "type": "string"
+    },
+    {
+      "key": "test_algorithm",
+      "value": "mixed",
+      "type": "string"
+    },
+    {
+      "key": "test_strategy",
+      "value": "adaptive",
+      "type": "string"
+    },
+    {
+      "key": "test_weights",
+      "value": "{\"hot\":0.3,\"latest\":0.2,\"content_based\":0.3,\"collaborative\":0.2}",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 用戶認證",
+      "item": [
+        {
+          "name": "用戶註冊",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{test_username}}\", \"email\": \"{{test_email}}\", \"password\": \"{{test_password}}\", \"display_name\": \"{{test_display_name}}\"}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "用戶登入",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/users/login",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{test_email}}\", \"password\": \"{{test_password}}\"}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "用戶登出",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/users/logout",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "logout"]
+            }
+          }
+        },
+        {
+          "name": "重新整理 Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/users/refresh",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "refresh"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 用戶管理",
+      "item": [
+        {
+          "name": "取得自己資料",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/users/me",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "me"]
+            }
+          }
+        },
+        {
+          "name": "更新自己資料",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/users/me",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "me"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"display_name\": \"新暱稱\", \"bio\": \"自我介紹\"}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "刪除自己帳號",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/users/me",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "me"]
+            }
+          }
+        },
+        {
+          "name": "取得所有用戶（管理員）",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            }
+          }
+        },
+        {
+          "name": "取得單一用戶（管理員）",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{user_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "刪除用戶（管理員）",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{user_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{user_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎭 迷因管理",
+      "item": [
+        {
+          "name": "創建迷因",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "{{test_meme_title}}", "type": "text" },
+                { "key": "content", "value": "{{test_meme_content}}", "type": "text" },
+                { "key": "type", "value": "text", "type": "text" },
+                { "key": "tags_cache", "value": "{{test_tags_cache}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/memes",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "memes"]
+            }
+          }
+        },
+        {
+          "name": "取得所有迷因",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/memes?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "memes"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "取得單一迷因",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/memes/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "memes", "{{meme_id}}"]
+            }
+          }
+        },
+        {
+          "name": "更新迷因",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "title", "value": "更新後標題", "type": "text" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/memes/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "memes", "{{meme_id}}"]
+            }
+          }
+        },
+        {
+          "name": "刪除迷因",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/memes/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "memes", "{{meme_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👍 互動功能",
+      "item": [
+        {
+          "name": "按讚",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/likes",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "likes"]
+            }
+          }
+        },
+        {
+          "name": "取消讚",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/likes?meme_id={{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "likes"],
+              "query": [{ "key": "meme_id", "value": "{{meme_id}}" }]
+            }
+          }
+        },
+        {
+          "name": "切換讚狀態",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/likes/toggle",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "likes", "toggle"]
+            }
+          }
+        },
+        {
+          "name": "噓",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dislikes",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dislikes"]
+            }
+          }
+        },
+        {
+          "name": "取消噓",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/dislikes?meme_id={{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dislikes"],
+              "query": [{ "key": "meme_id", "value": "{{meme_id}}" }]
+            }
+          }
+        },
+        {
+          "name": "切換噓狀態",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dislikes/toggle",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dislikes", "toggle"]
+            }
+          }
+        },
+        {
+          "name": "收藏",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"]
+            }
+          }
+        },
+        {
+          "name": "取消收藏",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/collections?meme_id={{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"],
+              "query": [{ "key": "meme_id", "value": "{{meme_id}}" }]
+            }
+          }
+        },
+        {
+          "name": "切換收藏狀態",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections/toggle",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "toggle"]
+            }
+          }
+        },
+        {
+          "name": "分享",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/shares",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "shares"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💬 留言系統",
+      "item": [
+        {
+          "name": "發表留言",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\",\"content\":\"{{test_comment_content}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/comments",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "comments"]
+            }
+          }
+        },
+        {
+          "name": "刪除留言",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/comments/{{comment_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "comments", "{{comment_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚨 檢舉系統",
+      "item": [
+        {
+          "name": "檢舉迷因",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\",\"reason\":\"{{test_report_reason}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/reports",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏷️ 標籤系統",
+      "item": [
+        {
+          "name": "建立標籤",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"{{test_tag_name}}\",\"description\":\"{{test_tag_description}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/tags",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tags"]
+            }
+          }
+        },
+        {
+          "name": "取得所有標籤",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/tags",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tags"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 贊助系統",
+      "item": [
+        {
+          "name": "建立贊助",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"amount\":100, \"message\":\"{{test_sponsor_message}}\",\"nickname\":\"{{test_sponsor_nickname}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sponsors",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sponsors"]
+            }
+          }
+        },
+        {
+          "name": "查詢贊助列表",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/sponsors",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sponsors"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📢 公告系統",
+      "item": [
+        {
+          "name": "發布公告（管理員）",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"{{test_announcement_title}}\",\"content\":\"{{test_announcement_content}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/announcements",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "announcements"]
+            }
+          }
+        },
+        {
+          "name": "查詢公告",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/announcements",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "announcements"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📁 檔案上傳",
+      "item": [
+        {
+          "name": "上傳圖片/影片",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "multipart/form-data", "type": "text" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/upload",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "upload"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 社群功能",
+      "item": [
+        {
+          "name": "建立社群",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"{{test_community_name}}\",\"description\":\"{{test_community_description}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/communities",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "communities"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 追隨系統",
+      "item": [
+        {
+          "name": "追隨用戶",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"user_id\":\"{{target_user_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/follows/follow",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "follows", "follow"]
+            }
+          }
+        },
+        {
+          "name": "取消追隨",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"user_id\":\"{{target_user_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/follows/unfollow",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "follows", "unfollow"]
+            }
+          }
+        },
+        {
+          "name": "切換追隨狀態",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"user_id\":\"{{target_user_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/follows/toggle",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "follows", "toggle"]
+            }
+          }
+        },
+        {
+          "name": "檢查追隨狀態",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/follows/status/{{target_user_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "follows", "status", "{{target_user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "取得追隨列表",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/follows/following/{{user_id}}?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "follows", "following", "{{user_id}}"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "取得粉絲列表",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/follows/followers/{{user_id}}?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "follows", "followers", "{{user_id}}"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "取得追隨統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/follows/stats/{{user_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "follows", "stats", "{{user_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎯 推薦系統",
+      "item": [
+        {
+          "name": "熱門推薦",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/hot?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "hot"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "最新推薦",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/latest?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "latest"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "相似推薦",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/similar/{{meme_id}}?limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "similar", "{{meme_id}}"],
+              "query": [{ "key": "limit", "value": "10" }]
+            }
+          }
+        },
+        {
+          "name": "內容基礎推薦",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/content-based?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "content-based"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "協同過濾推薦",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/collaborative-filtering?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "collaborative-filtering"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "混合推薦",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/mixed?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "mixed"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "協同過濾推薦",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/collaborative-filtering?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "collaborative-filtering"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "協同過濾統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/collaborative-filtering-stats",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "collaborative-filtering-stats"]
+            }
+          }
+        },
+        {
+          "name": "更新協同過濾快取",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/update-collaborative-filtering-cache",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "update-collaborative-filtering-cache"]
+            }
+          }
+        },
+        {
+          "name": "社交協同過濾推薦",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/social-collaborative-filtering?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "social-collaborative-filtering"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "社交協同過濾統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/social-collaborative-filtering-stats",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "social-collaborative-filtering-stats"]
+            }
+          }
+        },
+        {
+          "name": "更新社交協同過濾快取",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/update-social-collaborative-filtering-cache",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "update-social-collaborative-filtering-cache"]
+            }
+          }
+        },
+        {
+          "name": "社交分數計算",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/social-score/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "social-score", "{{meme_id}}"]
+            }
+          }
+        },
+        {
+          "name": "推薦統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/stats",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "stats"]
+            }
+          }
+        },
+        {
+          "name": "演算法統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/algorithm-stats",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "algorithm-stats"]
+            }
+          }
+        },
+        {
+          "name": "調整推薦策略",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"strategy\":\"{{test_strategy}}\",\"weights\":{{test_weights}}}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/adjust-strategy",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "adjust-strategy"]
+            }
+          }
+        },
+        {
+          "name": "社交影響力統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/social-influence-stats",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "social-influence-stats"]
+            }
+          }
+        },
+        {
+          "name": "更新用戶偏好",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"preferences\":{\"tags\":{{test_preferences_tags}},\"categories\":{{test_preferences_categories}}}}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/recommendations/update-preferences",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recommendations", "update-preferences"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👁️ 瀏覽系統",
+      "item": [
+        {
+          "name": "記錄瀏覽",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/views/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "views", "{{meme_id}}"]
+            }
+          }
+        },
+        {
+          "name": "取得瀏覽統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/views/stats/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "views", "stats", "{{meme_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏷️ 迷因標籤",
+      "item": [
+        {
+          "name": "建立迷因標籤關聯",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\",\"tag_id\":\"{{tag_id}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/meme-tags",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "meme-tags"]
+            }
+          }
+        },
+        {
+          "name": "批次建立迷因標籤",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\",\"tag_ids\":[\"{{tag_id_1}}\",\"{{tag_id_2}}\"]}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/meme-tags/batch",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "meme-tags", "batch"]
+            }
+          }
+        },
+        {
+          "name": "取得迷因的標籤",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/meme-tags/meme/{{meme_id}}/tags",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "meme-tags", "meme", "{{meme_id}}", "tags"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 迷因版本管理",
+      "item": [
+        {
+          "name": "建立迷因版本",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\",\"version_number\":1,\"changes\":\"{{test_version_changes}}\",\"image_url\":\"{{test_image_url}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/meme-versions",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "meme-versions"]
+            }
+          }
+        },
+        {
+          "name": "取得迷因版本列表",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/meme-versions?meme_id={{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "meme-versions"],
+              "query": [{ "key": "meme_id", "value": "{{meme_id}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 通知系統",
+      "item": [
+        {
+          "name": "取得通知列表",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/notifications?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "標記通知為已讀",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/{{notification_id}}/read",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "{{notification_id}}", "read"]
+            }
+          }
+        },
+        {
+          "name": "標記所有通知為已讀",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/read/all",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "read", "all"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚨 檢舉系統",
+      "item": [
+        {
+          "name": "檢舉迷因",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\",\"reason\":\"{{test_report_reason}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/reports",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"]
+            }
+          }
+        },
+        {
+          "name": "取得檢舉列表",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/reports?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👁️ 瀏覽系統",
+      "item": [
+        {
+          "name": "記錄瀏覽",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/views/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "views", "{{meme_id}}"]
+            }
+          }
+        },
+        {
+          "name": "取得瀏覽統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/views/stats/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "views", "stats", "{{meme_id}}"]
+            }
+          }
+        },
+        {
+          "name": "取得熱門瀏覽",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/views/popular?page=1&limit=10",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "views", "popular"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 管理功能",
+      "item": [
+        {
+          "name": "檢查迷因計數",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/check-counts/{{meme_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "check-counts", "{{meme_id}}"]
+            }
+          }
+        },
+        {
+          "name": "檢查所有迷因計數",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/check-all-counts",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "check-all-counts"]
+            }
+          }
+        },
+        {
+          "name": "取得統計資訊",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/count-statistics",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "count-statistics"]
+            }
+          }
+        },
+        {
+          "name": "檢查用戶計數",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/check-user-counts/{{user_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "check-user-counts", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "檢查所有用戶計數",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/check-all-user-counts",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "check-all-user-counts"]
+            }
+          }
+        },
+        {
+          "name": "執行完整檢查",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/run-full-check",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "run-full-check"]
+            }
+          }
+        },
+        {
+          "name": "維護狀態",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/maintenance-status",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "maintenance-status"]
+            }
+          }
+        },
+        {
+          "name": "批次更新熱門分數",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"limit\":1000}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/batch-update-hot-scores",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "batch-update-hot-scores"]
+            }
+          }
+        },
+        {
+          "name": "更新所有推薦系統",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/update-all-recommendation-systems",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "update-all-recommendation-systems"]
+            }
+          }
+        },
+        {
+          "name": "推薦系統配置",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/recommendation-system-config",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "recommendation-system-config"]
+            }
+          }
+        },
+        {
+          "name": "批次更新用戶偏好",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"batchSize\":1000}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/batch-update-user-preferences",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "batch-update-user-preferences"]
+            }
+          }
+        },
+        {
+          "name": "內容基礎統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/content-based-statistics",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "content-based-statistics"]
+            }
+          }
+        },
+        {
+          "name": "協同過濾統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/admin/collaborative-filtering-statistics",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "collaborative-filtering-statistics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 分析系統",
+      "item": [
+        {
+          "name": "記錄推薦指標",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\",\"algorithm\":\"content-based\",\"recommendation_score\":0.85,\"recommendation_rank\":1}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analytics/track-recommendation",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "track-recommendation"]
+            }
+          }
+        },
+        {
+          "name": "更新互動事件",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meme_id\":\"{{meme_id}}\",\"interaction_type\":\"{{test_interaction_type}}\",\"algorithm\":\"{{test_algorithm}}\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analytics/update-interaction",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "update-interaction"]
+            }
+          }
+        },
+        {
+          "name": "演算法統計",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/algorithm-stats",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "algorithm-stats"]
+            }
+          }
+        },
+        {
+          "name": "用戶效果分析",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/user-effectiveness",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "user-effectiveness"]
+            }
+          }
+        },
+        {
+          "name": "建立 A/B 測試",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"推薦演算法測試\",\"description\":\"測試不同推薦演算法的效果\",\"variants\":[{\"name\":\"A組\",\"config\":{\"algorithm\":\"mixed\"}},{\"name\":\"B組\",\"config\":{\"algorithm\":\"content-based\"}}]}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analytics/ab-tests",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "ab-tests"]
+            }
+          }
+        },
+        {
+          "name": "取得 A/B 測試列表",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/ab-tests",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "ab-tests"]
+            }
+          }
+        },
+        {
+          "name": "更新 A/B 測試狀態",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"active\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analytics/ab-tests/{{test_id}}/status",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "ab-tests", "{{test_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "取得 A/B 測試詳細資訊",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/ab-tests/{{test_id}}",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "ab-tests", "{{test_id}}"]
+            }
+          }
+        },
+        {
+          "name": "分析儀表板",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/dashboard",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "dashboard"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏥 系統健康檢查",
+      "item": [
+        {
+          "name": "健康檢查",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/health",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "API 文檔",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api-docs",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api-docs"]
+            }
+          }
+        },
+        {
+          "name": "API 文檔 JSON",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api-docs.json",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api-docs.json"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
