@@ -353,31 +353,453 @@ router.get('/', getMemes)
  */
 router.get('/search-suggestions', getSearchSuggestions)
 router.get('/by-tags', getMemesByTags)
-// 批次更新所有迷因的熱門分數
+/**
+ * @swagger
+ * /api/memes/batch-update-hot-scores:
+ *   post:
+ *     summary: 批次更新所有迷因的熱門分數
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 批次更新完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 updatedCount:
+ *                   type: integer
+ *       401:
+ *         description: 未授權
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/batch-update-hot-scores', token, batchUpdateHotScores)
-// 取得熱門迷因列表
+
+/**
+ * @swagger
+ * /api/memes/hot/list:
+ *   get:
+ *     summary: 取得熱門迷因列表
+ *     tags: [Memes]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 返回數量限制
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼
+ *     responses:
+ *       200:
+ *         description: 成功取得熱門迷因列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 memes:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Meme'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ */
 router.get('/hot/list', getHotMemes)
-// 取得趨勢迷因列表
+
+/**
+ * @swagger
+ * /api/memes/trending/list:
+ *   get:
+ *     summary: 取得趨勢迷因列表
+ *     tags: [Memes]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 返回數量限制
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [1h, 24h, 7d, 30d]
+ *           default: 24h
+ *         description: 趨勢計算週期
+ *     responses:
+ *       200:
+ *         description: 成功取得趨勢迷因列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 memes:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Meme'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ */
 router.get('/trending/list', getTrendingMemes)
 
-// 取得迷因的詳細分數分析（必須在 /:id 之前）
+/**
+ * @swagger
+ * /api/memes/{id}/score-analysis:
+ *   get:
+ *     summary: 取得迷因的詳細分數分析
+ *     tags: [Memes]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *     responses:
+ *       200:
+ *         description: 成功取得分數分析
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 hotScore:
+ *                   type: number
+ *                   description: 熱門分數
+ *                 scoreBreakdown:
+ *                   type: object
+ *                   description: 分數細項分析
+ *                 recommendations:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: 改進建議
+ *       404:
+ *         description: 迷因不存在
+ */
 router.get('/:id/score-analysis', getMemeScoreAnalysis)
 
-// 新增協作者
+/**
+ * @swagger
+ * /api/memes/{id}/editors:
+ *   post:
+ *     summary: 新增協作者
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - editorId
+ *             properties:
+ *               editorId:
+ *                 type: string
+ *                 description: 協作者用戶ID
+ *     responses:
+ *       200:
+ *         description: 協作者新增成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       404:
+ *         description: 迷因不存在
+ *   delete:
+ *     summary: 移除協作者
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *       - in: query
+ *         name: editorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 協作者用戶ID
+ *     responses:
+ *       200:
+ *         description: 協作者移除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       404:
+ *         description: 迷因不存在
+ */
 router.post('/:id/editors', token, addEditor)
-// 移除協作者
 router.delete('/:id/editors', token, removeEditor)
-// 提交修改提案
+
+/**
+ * @swagger
+ * /api/memes/{id}/proposals:
+ *   post:
+ *     summary: 提交修改提案
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - changes
+ *             properties:
+ *               changes:
+ *                 type: object
+ *                 description: 修改內容
+ *               notes:
+ *                 type: string
+ *                 description: 修改說明
+ *     responses:
+ *       201:
+ *         description: 提案提交成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 proposalId:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
+ *       404:
+ *         description: 迷因不存在
+ *   get:
+ *     summary: 查詢所有提案
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *     responses:
+ *       200:
+ *         description: 成功取得提案列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 proposals:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     description: 提案資訊
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       404:
+ *         description: 迷因不存在
+ */
 router.post('/:id/proposals', token, proposeEdit)
-// 查詢所有提案（僅作者/協作者/管理員）
 router.get('/:id/proposals', token, canEditMeme, listProposals)
-// 審核通過
+
+/**
+ * @swagger
+ * /api/memes/{id}/proposals/{proposalId}/approve:
+ *   post:
+ *     summary: 審核通過提案
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *       - in: path
+ *         name: proposalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 提案ID
+ *     responses:
+ *       200:
+ *         description: 提案審核通過成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       404:
+ *         description: 迷因或提案不存在
+ */
 router.post('/:id/proposals/:proposalId/approve', token, canEditMeme, approveProposal)
-// 駁回提案
+
+/**
+ * @swagger
+ * /api/memes/{id}/proposals/{proposalId}/reject:
+ *   post:
+ *     summary: 駁回提案
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *       - in: path
+ *         name: proposalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 提案ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 description: 駁回原因
+ *     responses:
+ *       200:
+ *         description: 提案駁回成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       404:
+ *         description: 迷因或提案不存在
+ */
 router.post('/:id/proposals/:proposalId/reject', token, canEditMeme, rejectProposal)
 
-// 熱門分數相關端點
-// 更新單一迷因的熱門分數
+/**
+ * @swagger
+ * /api/memes/{id}/hot-score:
+ *   put:
+ *     summary: 更新單一迷因的熱門分數
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 迷因ID
+ *     responses:
+ *       200:
+ *         description: 熱門分數更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 newHotScore:
+ *                   type: number
+ *       401:
+ *         description: 未授權
+ *       404:
+ *         description: 迷因不存在
+ */
 router.put('/:id/hot-score', token, updateMemeHotScore)
 
 // 基本 CRUD 操作（必須在最後）

@@ -274,26 +274,28 @@ router.get('/count-statistics', token, isAdmin, async (req, res) => {
   }
 })
 
-// 檢查並修正單一用戶的統計計數
-router.post('/check-user-counts/:userId', token, isAdmin, async (req, res) => {
-  try {
-    const { userId } = req.params
-    const result = await checkAndFixUserCounts(userId)
-    res.json({
-      success: true,
-      data: result,
-      message: `已檢查用戶 ${userId} 的統計計數`,
-    })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      data: null,
-      error: error.message,
-    })
-  }
-})
-
-// 檢查並修正所有用戶的統計計數
+/**
+ * @swagger
+ * /api/admin/check-all-user-counts:
+ *   post:
+ *     summary: 檢查並修正所有用戶的統計計數
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 檢查完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/check-all-user-counts', token, isAdmin, async (req, res) => {
   try {
     const result = await checkAndFixUserCounts()
@@ -311,7 +313,28 @@ router.post('/check-all-user-counts', token, isAdmin, async (req, res) => {
   }
 })
 
-// 手動觸發完整數據檢查
+/**
+ * @swagger
+ * /api/admin/run-full-check:
+ *   post:
+ *     summary: 手動觸發完整數據檢查
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 檢查完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/run-full-check', token, isAdmin, async (req, res) => {
   try {
     const result = await maintenanceScheduler.runFullCheck()
@@ -329,7 +352,28 @@ router.post('/run-full-check', token, isAdmin, async (req, res) => {
   }
 })
 
-// 獲取維護任務狀態
+/**
+ * @swagger
+ * /api/admin/maintenance-status:
+ *   get:
+ *     summary: 獲取維護任務狀態
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功獲取維護狀態
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.get('/maintenance-status', token, isAdmin, async (req, res) => {
   try {
     const status = maintenanceScheduler.getTasksStatus()
@@ -347,8 +391,43 @@ router.get('/maintenance-status', token, isAdmin, async (req, res) => {
   }
 })
 
-// 熱門分數管理端點
-// 批次更新熱門分數
+/**
+ * @swagger
+ * /api/admin/batch-update-hot-scores:
+ *   post:
+ *     summary: 批次更新熱門分數
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               limit:
+ *                 type: integer
+ *                 default: 1000
+ *                 description: 更新數量限制
+ *               force:
+ *                 type: boolean
+ *                 default: false
+ *                 description: 是否強制更新
+ *     responses:
+ *       200:
+ *         description: 更新完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/batch-update-hot-scores', token, isAdmin, async (req, res) => {
   try {
     const { limit = 1000, force = false } = req.body
@@ -367,7 +446,47 @@ router.post('/batch-update-hot-scores', token, isAdmin, async (req, res) => {
   }
 })
 
-// 執行定期熱門分數更新任務
+/**
+ * @swagger
+ * /api/admin/scheduled-hot-score-update:
+ *   post:
+ *     summary: 執行定期熱門分數更新任務
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               updateInterval:
+ *                 type: string
+ *                 default: '1h'
+ *                 description: 更新間隔
+ *               maxUpdates:
+ *                 type: integer
+ *                 default: 1000
+ *                 description: 最大更新數量
+ *               force:
+ *                 type: boolean
+ *                 default: false
+ *                 description: 是否強制更新
+ *     responses:
+ *       200:
+ *         description: 更新完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/scheduled-hot-score-update', token, isAdmin, async (req, res) => {
   try {
     const { updateInterval = '1h', maxUpdates = 1000, force = false } = req.body
@@ -386,7 +505,35 @@ router.post('/scheduled-hot-score-update', token, isAdmin, async (req, res) => {
   }
 })
 
-// 取得熱門分數統計資訊
+/**
+ * @swagger
+ * /api/admin/hot-score-statistics:
+ *   get:
+ *     summary: 取得熱門分數統計資訊
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功取得統計資訊
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/HotScoreStats'
+ *                 error:
+ *                   type: string
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.get('/hot-score-statistics', token, isAdmin, async (req, res) => {
   try {
     const statistics = await getHotScoreStats()
@@ -405,7 +552,38 @@ router.get('/hot-score-statistics', token, isAdmin, async (req, res) => {
 })
 
 // 推薦系統管理端點
-// 執行所有推薦系統更新
+/**
+ * @swagger
+ * /api/admin/update-all-recommendation-systems:
+ *   post:
+ *     summary: 執行所有推薦系統更新
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               options:
+ *                 type: object
+ *                 description: 更新選項
+ *     responses:
+ *       200:
+ *         description: 更新完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/update-all-recommendation-systems', token, isAdmin, async (req, res) => {
   try {
     const { options = {} } = req.body
@@ -424,7 +602,35 @@ router.post('/update-all-recommendation-systems', token, isAdmin, async (req, re
   }
 })
 
-// 取得推薦系統狀態
+/**
+ * @swagger
+ * /api/admin/recommendation-system-status:
+ *   get:
+ *     summary: 取得推薦系統狀態
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功取得系統狀態
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/RecommendationSystemStatus'
+ *                 error:
+ *                   type: string
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.get('/recommendation-system-status', token, isAdmin, async (req, res) => {
   try {
     const status = await getRecommendationSystemStatus()
@@ -442,7 +648,40 @@ router.get('/recommendation-system-status', token, isAdmin, async (req, res) => 
   }
 })
 
-// 更新推薦系統配置
+/**
+ * @swagger
+ * /api/admin/recommendation-system-config:
+ *   put:
+ *     summary: 更新推薦系統配置
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - config
+ *             properties:
+ *               config:
+ *                 type: object
+ *                 description: 系統配置
+ *     responses:
+ *       200:
+ *         description: 配置更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.put('/recommendation-system-config', token, isAdmin, async (req, res) => {
   try {
     const { config } = req.body
@@ -462,7 +701,43 @@ router.put('/recommendation-system-config', token, isAdmin, async (req, res) => 
 })
 
 // 內容基礎推薦管理端點
-// 批次更新用戶偏好快取
+/**
+ * @swagger
+ * /api/admin/batch-update-user-preferences:
+ *   post:
+ *     summary: 批次更新用戶偏好快取
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               maxUsers:
+ *                 type: integer
+ *                 default: 1000
+ *                 description: 最大用戶數
+ *               batchSize:
+ *                 type: integer
+ *                 default: 100
+ *                 description: 批次大小
+ *     responses:
+ *       200:
+ *         description: 更新完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/batch-update-user-preferences', token, isAdmin, async (req, res) => {
   try {
     const { maxUsers = 1000, batchSize = 100 } = req.body
@@ -481,7 +756,47 @@ router.post('/batch-update-user-preferences', token, isAdmin, async (req, res) =
   }
 })
 
-// 執行定期內容基礎推薦更新任務
+/**
+ * @swagger
+ * /api/admin/scheduled-content-based-update:
+ *   post:
+ *     summary: 執行定期內容基礎推薦更新任務
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               updateInterval:
+ *                 type: string
+ *                 default: '24h'
+ *                 description: 更新間隔
+ *               maxUsers:
+ *                 type: integer
+ *                 default: 1000
+ *                 description: 最大用戶數
+ *               batchSize:
+ *                 type: integer
+ *                 default: 100
+ *                 description: 批次大小
+ *     responses:
+ *       200:
+ *         description: 更新完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/scheduled-content-based-update', token, isAdmin, async (req, res) => {
   try {
     const { updateInterval = '24h', maxUsers = 1000, batchSize = 100 } = req.body
@@ -500,7 +815,28 @@ router.post('/scheduled-content-based-update', token, isAdmin, async (req, res) 
   }
 })
 
-// 取得內容基礎推薦統計資訊
+/**
+ * @swagger
+ * /api/admin/content-based-statistics:
+ *   get:
+ *     summary: 取得內容基礎推薦統計資訊
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功取得統計資訊
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.get('/content-based-statistics', token, isAdmin, async (req, res) => {
   try {
     const statistics = await getContentBasedStats()
@@ -518,7 +854,40 @@ router.get('/content-based-statistics', token, isAdmin, async (req, res) => {
   }
 })
 
-// 更新內容基礎推薦配置
+/**
+ * @swagger
+ * /api/admin/content-based-config:
+ *   put:
+ *     summary: 更新內容基礎推薦配置
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - config
+ *             properties:
+ *               config:
+ *                 type: object
+ *                 description: 配置參數
+ *     responses:
+ *       200:
+ *         description: 配置更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.put('/content-based-config', token, isAdmin, async (req, res) => {
   try {
     const { config } = req.body
@@ -538,7 +907,43 @@ router.put('/content-based-config', token, isAdmin, async (req, res) => {
 })
 
 // 協同過濾推薦管理端點
-// 批次更新協同過濾快取
+/**
+ * @swagger
+ * /api/admin/batch-update-collaborative-filtering:
+ *   post:
+ *     summary: 批次更新協同過濾快取
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               maxUsers:
+ *                 type: integer
+ *                 default: 1000
+ *                 description: 最大用戶數
+ *               maxMemes:
+ *                 type: integer
+ *                 default: 5000
+ *                 description: 最大迷因數
+ *     responses:
+ *       200:
+ *         description: 更新完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/batch-update-collaborative-filtering', token, isAdmin, async (req, res) => {
   try {
     const { maxUsers = 1000, maxMemes = 5000 } = req.body
@@ -557,7 +962,51 @@ router.post('/batch-update-collaborative-filtering', token, isAdmin, async (req,
   }
 })
 
-// 執行定期協同過濾推薦更新任務
+/**
+ * @swagger
+ * /api/admin/scheduled-collaborative-filtering-update:
+ *   post:
+ *     summary: 執行定期協同過濾推薦更新任務
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               updateInterval:
+ *                 type: string
+ *                 default: '24h'
+ *                 description: 更新間隔
+ *               maxUsers:
+ *                 type: integer
+ *                 default: 1000
+ *                 description: 最大用戶數
+ *               maxMemes:
+ *                 type: integer
+ *                 default: 5000
+ *                 description: 最大迷因數
+ *               includeSocial:
+ *                 type: boolean
+ *                 default: true
+ *                 description: 是否包含社交因素
+ *     responses:
+ *       200:
+ *         description: 更新完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.post('/scheduled-collaborative-filtering-update', token, isAdmin, async (req, res) => {
   try {
     const {
@@ -586,7 +1035,28 @@ router.post('/scheduled-collaborative-filtering-update', token, isAdmin, async (
   }
 })
 
-// 取得協同過濾推薦統計資訊
+/**
+ * @swagger
+ * /api/admin/collaborative-filtering-statistics:
+ *   get:
+ *     summary: 取得協同過濾推薦統計資訊
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功取得統計資訊
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.get('/collaborative-filtering-statistics', token, isAdmin, async (req, res) => {
   try {
     const statistics = await getCollaborativeFilteringStats()
@@ -604,7 +1074,40 @@ router.get('/collaborative-filtering-statistics', token, isAdmin, async (req, re
   }
 })
 
-// 更新協同過濾推薦配置
+/**
+ * @swagger
+ * /api/admin/collaborative-filtering-config:
+ *   put:
+ *     summary: 更新協同過濾推薦配置
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - config
+ *             properties:
+ *               config:
+ *                 type: object
+ *                 description: 配置參數
+ *     responses:
+ *       200:
+ *         description: 配置更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
 router.put('/collaborative-filtering-config', token, isAdmin, async (req, res) => {
   try {
     const { config } = req.body

@@ -170,118 +170,325 @@ const router = express.Router()
 router.post('/track-recommendation', token, trackRecommendation)
 
 /**
- * @route PUT /api/analytics/update-interaction
- * @desc 更新推薦互動指標
- * @access Private
- * @body {
- *   metrics_id: string,
- *   interaction_type: string,
- *   view_duration?: number,
- *   user_rating?: number
- * }
+ * @swagger
+ * /api/analytics/update-interaction:
+ *   put:
+ *     summary: 更新推薦互動指標
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - metrics_id
+ *               - interaction_type
+ *             properties:
+ *               metrics_id:
+ *                 type: string
+ *                 description: 指標ID
+ *               interaction_type:
+ *                 type: string
+ *                 description: 互動類型
+ *               view_duration:
+ *                 type: number
+ *                 description: 觀看時長（秒）
+ *               user_rating:
+ *                 type: number
+ *                 description: 用戶評分
+ *     responses:
+ *       200:
+ *         description: 互動指標更新成功
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
  */
 router.put('/update-interaction', token, updateInteraction)
 
 /**
- * @route GET /api/analytics/algorithm-stats
- * @desc 取得推薦演算法統計
- * @access Private
- * @query {string} algorithm - 特定演算法 (可選)
- * @query {string} start_date - 開始日期 (ISO 格式)
- * @query {string} end_date - 結束日期 (ISO 格式)
- * @query {string} group_by - 分組方式 (day, week, month)
+ * @swagger
+ * /api/analytics/algorithm-stats:
+ *   get:
+ *     summary: 取得推薦演算法統計
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: algorithm
+ *         schema:
+ *           type: string
+ *         description: 特定演算法（可選）
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 開始日期（ISO 格式）
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 結束日期（ISO 格式）
+ *       - in: query
+ *         name: group_by
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month]
+ *         description: 分組方式
+ *     responses:
+ *       200:
+ *         description: 成功取得演算法統計
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 stats:
+ *                   type: object
+ *                   description: 統計數據
+ *       401:
+ *         description: 未授權
  */
 router.get('/algorithm-stats', token, getAlgorithmStats)
 
 /**
- * @route GET /api/analytics/user-effectiveness
- * @desc 取得用戶推薦效果分析
- * @access Private
- * @query {string} start_date - 開始日期 (ISO 格式)
- * @query {string} end_date - 結束日期 (ISO 格式)
+ * @swagger
+ * /api/analytics/user-effectiveness:
+ *   get:
+ *     summary: 取得用戶推薦效果分析
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 開始日期（ISO 格式）
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 結束日期（ISO 格式）
+ *     responses:
+ *       200:
+ *         description: 成功取得用戶效果分析
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 effectiveness:
+ *                   type: object
+ *                   description: 效果分析數據
+ *       401:
+ *         description: 未授權
  */
 router.get('/user-effectiveness', token, getUserEffectiveness)
 
 /**
- * @route POST /api/analytics/ab-tests
- * @desc 建立 A/B 測試
- * @access Private
- * @body {
- *   test_id: string,
- *   name: string,
- *   description?: string,
- *   test_type: string,
- *   primary_metric: string,
- *   secondary_metrics?: string[],
- *   variants: Array<{
- *     variant_id: string,
- *     name: string,
- *     description?: string,
- *     configuration: object,
- *     traffic_percentage: number
- *   }>,
- *   target_audience?: {
- *     user_segments?: string[],
- *     user_activity_levels?: string[],
- *     geographic_regions?: string[],
- *     device_types?: string[]
- *   },
- *   start_date: string,
- *   end_date: string,
- *   statistical_settings?: {
- *     confidence_level?: number,
- *     minimum_sample_size?: number,
- *     minimum_duration_days?: number
- *   },
- *   automation?: {
- *     auto_stop?: boolean,
- *     auto_winner_selection?: boolean,
- *     minimum_improvement?: number
- *   },
- *   notifications?: {
- *     on_start?: boolean,
- *     on_completion?: boolean,
- *     on_significant_result?: boolean,
- *     recipients?: string[]
- *   }
- * }
+ * @swagger
+ * /api/analytics/ab-tests:
+ *   post:
+ *     summary: 建立 A/B 測試
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ABTest'
+ *     responses:
+ *       201:
+ *         description: A/B 測試創建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 test:
+ *                   $ref: '#/components/schemas/ABTest'
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
+ *   get:
+ *     summary: 取得 A/B 測試列表
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: 測試狀態篩選
+ *       - in: query
+ *         name: test_type
+ *         schema:
+ *           type: string
+ *         description: 測試類型篩選
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: 每頁數量
+ *     responses:
+ *       200:
+ *         description: 成功取得 A/B 測試列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tests:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ABTest'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *       401:
+ *         description: 未授權
  */
 router.post('/ab-tests', token, createABTest)
-
-/**
- * @route GET /api/analytics/ab-tests
- * @desc 取得 A/B 測試列表
- * @access Private
- * @query {string} status - 測試狀態篩選
- * @query {string} test_type - 測試類型篩選
- * @query {number} page - 頁碼 (預設: 1)
- * @query {number} limit - 每頁數量 (預設: 10)
- */
 router.get('/ab-tests', token, getABTests)
 
 /**
- * @route PUT /api/analytics/ab-tests/:testId/status
- * @desc 更新 A/B 測試狀態
- * @access Private
- * @param {string} testId - 測試 ID
- * @body {string} status - 新狀態
+ * @swagger
+ * /api/analytics/ab-tests/{testId}/status:
+ *   put:
+ *     summary: 更新 A/B 測試狀態
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: testId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 測試 ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [draft, active, paused, completed]
+ *                 description: 新狀態
+ *     responses:
+ *       200:
+ *         description: 測試狀態更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
+ *       404:
+ *         description: 測試不存在
  */
 router.put('/ab-tests/:testId/status', token, updateABTestStatus)
 
 /**
- * @route GET /api/analytics/ab-tests/:testId
- * @desc 取得 A/B 測試詳細資訊
- * @access Private
- * @param {string} testId - 測試 ID
+ * @swagger
+ * /api/analytics/ab-tests/{testId}:
+ *   get:
+ *     summary: 取得 A/B 測試詳細資訊
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: testId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 測試 ID
+ *     responses:
+ *       200:
+ *         description: 成功取得測試詳細資訊
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ABTest'
+ *       401:
+ *         description: 未授權
+ *       404:
+ *         description: 測試不存在
  */
 router.get('/ab-tests/:testId', token, getABTestDetails)
 
 /**
- * @route GET /api/analytics/dashboard
- * @desc 取得推薦效果儀表板
- * @access Private
- * @query {string} start_date - 開始日期 (ISO 格式)
- * @query {string} end_date - 結束日期 (ISO 格式)
+ * @swagger
+ * /api/analytics/dashboard:
+ *   get:
+ *     summary: 取得推薦效果儀表板
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 開始日期（ISO 格式）
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 結束日期（ISO 格式）
+ *     responses:
+ *       200:
+ *         description: 成功取得儀表板數據
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 dashboard:
+ *                   type: object
+ *                   description: 儀表板數據
+ *       401:
+ *         description: 未授權
  */
 router.get('/dashboard', token, getAnalyticsDashboard)
 
