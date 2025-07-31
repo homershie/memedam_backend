@@ -4,6 +4,7 @@
  */
 
 import { StatusCodes } from 'http-status-codes'
+import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { getHotScoreLevel } from '../utils/hotScore.js'
@@ -40,13 +41,15 @@ export const getHotRecommendations = async (req, res) => {
     const { limit = 20, type = 'all', days = 7, exclude_viewed = 'false' } = req.query
 
     const userId = req.user?._id
+    const parsedDays = parseInt(days)
+    const validDays = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 7
     const dateLimit = new Date()
-    dateLimit.setDate(dateLimit.getDate() - parseInt(days))
+    dateLimit.setDate(dateLimit.getDate() - validDays)
 
     // 建立查詢條件
     const filter = {
       status: 'public',
-      createdAt: { $gte: dateLimit },
+      createdAt: mongoose.trusted({ $gte: dateLimit }),
     }
 
     if (type !== 'all') {
@@ -104,12 +107,15 @@ export const getLatestRecommendations = async (req, res) => {
   try {
     const { limit = 20, type = 'all', hours = 24 } = req.query
 
+    const parsedHours = parseInt(hours)
+    const validHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 24
+
     const dateLimit = new Date()
-    dateLimit.setHours(dateLimit.getHours() - parseInt(hours))
+    dateLimit.setHours(dateLimit.getHours() - validHours)
 
     const filter = {
       status: 'public',
-      createdAt: { $gte: dateLimit },
+      createdAt: mongoose.trusted({ $gte: dateLimit }),
     }
 
     if (type !== 'all') {

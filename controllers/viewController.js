@@ -30,7 +30,7 @@ export const recordView = async (req, res) => {
       if (user_id || ip) {
         const matchConditions = [
           { $match: { meme_id: new mongoose.Types.ObjectId(meme_id) } },
-          { $match: { createdAt: { $gte: fiveMinutesAgo } } },
+          { $match: { createdAt: mongoose.trusted({ $gte: fiveMinutesAgo }) } },
         ]
 
         if (user_id) {
@@ -89,13 +89,19 @@ export const getViewStats = async (req, res) => {
 
     switch (period) {
       case 'day':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) }),
+        }
         break
       case 'week':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }),
+        }
         break
       case 'month':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }),
+        }
         break
       default:
         // all - 不設時間限制
@@ -189,13 +195,19 @@ export const getPopularMemes = async (req, res) => {
 
     switch (period) {
       case 'day':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) }),
+        }
         break
       case 'week':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }),
+        }
         break
       case 'month':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }),
+        }
         break
       default:
         // all - 不設時間限制

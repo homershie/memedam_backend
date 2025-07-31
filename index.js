@@ -14,7 +14,7 @@ import swaggerUi from 'swagger-ui-express'
 import { performanceMonitor } from './utils/asyncProcessor.js'
 import { logger } from './utils/logger.js'
 import { loginLimiter, registerLimiter, forgotPasswordLimiter } from './middleware/rateLimit.js'
-import errorHandler from './middleware/errorHandler.js'
+import errorHandler, { notFound } from './middleware/errorHandler.js'
 import maintenanceScheduler from './utils/maintenance.js'
 import analyticsMonitor from './utils/analyticsMonitor.js'
 
@@ -252,12 +252,7 @@ app.delete('/api/cache/clear', async (req, res) => {
 })
 
 // 404 處理
-app.use((req, res) => {
-  res.status(404).json({
-    error: '找不到路徑',
-    path: req.originalUrl,
-  })
-})
+app.use(notFound)
 
 // 錯誤處理中間件
 app.use(errorHandler)

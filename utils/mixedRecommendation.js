@@ -4,6 +4,7 @@
  * 效能優化版本 - 包含 Redis 快取和非同步處理
  */
 
+import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { getHotScoreLevel } from './hotScore.js'
@@ -224,7 +225,7 @@ const getHotRecommendations = async (options = {}) => {
 
       const memes = await Meme.find({
         status: 'public',
-        createdAt: { $gte: dateLimit },
+        createdAt: mongoose.trusted({ $gte: dateLimit }),
       })
         .sort({ hot_score: -1 })
         .limit(parseInt(limit))
@@ -259,7 +260,7 @@ const getLatestRecommendations = async (options = {}) => {
 
       const memes = await Meme.find({
         status: 'public',
-        createdAt: { $gte: dateLimit },
+        createdAt: mongoose.trusted({ $gte: dateLimit }),
       })
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
