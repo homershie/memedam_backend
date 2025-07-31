@@ -36,6 +36,13 @@ export const login = async (req, res) => {
     // 產生 JWT token
     const token = signToken({ _id: user._id })
     user.tokens = user.tokens || []
+
+    // 檢查是否已達到 token 數量限制
+    if (user.tokens.length >= 3) {
+      // 移除最舊的 token（陣列中的第一個）
+      user.tokens.shift()
+    }
+
     user.tokens.push(token)
     await user.save({ session })
 

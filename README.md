@@ -565,7 +565,7 @@ GET /api/performance
 
 ```http
 # 基本搜尋
-GET /memes?search=貓咪&useFuzzySearch=true
+GET /memes?search=貓咪&useAdvancedSearch=true
 
 # 標籤篩選搜尋
 GET /memes/by-tags?tagIds=507f1f77bcf86cd799439011&search=貓咪

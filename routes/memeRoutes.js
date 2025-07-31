@@ -179,9 +179,32 @@ const router = express.Router()
  *         name: sort
  *         schema:
  *           type: string
- *           enum: [newest, oldest, popular, hot]
- *           default: newest
+ *           enum: [comprehensive, relevance, quality, freshness, popularity, createdAt, newest, oldest, popular, hot]
+ *           default: comprehensive
  *         description: 排序方式
+ *       - in: query
+ *         name: useAdvancedSearch
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: 是否使用進階搜尋
+ *       - in: query
+ *         name: author
+ *         schema:
+ *           type: string
+ *         description: 作者篩選
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 開始日期
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 結束日期
  *     responses:
  *       200:
  *         description: 成功取得迷因列表
@@ -203,6 +226,37 @@ const router = express.Router()
  *                       type: integer
  *                     total:
  *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *                     hasNext:
+ *                       type: boolean
+ *                     hasPrev:
+ *                       type: boolean
+ *                 scoring:
+ *                   type: object
+ *                   properties:
+ *                     relevance:
+ *                       type: number
+ *                     quality:
+ *                       type: number
+ *                     freshness:
+ *                       type: number
+ *                     userBehavior:
+ *                       type: number
+ *                     comprehensive:
+ *                       type: number
+ *                 searchStats:
+ *                   type: object
+ *                   properties:
+ *                     totalResults:
+ *                       type: integer
+ *                     averageScores:
+ *                       type: object
+ *                     scoreDistribution:
+ *                       type: object
+ *                 searchAlgorithm:
+ *                   type: string
+ *                   description: 使用的搜尋演算法
  */
 router.post('/', token, isUser, arrayUpload('images', 5), validateCreateMeme, createMeme)
 router.get('/', getMemes)

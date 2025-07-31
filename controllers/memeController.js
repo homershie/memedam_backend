@@ -1,8 +1,13 @@
+import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
 import MemeTag from '../models/MemeTag.js' // Added import for MemeTag
-import { processSearchResults, combineSearchFilters } from '../utils/search.js'
+import {
+  processAdvancedSearchResults,
+  combineAdvancedSearchFilters,
+  getSearchStats,
+} from '../utils/advancedSearch.js'
 import Tag from '../models/Tag.js'
 import User from '../models/User.js'
 import { deleteCloudinaryImage } from '../utils/deleteImg.js'
@@ -139,66 +144,45 @@ export const getMemes = async (req, res) => {
       search,
       type,
       status,
-      sort = 'createdAt',
+      sort = 'comprehensive', // 預設使用綜合排序
       order = 'desc',
-      useFuzzySearch = 'true', // 新增參數控制是否使用模糊搜尋
+      useAdvancedSearch = 'true', // 使用進階搜尋
+      author,
+      dateFrom,
+      dateTo,
     } = req.query
 
-    // 建立基本篩選條件
-    const filter = {}
-
-    // 迷因類型篩選
-    if (type) {
-      filter.type = type
-    }
-
-    // 狀態篩選
-    if (status) {
-      filter.status = status
-    }
-
-    // 標籤篩選
-    if (tags) {
-      let tagArray = tags
-      if (typeof tags === 'string') {
-        // 支援逗號分隔的標籤字串
-        tagArray = tags.split(',').map((tag) => tag.trim())
-      }
-
-      // 使用 tags_cache 欄位進行篩選（更高效）
-      // tags_cache 是陣列，使用 $or 操作符查詢包含任一標籤的迷因
-      const tagConditions = tagArray.map((tag) => ({ tags_cache: tag }))
-
-      // 儲存標籤條件，稍後處理與其他 $or 條件的組合
-      filter._tagConditions = tagConditions
-    }
-
-    // 排序設定
-    const sortObj = {}
-    sortObj[sort] = order === 'desc' ? -1 : 1
-
-    // 如果使用模糊搜尋且有搜尋關鍵字，先取得所有符合基本條件的資料
-    if (search && useFuzzySearch === 'true') {
-      // 建立基本查詢條件（不包含搜尋和標籤條件）
+    // 如果使用進階搜尋，取得所有符合基本條件的資料
+    if (useAdvancedSearch === 'true') {
+      // 建立基本查詢條件
       const baseFilter = {}
       if (type) baseFilter.type = type
       if (status) baseFilter.status = status
 
-      // 先取得所有符合基本篩選條件的迷因
+      // 取得所有符合基本篩選條件的迷因
       const allMemesData = await Meme.find(baseFilter)
-        .populate('author_id', 'username display_name avatar')
+        .populate('author_id', 'username display_name avatar meme_count')
         .lean()
 
-      // 轉換資料結構並扁平化作者資訊，以便 Fuse.js 搜尋
+      // 轉換資料結構並扁平化作者資訊
       const memesWithFlattenedAuthor = allMemesData.map((meme) => ({
         ...meme,
         author: meme.author_id,
         author_id: meme.author_id?._id,
         username: meme.author_id?.username || '',
         display_name: meme.author_id?.display_name || '',
+        // 確保數值欄位存在
+        views: meme.views || 0,
+        likes: meme.likes || 0,
+        shares: meme.shares || 0,
+        comments: meme.comments || 0,
+        likes_count: meme.likes_count || 0,
+        dislikes_count: meme.dislikes_count || 0,
+        shares_count: meme.shares_count || 0,
+        comments_count: meme.comments_count || 0,
       }))
 
-      // 使用 Fuse.js 進行模糊搜尋
+      // 使用進階搜尋過濾器
       const searchParams = {
         search,
         type,
@@ -208,15 +192,22 @@ export const getMemes = async (req, res) => {
             ? tags.split(',').map((tag) => tag.trim())
             : tags
           : [],
+        author,
+        dateFrom,
+        dateTo,
       }
 
-      const filteredMemes = combineSearchFilters(memesWithFlattenedAuthor, searchParams)
+      const filteredMemes = combineAdvancedSearchFilters(memesWithFlattenedAuthor, searchParams)
 
-      // 處理搜尋結果的排序和分頁
-      const { results: memes, pagination: searchPagination } = processSearchResults(filteredMemes, {
-        page,
-        limit,
-      })
+      // 處理進階搜尋結果的排序和分頁
+      const {
+        results: memes,
+        pagination: searchPagination,
+        scoring,
+      } = processAdvancedSearchResults(filteredMemes, { page, limit }, sort)
+
+      // 取得搜尋統計資訊
+      const searchStats = getSearchStats(filteredMemes)
 
       res.json({
         memes,
@@ -230,12 +221,16 @@ export const getMemes = async (req, res) => {
             : null,
           type,
           status,
+          author,
+          dateFrom,
+          dateTo,
         },
+        scoring,
+        searchStats,
+        searchAlgorithm: 'advanced',
       })
     } else {
-      // 使用傳統的 MongoDB 查詢（當 useFuzzySearch 為 false 或沒有搜尋關鍵字時）
-
-      // 建立全新的查詢條件，不依賴原有的 filter 物件
+      // 使用傳統的 MongoDB 查詢（向後相容）
       const mongoQuery = {}
 
       // 基本篩選條件
@@ -273,6 +268,10 @@ export const getMemes = async (req, res) => {
       if (orConditions.length > 0) {
         mongoQuery.$or = orConditions
       }
+
+      // 排序設定
+      const sortObj = {}
+      sortObj[sort] = order === 'desc' ? -1 : 1
 
       // 分頁計算
       const skip = (parseInt(page) - 1) * parseInt(limit)
@@ -590,7 +589,7 @@ export const getMemesByTags = async (req, res) => {
       status,
       sort = 'createdAt',
       order = 'desc',
-      useFuzzySearch = 'true', // 新增參數控制是否使用模糊搜尋
+      useAdvancedSearch = 'true', // 使用進階搜尋
     } = req.query
 
     // 驗證標籤ID參數
@@ -608,8 +607,8 @@ export const getMemesByTags = async (req, res) => {
     const sortObj = {}
     sortObj[sort] = order === 'desc' ? -1 : 1
 
-    // 如果使用模糊搜尋且有搜尋關鍵字
-    if (search && useFuzzySearch === 'true') {
+    // 如果使用進階搜尋且有搜尋關鍵字
+    if (search && useAdvancedSearch === 'true') {
       // 先取得所有符合標籤條件的迷因
       const basePipeline = [
         {
@@ -666,8 +665,13 @@ export const getMemesByTags = async (req, res) => {
             audio_url: '$meme.audio_url',
             status: '$meme.status',
             views: '$meme.views',
-            like_count: '$meme.like_count',
-            comment_count: '$meme.comment_count',
+            likes: '$meme.likes',
+            shares: '$meme.shares',
+            comments: '$meme.comments',
+            likes_count: '$meme.likes_count',
+            dislikes_count: '$meme.dislikes_count',
+            shares_count: '$meme.shares_count',
+            comments_count: '$meme.comments_count',
             tags_cache: '$meme.tags_cache',
             createdAt: '$meme.createdAt',
             updatedAt: '$meme.updatedAt',
@@ -679,6 +683,7 @@ export const getMemesByTags = async (req, res) => {
               username: '$author.username',
               display_name: '$author.display_name',
               avatar: '$author.avatar',
+              meme_count: '$author.meme_count',
             },
           },
         },
@@ -686,20 +691,42 @@ export const getMemesByTags = async (req, res) => {
 
       const allMemes = await MemeTag.aggregate(basePipeline)
 
-      // 使用 Fuse.js 進行模糊搜尋
+      // 轉換資料結構並扁平化作者資訊
+      const memesWithFlattenedAuthor = allMemes.map((meme) => ({
+        ...meme,
+        author: meme.author,
+        author_id: meme.author_id,
+        username: meme.username || '',
+        display_name: meme.display_name || '',
+        // 確保數值欄位存在
+        views: meme.views || 0,
+        likes: meme.likes || 0,
+        shares: meme.shares || 0,
+        comments: meme.comments || 0,
+        likes_count: meme.likes_count || 0,
+        dislikes_count: meme.dislikes_count || 0,
+        shares_count: meme.shares_count || 0,
+        comments_count: meme.comments_count || 0,
+      }))
+
+      // 使用進階搜尋過濾器
       const searchParams = {
         search,
         type,
         status,
       }
 
-      const filteredMemes = combineSearchFilters(allMemes, searchParams)
+      const filteredMemes = combineAdvancedSearchFilters(memesWithFlattenedAuthor, searchParams)
 
-      // 處理搜尋結果的排序和分頁
-      const { results: memes, pagination: searchPagination } = processSearchResults(filteredMemes, {
-        page,
-        limit,
-      })
+      // 處理進階搜尋結果的排序和分頁
+      const {
+        results: memes,
+        pagination: searchPagination,
+        scoring,
+      } = processAdvancedSearchResults(filteredMemes, { page, limit }, sort)
+
+      // 取得搜尋統計資訊
+      const searchStats = getSearchStats(filteredMemes)
 
       res.json({
         memes,
@@ -710,6 +737,9 @@ export const getMemesByTags = async (req, res) => {
           type,
           status,
         },
+        scoring,
+        searchStats,
+        searchAlgorithm: 'advanced',
       })
     } else {
       // 使用傳統的 MongoDB 聚合查詢
@@ -1175,7 +1205,7 @@ export const getHotMemes = async (req, res) => {
 
     const filter = {
       status: status,
-      createdAt: { $gte: dateLimit },
+      createdAt: mongoose.trusted({ $gte: dateLimit }),
     }
 
     // 根據類型篩選
@@ -1227,7 +1257,7 @@ export const getTrendingMemes = async (req, res) => {
 
     const filter = {
       status: status,
-      createdAt: { $gte: dateLimit },
+      createdAt: mongoose.trusted({ $gte: dateLimit }),
     }
 
     // 根據類型篩選

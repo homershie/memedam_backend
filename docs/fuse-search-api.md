@@ -18,23 +18,23 @@
 **參數：**
 
 - `search` - 搜尋關鍵字
-- `useFuzzySearch` - 是否使用模糊搜尋 (預設: true)
+- `useAdvancedSearch` - 是否使用進階搜尋 (預設: true)
 - `page` - 頁碼 (預設: 1)
 - `limit` - 每頁數量 (預設: 50)
 - `type` - 迷因類型篩選
 - `status` - 狀態篩選
 - `tags` - 標籤篩選 (逗號分隔)
-- `sort` - 排序欄位 (預設: createdAt)
+- `sort` - 排序欄位 (預設: comprehensive)
 - `order` - 排序方向 (預設: desc)
 
 **範例：**
 
 ```bash
-# 使用 Fuse.js 模糊搜尋
-GET /memes?search=貓咪&useFuzzySearch=true
+# 使用進階搜尋
+GET /memes?search=貓咪&useAdvancedSearch=true
 
 # 使用傳統搜尋
-GET /memes?search=貓咪&useFuzzySearch=false
+GET /memes?search=貓咪&useAdvancedSearch=false
 
 # 搜尋特定標籤的迷因
 GET /memes?tags=搞笑,貓咪&search=可愛
@@ -49,7 +49,7 @@ GET /memes?limit=100&page=1
 
 - `tagIds` - 標籤ID (逗號分隔)
 - `search` - 搜尋關鍵字
-- `useFuzzySearch` - 是否使用模糊搜尋 (預設: true)
+- `useAdvancedSearch` - 是否使用進階搜尋 (預設: true)
 - 其他參數同上
 
 **範例：**
@@ -110,7 +110,7 @@ GET /memes/by-tags?tagIds=507f1f77bcf86cd799439011,507f1f77bcf86cd799439012&sear
 ```javascript
 // 前端搜尋範例
 const searchMemes = async (searchTerm) => {
-  const response = await fetch(`/memes?search=${searchTerm}&useFuzzySearch=true`)
+  const response = await fetch(`/memes?search=${searchTerm}&useAdvancedSearch=true`)
   const data = await response.json()
 
   // 結果包含搜尋分數
