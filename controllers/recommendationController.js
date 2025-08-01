@@ -26,6 +26,7 @@ import {
   getMixedRecommendations,
   getRecommendationAlgorithmStats,
   adjustRecommendationStrategy,
+  clearMixedRecommendationCache,
 } from '../utils/mixedRecommendation.js'
 import {
   calculateMemeSocialScore,
@@ -582,8 +583,14 @@ export const getMixedRecommendationsController = async (req, res) => {
       include_diversity = 'true',
       include_cold_start_analysis = 'true',
       tags,
+      clear_cache = 'false',
     } = req.query
     const userId = req.user?._id
+
+    // 如果需要清除快取
+    if (clear_cache === 'true') {
+      await clearMixedRecommendationCache(userId)
+    }
 
     // 解析自定義權重
     let customWeights = {}
@@ -618,12 +625,14 @@ export const getMixedRecommendationsController = async (req, res) => {
           include_diversity: include_diversity === 'true',
           include_cold_start_analysis: include_cold_start_analysis === 'true',
           tags: tagArray,
+          clear_cache: clear_cache === 'true',
         },
         algorithm: 'mixed',
         weights: result.weights,
         cold_start_status: result.coldStartStatus,
         diversity: result.diversity,
         user_authenticated: !!userId,
+        query_info: result.queryInfo, // 新增查詢資訊
         algorithm_details: {
           description: '整合所有推薦演算法的混合推薦系統',
           features: [
@@ -633,6 +642,8 @@ export const getMixedRecommendationsController = async (req, res) => {
             '用戶活躍度分析',
             '個人化推薦策略',
             '標籤篩選支援',
+            '自動擴大時間範圍',
+            '冷啟動數量倍數',
           ],
         },
       },

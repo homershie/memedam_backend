@@ -44,6 +44,8 @@ const COLD_START_CONFIG = {
   minInteractions: 5, // 最少互動數
   minSimilarUsers: 3, // 最少相似用戶數
   fallbackWeight: 0.8, // 冷啟動時熱門推薦權重
+  // 新增：冷啟動時的推薦數量倍數
+  coldStartMultiplier: 2.0, // 冷啟動時將推薦數量翻倍
 }
 
 /**
@@ -234,11 +236,45 @@ const getHotRecommendations = async (options = {}) => {
         filter.tags_cache = { $in: tags }
       }
 
-      const memes = await Meme.find(filter)
+      // 增加查詢數量以確保有足夠的推薦
+      const queryLimit = Math.max(parseInt(limit), 50)
+
+      let memes = await Meme.find(filter)
         .sort({ hot_score: -1 })
-        .limit(parseInt(limit))
+        .limit(queryLimit)
         .populate('author_id', 'username display_name avatar')
         .lean() // 使用 lean() 提升效能
+
+      // 如果結果不足，擴大時間範圍
+      if (memes.length < Math.ceil(limit * 0.5)) {
+        const extendedDateLimit = new Date()
+        extendedDateLimit.setDate(extendedDateLimit.getDate() - 30) // 擴大到30天
+
+        const extendedFilter = {
+          status: 'public',
+          createdAt: mongoose.trusted({ $gte: extendedDateLimit }),
+        }
+
+        if (tags && tags.length > 0) {
+          extendedFilter.tags_cache = { $in: tags }
+        }
+
+        const extendedMemes = await Meme.find(extendedFilter)
+          .sort({ hot_score: -1 })
+          .limit(queryLimit)
+          .populate('author_id', 'username display_name avatar')
+          .lean()
+
+        // 合併結果並去重
+        const memeMap = new Map()
+        ;[...memes, ...extendedMemes].forEach((meme) => {
+          if (!memeMap.has(meme._id.toString())) {
+            memeMap.set(meme._id.toString(), meme)
+          }
+        })
+
+        memes = Array.from(memeMap.values())
+      }
 
       return memes.map((meme) => {
         // 確保 author_id 是字串格式
@@ -292,11 +328,45 @@ const getLatestRecommendations = async (options = {}) => {
         filter.tags_cache = { $in: tags }
       }
 
-      const memes = await Meme.find(filter)
+      // 增加查詢數量以確保有足夠的推薦
+      const queryLimit = Math.max(parseInt(limit), 50)
+
+      let memes = await Meme.find(filter)
         .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
+        .limit(queryLimit)
         .populate('author_id', 'username display_name avatar')
         .lean()
+
+      // 如果結果不足，擴大時間範圍
+      if (memes.length < Math.ceil(limit * 0.5)) {
+        const extendedDateLimit = new Date()
+        extendedDateLimit.setHours(extendedDateLimit.getHours() - 168) // 擴大到7天
+
+        const extendedFilter = {
+          status: 'public',
+          createdAt: mongoose.trusted({ $gte: extendedDateLimit }),
+        }
+
+        if (tags && tags.length > 0) {
+          extendedFilter.tags_cache = { $in: tags }
+        }
+
+        const extendedMemes = await Meme.find(extendedFilter)
+          .sort({ createdAt: -1 })
+          .limit(queryLimit)
+          .populate('author_id', 'username display_name avatar')
+          .lean()
+
+        // 合併結果並去重
+        const memeMap = new Map()
+        ;[...memes, ...extendedMemes].forEach((meme) => {
+          if (!memeMap.has(meme._id.toString())) {
+            memeMap.set(meme._id.toString(), meme)
+          }
+        })
+
+        memes = Array.from(memeMap.values())
+      }
 
       return memes.map((meme) => {
         // 確保 author_id 是字串格式
@@ -521,17 +591,6 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       tags = [],
     } = options
 
-    // 快取鍵
-    const cacheKey = `mixed_recommendations:${userId || 'anonymous'}:${limit}:${JSON.stringify(customWeights)}:${JSON.stringify(tags)}`
-
-    if (useCache) {
-      const cached = await redisCache.get(cacheKey)
-      if (cached !== null) {
-        performanceMonitor.end('mixed_recommendations')
-        return cached
-      }
-    }
-
     // 檢查冷啟動狀態
     let coldStartStatus = null
     if (userId && includeColdStartAnalysis) {
@@ -545,6 +604,23 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       customWeights,
     )
 
+    // 如果是冷啟動狀態，增加推薦數量
+    let adjustedLimit = parseInt(limit)
+    if (!userId || (coldStartStatus && coldStartStatus.isColdStart)) {
+      adjustedLimit = Math.ceil(limit * COLD_START_CONFIG.coldStartMultiplier)
+    }
+
+    // 快取鍵
+    const cacheKey = `mixed_recommendations:${userId || 'anonymous'}:${adjustedLimit}:${JSON.stringify(customWeights)}:${JSON.stringify(tags)}`
+
+    if (useCache) {
+      const cached = await redisCache.get(cacheKey)
+      if (cached !== null) {
+        performanceMonitor.end('mixed_recommendations')
+        return cached
+      }
+    }
+
     // 並行取得各種推薦
     const recommendationTasks = []
 
@@ -552,7 +628,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     if (weights.hot > 0) {
       recommendationTasks.push(
         getHotRecommendations({
-          limit: Math.ceil(limit * weights.hot),
+          limit: Math.ceil(adjustedLimit * weights.hot),
           days: 7,
           tags,
         }),
@@ -563,7 +639,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     if (weights.latest > 0) {
       recommendationTasks.push(
         getLatestRecommendations({
-          limit: Math.ceil(limit * weights.latest),
+          limit: Math.ceil(adjustedLimit * weights.latest),
           hours: 24,
           tags,
         }),
@@ -574,7 +650,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     if (userId && weights.content_based > 0) {
       recommendationTasks.push(
         getContentBasedRecommendations(userId, {
-          limit: Math.ceil(limit * weights.content_based),
+          limit: Math.ceil(adjustedLimit * weights.content_based),
           tags,
         }),
       )
@@ -584,7 +660,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     if (userId && weights.collaborative_filtering > 0) {
       recommendationTasks.push(
         getCollaborativeFilteringRecommendations(userId, {
-          limit: Math.ceil(limit * weights.collaborative_filtering),
+          limit: Math.ceil(adjustedLimit * weights.collaborative_filtering),
           tags,
         }),
       )
@@ -594,7 +670,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     if (userId && weights.social_collaborative_filtering > 0) {
       recommendationTasks.push(
         getSocialCollaborativeFilteringRecommendations(userId, {
-          limit: Math.ceil(limit * weights.social_collaborative_filtering),
+          limit: Math.ceil(adjustedLimit * weights.social_collaborative_filtering),
           tags,
         }),
       )
@@ -662,6 +738,13 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       algorithm: 'mixed',
       userAuthenticated: !!userId,
       appliedTags: tags,
+      // 新增：顯示實際查詢的數量
+      queryInfo: {
+        requestedLimit: limit,
+        adjustedLimit: adjustedLimit,
+        coldStartMultiplier: COLD_START_CONFIG.coldStartMultiplier,
+        isColdStart: !userId || (coldStartStatus && coldStartStatus.isColdStart),
+      },
     }
 
     // 設定快取
@@ -861,6 +944,26 @@ export const clearUserCache = async (userId) => {
     logger.info(`已清除用戶 ${userId} 的快取`)
   } catch (error) {
     logger.error('清除用戶快取失敗:', error)
+  }
+}
+
+/**
+ * 清除混合推薦快取
+ * @param {string} userId - 用戶ID（可選）
+ */
+export const clearMixedRecommendationCache = async (userId = null) => {
+  try {
+    const patterns = [
+      `mixed_recommendations:${userId || 'anonymous'}:*`,
+      `hot_recommendations:*`,
+      `latest_recommendations:*`,
+    ]
+
+    await Promise.all(patterns.map((pattern) => redisCache.delPattern(pattern)))
+
+    logger.info(`已清除混合推薦快取 ${userId ? `(用戶: ${userId})` : '(匿名用戶)'}`)
+  } catch (error) {
+    logger.error('清除混合推薦快取失敗:', error)
   }
 }
 
