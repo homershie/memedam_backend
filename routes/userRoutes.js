@@ -102,6 +102,19 @@ const router = express.Router()
  *           type: string
  *           format: binary
  *           description: 頭像文件
+ *     Error:
+ *       type: object
+ *       properties:
+ *         message:
+ *           type: string
+ *           description: 錯誤訊息
+ *         status:
+ *           type: integer
+ *           description: HTTP 狀態碼
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ *           description: 錯誤發生時間
  */
 
 /**
@@ -380,6 +393,154 @@ router.delete('/:id', token, isManager, deleteUser)
  *                   description: 新的JWT Token
  *       401:
  *         description: Token無效
+ * /api/users/bind/{provider}:
+ *   post:
+ *     summary: 綁定社群帳號
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: provider
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [google, facebook, discord, twitter]
+ *         description: 社群平台提供商
+ *     responses:
+ *       200:
+ *         description: 社群帳號綁定成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: 請求參數錯誤
+ *       401:
+ *         description: 未授權
+ *       409:
+ *         description: 帳號已綁定
+ * /api/users/auth/google:
+ *   get:
+ *     summary: Google OAuth 登入
+ *     tags: [OAuth]
+ *     description: 重定向到 Google 授權頁面
+ *     responses:
+ *       302:
+ *         description: 重定向到 Google 授權頁面
+ * /api/users/auth/google/callback:
+ *   get:
+ *     summary: Google OAuth 回調
+ *     tags: [OAuth]
+ *     description: 處理 Google OAuth 授權回調
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: Google 授權碼
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: 狀態參數
+ *     responses:
+ *       302:
+ *         description: 重定向到前端並帶上 token
+ *       401:
+ *         description: OAuth 認證失敗
+ * /api/users/auth/facebook:
+ *   get:
+ *     summary: Facebook OAuth 登入
+ *     tags: [OAuth]
+ *     description: 重定向到 Facebook 授權頁面
+ *     responses:
+ *       302:
+ *         description: 重定向到 Facebook 授權頁面
+ * /api/users/auth/facebook/callback:
+ *   get:
+ *     summary: Facebook OAuth 回調
+ *     tags: [OAuth]
+ *     description: 處理 Facebook OAuth 授權回調
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: Facebook 授權碼
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: 狀態參數
+ *     responses:
+ *       302:
+ *         description: 重定向到前端並帶上 token
+ *       401:
+ *         description: OAuth 認證失敗
+ * /api/users/auth/discord:
+ *   get:
+ *     summary: Discord OAuth 登入
+ *     tags: [OAuth]
+ *     description: 重定向到 Discord 授權頁面
+ *     responses:
+ *       302:
+ *         description: 重定向到 Discord 授權頁面
+ * /api/users/auth/discord/callback:
+ *   get:
+ *     summary: Discord OAuth 回調
+ *     tags: [OAuth]
+ *     description: 處理 Discord OAuth 授權回調
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: Discord 授權碼
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: 狀態參數
+ *     responses:
+ *       302:
+ *         description: 重定向到前端並帶上 token
+ *       401:
+ *         description: OAuth 認證失敗
+ * /api/users/auth/twitter:
+ *   get:
+ *     summary: Twitter OAuth 登入
+ *     tags: [OAuth]
+ *     description: 重定向到 Twitter 授權頁面
+ *     responses:
+ *       302:
+ *         description: 重定向到 Twitter 授權頁面
+ * /api/users/auth/twitter/callback:
+ *   get:
+ *     summary: Twitter OAuth 回調
+ *     tags: [OAuth]
+ *     description: 處理 Twitter OAuth 授權回調
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: Twitter 授權碼
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: 狀態參數
+ *     responses:
+ *       302:
+ *         description: 重定向到前端並帶上 token
+ *       401:
+ *         description: OAuth 認證失敗
  */
 router.post('/login', login)
 router.post('/logout', token, logout)

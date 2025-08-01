@@ -132,6 +132,49 @@ const router = express.Router()
  *             type: string
  *             format: binary
  *           description: 迷因圖片文件
+ *     MemeEditProposal:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *           description: 提案唯一ID
+ *         memeId:
+ *           type: string
+ *           description: 迷因ID
+ *         proposerId:
+ *           type: string
+ *           description: 提案者ID
+ *         changes:
+ *           type: object
+ *           description: 修改內容
+ *         notes:
+ *           type: string
+ *           description: 修改說明
+ *         status:
+ *           type: string
+ *           enum: [pending, approved, rejected]
+ *           description: 提案狀態
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           description: 創建時間
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *           description: 更新時間
+ *     Error:
+ *       type: object
+ *       properties:
+ *         message:
+ *           type: string
+ *           description: 錯誤訊息
+ *         status:
+ *           type: integer
+ *           description: HTTP 狀態碼
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ *           description: 錯誤發生時間
  */
 
 /**
@@ -157,8 +200,16 @@ const router = express.Router()
  *               $ref: '#/components/schemas/Meme'
  *       400:
  *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *   get:
  *     summary: 取得所有迷因
  *     tags: [Memes]
@@ -377,12 +428,28 @@ router.get('/', getMemes)
  *               $ref: '#/components/schemas/Meme'
  *       400:
  *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: 權限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *   delete:
  *     summary: 刪除迷因 (作者/協作者專用)
  *     tags: [Memes]
@@ -400,10 +467,22 @@ router.get('/', getMemes)
  *         description: 迷因刪除成功
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: 權限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/search-suggestions', getSearchSuggestions)
 router.get('/by-tags', getMemesByTags)
@@ -429,8 +508,16 @@ router.get('/by-tags', getMemesByTags)
  *                   type: integer
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/batch-update-hot-scores', token, batchUpdateHotScores)
 
@@ -603,12 +690,28 @@ router.get('/:id/score-analysis', getMemeScoreAnalysis)
  *                   type: string
  *       400:
  *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: 權限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *   delete:
  *     summary: 移除協作者
  *     tags: [Memes]
@@ -639,12 +742,28 @@ router.get('/:id/score-analysis', getMemeScoreAnalysis)
  *                   type: string
  *       400:
  *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: 權限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/:id/editors', token, addEditor)
 router.delete('/:id/editors', token, removeEditor)
@@ -693,10 +812,22 @@ router.delete('/:id/editors', token, removeEditor)
  *                   type: string
  *       400:
  *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *   get:
  *     summary: 查詢所有提案
  *     tags: [Memes]
@@ -724,10 +855,22 @@ router.delete('/:id/editors', token, removeEditor)
  *                     description: 提案資訊
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: 權限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/:id/proposals', token, proposeEdit)
 router.get('/:id/proposals', token, canEditMeme, listProposals)
@@ -765,10 +908,22 @@ router.get('/:id/proposals', token, canEditMeme, listProposals)
  *                   type: string
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: 權限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因或提案不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/:id/proposals/:proposalId/approve', token, canEditMeme, approveProposal)
 
@@ -815,10 +970,22 @@ router.post('/:id/proposals/:proposalId/approve', token, canEditMeme, approvePro
  *                   type: string
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: 權限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因或提案不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/:id/proposals/:proposalId/reject', token, canEditMeme, rejectProposal)
 
@@ -851,8 +1018,16 @@ router.post('/:id/proposals/:proposalId/reject', token, canEditMeme, rejectPropo
  *                   type: number
  *       401:
  *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: 迷因不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.put('/:id/hot-score', token, updateMemeHotScore)
 
