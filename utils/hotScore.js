@@ -52,6 +52,7 @@ export const calculateHNHotScore = (upvotes, createdAt, now = new Date()) => {
  * @param {number} memeData.collection_count - 收藏數
  * @param {number} memeData.share_count - 分享數
  * @param {Date} memeData.createdAt - 創建時間
+ * @param {Date} memeData.modified_at - 修改時間（可選）
  * @param {Date} now - 當前時間（可選）
  * @returns {number} 熱門分數
  */
@@ -64,6 +65,7 @@ export const calculateMemeHotScore = (memeData, now = new Date()) => {
     collection_count = 0,
     share_count = 0,
     createdAt,
+    modified_at,
   } = memeData
 
   // 權重設定
@@ -85,9 +87,18 @@ export const calculateMemeHotScore = (memeData, now = new Date()) => {
     collection_count * weights.collection +
     share_count * weights.share
 
+  // 使用有效時間（優先使用修改時間，提升更新內容的排名）
+  const effectiveDate = modified_at || createdAt
+  const timeDiff = (now - effectiveDate) / (1000 * 60 * 60 * 24) // 轉換為天
+  
   // 時間衰減因子（使用對數衰減）
-  const timeDiff = (now - createdAt) / (1000 * 60 * 60 * 24) // 轉換為天
-  const timeDecay = 1 / (1 + Math.log(timeDiff + 1))
+  let timeDecay = 1 / (1 + Math.log(timeDiff + 1))
+  
+  // 如果內容曾被修改，給予額外的新鮮度加成
+  if (modified_at && modified_at !== createdAt) {
+    const freshnesBonus = 1.2 // 20% 新鮮度加成
+    timeDecay *= freshnesBonus
+  }
 
   // 最終熱門分數
   const hotScore = baseScore * timeDecay
@@ -188,6 +199,51 @@ export const calculateQualityScore = (memeData) => {
   return Math.round(qualityScore)
 }
 
+/**
+ * 計算更新內容的推薦分數
+ * 專門用於推薦系統中優化最近更新的內容
+ *
+ * @param {Object} memeData - 迷因資料
+ * @param {Date} now - 當前時間（可選）
+ * @returns {number} 更新推薦分數
+ */
+export const calculateUpdatedContentScore = (memeData, now = new Date()) => {
+  const { createdAt, modified_at, hot_score = 0 } = memeData
+
+  // 如果沒有修改時間，返回原始熱門分數
+  if (!modified_at || modified_at === createdAt) {
+    return hot_score
+  }
+
+  // 計算修改距離現在的時間（小時）
+  const hoursSinceModified = (now - modified_at) / (1000 * 60 * 60)
+  
+  // 新鮮度分數（24小時內修改的內容獲得最高加成）
+  let freshnessMultiplier = 1.0
+  if (hoursSinceModified <= 1) {
+    freshnessMultiplier = 2.0 // 1小時內修改 +100%
+  } else if (hoursSinceModified <= 6) {
+    freshnessMultiplier = 1.5 // 6小時內修改 +50%
+  } else if (hoursSinceModified <= 24) {
+    freshnessMultiplier = 1.3 // 24小時內修改 +30%
+  } else if (hoursSinceModified <= 72) {
+    freshnessMultiplier = 1.1 // 3天內修改 +10%
+  }
+
+  // 計算內容年齡（天）
+  const daysSinceCreation = (now - createdAt) / (1000 * 60 * 60 * 24)
+  
+  // 對於較舊的內容，修改後給予更大的推薦加成
+  let ageBonus = 1.0
+  if (daysSinceCreation > 7) {
+    ageBonus = 1.4 // 老內容修改後加成更多
+  } else if (daysSinceCreation > 3) {
+    ageBonus = 1.2
+  }
+
+  return hot_score * freshnessMultiplier * ageBonus
+}
+
 export default {
   calculateRedditHotScore,
   calculateHNHotScore,
@@ -196,4 +252,5 @@ export default {
   getHotScoreLevel,
   calculateEngagementScore,
   calculateQualityScore,
+  calculateUpdatedContentScore,
 }
