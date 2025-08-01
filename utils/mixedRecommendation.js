@@ -7,7 +7,7 @@
 import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
-import { getHotScoreLevel } from './hotScore.js'
+import { getHotScoreLevel, calculateUpdatedContentScore } from './hotScore.js'
 import Like from '../models/Like.js'
 import Comment from '../models/Comment.js'
 import Share from '../models/Share.js'
@@ -31,11 +31,12 @@ import { sortByTotalScoreDesc } from './sortHelpers.js'
  * 演算法權重配置
  */
 const ALGORITHM_WEIGHTS = {
-  hot: 0.25,
-  latest: 0.25,
-  content_based: 0.2,
-  collaborative_filtering: 0.15,
-  social_collaborative_filtering: 0.15,
+  hot: 0.22,
+  latest: 0.22,
+  updated: 0.16, // 新增：最近更新內容推薦
+  content_based: 0.17,
+  collaborative_filtering: 0.12,
+  social_collaborative_filtering: 0.11,
 }
 
 /**
@@ -57,6 +58,7 @@ const CACHE_CONFIG = {
   userPreferences: 3600, // 1小時
   hotRecommendations: 900, // 15分鐘
   latestRecommendations: 300, // 5分鐘
+  updatedRecommendations: 600, // 10分鐘
   contentBasedRecommendations: 1800, // 30分鐘
   collaborativeFilteringRecommendations: 3600, // 1小時
   socialRecommendations: 3600, // 1小時
@@ -170,7 +172,8 @@ const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights 
   // 如果是冷啟動狀態，增加熱門推薦權重
   if (coldStartStatus.isColdStart) {
     weights.hot = COLD_START_CONFIG.fallbackWeight
-    weights.latest = 0.2
+    weights.latest = 0.15
+    weights.updated = 0.05
     weights.content_based = 0
     weights.collaborative_filtering = 0
     weights.social_collaborative_filtering = 0
@@ -179,32 +182,36 @@ const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights 
     const activityLevel = coldStartStatus.activityScore.level
     switch (activityLevel) {
       case 'very_active':
-        weights.content_based = 0.3
-        weights.collaborative_filtering = 0.2
-        weights.social_collaborative_filtering = 0.2
-        weights.hot = 0.15
-        weights.latest = 0.15
+        weights.content_based = 0.28
+        weights.collaborative_filtering = 0.18
+        weights.social_collaborative_filtering = 0.18
+        weights.hot = 0.13
+        weights.latest = 0.13
+        weights.updated = 0.1
         break
       case 'active':
-        weights.content_based = 0.25
-        weights.collaborative_filtering = 0.2
-        weights.social_collaborative_filtering = 0.15
-        weights.hot = 0.2
-        weights.latest = 0.2
+        weights.content_based = 0.22
+        weights.collaborative_filtering = 0.18
+        weights.social_collaborative_filtering = 0.13
+        weights.hot = 0.18
+        weights.latest = 0.17
+        weights.updated = 0.12
         break
       case 'moderate':
-        weights.content_based = 0.2
-        weights.collaborative_filtering = 0.15
-        weights.social_collaborative_filtering = 0.1
-        weights.hot = 0.25
-        weights.latest = 0.3
+        weights.content_based = 0.17
+        weights.collaborative_filtering = 0.13
+        weights.social_collaborative_filtering = 0.08
+        weights.hot = 0.22
+        weights.latest = 0.25
+        weights.updated = 0.15
         break
       default:
-        weights.hot = 0.4
-        weights.latest = 0.3
-        weights.content_based = 0.2
-        weights.collaborative_filtering = 0.05
-        weights.social_collaborative_filtering = 0.05
+        weights.hot = 0.35
+        weights.latest = 0.25
+        weights.updated = 0.2
+        weights.content_based = 0.15
+        weights.collaborative_filtering = 0.03
+        weights.social_collaborative_filtering = 0.02
     }
   }
 
@@ -395,6 +402,105 @@ const getLatestRecommendations = async (options = {}) => {
       })
     },
     { ttl: CACHE_CONFIG.latestRecommendations },
+  )
+}
+
+/**
+ * 取得最近更新推薦（快取版本）
+ * @param {Object} options - 選項
+ * @returns {Array} 最近更新推薦列表
+ */
+const getUpdatedRecommendations = async (options = {}) => {
+  const { limit = 20, days = 30, tags = [] } = options || {}
+  const cacheKey = `updated_recommendations:${limit}:${days}:${JSON.stringify(tags)}`
+
+  return await cacheProcessor.processWithCache(
+    cacheKey,
+    async () => {
+      const dateLimit = new Date()
+      dateLimit.setDate(dateLimit.getDate() - parseInt(days))
+
+      // 建立查詢條件 - 尋找有修改時間的內容
+      const filter = {
+        status: 'public',
+        modified_at: { $exists: true, $ne: null, $gte: dateLimit },
+      }
+
+      // 如果有標籤篩選，加入標籤條件
+      if (tags && tags.length > 0) {
+        filter.tags_cache = { $in: tags }
+      }
+
+      // 增加查詢數量以確保有足夠的推薦
+      const queryLimit = Math.max(parseInt(limit), 50)
+
+      let memes = await Meme.find(filter)
+        .sort({ modified_at: -1 }) // 按修改時間排序
+        .limit(queryLimit)
+        .populate('author_id', 'username display_name avatar')
+        .lean()
+
+      // 如果結果不足，擴大時間範圍
+      if (memes.length < Math.ceil(limit * 0.5)) {
+        const extendedDateLimit = new Date()
+        extendedDateLimit.setDate(extendedDateLimit.getDate() - 90) // 擴大到90天
+
+        const extendedFilter = {
+          status: 'public',
+          modified_at: { $exists: true, $ne: null, $gte: extendedDateLimit },
+        }
+
+        if (tags && tags.length > 0) {
+          extendedFilter.tags_cache = { $in: tags }
+        }
+
+        const extendedMemes = await Meme.find(extendedFilter)
+          .sort({ modified_at: -1 })
+          .limit(queryLimit)
+          .populate('author_id', 'username display_name avatar')
+          .lean()
+
+        // 合併結果並去重
+        const memeMap = new Map()
+        ;[...memes, ...extendedMemes].forEach((meme) => {
+          if (!memeMap.has(meme._id.toString())) {
+            memeMap.set(meme._id.toString(), meme)
+          }
+        })
+
+        memes = Array.from(memeMap.values())
+        // 重新排序，確保最近修改的在前面
+        memes.sort((a, b) => new Date(b.modified_at) - new Date(a.modified_at))
+      }
+
+      return memes.map((meme) => {
+        // 確保 author_id 是字串格式
+        let authorId = null
+        if (meme.author_id) {
+          if (typeof meme.author_id === 'object' && meme.author_id._id) {
+            authorId = meme.author_id._id.toString()
+          } else if (typeof meme.author_id === 'object') {
+            authorId = meme.author_id.toString()
+          } else {
+            authorId = meme.author_id.toString()
+          }
+        }
+
+        // 計算更新內容的推薦分數
+        const updatedScore = calculateUpdatedContentScore(meme)
+
+        return {
+          ...meme,
+          author_id: authorId,
+          recommendation_score: updatedScore,
+          recommendation_type: 'updated',
+          days_since_modified: Math.floor(
+            (Date.now() - new Date(meme.modified_at).getTime()) / (1000 * 60 * 60 * 24),
+          ),
+        }
+      })
+    },
+    { ttl: CACHE_CONFIG.updatedRecommendations },
   )
 }
 
@@ -749,6 +855,17 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       )
     }
 
+    // 更新內容推薦
+    if (weights.updated > 0) {
+      recommendationTasks.push(
+        getUpdatedRecommendations({
+          limit: Math.ceil(adjustedLimit * weights.updated),
+          days: 30,
+          tags,
+        }),
+      )
+    }
+
     // 內容基礎推薦（需要登入）
     if (userId && weights.content_based > 0) {
       recommendationTasks.push(
@@ -1051,38 +1168,42 @@ export const adjustRecommendationStrategy = async (userId, userBehavior = {}) =>
 
         // 高點擊率用戶傾向個人化推薦
         if (clickRate > 0.3) {
-          strategy.weights.content_based = 0.35
-          strategy.weights.collaborative_filtering = 0.25
-          strategy.weights.social_collaborative_filtering = 0.2
-          strategy.weights.hot = 0.1
-          strategy.weights.latest = 0.1
+          strategy.weights.content_based = 0.32
+          strategy.weights.collaborative_filtering = 0.23
+          strategy.weights.social_collaborative_filtering = 0.18
+          strategy.weights.hot = 0.09
+          strategy.weights.latest = 0.09
+          strategy.weights.updated = 0.09
           strategy.focus = 'personalization'
         }
 
         // 高互動率用戶傾向社交推薦
         if (engagementRate > 0.5) {
-          strategy.weights.social_collaborative_filtering = 0.3
-          strategy.weights.collaborative_filtering = 0.25
-          strategy.weights.content_based = 0.2
-          strategy.weights.hot = 0.15
-          strategy.weights.latest = 0.1
+          strategy.weights.social_collaborative_filtering = 0.27
+          strategy.weights.collaborative_filtering = 0.23
+          strategy.weights.content_based = 0.18
+          strategy.weights.hot = 0.13
+          strategy.weights.latest = 0.09
+          strategy.weights.updated = 0.1
           strategy.focus = 'social'
         }
 
         // 高多樣性偏好用戶傾向探索推薦
         if (diversityPreference > 0.7) {
-          strategy.weights.latest = 0.3
-          strategy.weights.hot = 0.25
-          strategy.weights.content_based = 0.2
-          strategy.weights.collaborative_filtering = 0.15
-          strategy.weights.social_collaborative_filtering = 0.1
+          strategy.weights.latest = 0.25
+          strategy.weights.updated = 0.2
+          strategy.weights.hot = 0.2
+          strategy.weights.content_based = 0.17
+          strategy.weights.collaborative_filtering = 0.1
+          strategy.weights.social_collaborative_filtering = 0.08
           strategy.focus = 'exploration'
         }
 
         // 冷啟動用戶使用熱門推薦
         if (coldStartStatus.isColdStart) {
-          strategy.weights.hot = 0.6
-          strategy.weights.latest = 0.4
+          strategy.weights.hot = 0.5
+          strategy.weights.latest = 0.3
+          strategy.weights.updated = 0.2
           strategy.weights.content_based = 0
           strategy.weights.collaborative_filtering = 0
           strategy.weights.social_collaborative_filtering = 0
@@ -1115,6 +1236,8 @@ const generateGenericRecommendationReason = (recommendation) => {
           return '這則迷因目前很熱門'
         case 'latest':
           return '這是最新發布的迷因'
+        case 'updated':
+          return '這則迷因最近有更新'
         case 'content_based':
           return '基於你喜歡的內容類型推薦'
         case 'collaborative_filtering':
@@ -1186,6 +1309,7 @@ export const clearMixedRecommendationCache = async (userId = null) => {
       `mixed_recommendations:${userId || 'anonymous'}:*`,
       `hot_recommendations:*`,
       `latest_recommendations:*`,
+      `updated_recommendations:*`,
     ]
 
     await Promise.all(patterns.map((pattern) => redisCache.delPattern(pattern)))

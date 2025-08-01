@@ -1,6 +1,7 @@
 import Tag from '../models/Tag.js'
 import MemeTag from '../models/MemeTag.js'
 import Meme from '../models/Meme.js'
+import mongoose from 'mongoose'
 
 // 建立標籤
 export const createTag = async (req, res) => {
@@ -149,6 +150,11 @@ export const getPopularTags = async (req, res) => {
 // 取得單一標籤
 export const getTagById = async (req, res) => {
   try {
+    // 驗證 ObjectId 格式
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: '無效的標籤 ID 格式' })
+    }
+
     const tag = await Tag.findById(req.params.id)
     if (!tag) return res.status(404).json({ error: '找不到標籤' })
 
@@ -166,6 +172,11 @@ export const getTagById = async (req, res) => {
 
 // 更新標籤
 export const updateTag = async (req, res) => {
+  // 驗證 ObjectId 格式
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: '無效的標籤 ID 格式' })
+  }
+
   // 使用 session 來確保原子性操作
   const session = await Tag.startSession()
   session.startTransaction()
@@ -229,6 +240,11 @@ export const updateTag = async (req, res) => {
 
 // 刪除標籤
 export const deleteTag = async (req, res) => {
+  // 驗證 ObjectId 格式
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: '無效的標籤 ID 格式' })
+  }
+
   // 使用 session 來確保原子性操作
   const session = await Tag.startSession()
   session.startTransaction()

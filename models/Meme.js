@@ -257,6 +257,18 @@ const MemeSchema = new mongoose.Schema(
       },
       // 自動下架時間
     },
+    modified_at: {
+      type: Date,
+      default: null,
+      validate: {
+        validator: function (v) {
+          if (!v) return true // 允許空值
+          return v instanceof Date && !isNaN(v)
+        },
+        message: '修改時間必須是有效的日期',
+      },
+      // 最後實質性修改時間（用於推薦系統優化）
+    },
     hash: {
       type: String,
       default: '',
@@ -332,6 +344,10 @@ MemeSchema.pre('validate', function (next) {
     errors.push('刪除時間不能早於創建時間')
   }
 
+  if (this.modified_at && this.created_at && this.modified_at < this.created_at) {
+    errors.push('修改時間不能早於創建時間')
+  }
+
   if (errors.length > 0) {
     return next(new Error(errors.join(', ')))
   }
@@ -349,6 +365,34 @@ MemeSchema.methods.updateHotScore = function () {
 // 添加實例方法：取得熱門等級
 MemeSchema.methods.getHotLevel = function () {
   return getHotScoreLevel(this.hot_score)
+}
+
+// 添加實例方法：標記實質性修改
+MemeSchema.methods.markAsModified = function (updateFields = {}) {
+  // 檢查是否為實質性修改（排除統計數據更新）
+  const substantialFields = [
+    'title',
+    'content',
+    'tags_cache',
+    'image_url',
+    'video_url',
+    'audio_url',
+    'detail_markdown',
+  ]
+  const hasSubstantialChange = substantialFields.some((field) =>
+    Object.prototype.hasOwnProperty.call(updateFields, field),
+  )
+
+  if (hasSubstantialChange) {
+    this.modified_at = new Date()
+  }
+
+  return this
+}
+
+// 添加實例方法：取得有效的時間基準（優先使用修改時間）
+MemeSchema.methods.getEffectiveDate = function () {
+  return this.modified_at || this.createdAt
 }
 
 // 添加靜態方法：批次更新熱門分數
