@@ -52,7 +52,9 @@ passport.use(
 
 // 延遲初始化 JWT 策略
 const initializeJWTStrategy = () => {
-  if (!process.env.JWT_SECRET) {
+  const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret'
+
+  if (!JWT_SECRET) {
     console.error('錯誤: JWT_SECRET 環境變數未設定')
     return
   }
@@ -62,7 +64,7 @@ const initializeJWTStrategy = () => {
     new passportJWT.Strategy(
       {
         jwtFromRequest: passportJWT.ExtractJwt.fromAuthHeaderAsBearerToken(),
-        secretOrKey: process.env.JWT_SECRET,
+        secretOrKey: JWT_SECRET,
         passReqToCallback: true,
         // 忽略過期檢查，因為舊換新的時候可以允許過期的 token 通過
         ignoreExpiration: true,
@@ -73,8 +75,24 @@ const initializeJWTStrategy = () => {
       // done = 跟上面一樣
       async (req, payload, done) => {
         try {
-          // const token = req.headers.authorization.split(' ')[1]
-          const token = passportJWT.ExtractJwt.fromAuthHeaderAsBearerToken()(req)
+          console.log('=== JWT 策略開始驗證 ===')
+
+          // 從 Authorization header 提取 token
+          const authHeader = req.headers.authorization
+          let token = null
+
+          if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7) // 移除 'Bearer ' 前綴
+          }
+
+          console.log('提取的 token:', token ? token.substring(0, 50) + '...' : 'null')
+
+          if (!token) {
+            console.log('未提供 token')
+            return done(null, false, { message: '未提供 token' })
+          }
+
+          console.log('JWT payload:', payload)
 
           // 手動檢查過期時間
           // 只有 refresh 和 logout 可以允許過期的 token
@@ -87,20 +105,40 @@ const initializeJWTStrategy = () => {
           // req.path = /abcd
           // req.query = { aaa: '111', bbb: '222' }
           const url = req.baseUrl + req.path
+          console.log('請求 URL:', url)
+          console.log('Token 是否過期:', expired)
+
           if (expired && url !== '/users/refresh' && url !== '/users/logout') {
             throw new Error('token 已過期')
           }
-          // 修正：檢查使用者是否存在，並且 tokens 陣列裡面有這個 token
-          const user = await User.findOne({
-            _id: payload._id,
-            tokens: token, // 修正：使用 tokens 陣列查詢
-          }).orFail(new Error('使用者不存在'))
+
+          console.log('開始查詢用戶，用戶ID:', payload._id)
+
+          // 先檢查使用者是否存在
+          const user = await User.findById(payload._id)
+
+          console.log('查詢結果:', user ? '找到用戶' : '未找到用戶')
+
+          if (!user) {
+            throw new Error('使用者不存在')
+          }
+
+          // 檢查 tokens 陣列是否包含當前 token
+          if (!user.tokens || !user.tokens.includes(token)) {
+            console.log('Token 不在用戶的 tokens 陣列中')
+            console.log('用戶的 tokens:', user.tokens)
+            throw new Error('token 已失效')
+          }
+
+          console.log('✅ JWT 驗證成功')
           return done(null, { user, token })
         } catch (error) {
-          console.log('passport.js jwt')
-          console.error(error)
+          console.log('passport.js jwt 錯誤:', error.message)
+          console.log('錯誤類型:', error.constructor.name)
           if (error.message === '使用者不存在') {
-            return done(null, false, { message: '使用者不存在或 token 已失效' })
+            return done(null, false, { message: '使用者不存在' })
+          } else if (error.message === 'token 已失效') {
+            return done(null, false, { message: 'token 已失效' })
           } else if (error.message === 'token 已過期') {
             return done(null, false, { message: 'token 已過期' })
           } else {
@@ -273,8 +311,6 @@ passport.deserializeUser(async (id, done) => {
   done(null, user)
 })
 
-// 延遲初始化所有策略
-setTimeout(() => {
-  initializeJWTStrategy()
-  initializeOAuthStrategies()
-}, 100)
+// 立即初始化所有策略
+initializeJWTStrategy()
+initializeOAuthStrategies()
