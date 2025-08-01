@@ -586,7 +586,7 @@ router.get('/hot-score-statistics', token, isAdmin, async (req, res) => {
  */
 router.post('/update-all-recommendation-systems', token, isAdmin, async (req, res) => {
   try {
-    const { options = {} } = req.body
+    const { options = {} } = req.body || {}
     const result = await updateAllRecommendationSystems(options)
     res.json({
       success: true,
