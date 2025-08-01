@@ -25,6 +25,7 @@ import { calculateMultipleMemeSocialScores } from './socialScoreCalculator.js'
 import redisCache from '../config/redis.js'
 import { cacheProcessor, performanceMonitor } from './asyncProcessor.js'
 import { logger } from './logger.js'
+import { sortByTotalScoreDesc } from './sortHelpers.js'
 
 /**
  * 演算法權重配置
@@ -524,7 +525,7 @@ const mergeRecommendations = (recommendations, weights) => {
 
   // 轉換為陣列並排序
   const mergedRecommendations = Array.from(memeMap.values())
-  mergedRecommendations.sort((a, b) => b.total_score - a.total_score)
+  sortByTotalScoreDesc(mergedRecommendations)
 
   return mergedRecommendations
 }
@@ -637,6 +638,8 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
         // 計算分頁
         const skip = (page - 1) * limit
         const paginatedRecommendations = cachedRecommendations.slice(skip, skip + limit)
+        // 確保分頁結果依照總分由高至低排序
+        paginatedRecommendations.sort((a, b) => b.total_score - a.total_score)
 
         // 如果需要社交層分數，為每個迷因計算詳細的社交分數
         if (includeSocialScores && userId) {
@@ -667,7 +670,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
           })
 
           // 重新按 total_score 排序，確保社交分數計算不會影響原始排序
-          paginatedRecommendations.sort((a, b) => b.total_score - a.total_score)
+          sortByTotalScoreDesc(paginatedRecommendations)
         }
 
         // 生成推薦原因
@@ -793,6 +796,8 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     // 計算分頁
     const skip = (page - 1) * limit
     const paginatedRecommendations = mergedRecommendations.slice(skip, skip + limit)
+    // 確保分頁結果依照總分由高至低排序
+    paginatedRecommendations.sort((a, b) => b.total_score - a.total_score)
 
     // 如果需要社交層分數，為每個迷因計算詳細的社交分數
     if (includeSocialScores && userId) {
@@ -823,7 +828,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       })
 
       // 重新按 total_score 排序，確保社交分數計算不會影響原始排序
-      paginatedRecommendations.sort((a, b) => b.total_score - a.total_score)
+      sortByTotalScoreDesc(paginatedRecommendations)
     }
 
     // 生成推薦原因
@@ -943,6 +948,9 @@ export const getInfiniteScrollRecommendations = async (userId = null, options = 
     // 計算分頁
     const skip = (page - 1) * limit
     const paginatedRecommendations = filteredRecommendations.slice(skip, skip + limit)
+
+    // 確保分頁後的推薦按 total_score 排序
+    sortByTotalScoreDesc(paginatedRecommendations)
 
     // 計算分頁資訊
     const total = filteredRecommendations.length

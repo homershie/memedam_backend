@@ -8,7 +8,6 @@ import {
   getInfiniteScrollRecommendations,
   getMixedRecommendations,
 } from '../utils/mixedRecommendation.js'
-import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
 
 // Mock 相關模組
 jest.mock('../models/Meme.js')
