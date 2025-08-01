@@ -414,7 +414,7 @@ MemeSchema.statics.getHotMemes = async function (limit = 50, days = 7) {
 
   return this.find({
     status: 'public',
-    createdAt: { $gte: dateLimit },
+    createdAt: mongoose.trusted({ $gte: dateLimit }),
   })
     .sort({ hot_score: -1 })
     .limit(limit)
@@ -428,7 +428,7 @@ MemeSchema.statics.getTrendingMemes = async function (limit = 50, hours = 24) {
 
   return this.find({
     status: 'public',
-    createdAt: { $gte: dateLimit },
+    createdAt: mongoose.trusted({ $gte: dateLimit }),
   })
     .sort({ hot_score: -1, views: -1 })
     .limit(limit)

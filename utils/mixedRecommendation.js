@@ -447,7 +447,7 @@ const getUpdatedRecommendations = async (options = {}) => {
 
         const extendedFilter = {
           status: 'public',
-          modified_at: { $exists: true, $ne: null, $gte: extendedDateLimit },
+          modified_at: mongoose.trusted({ $exists: true, $ne: null, $gte: extendedDateLimit }),
         }
 
         if (tags && tags.length > 0) {
