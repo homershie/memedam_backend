@@ -44,9 +44,10 @@ export const getHotRecommendations = async (req, res) => {
     const {
       limit = 20,
       type = 'all',
-      days = 7,
+      days = 30, // 預設改為30天
       exclude_viewed = 'false',
       tags,
+      types, // 新增：支援多個類型篩選
       // 新增：分頁和排除功能
       page = 1,
       exclude_ids,
@@ -54,7 +55,7 @@ export const getHotRecommendations = async (req, res) => {
 
     const userId = req.user?._id
     const parsedDays = parseInt(days)
-    const validDays = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 7
+    const validDays = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 30
     const dateLimit = new Date()
     dateLimit.setDate(dateLimit.getDate() - validDays)
 
@@ -64,7 +65,15 @@ export const getHotRecommendations = async (req, res) => {
       createdAt: mongoose.trusted({ $gte: dateLimit }),
     }
 
-    if (type !== 'all') {
+    // 處理類型篩選
+    if (types) {
+      // 支援多個類型篩選
+      const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
+      if (typeArray.length > 0) {
+        filter.type = { $in: typeArray }
+      }
+    } else if (type !== 'all') {
+      // 向後相容：單一類型篩選
       filter.type = type
     }
 

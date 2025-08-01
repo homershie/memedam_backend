@@ -110,6 +110,7 @@ import viewRoutes from './routes/viewRoutes.js'
 import followRoutes from './routes/followRoutes.js'
 import tagRoutes from './routes/tagRoutes.js'
 import memeTagRoutes from './routes/memeTagRoutes.js'
+import testRoutes from './routes/testRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
 import reportRoutes from './routes/reportRoutes.js'
 import memeVersionRoutes from './routes/memeVersionRoutes.js'
@@ -132,6 +133,7 @@ app.use('/api/views', viewRoutes)
 app.use('/api/follows', followRoutes)
 app.use('/api/tags', tagRoutes)
 app.use('/api/meme-tags', memeTagRoutes)
+app.use('/api/test', testRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/meme-versions', memeVersionRoutes)

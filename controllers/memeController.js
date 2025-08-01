@@ -141,6 +141,7 @@ export const getMemes = async (req, res) => {
       page = 1,
       limit = 50,
       tags,
+      types, // 新增：支援多個類型篩選
       search,
       type,
       status,
@@ -156,7 +157,19 @@ export const getMemes = async (req, res) => {
     if (useAdvancedSearch === 'true') {
       // 建立基本查詢條件
       const baseFilter = {}
-      if (type) baseFilter.type = type
+
+      // 處理類型篩選
+      if (types) {
+        // 支援多個類型篩選
+        const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
+        if (typeArray.length > 0) {
+          baseFilter.type = { $in: typeArray }
+        }
+      } else if (type) {
+        // 向後相容：單一類型篩選
+        baseFilter.type = type
+      }
+
       if (status) baseFilter.status = status
 
       // 取得所有符合基本篩選條件的迷因
@@ -234,7 +247,14 @@ export const getMemes = async (req, res) => {
       const mongoQuery = {}
 
       // 基本篩選條件
-      if (type) {
+      if (types) {
+        // 支援多個類型篩選
+        const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
+        if (typeArray.length > 0) {
+          mongoQuery.type = { $in: typeArray }
+        }
+      } else if (type) {
+        // 向後相容：單一類型篩選
         mongoQuery.type = type
       }
 

@@ -181,7 +181,7 @@ db.memes.createIndex({ hot_score: -1, type: 1 })
 
 - **演算法**: 基於熱門分數排序
 - **適用場景**: 發現平台最受歡迎的內容
-- **特點**: 考慮讚數、瀏覽數、留言數等多維度指標
+- **特點**: 考慮讚數、瀏覽數、留言數等多維度指標，預設查詢最近30天內的迷因
 
 ### 2. 最新推薦 (Latest Recommendations)
 
@@ -290,7 +290,7 @@ db.memes.createIndex({ hot_score: -1, type: 1 })
 
 **GET** `/api/recommendations/hot`
 
-取得基於熱門分數的推薦。
+取得基於熱門分數的推薦。預設查詢最近30天內的迷因，確保有足夠的內容供推薦。
 
 **查詢參數**:
 
@@ -299,7 +299,7 @@ db.memes.createIndex({ hot_score: -1, type: 1 })
 - `sort_by` (string): 排序欄位 (recommendation_score, hot_score, created_at, updated_at, title, views, likes, comments, collections, shares) (預設: recommendation_score)
 - `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `type` (string): 迷因類型篩選 (all, image, video, audio, text)
-- `days` (number): 時間範圍天數 (預設: 7)
+- `days` (number): 時間範圍天數 (預設: 30)
 - `exclude_viewed` (boolean): 是否排除已看過的迷因 (預設: false)
 
 **回應範例**:
@@ -327,7 +327,7 @@ db.memes.createIndex({ hot_score: -1, type: 1 })
     ],
     "filters": {
       "type": "all",
-      "days": 7,
+      "days": 30,
       "limit": 20,
       "page": 1,
       "sort_by": "recommendation_score",
@@ -1581,7 +1581,7 @@ db.memes.createIndex({ hot_score: -1, type: 1 })
 **查詢參數**:
 
 - `limit` (number): 返回數量 (預設: 50)
-- `days` (number): 時間範圍天數 (預設: 7)
+- `days` (number): 時間範圍天數 (預設: 30)
 - `type` (string): 迷因類型篩選 (all, image, video, audio, text)
 - `status` (string): 狀態篩選 (預設: public)
 
@@ -1610,7 +1610,7 @@ db.memes.createIndex({ hot_score: -1, type: 1 })
     ],
     "filters": {
       "limit": 50,
-      "days": 7,
+      "days": 30,
       "type": "all",
       "status": "public"
     }
@@ -2077,7 +2077,7 @@ if (!validSortFields.includes(sortBy) || !validSortOrders.includes(sortOrder)) {
 
    ```javascript
    // 使用熱門推薦，發現最受歡迎內容
-   const response = await fetch('/api/recommendations/hot?limit=30&days=7')
+   const response = await fetch('/api/recommendations/hot?limit=30&days=30')
    ```
 
 3. **個人化推薦**:
@@ -2158,7 +2158,7 @@ if (!validSortFields.includes(sortBy) || !validSortOrders.includes(sortOrder)) {
     })
 
     // 取得熱門迷因列表
-    const response = await fetch('/api/memes/hot/list?limit=50&days=7')
+    const response = await fetch('/api/memes/hot/list?limit=50&days=30')
     ```
 
 ### 效能優化建議

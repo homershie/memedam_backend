@@ -23,6 +23,7 @@
 - `calculateMemeHotScore()`: 綜合考慮讚數、噓數、瀏覽數、留言數、收藏數、分享數
 - 實作時間衰減因子，使用對數衰減機制
 - 支援多種權重配置，不同互動類型有不同權重
+- 預設查詢最近30天內的迷因，確保有足夠的內容供推薦
 
 #### 熱門等級分類
 
@@ -232,7 +233,7 @@
 
 #### 推薦演算法端點
 
-- `getHotRecommendations()`: 熱門推薦端點
+- `getHotRecommendations()`: 熱門推薦端點（預設查詢最近30天內的迷因）
 - `getLatestRecommendations()`: 最新推薦端點
 - `getSimilarRecommendations()`: 相似推薦端點
 - `getContentBasedRecommendationsController()`: 內容基礎推薦端點
@@ -471,7 +472,7 @@ const diversity = calculateRecommendationDiversity(recommendations)
 
 | 端點                                                               | 方法 | 權限    | 說明                 |
 | ------------------------------------------------------------------ | ---- | ------- | -------------------- |
-| `/api/recommendations/hot`                                         | GET  | Public  | 熱門推薦             |
+| `/api/recommendations/hot`                                         | GET  | Public  | 熱門推薦（最近30天） |
 | `/api/recommendations/latest`                                      | GET  | Public  | 最新推薦             |
 | `/api/recommendations/similar/:memeId`                             | GET  | Public  | 相似推薦             |
 | `/api/recommendations/content-based`                               | GET  | Private | 內容基礎推薦         |
