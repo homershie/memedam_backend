@@ -1,13 +1,10 @@
-// 載入環境變數（必須在所有導入之前）
-import dotenv from 'dotenv'
+// 預先載入環境變數，確保後續模組可取得設定值
+import './config/loadEnv.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-
-// 明確指定 .env 檔案路徑
-dotenv.config({ path: path.join(__dirname, '.env') })
 
 import express from 'express'
 import cors from 'cors'
