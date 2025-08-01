@@ -18,29 +18,6 @@ import {
   calculateQualityScore,
 } from '../utils/hotScore.js'
 
-// 避免傳入查詢物件造成 modified_at 轉型錯誤
-const sanitizeModifiedAt = (obj) => {
-  if (!obj || typeof obj !== 'object') return
-
-  if (Object.prototype.hasOwnProperty.call(obj, 'modified_at')) {
-    const val = obj.modified_at
-    if (typeof val === 'string' || typeof val === 'number' || val instanceof Date) {
-      const parsed = new Date(val)
-      if (!isNaN(parsed)) {
-        obj.modified_at = parsed
-      } else {
-        delete obj.modified_at
-      }
-    } else {
-      delete obj.modified_at
-    }
-  }
-
-  if (obj.$set && typeof obj.$set === 'object') {
-    sanitizeModifiedAt(obj.$set)
-  }
-}
-
 // 建立迷因
 export const validateCreateMeme = [
   body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
@@ -403,8 +380,28 @@ export const updateMeme = async (req, res) => {
     // 準備更新資料
     const updateData = { ...req.body }
 
-    // 避免傳入查詢物件造成 modified_at 轉型錯誤
+    // 處理 modified_at，確保為有效日期，避免傳入查詢物件導致轉型錯誤
+    const sanitizeModifiedAt = (obj) => {
+      if (!obj || typeof obj !== 'object') return
+      if (Object.prototype.hasOwnProperty.call(obj, 'modified_at')) {
+        const val = obj.modified_at
+        if (val instanceof Date) {
+          return
+        }
+        if (typeof val === 'string' || typeof val === 'number') {
+          const parsed = new Date(val)
+          if (!isNaN(parsed)) {
+            obj.modified_at = parsed
+            return
+          }
+        }
+        delete obj.modified_at
+      }
+    }
+
     sanitizeModifiedAt(updateData)
+    sanitizeModifiedAt(updateData.$set)
+    sanitizeModifiedAt(updateData.$setOnInsert)
 
     // 檢查是否有新圖片上傳
     if (req.files && req.files.length > 0) {

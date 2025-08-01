@@ -423,7 +423,7 @@ const getUpdatedRecommendations = async (options = {}) => {
       // 建立查詢條件 - 尋找有修改時間的內容
       const filter = {
         status: 'public',
-        modified_at: { $exists: true, $ne: null, $gte: dateLimit },
+        modified_at: mongoose.trusted({ $exists: true, $ne: null, $gte: dateLimit }),
       }
 
       // 如果有標籤篩選，加入標籤條件
