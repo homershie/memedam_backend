@@ -70,7 +70,11 @@ export const getHotRecommendations = async (req, res) => {
       // 支援多個類型篩選
       const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
       if (typeArray.length > 0) {
-        filter.type = { $in: typeArray }
+        if (typeArray.length === 1) {
+          filter.type = typeArray[0] // 單一類型直接設置
+        } else {
+          filter.type = { $in: typeArray } // 多個類型使用$in查詢
+        }
       }
     } else if (type !== 'all') {
       // 向後相容：單一類型篩選

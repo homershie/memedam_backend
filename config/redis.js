@@ -26,7 +26,8 @@ class RedisCache {
         retryDelayOnClusterDown: 300,
         enableOfflineQueue: true,
         maxRetriesPerRequest: 3,
-        connectTimeout: 10000,
+        connectTimeout: 5000, // 縮短連接超時
+        commandTimeout: 5000, // 加入命令超時
       })
 
       this.client.on('connect', () => {
@@ -36,7 +37,7 @@ class RedisCache {
 
       this.client.on('error', (err) => {
         this.isConnected = false
-        logger.error('Redis 連線錯誤:', err)
+        logger.error('Redis 連線錯誤:', err.message)
       })
 
       this.client.on('close', () => {
@@ -44,10 +45,17 @@ class RedisCache {
         logger.warn('Redis 連線已關閉')
       })
 
-      await this.client.connect()
+      // 使用超時機制避免掛起
+      await Promise.race([
+        this.client.connect(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Redis連接超時')), 5000)
+        )
+      ])
     } catch (error) {
-      logger.error('Redis 連線失敗:', error)
+      logger.error('Redis 連線失敗:', error.message)
       this.isConnected = false
+      // 不阻塞應用程式啟動
     }
   }
 

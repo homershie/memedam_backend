@@ -1,0 +1,284 @@
+[INFO] [2025-08-01T07:04:49.747Z] 資料庫索引建立完成
+[ERROR] [2025-08-01T07:04:49.750Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:49.750Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:49.750Z] Redis 連線失敗: Connection is closed.
+[INFO] [2025-08-01T07:04:49.750Z] 開發模式：跳過定期維護任務
+[INFO] [2025-08-01T07:04:49.750Z] 啟動分析監控
+[ERROR] [2025-08-01T07:04:49.801Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:49.801Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:49.902Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:49.902Z] Redis 連線已關閉
+[INFO] [2025-08-01T07:04:49.948Z] 載入 0 個活躍的 A/B 測試
+[INFO] [2025-08-01T07:04:49.948Z] 分析監控啟動完成
+[INFO] [2025-08-01T07:04:49.948Z] 已啟動分析監控系統
+[INFO] [2025-08-01T07:04:49.948Z] === 註冊的路徑列表 ===
+[INFO] [2025-08-01T07:04:49.948Z] GET /api-docs.json
+[INFO] [2025-08-01T07:04:49.948Z] POST /
+[INFO] [2025-08-01T07:04:49.948Z] GET /
+[INFO] [2025-08-01T07:04:49.948Z] GET /me
+[INFO] [2025-08-01T07:04:49.948Z] PUT /me
+[INFO] [2025-08-01T07:04:49.948Z] DELETE /me
+[INFO] [2025-08-01T07:04:49.948Z] GET /:id
+[INFO] [2025-08-01T07:04:49.948Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.948Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.948Z] POST /login
+[INFO] [2025-08-01T07:04:49.948Z] POST /logout
+[INFO] [2025-08-01T07:04:49.948Z] POST /refresh
+[INFO] [2025-08-01T07:04:49.948Z] POST /bind/:provider
+[INFO] [2025-08-01T07:04:49.948Z] GET /auth/google
+[INFO] [2025-08-01T07:04:49.948Z] GET /auth/google/callback
+[INFO] [2025-08-01T07:04:49.948Z] GET /auth/facebook
+[INFO] [2025-08-01T07:04:49.948Z] GET /auth/facebook/callback
+[INFO] [2025-08-01T07:04:49.948Z] GET /auth/discord
+[INFO] [2025-08-01T07:04:49.948Z] GET /auth/discord/callback
+[INFO] [2025-08-01T07:04:49.948Z] GET /auth/twitter
+[INFO] [2025-08-01T07:04:49.948Z] GET /auth/twitter/callback
+[INFO] [2025-08-01T07:04:49.948Z] POST /
+[INFO] [2025-08-01T07:04:49.948Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] GET /search-suggestions
+[INFO] [2025-08-01T07:04:49.949Z] GET /by-tags
+[INFO] [2025-08-01T07:04:49.949Z] POST /batch-update-hot-scores
+[INFO] [2025-08-01T07:04:49.949Z] GET /hot/list
+[INFO] [2025-08-01T07:04:49.949Z] GET /trending/list
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id/score-analysis
+[INFO] [2025-08-01T07:04:49.949Z] POST /:id/editors
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id/editors
+[INFO] [2025-08-01T07:04:49.949Z] POST /:id/proposals
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id/proposals
+[INFO] [2025-08-01T07:04:49.949Z] POST /:id/proposals/:proposalId/approve
+[INFO] [2025-08-01T07:04:49.949Z] POST /:id/proposals/:proposalId/reject
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id/hot-score
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] POST /toggle
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] POST /toggle
+[INFO] [2025-08-01T07:04:49.949Z] GET /stats/:meme_id
+[INFO] [2025-08-01T07:04:49.949Z] GET /history
+[INFO] [2025-08-01T07:04:49.949Z] GET /popular
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /cleanup
+[INFO] [2025-08-01T07:04:49.949Z] POST /:meme_id
+[INFO] [2025-08-01T07:04:49.949Z] POST /follow
+[INFO] [2025-08-01T07:04:49.949Z] POST /unfollow
+[INFO] [2025-08-01T07:04:49.949Z] POST /toggle
+[INFO] [2025-08-01T07:04:49.949Z] GET /status/:user_id
+[INFO] [2025-08-01T07:04:49.949Z] GET /following/:user_id
+[INFO] [2025-08-01T07:04:49.949Z] GET /followers/:user_id
+[INFO] [2025-08-01T07:04:49.949Z] GET /stats/:user_id
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] GET /test
+[INFO] [2025-08-01T07:04:49.949Z] GET /categories
+[INFO] [2025-08-01T07:04:49.949Z] GET /popular
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] POST /:memeId/batch
+[INFO] [2025-08-01T07:04:49.949Z] POST /batch
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] GET /meme/:memeId/tags
+[INFO] [2025-08-01T07:04:49.949Z] GET /tag/:tagId/memes
+[INFO] [2025-08-01T07:04:49.949Z] GET /relation/:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /meme/:memeId/tags
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] GET /test
+[INFO] [2025-08-01T07:04:49.949Z] GET /categories
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] PATCH /read/all
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /batch
+[INFO] [2025-08-01T07:04:49.949Z] PATCH /:id/read
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /
+[INFO] [2025-08-01T07:04:49.949Z] GET /
+[INFO] [2025-08-01T07:04:49.949Z] GET /:id
+[INFO] [2025-08-01T07:04:49.949Z] PUT /:id
+[INFO] [2025-08-01T07:04:49.949Z] DELETE /:id
+[INFO] [2025-08-01T07:04:49.949Z] POST /image
+[INFO] [2025-08-01T07:04:49.949Z] GET /hot
+[INFO] [2025-08-01T07:04:49.949Z] GET /latest
+[INFO] [2025-08-01T07:04:49.949Z] GET /similar/:memeId
+[INFO] [2025-08-01T07:04:49.949Z] GET /user-interest
+[INFO] [2025-08-01T07:04:49.949Z] GET /content-based
+[INFO] [2025-08-01T07:04:49.949Z] GET /tag-based
+[INFO] [2025-08-01T07:04:49.949Z] GET /user-preferences
+[INFO] [2025-08-01T07:04:49.949Z] POST /update-preferences
+[INFO] [2025-08-01T07:04:49.950Z] GET /mixed
+[INFO] [2025-08-01T07:04:49.950Z] GET /infinite-scroll
+[INFO] [2025-08-01T07:04:49.950Z] GET /collaborative-filtering
+[INFO] [2025-08-01T07:04:49.950Z] GET /collaborative-filtering-stats
+[INFO] [2025-08-01T07:04:49.950Z] POST /update-collaborative-filtering-cache
+[INFO] [2025-08-01T07:04:49.950Z] GET /social-collaborative-filtering
+[INFO] [2025-08-01T07:04:49.950Z] GET /social-collaborative-filtering-stats
+[INFO] [2025-08-01T07:04:49.950Z] POST /update-social-collaborative-filtering-cache
+[INFO] [2025-08-01T07:04:49.950Z] GET /social-score/:memeId
+[INFO] [2025-08-01T07:04:49.950Z] GET /stats
+[INFO] [2025-08-01T07:04:49.950Z] GET /algorithm-stats
+[INFO] [2025-08-01T07:04:49.950Z] POST /adjust-strategy
+[INFO] [2025-08-01T07:04:49.950Z] GET /social-influence-stats
+[INFO] [2025-08-01T07:04:49.950Z] GET /
+[INFO] [2025-08-01T07:04:49.950Z] POST /check-counts/:memeId
+[INFO] [2025-08-01T07:04:49.950Z] POST /check-all-counts
+[INFO] [2025-08-01T07:04:49.950Z] GET /count-statistics
+[INFO] [2025-08-01T07:04:49.950Z] POST /check-all-user-counts
+[INFO] [2025-08-01T07:04:49.950Z] POST /run-full-check
+[INFO] [2025-08-01T07:04:49.950Z] GET /maintenance-status
+[INFO] [2025-08-01T07:04:49.950Z] POST /batch-update-hot-scores
+[INFO] [2025-08-01T07:04:49.950Z] POST /scheduled-hot-score-update
+[INFO] [2025-08-01T07:04:49.950Z] GET /hot-score-statistics
+[INFO] [2025-08-01T07:04:49.950Z] POST /update-all-recommendation-systems
+[INFO] [2025-08-01T07:04:49.950Z] GET /recommendation-system-status
+[INFO] [2025-08-01T07:04:49.950Z] PUT /recommendation-system-config
+[INFO] [2025-08-01T07:04:49.950Z] POST /batch-update-user-preferences
+[INFO] [2025-08-01T07:04:49.950Z] POST /scheduled-content-based-update
+[INFO] [2025-08-01T07:04:49.950Z] GET /content-based-statistics
+[INFO] [2025-08-01T07:04:49.950Z] PUT /content-based-config
+[INFO] [2025-08-01T07:04:49.950Z] POST /batch-update-collaborative-filtering
+[INFO] [2025-08-01T07:04:49.950Z] POST /scheduled-collaborative-filtering-update
+[INFO] [2025-08-01T07:04:49.950Z] GET /collaborative-filtering-statistics
+[INFO] [2025-08-01T07:04:49.950Z] PUT /collaborative-filtering-config
+[INFO] [2025-08-01T07:04:49.950Z] POST /
+[INFO] [2025-08-01T07:04:49.950Z] DELETE /
+[INFO] [2025-08-01T07:04:49.950Z] GET /
+[INFO] [2025-08-01T07:04:49.950Z] POST /toggle
+[INFO] [2025-08-01T07:04:49.950Z] POST /track-recommendation
+[INFO] [2025-08-01T07:04:49.950Z] PUT /update-interaction
+[INFO] [2025-08-01T07:04:49.950Z] GET /algorithm-stats
+[INFO] [2025-08-01T07:04:49.950Z] GET /user-effectiveness
+[INFO] [2025-08-01T07:04:49.950Z] POST /ab-tests
+[INFO] [2025-08-01T07:04:49.950Z] GET /ab-tests
+[INFO] [2025-08-01T07:04:49.950Z] PUT /ab-tests/:testId/status
+[INFO] [2025-08-01T07:04:49.950Z] GET /ab-tests/:testId
+[INFO] [2025-08-01T07:04:49.950Z] GET /dashboard
+[INFO] [2025-08-01T07:04:49.950Z] GET /health
+[INFO] [2025-08-01T07:04:49.950Z] GET /api/performance
+[INFO] [2025-08-01T07:04:49.950Z] GET /api/cache/stats
+[INFO] [2025-08-01T07:04:49.950Z] DELETE /api/cache/clear
+[INFO] [2025-08-01T07:04:49.950Z] === 路徑列表結束 ===
+[INFO] [2025-08-01T07:04:49.951Z] 伺服器運行在端口 4000
+[INFO] [2025-08-01T07:04:49.951Z] 環境: development
+[ERROR] [2025-08-01T07:04:50.054Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:50.054Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:50.256Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:50.256Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:50.507Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:50.508Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:50.809Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:50.809Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:51.161Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:51.161Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:51.563Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:51.563Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:52.015Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:52.015Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:52.515Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:52.515Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:53.067Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:53.067Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:53.667Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:53.667Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:54.319Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:54.319Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:55.021Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:55.021Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:55.774Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:55.774Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:56.576Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:56.576Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:57.428Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:57.428Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:58.330Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:58.330Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:04:59.282Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:04:59.282Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:00.284Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:00.284Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:01.336Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:01.336Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:02.438Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:02.438Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:03.590Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:03.590Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:04.791Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:04.791Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:06.043Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:06.043Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:07.346Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:07.346Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:08.697Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:08.698Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:10.100Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:10.100Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:11.552Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:11.552Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:13.055Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:13.055Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:14.606Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:14.606Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:16.207Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:16.208Z] Redis 連線已關閉
+[0mGET /api/recommendations?page=1&limit=10&days=30&types=text&algorithm=hot [32m200[0m 786.225 ms - 17693[0m
+[INFO] [2025-08-01T07:05:16.585Z] ::1 - - [01/Aug/2025:07:05:16 +0000] "GET /api/recommendations?page=1&limit=10&days=30&types=text&algorithm=hot HTTP/1.1" 200 17693 "-" "curl/8.12.1"
+[INFO] [2025-08-01T07:05:16.585Z] GET / - 200 - 788ms
+[0mGET /api/recommendations?page=1&limit=10&days=30&types=text&algorithm=hot [32m200[0m 584.564 ms - 17693[0m
+[INFO] [2025-08-01T07:05:17.176Z] ::1 - - [01/Aug/2025:07:05:17 +0000] "GET /api/recommendations?page=1&limit=10&days=30&types=text&algorithm=hot HTTP/1.1" 200 17693 "-" "curl/8.12.1"
+[INFO] [2025-08-01T07:05:17.176Z] GET / - 200 - 585ms
+[ERROR] [2025-08-01T07:05:17.858Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:17.859Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:19.561Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:19.561Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:21.313Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:21.313Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:23.114Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:23.114Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:24.966Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:24.966Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:26.869Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:26.869Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:28.821Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:28.822Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:30.825Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:30.825Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:32.828Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:32.829Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:34.829Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:34.829Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:36.832Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:36.833Z] Redis 連線已關閉
+[ERROR] [2025-08-01T07:05:38.836Z] Redis 連線錯誤: connect ECONNREFUSED 127.0.0.1:6379
+[WARN] [2025-08-01T07:05:38.836Z] Redis 連線已關閉
