@@ -112,9 +112,29 @@
 
 ### 9. 混合推薦 (Mixed Recommendations)
 
-- **演算法**: 結合多種演算法
-- **適用場景**: 平衡多種推薦策略
-- **特點**: 可調整權重，提供多樣化內容
+- **演算法**: 整合所有推薦演算法的混合系統
+- **適用場景**: 綜合推薦，平衡多種演算法
+- **特點**:
+  - 動態權重調整，根據用戶活躍度自動調整
+  - 冷啟動處理機制，新用戶使用熱門推薦
+  - 多樣性計算，確保推薦內容豐富
+  - 支援標籤篩選和自定義權重
+  - 包含社交分數和推薦原因生成
+
+### 10. 無限捲動推薦 (Infinite Scroll Recommendations)
+
+- **演算法**: 專門為前端無限捲動設計的混合推薦系統
+- **適用場景**: 前端無限捲動功能
+- **特點**:
+  - 支援分頁載入，從第1頁開始
+  - 自動排除已顯示項目，避免重複
+  - 動態權重調整，根據用戶活躍度
+  - 冷啟動處理機制，新用戶自動調整策略
+  - 標籤篩選支援，多標籤逗號分隔
+  - 社交分數計算，包含社交影響力
+  - 推薦原因生成，提升用戶體驗
+  - 快取機制優化，Redis 快取結果
+  - 效能監控，並行處理多種演算法
 
 ## API 端點
 
@@ -779,6 +799,8 @@
 - `include_cold_start_analysis` (boolean): 是否包含冷啟動分析 (預設: true)
 - `include_social_scores` (boolean): 是否包含社交層分數計算 (預設: true)
 - `include_recommendation_reasons` (boolean): 是否包含推薦原因生成 (預設: true)
+- `page` (number): 頁碼 (預設: 1)
+- `exclude_ids` (string): 要排除的項目ID列表（逗號分隔）
 
 **回應範例**:
 
@@ -832,7 +854,9 @@
       "limit": 30,
       "custom_weights": {},
       "include_diversity": true,
-      "include_cold_start_analysis": true
+      "include_cold_start_analysis": true,
+      "page": 1,
+      "exclude_ids": []
     },
     "algorithm": "mixed",
     "weights": {
@@ -857,6 +881,14 @@
         }
       }
     },
+    "pagination": {
+      "page": 1,
+      "limit": 30,
+      "skip": 0,
+      "total": 150,
+      "hasMore": true,
+      "totalPages": 5
+    },
     "diversity": {
       "tagDiversity": 0.75,
       "authorDiversity": 0.6,
@@ -866,6 +898,13 @@
       "totalAuthors": 20
     },
     "user_authenticated": true,
+    "query_info": {
+      "requestedLimit": 30,
+      "adjustedLimit": 30,
+      "coldStartMultiplier": 2.0,
+      "isColdStart": false,
+      "excludedCount": 0
+    },
     "algorithm_details": {
       "description": "整合所有推薦演算法的混合推薦系統",
       "features": [
@@ -873,7 +912,12 @@
         "冷啟動處理機制",
         "多樣性計算",
         "用戶活躍度分析",
-        "個人化推薦策略"
+        "個人化推薦策略",
+        "標籤篩選支援",
+        "自動擴大時間範圍",
+        "冷啟動數量倍數",
+        "分頁支援",
+        "排除已顯示項目"
       ]
     }
   },
@@ -881,7 +925,101 @@
 }
 ```
 
-#### 13. 推薦演算法統計
+#### 13. 無限捲動推薦
+
+**GET** `/api/recommendations/infinite-scroll`
+
+專門為前端無限捲動設計的推薦端點，支援分頁載入和自動排除已顯示項目。
+
+**查詢參數**:
+
+- `page` (number): 頁碼 (預設: 1)
+- `limit` (number): 每頁推薦數量 (預設: 10)
+- `exclude_ids` (string): 要排除的項目ID列表（逗號分隔）
+- `tags` (string): 標籤列表（逗號分隔）
+- `custom_weights` (string): 自定義權重 JSON 字串 (預設: {})
+- `include_social_scores` (boolean): 是否包含社交分數 (預設: true)
+- `include_recommendation_reasons` (boolean): 是否包含推薦原因 (預設: true)
+
+**回應範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+        "title": "無限捲動迷因",
+        "recommendation_score": 234.56,
+        "recommendation_type": "hot",
+        "recommendation_reason": "這則迷因目前很熱門",
+        "social_score": 15.2,
+        "hot_score": 567.89,
+        "tags_cache": ["funny", "cat"],
+        "author_id": "60f7b3b3b3b3b3b3b3b3b3b4",
+        "createdAt": "2024-01-01T00:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "skip": 0,
+      "total": 150,
+      "hasMore": true,
+      "totalPages": 15,
+      "nextPage": 2
+    },
+    "filters": {
+      "page": 1,
+      "limit": 10,
+      "exclude_ids": ["meme1", "meme2"],
+      "tags": ["funny"],
+      "custom_weights": {},
+      "include_social_scores": true,
+      "include_recommendation_reasons": true
+    },
+    "algorithm": "mixed",
+    "weights": {
+      "hot": 0.25,
+      "latest": 0.25,
+      "content_based": 0.2,
+      "collaborative_filtering": 0.15,
+      "social_collaborative_filtering": 0.15
+    },
+    "cold_start_status": {
+      "isColdStart": false,
+      "activityScore": {
+        "score": 45,
+        "level": "active"
+      }
+    },
+    "user_authenticated": true,
+    "query_info": {
+      "requestedLimit": 10,
+      "totalNeeded": 60,
+      "excludedCount": 2,
+      "isColdStart": false
+    },
+    "algorithm_details": {
+      "description": "專門為無限捲動設計的混合推薦系統",
+      "features": [
+        "支援分頁載入",
+        "自動排除已顯示項目",
+        "動態權重調整",
+        "冷啟動處理機制",
+        "個人化推薦策略",
+        "標籤篩選支援",
+        "社交分數計算",
+        "推薦原因生成"
+      ]
+    }
+  },
+  "error": null
+}
+```
+
+#### 14. 推薦演算法統計
 
 **GET** `/api/recommendations/algorithm-stats`
 
@@ -889,7 +1027,7 @@
 
 **權限**: 需要登入
 
-#### 14. 社交層分數計算
+#### 15. 社交層分數計算
 
 **GET** `/api/recommendations/social-score/:memeId`
 
@@ -955,7 +1093,7 @@
 }
 ```
 
-#### 15. 用戶社交影響力統計
+#### 16. 用戶社交影響力統計
 
 **GET** `/api/recommendations/social-influence-stats`
 
@@ -1016,7 +1154,7 @@
 }
 ```
 
-#### 14. 動態調整推薦策略
+#### 17. 動態調整推薦策略
 
 **POST** `/api/recommendations/adjust-strategy`
 
@@ -1056,7 +1194,7 @@
 }
 ```
 
-#### 15. 推薦統計
+#### 18. 推薦統計
 
 **GET** `/api/recommendations/stats`
 
@@ -1077,7 +1215,7 @@
 }
 ```
 
-#### 13. 綜合推薦
+#### 19. 綜合推薦
 
 **GET** `/api/recommendations`
 

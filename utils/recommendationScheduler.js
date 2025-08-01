@@ -51,7 +51,7 @@ const UPDATE_CONFIG = {
  * 更新 Hot Score
  */
 export const updateHotScores = async (options = {}) => {
-  const config = { ...UPDATE_CONFIG.hotScore, ...options }
+  const config = { ...UPDATE_CONFIG.hotScore, ...(options || {}) }
 
   if (!config.enabled) {
     logger.info('Hot Score 更新已停用')
@@ -90,7 +90,7 @@ export const updateHotScores = async (options = {}) => {
  * 更新 Content-Based 推薦快取
  */
 export const updateContentBasedCache = async (options = {}) => {
-  const config = { ...UPDATE_CONFIG.contentBased, ...options }
+  const config = { ...UPDATE_CONFIG.contentBased, ...(options || {}) }
 
   if (!config.enabled) {
     logger.info('Content-Based 更新已停用')
@@ -129,7 +129,7 @@ export const updateContentBasedCache = async (options = {}) => {
  * 更新 Collaborative Filtering 快取
  */
 export const updateCollaborativeFilteringCacheScheduler = async (options = {}) => {
-  const config = { ...UPDATE_CONFIG.collaborativeFiltering, ...options }
+  const config = { ...UPDATE_CONFIG.collaborativeFiltering, ...(options || {}) }
 
   if (!config.enabled) {
     logger.info('Collaborative Filtering 更新已停用')
@@ -168,7 +168,7 @@ export const updateCollaborativeFilteringCacheScheduler = async (options = {}) =
  * 更新 Social Collaborative Filtering 快取
  */
 export const updateSocialCollaborativeFilteringCacheScheduler = async (options = {}) => {
-  const config = { ...UPDATE_CONFIG.socialCollaborativeFiltering, ...options }
+  const config = { ...UPDATE_CONFIG.socialCollaborativeFiltering, ...(options || {}) }
 
   if (!config.enabled) {
     logger.info('Social Collaborative Filtering 更新已停用')
@@ -212,10 +212,10 @@ export const updateAllRecommendationSystems = async (options = {}) => {
     const startTime = Date.now()
 
     const results = await Promise.allSettled([
-      updateHotScores(options.hotScore),
-      updateContentBasedCache(options.contentBased),
-      updateCollaborativeFilteringCacheScheduler(options.collaborativeFiltering),
-      updateSocialCollaborativeFilteringCacheScheduler(options.socialCollaborativeFiltering),
+      updateHotScores(options.hotScore || {}),
+      updateContentBasedCache(options.contentBased || {}),
+      updateCollaborativeFilteringCacheScheduler(options.collaborativeFiltering || {}),
+      updateSocialCollaborativeFilteringCacheScheduler(options.socialCollaborativeFiltering || {}),
     ])
 
     const processingTime = Date.now() - startTime

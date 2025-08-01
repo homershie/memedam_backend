@@ -26,7 +26,7 @@ const COLLABORATIVE_FILTERING_CONFIG = {
  * @returns {Promise<Object>} 更新結果
  */
 export const batchUpdateCollaborativeFilteringCache = async (options = {}) => {
-  const config = { ...COLLABORATIVE_FILTERING_CONFIG, ...options }
+  const config = { ...COLLABORATIVE_FILTERING_CONFIG, ...(options || {}) }
 
   if (!config.enabled) {
     logger.info('協同過濾推薦更新已停用')
@@ -65,7 +65,7 @@ export const batchUpdateCollaborativeFilteringCache = async (options = {}) => {
  * @returns {Promise<Object>} 更新結果
  */
 export const batchUpdateSocialCollaborativeFilteringCache = async (options = {}) => {
-  const config = { ...COLLABORATIVE_FILTERING_CONFIG, ...options }
+  const config = { ...COLLABORATIVE_FILTERING_CONFIG, ...(options || {}) }
 
   if (!config.enabled) {
     logger.info('社交協同過濾推薦更新已停用')

@@ -301,7 +301,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     includeHotScore = true,
     hotScoreWeight = 0.3,
     tags = [],
-  } = options
+  } = options || {}
 
   try {
     console.log(`開始為用戶 ${targetUserId} 生成協同過濾推薦...`)
@@ -754,7 +754,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     includeHotScore = true,
     hotScoreWeight = 0.3,
     tags = [],
-  } = options
+  } = options || {}
 
   try {
     console.log(`開始為用戶 ${targetUserId} 生成社交協同過濾推薦...`)

@@ -25,7 +25,7 @@ const CONTENT_BASED_CONFIG = {
  * @returns {Promise<Object>} 更新結果
  */
 export const batchUpdateUserPreferences = async (options = {}) => {
-  const config = { ...CONTENT_BASED_CONFIG, ...options }
+  const config = { ...CONTENT_BASED_CONFIG, ...(options || {}) }
 
   if (!config.enabled) {
     logger.info('內容基礎推薦更新已停用')

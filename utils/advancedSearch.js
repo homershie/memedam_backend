@@ -221,7 +221,7 @@ export const advancedFuzzySearch = (data, searchTerm, options = {}) => {
   // 合併配置選項
   const searchOptions = {
     ...advancedSearchConfig.fuse,
-    ...options,
+    ...(options || {}),
   }
 
   const fuse = new Fuse(data, searchOptions)
@@ -254,7 +254,7 @@ export const advancedFuzzySearch = (data, searchTerm, options = {}) => {
 export const createAdvancedSearchIndex = (data, options = {}) => {
   const searchOptions = {
     ...advancedSearchConfig.fuse,
-    ...options,
+    ...(options || {}),
   }
   return new Fuse(data, searchOptions)
 }

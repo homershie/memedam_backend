@@ -27,6 +27,7 @@ import {
   getRecommendationAlgorithmStats,
   adjustRecommendationStrategy,
   clearMixedRecommendationCache,
+  getInfiniteScrollRecommendations,
 } from '../utils/mixedRecommendation.js'
 import {
   calculateMemeSocialScore,
@@ -584,12 +585,16 @@ export const getMixedRecommendationsController = async (req, res) => {
       include_cold_start_analysis = 'true',
       tags,
       clear_cache = 'false',
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
     } = req.query
     const userId = req.user?._id
 
     // 如果需要清除快取
     if (clear_cache === 'true') {
       await clearMixedRecommendationCache(userId)
+      console.log('已清除混合推薦快取')
     }
 
     // 解析自定義權重
@@ -606,6 +611,17 @@ export const getMixedRecommendationsController = async (req, res) => {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+    }
+
     // 使用新的混合推薦系統
     const result = await getMixedRecommendations(userId, {
       limit: parseInt(limit),
@@ -613,12 +629,20 @@ export const getMixedRecommendationsController = async (req, res) => {
       includeDiversity: include_diversity === 'true',
       includeColdStartAnalysis: include_cold_start_analysis === 'true',
       tags: tagArray,
+      page: parseInt(page),
+      excludeIds,
+      useCache: clear_cache !== 'true', // 如果清除快取，就不使用快取
     })
+
+    // 確保推薦結果按總分排序
+    const sortedRecommendations = result.recommendations.sort(
+      (a, b) => b.total_score - a.total_score,
+    )
 
     res.json({
       success: true,
       data: {
-        recommendations: result.recommendations,
+        recommendations: sortedRecommendations,
         filters: {
           limit: parseInt(limit),
           custom_weights: customWeights,
@@ -626,6 +650,8 @@ export const getMixedRecommendationsController = async (req, res) => {
           include_cold_start_analysis: include_cold_start_analysis === 'true',
           tags: tagArray,
           clear_cache: clear_cache === 'true',
+          page: parseInt(page),
+          exclude_ids: excludeIds,
         },
         algorithm: 'mixed',
         weights: result.weights,
@@ -633,6 +659,7 @@ export const getMixedRecommendationsController = async (req, res) => {
         diversity: result.diversity,
         user_authenticated: !!userId,
         query_info: result.queryInfo, // 新增查詢資訊
+        pagination: result.pagination, // 新增分頁資訊
         algorithm_details: {
           description: '整合所有推薦演算法的混合推薦系統',
           features: [
@@ -644,6 +671,103 @@ export const getMixedRecommendationsController = async (req, res) => {
             '標籤篩選支援',
             '自動擴大時間範圍',
             '冷啟動數量倍數',
+            '分頁支援',
+            '排除已顯示項目',
+          ],
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 取得無限捲動推薦（專門為前端無限捲動設計）
+ */
+export const getInfiniteScrollRecommendationsController = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      exclude_ids,
+      tags,
+      custom_weights = '{}',
+      include_social_scores = 'true',
+      include_recommendation_reasons = 'true',
+    } = req.query
+    const userId = req.user?._id
+
+    // 解析自定義權重
+    let customWeights = {}
+    try {
+      customWeights = JSON.parse(custom_weights)
+    } catch {
+      console.log('自定義權重解析失敗，使用預設權重')
+    }
+
+    // 解析標籤參數
+    let tagArray = []
+    if (tags) {
+      tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+    }
+
+    // 使用無限捲動推薦系統
+    const result = await getInfiniteScrollRecommendations(userId, {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      excludeIds,
+      tags: tagArray,
+      customWeights,
+      includeSocialScores: include_social_scores === 'true',
+      includeRecommendationReasons: include_recommendation_reasons === 'true',
+    })
+
+    res.json({
+      success: true,
+      data: {
+        recommendations: result.recommendations,
+        pagination: result.pagination,
+        filters: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          exclude_ids: excludeIds,
+          tags: tagArray,
+          custom_weights: customWeights,
+          include_social_scores: include_social_scores === 'true',
+          include_recommendation_reasons: include_recommendation_reasons === 'true',
+        },
+        algorithm: 'mixed',
+        weights: result.weights,
+        cold_start_status: result.coldStartStatus,
+        user_authenticated: !!userId,
+        query_info: result.queryInfo,
+        algorithm_details: {
+          description: '專門為無限捲動設計的混合推薦系統',
+          features: [
+            '支援分頁載入',
+            '自動排除已顯示項目',
+            '動態權重調整',
+            '冷啟動處理機制',
+            '個人化推薦策略',
+            '標籤篩選支援',
+            '社交分數計算',
+            '推薦原因生成',
           ],
         },
       },
@@ -1144,6 +1268,7 @@ export default {
   getUserTagPreferences,
   updateUserPreferences,
   getMixedRecommendationsController,
+  getInfiniteScrollRecommendationsController,
   getRecommendationStats,
   getRecommendationAlgorithmStatsController,
   adjustRecommendationStrategyController,

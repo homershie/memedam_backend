@@ -25,6 +25,7 @@ import {
   updateSocialCollaborativeFilteringCacheController,
   calculateMemeSocialScoreController,
   getUserSocialInfluenceStatsController,
+  getInfiniteScrollRecommendationsController,
 } from '../controllers/recommendationController.js'
 import { token } from '../middleware/auth.js'
 
@@ -403,6 +404,17 @@ router.post('/update-preferences', token, updateUserPreferences)
  *           type: boolean
  *           default: true
  *         description: 是否包含冷啟動分析
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 要排除的項目ID列表（逗號分隔）
  *     responses:
  *       200:
  *         description: 成功取得混合推薦
@@ -412,6 +424,62 @@ router.post('/update-preferences', token, updateUserPreferences)
  *               $ref: '#/components/schemas/RecommendationResponse'
  */
 router.get('/mixed', getMixedRecommendationsController)
+
+/**
+ * @swagger
+ * /api/recommendations/infinite-scroll:
+ *   get:
+ *     summary: 取得無限捲動推薦
+ *     tags: [Recommendations]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: 每頁推薦數量
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 要排除的項目ID列表（逗號分隔）
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
+ *       - in: query
+ *         name: custom_weights
+ *         schema:
+ *           type: string
+ *         description: 自定義權重 JSON 字串
+ *       - in: query
+ *         name: include_social_scores
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: 是否包含社交分數
+ *       - in: query
+ *         name: include_recommendation_reasons
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: 是否包含推薦原因
+ *     responses:
+ *       200:
+ *         description: 成功取得無限捲動推薦
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RecommendationResponse'
+ */
+router.get('/infinite-scroll', getInfiniteScrollRecommendationsController)
 
 /**
  * @swagger

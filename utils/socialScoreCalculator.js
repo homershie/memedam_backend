@@ -272,7 +272,7 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
       includeInfluence = true,
       includeInteractions = true,
       maxDistance = 3,
-    } = options
+    } = options || {}
 
     console.log(`開始計算迷因 ${memeId} 對用戶 ${userId} 的社交層分數...`)
 
@@ -593,7 +593,7 @@ export const getUserSocialInfluenceStats = async (userId) => {
  */
 export const generateSocialRecommendationReasons = (socialInteractions, options = {}) => {
   try {
-    const { maxReasons = 3, minWeight = 2 } = options
+    const { maxReasons = 3, minWeight = 2 } = options || {}
 
     // 按權重分組
     const reasonsByType = {}

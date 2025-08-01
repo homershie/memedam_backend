@@ -195,7 +195,7 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
     includeHotScore = true,
     hotScoreWeight = 0.3,
     tags = [],
-  } = options
+  } = options || {}
 
   try {
     // 計算用戶標籤偏好
@@ -325,7 +325,12 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
  * @returns {Array} 相關迷因列表
  */
 export const getTagBasedRecommendations = async (tags, options = {}) => {
-  const { limit = 20, minSimilarity = 0.1, includeHotScore = true, hotScoreWeight = 0.3 } = options
+  const {
+    limit = 20,
+    minSimilarity = 0.1,
+    includeHotScore = true,
+    hotScoreWeight = 0.3,
+  } = options || {}
 
   try {
     if (!tags || tags.length === 0) {

@@ -16,7 +16,7 @@ import { logger } from './logger.js'
  * @returns {Promise<Object>} 更新結果
  */
 export const batchUpdateHotScores = async (options = {}) => {
-  const { limit = 1000, force = false, batchSize = 100 } = options
+  const { limit = 1000, force = false, batchSize = 100 } = options || {}
 
   try {
     logger.info('開始批次更新熱門分數...')
@@ -141,7 +141,7 @@ export const scheduledHotScoreUpdate = async (options = {}) => {
     updateInterval = '1h', // 更新間隔
     maxUpdates = 1000, // 最大更新數量
     force = false, // 是否強制更新
-  } = options
+  } = options || {}
 
   try {
     logger.info(`開始定期熱門分數更新任務 (間隔: ${updateInterval})`)

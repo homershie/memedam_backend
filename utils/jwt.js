@@ -8,7 +8,7 @@ export function signToken(payload, options = {}) {
   return jwt.sign(payload, JWT_SECRET, {
     algorithm: 'HS256',
     expiresIn: JWT_EXPIRES_IN,
-    ...options,
+    ...(options || {}),
   })
 }
 
