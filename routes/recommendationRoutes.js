@@ -106,13 +106,73 @@ const router = express.Router()
  *           type: boolean
  *           default: false
  *         description: 是否排除已看過的迷因
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼（用於分頁）
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 排除的迷因ID（逗號分隔，用於無限捲動）
  *     responses:
  *       200:
  *         description: 成功取得熱門推薦
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/RecommendationResponse'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     recommendations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Meme'
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         type:
+ *                           type: string
+ *                         days:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         exclude_ids:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         tags:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     algorithm:
+ *                       type: string
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         skip:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                         totalPages:
+ *                           type: integer
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  */
 router.get('/hot', getHotRecommendations)
 
@@ -147,13 +207,73 @@ router.get('/hot', getHotRecommendations)
  *           type: integer
  *           default: 24
  *         description: 時間範圍小時數
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼（用於分頁）
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 排除的迷因ID（逗號分隔，用於無限捲動）
  *     responses:
  *       200:
  *         description: 成功取得最新推薦
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/RecommendationResponse'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     recommendations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Meme'
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         type:
+ *                           type: string
+ *                         hours:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         exclude_ids:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         tags:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     algorithm:
+ *                       type: string
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         skip:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                         totalPages:
+ *                           type: integer
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  */
 router.get('/latest', getLatestRecommendations)
 
@@ -264,13 +384,81 @@ router.get('/user-interest', token, getUserInterestRecommendations)
  *           type: number
  *           default: 0.3
  *         description: 熱門分數權重
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼（用於分頁）
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 排除的迷因ID（逗號分隔，用於無限捲動）
  *     responses:
  *       200:
  *         description: 成功取得內容基礎推薦
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/RecommendationResponse'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     recommendations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Meme'
+ *                     user_id:
+ *                       type: string
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         limit:
+ *                           type: integer
+ *                         min_similarity:
+ *                           type: number
+ *                         exclude_interacted:
+ *                           type: boolean
+ *                         include_hot_score:
+ *                           type: boolean
+ *                         hot_score_weight:
+ *                           type: number
+ *                         tags:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         page:
+ *                           type: integer
+ *                         exclude_ids:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     algorithm:
+ *                       type: string
+ *                     algorithm_details:
+ *                       type: object
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         skip:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                         totalPages:
+ *                           type: integer
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  *       401:
  *         description: 未授權
  */
@@ -312,13 +500,77 @@ router.get('/content-based', token, getContentBasedRecommendationsController)
  *           type: number
  *           default: 0.3
  *         description: 熱門分數權重
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼（用於分頁）
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 排除的迷因ID（逗號分隔，用於無限捲動）
  *     responses:
  *       200:
  *         description: 成功取得標籤相關推薦
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/RecommendationResponse'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     recommendations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Meme'
+ *                     query_tags:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         limit:
+ *                           type: integer
+ *                         min_similarity:
+ *                           type: number
+ *                         include_hot_score:
+ *                           type: boolean
+ *                         hot_score_weight:
+ *                           type: number
+ *                         page:
+ *                           type: integer
+ *                         exclude_ids:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     algorithm:
+ *                       type: string
+ *                     algorithm_details:
+ *                       type: object
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         skip:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                         totalPages:
+ *                           type: integer
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  */
 router.get('/tag-based', getTagBasedRecommendationsController)
 
@@ -531,13 +783,83 @@ router.get('/infinite-scroll', getInfiniteScrollRecommendationsController)
  *           type: number
  *           default: 0.3
  *         description: 熱門分數權重
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼（用於分頁）
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 排除的迷因ID（逗號分隔，用於無限捲動）
  *     responses:
  *       200:
  *         description: 成功取得協同過濾推薦
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/RecommendationResponse'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     recommendations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Meme'
+ *                     user_id:
+ *                       type: string
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         limit:
+ *                           type: integer
+ *                         min_similarity:
+ *                           type: number
+ *                         max_similar_users:
+ *                           type: integer
+ *                         exclude_interacted:
+ *                           type: boolean
+ *                         include_hot_score:
+ *                           type: boolean
+ *                         hot_score_weight:
+ *                           type: number
+ *                         tags:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         page:
+ *                           type: integer
+ *                         exclude_ids:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     algorithm:
+ *                       type: string
+ *                     algorithm_details:
+ *                       type: object
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         skip:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                         totalPages:
+ *                           type: integer
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  *       401:
  *         description: 未授權
  */
@@ -644,13 +966,83 @@ router.post(
  *           type: number
  *           default: 0.3
  *         description: 熱門分數權重
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼（用於分頁）
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 排除的迷因ID（逗號分隔，用於無限捲動）
  *     responses:
  *       200:
  *         description: 成功取得社交協同過濾推薦
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/RecommendationResponse'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     recommendations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Meme'
+ *                     user_id:
+ *                       type: string
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         limit:
+ *                           type: integer
+ *                         min_similarity:
+ *                           type: number
+ *                         max_similar_users:
+ *                           type: integer
+ *                         exclude_interacted:
+ *                           type: boolean
+ *                         include_hot_score:
+ *                           type: boolean
+ *                         hot_score_weight:
+ *                           type: number
+ *                         tags:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         page:
+ *                           type: integer
+ *                         exclude_ids:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     algorithm:
+ *                       type: string
+ *                     algorithm_details:
+ *                       type: object
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         skip:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                         totalPages:
+ *                           type: integer
+ *                 error:
+ *                   type: string
+ *                   nullable: true
  *       401:
  *         description: 未授權
  */

@@ -195,6 +195,9 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
     includeHotScore = true,
     hotScoreWeight = 0.3,
     tags = [],
+    // 新增：分頁和排除功能
+    page = 1,
+    excludeIds = [],
   } = options || {}
 
   try {
@@ -242,6 +245,11 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
     // 如果有標籤篩選，加入標籤條件
     if (tags && tags.length > 0) {
       filter.tags_cache = { $in: tags }
+    }
+
+    // 如果有排除ID，加入查詢條件
+    if (excludeIds && excludeIds.length > 0) {
+      filter._id = { $nin: excludeIds }
     }
 
     // 取得所有公開的迷因
@@ -309,9 +317,12 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
     const filteredMemes = scoredMemes
       .filter((meme) => meme.recommendation_score >= minSimilarity)
       .sort((a, b) => b.recommendation_score - a.recommendation_score)
-      .slice(0, limit)
 
-    return filteredMemes
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const paginatedMemes = filteredMemes.slice(skip, skip + parseInt(limit))
+
+    return paginatedMemes
   } catch (error) {
     console.error('取得內容基礎推薦時發生錯誤:', error)
     return []
@@ -330,6 +341,9 @@ export const getTagBasedRecommendations = async (tags, options = {}) => {
     minSimilarity = 0.1,
     includeHotScore = true,
     hotScoreWeight = 0.3,
+    // 新增：分頁和排除功能
+    page = 1,
+    excludeIds = [],
   } = options || {}
 
   try {
@@ -337,11 +351,19 @@ export const getTagBasedRecommendations = async (tags, options = {}) => {
       return []
     }
 
-    // 取得包含指定標籤的迷因
-    const memes = await Meme.find({
+    // 建立查詢條件
+    const filter = {
       status: 'public',
       tags_cache: { $in: tags },
-    }).populate('author_id', 'username display_name avatar')
+    }
+
+    // 如果有排除ID，加入查詢條件
+    if (excludeIds && excludeIds.length > 0) {
+      filter._id = { $nin: excludeIds }
+    }
+
+    // 取得包含指定標籤的迷因
+    const memes = await Meme.find(filter).populate('author_id', 'username display_name avatar')
 
     // 計算每個迷因的相關性分數
     const scoredMemes = memes.map((meme) => {
@@ -373,10 +395,15 @@ export const getTagBasedRecommendations = async (tags, options = {}) => {
     })
 
     // 過濾並排序
-    return scoredMemes
+    const filteredMemes = scoredMemes
       .filter((meme) => meme.recommendation_score >= minSimilarity)
       .sort((a, b) => b.recommendation_score - a.recommendation_score)
-      .slice(0, limit)
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const paginatedMemes = filteredMemes.slice(skip, skip + parseInt(limit))
+
+    return paginatedMemes
   } catch (error) {
     console.error('取得標籤相關推薦時發生錯誤:', error)
     return []

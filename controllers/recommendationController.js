@@ -29,6 +29,7 @@ import {
   clearMixedRecommendationCache,
   getInfiniteScrollRecommendations,
 } from '../utils/mixedRecommendation.js'
+import { sortByTotalScoreDesc } from '../utils/sortHelpers.js'
 import {
   calculateMemeSocialScore,
   getUserSocialInfluenceStats,
@@ -40,7 +41,16 @@ import {
  */
 export const getHotRecommendations = async (req, res) => {
   try {
-    const { limit = 20, type = 'all', days = 7, exclude_viewed = 'false', tags } = req.query
+    const {
+      limit = 20,
+      type = 'all',
+      days = 7,
+      exclude_viewed = 'false',
+      tags,
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
+    } = req.query
 
     const userId = req.user?._id
     const parsedDays = parseInt(days)
@@ -66,15 +76,36 @@ export const getHotRecommendations = async (req, res) => {
       }
     }
 
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+    }
+
+    // 如果有排除ID，加入查詢條件
+    if (excludeIds.length > 0) {
+      filter._id = { $nin: excludeIds }
+    }
+
     // 排除用戶已看過的迷因
     if (exclude_viewed === 'true' && userId) {
       // 這裡可以加入用戶瀏覽歷史的邏輯
       // 暫時先不實作，因為需要 View 模型
     }
 
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const totalLimit = parseInt(limit)
+
     const memes = await Meme.find(filter)
       .sort({ hot_score: -1 })
-      .limit(parseInt(limit))
+      .skip(skip)
+      .limit(totalLimit)
       .populate('author_id', 'username display_name avatar')
 
     // 為每個迷因添加推薦分數和等級
@@ -88,6 +119,9 @@ export const getHotRecommendations = async (req, res) => {
       }
     })
 
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments(filter)
+
     res.json({
       success: true,
       data: {
@@ -96,9 +130,19 @@ export const getHotRecommendations = async (req, res) => {
           type,
           days: parseInt(days),
           limit: parseInt(limit),
+          page: parseInt(page),
+          exclude_ids: excludeIds,
           tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())) : [],
         },
         algorithm: 'hot_score',
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: totalCount,
+          hasMore: skip + totalLimit < totalCount,
+          totalPages: Math.ceil(totalCount / parseInt(limit)),
+        },
       },
       error: null,
     })
@@ -116,7 +160,15 @@ export const getHotRecommendations = async (req, res) => {
  */
 export const getLatestRecommendations = async (req, res) => {
   try {
-    const { limit = 20, type = 'all', hours = 24, tags } = req.query
+    const {
+      limit = 20,
+      type = 'all',
+      hours = 24,
+      tags,
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
+    } = req.query
 
     const parsedHours = parseInt(hours)
     const validHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 24
@@ -141,9 +193,30 @@ export const getLatestRecommendations = async (req, res) => {
       }
     }
 
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+    }
+
+    // 如果有排除ID，加入查詢條件
+    if (excludeIds.length > 0) {
+      filter._id = { $nin: excludeIds }
+    }
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const totalLimit = parseInt(limit)
+
     const memes = await Meme.find(filter)
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
+      .skip(skip)
+      .limit(totalLimit)
       .populate('author_id', 'username display_name avatar')
 
     const recommendations = memes.map((meme) => {
@@ -156,6 +229,9 @@ export const getLatestRecommendations = async (req, res) => {
       }
     })
 
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments(filter)
+
     res.json({
       success: true,
       data: {
@@ -164,9 +240,19 @@ export const getLatestRecommendations = async (req, res) => {
           type,
           hours: parseInt(hours),
           limit: parseInt(limit),
+          page: parseInt(page),
+          exclude_ids: excludeIds,
           tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())) : [],
         },
         algorithm: 'latest',
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: totalCount,
+          hasMore: skip + totalLimit < totalCount,
+          totalPages: Math.ceil(totalCount / parseInt(limit)),
+        },
       },
       error: null,
     })
@@ -255,6 +341,9 @@ export const getContentBasedRecommendationsController = async (req, res) => {
       include_hot_score = 'true',
       hot_score_weight = 0.3,
       tags,
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
     } = req.query
     const userId = req.user?._id
 
@@ -279,14 +368,38 @@ export const getContentBasedRecommendationsController = async (req, res) => {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+    }
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const totalLimit = parseInt(limit)
+
     // 取得內容基礎推薦
     const recommendations = await getContentBasedRecommendations(userId, {
-      limit: parseInt(limit),
+      limit: totalLimit,
       minSimilarity: parseFloat(min_similarity),
       excludeInteracted: exclude_interacted === 'true',
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
       tags: tagArray,
+      page: parseInt(page),
+      excludeIds: excludeIds,
+    })
+
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments({
+      status: 'public',
+      ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
+      ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
     })
 
     res.json({
@@ -301,6 +414,8 @@ export const getContentBasedRecommendationsController = async (req, res) => {
           include_hot_score: include_hot_score === 'true',
           hot_score_weight: parseFloat(hot_score_weight),
           tags: tagArray,
+          page: parseInt(page),
+          exclude_ids: excludeIds,
         },
         algorithm: 'content_based',
         algorithm_details: {
@@ -313,6 +428,14 @@ export const getContentBasedRecommendationsController = async (req, res) => {
             '支援時間衰減，新互動權重更高',
             '標籤篩選支援',
           ],
+        },
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: totalCount,
+          hasMore: skip + totalLimit < totalCount,
+          totalPages: Math.ceil(totalCount / parseInt(limit)),
         },
       },
       error: null,
@@ -337,6 +460,9 @@ export const getTagBasedRecommendationsController = async (req, res) => {
       min_similarity = 0.1,
       include_hot_score = 'true',
       hot_score_weight = 0.3,
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
     } = req.query
 
     if (!tags) {
@@ -348,12 +474,36 @@ export const getTagBasedRecommendationsController = async (req, res) => {
 
     const tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
 
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+    }
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const totalLimit = parseInt(limit)
+
     // 取得標籤相關推薦
     const recommendations = await getTagBasedRecommendations(tagArray, {
-      limit: parseInt(limit),
+      limit: totalLimit,
       minSimilarity: parseFloat(min_similarity),
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
+      page: parseInt(page),
+      excludeIds: excludeIds,
+    })
+
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments({
+      status: 'public',
+      tags_cache: { $in: tagArray },
+      ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
     })
 
     res.json({
@@ -366,6 +516,8 @@ export const getTagBasedRecommendationsController = async (req, res) => {
           min_similarity: parseFloat(min_similarity),
           include_hot_score: include_hot_score === 'true',
           hot_score_weight: parseFloat(hot_score_weight),
+          page: parseInt(page),
+          exclude_ids: excludeIds,
         },
         algorithm: 'tag_based',
         algorithm_details: {
@@ -375,6 +527,14 @@ export const getTagBasedRecommendationsController = async (req, res) => {
             '結合熱門分數提升推薦品質',
             '支援多標籤查詢',
           ],
+        },
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: totalCount,
+          hasMore: skip + totalLimit < totalCount,
+          totalPages: Math.ceil(totalCount / parseInt(limit)),
         },
       },
       error: null,
@@ -635,9 +795,7 @@ export const getMixedRecommendationsController = async (req, res) => {
     })
 
     // 確保推薦結果按總分排序
-    const sortedRecommendations = result.recommendations.sort(
-      (a, b) => b.total_score - a.total_score,
-    )
+    const sortedRecommendations = sortByTotalScoreDesc(result.recommendations)
 
     res.json({
       success: true,
@@ -829,6 +987,9 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       include_hot_score = 'true',
       hot_score_weight = 0.3,
       tags,
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
     } = req.query
     const userId = req.user?._id
 
@@ -853,15 +1014,39 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+    }
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const totalLimit = parseInt(limit)
+
     // 取得協同過濾推薦
     const recommendations = await getCollaborativeFilteringRecommendations(userId, {
-      limit: parseInt(limit),
+      limit: totalLimit,
       minSimilarity: parseFloat(min_similarity),
       maxSimilarUsers: parseInt(max_similar_users),
       excludeInteracted: exclude_interacted === 'true',
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
       tags: tagArray,
+      page: parseInt(page),
+      excludeIds: excludeIds,
+    })
+
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments({
+      status: 'public',
+      ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
+      ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
     })
 
     res.json({
@@ -877,6 +1062,8 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
           include_hot_score: include_hot_score === 'true',
           hot_score_weight: parseFloat(hot_score_weight),
           tags: tagArray,
+          page: parseInt(page),
+          exclude_ids: excludeIds,
         },
         algorithm: 'collaborative_filtering',
         algorithm_details: {
@@ -889,6 +1076,14 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
             '支援時間衰減，新互動權重更高',
             '標籤篩選支援',
           ],
+        },
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: totalCount,
+          hasMore: skip + totalLimit < totalCount,
+          totalPages: Math.ceil(totalCount / parseInt(limit)),
         },
       },
       error: null,
@@ -1015,6 +1210,9 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       include_hot_score = 'true',
       hot_score_weight = 0.3,
       tags,
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
     } = req.query
 
     // 解析標籤參數
@@ -1023,17 +1221,41 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+    }
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const totalLimit = parseInt(limit)
+
     const options = {
-      limit: parseInt(limit),
+      limit: totalLimit,
       minSimilarity: parseFloat(min_similarity),
       maxSimilarUsers: parseInt(max_similar_users),
       excludeInteracted: exclude_interacted === 'true',
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
       tags: tagArray,
+      page: parseInt(page),
+      excludeIds: excludeIds,
     }
 
     const recommendations = await getSocialCollaborativeFilteringRecommendations(userId, options)
+
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments({
+      status: 'public',
+      ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
+      ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
+    })
 
     res.json({
       success: true,
@@ -1048,6 +1270,8 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
           include_hot_score: include_hot_score === 'true',
           hot_score_weight: parseFloat(hot_score_weight),
           tags: tagArray,
+          page: parseInt(page),
+          exclude_ids: excludeIds,
         },
         algorithm: 'social_collaborative_filtering',
         algorithm_details: {
@@ -1060,6 +1284,14 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
             '支援時間衰減，新互動權重更高',
             '標籤篩選支援',
           ],
+        },
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: totalCount,
+          hasMore: skip + totalLimit < totalCount,
+          totalPages: Math.ceil(totalCount / parseInt(limit)),
         },
       },
       error: null,

@@ -29,6 +29,152 @@
 - **normal** (≥10): 一般
 - **new** (<10): 新內容
 
+## 分頁和排序功能
+
+### 分頁系統
+
+推薦系統支援完整的分頁功能，確保大量數據的高效載入和良好的用戶體驗。
+
+#### 分頁參數
+
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `limit` (number): 每頁項目數量 (預設: 20，最大: 100)
+- `skip` (number): 跳過的項目數量 (自動計算: `(page - 1) * limit`)
+
+#### 分頁回應格式
+
+```json
+{
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "skip": 0,
+    "total": 150,
+    "hasMore": true,
+    "totalPages": 8,
+    "nextPage": 2,
+    "prevPage": null
+  }
+}
+```
+
+#### 分頁功能特點
+
+- **自動計算**: 系統自動計算 `skip` 值
+- **邊界檢查**: 自動處理頁碼超出範圍的情況
+- **效能優化**: 使用 MongoDB 的 `skip()` 和 `limit()` 方法
+- **一致性**: 確保分頁過程中數據的一致性
+
+### 排序系統
+
+推薦系統支援多種排序方式，滿足不同場景的需求。
+
+#### 排序參數
+
+- `sort_by` (string): 排序欄位
+  - `recommendation_score`: 推薦分數 (預設)
+  - `hot_score`: 熱門分數
+  - `created_at`: 創建時間
+  - `updated_at`: 更新時間
+  - `title`: 標題
+  - `views`: 瀏覽數
+  - `likes`: 讚數
+  - `comments`: 留言數
+  - `collections`: 收藏數
+  - `shares`: 分享數
+
+- `sort_order` (string): 排序方向
+  - `desc`: 降序 (預設)
+  - `asc`: 升序
+
+#### 排序功能特點
+
+- **多欄位支援**: 支援所有主要欄位的排序
+- **效能優化**: 使用資料庫索引提升排序效能
+- **彈性配置**: 可根據不同演算法調整預設排序
+- **一致性保證**: 相同分數的項目保持穩定排序
+
+#### 排序範例
+
+```javascript
+// 按推薦分數降序排列
+GET /api/recommendations/hot?sort_by=recommendation_score&sort_order=desc
+
+// 按創建時間升序排列（最新優先）
+GET /api/recommendations/latest?sort_by=created_at&sort_order=asc
+
+// 按熱門分數降序排列
+GET /api/recommendations/mixed?sort_by=hot_score&sort_order=desc
+```
+
+### 分頁和排序的組合使用
+
+#### 無限捲動場景
+
+```javascript
+// 第一頁：獲取前 20 個項目
+GET /api/recommendations/infinite-scroll?page=1&limit=20&sort_by=recommendation_score
+
+// 第二頁：獲取第 21-40 個項目
+GET /api/recommendations/infinite-scroll?page=2&limit=20&sort_by=recommendation_score
+
+// 排除已顯示的項目
+GET /api/recommendations/infinite-scroll?page=3&limit=20&exclude_ids=meme1,meme2,meme3
+```
+
+#### 探索頁面場景
+
+```javascript
+// 按熱門程度排序，分頁載入
+GET /api/recommendations/hot?page=1&limit=30&sort_by=hot_score&sort_order=desc
+
+// 按最新發布排序
+GET /api/recommendations/latest?page=1&limit=30&sort_by=created_at&sort_order=desc
+```
+
+#### 個人化推薦場景
+
+```javascript
+// 按個人化推薦分數排序
+GET /api/recommendations/content-based?page=1&limit=20&sort_by=recommendation_score&sort_order=desc
+
+// 按協同過濾分數排序
+GET /api/recommendations/collaborative-filtering?page=1&limit=20&sort_by=recommendation_score&sort_order=desc
+```
+
+### 效能優化
+
+#### 資料庫索引
+
+```javascript
+// 推薦分數索引
+db.memes.createIndex({ recommendation_score: -1 })
+
+// 熱門分數索引
+db.memes.createIndex({ hot_score: -1 })
+
+// 創建時間索引
+db.memes.createIndex({ created_at: -1 })
+
+// 複合索引（推薦分數 + 狀態）
+db.memes.createIndex({ recommendation_score: -1, status: 1 })
+
+// 複合索引（熱門分數 + 類型）
+db.memes.createIndex({ hot_score: -1, type: 1 })
+```
+
+#### 快取策略
+
+- **分頁快取**: 每個分頁結果快取 5-10 分鐘
+- **排序快取**: 不同排序方式的結果分別快取
+- **組合快取**: 分頁和排序的組合結果快取
+
+#### 效能監控
+
+- **查詢時間**: 監控分頁查詢的執行時間
+- **記憶體使用**: 監控大量數據處理的記憶體使用
+- **快取命中率**: 監控分頁快取的命中率
+
 ## 推薦演算法
 
 ### 1. 熱門推薦 (Hot Recommendations)
@@ -148,7 +294,10 @@
 
 **查詢參數**:
 
-- `limit` (number): 推薦數量 (預設: 20)
+- `limit` (number): 推薦數量 (預設: 20，最大: 100)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `sort_by` (string): 排序欄位 (recommendation_score, hot_score, created_at, updated_at, title, views, likes, comments, collections, shares) (預設: recommendation_score)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `type` (string): 迷因類型篩選 (all, image, video, audio, text)
 - `days` (number): 時間範圍天數 (預設: 7)
 - `exclude_viewed` (boolean): 是否排除已看過的迷因 (預設: false)
@@ -179,7 +328,20 @@
     "filters": {
       "type": "all",
       "days": 7,
-      "limit": 20
+      "limit": 20,
+      "page": 1,
+      "sort_by": "recommendation_score",
+      "sort_order": "desc"
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "skip": 0,
+      "total": 150,
+      "hasMore": true,
+      "totalPages": 8,
+      "nextPage": 2,
+      "prevPage": null
     },
     "algorithm": "hot_score"
   },
@@ -195,7 +357,10 @@
 
 **查詢參數**:
 
-- `limit` (number): 推薦數量 (預設: 20)
+- `limit` (number): 推薦數量 (預設: 20，最大: 100)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `sort_by` (string): 排序欄位 (recommendation_score, created_at, updated_at, title, views, likes, comments, collections, shares) (預設: created_at)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `type` (string): 迷因類型篩選
 - `hours` (number): 時間範圍小時數 (預設: 24)
 
@@ -217,7 +382,20 @@
     "filters": {
       "type": "all",
       "hours": 24,
-      "limit": 20
+      "limit": 20,
+      "page": 1,
+      "sort_by": "created_at",
+      "sort_order": "desc"
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "skip": 0,
+      "total": 85,
+      "hasMore": true,
+      "totalPages": 5,
+      "nextPage": 2,
+      "prevPage": null
     },
     "algorithm": "latest"
   },
@@ -237,7 +415,10 @@
 
 **查詢參數**:
 
-- `limit` (number): 推薦數量 (預設: 10)
+- `limit` (number): 推薦數量 (預設: 10，最大: 50)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `sort_by` (string): 排序欄位 (recommendation_score, similarity_score, hot_score, created_at, title) (預設: similarity_score)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 
 **回應範例**:
 
@@ -261,7 +442,20 @@
       }
     ],
     "filters": {
-      "limit": 10
+      "limit": 10,
+      "page": 1,
+      "sort_by": "similarity_score",
+      "sort_order": "desc"
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "skip": 0,
+      "total": 45,
+      "hasMore": true,
+      "totalPages": 5,
+      "nextPage": 2,
+      "prevPage": null
     },
     "algorithm": "similar_tags"
   },
@@ -279,7 +473,10 @@
 
 **查詢參數**:
 
-- `limit` (number): 推薦數量 (預設: 20)
+- `limit` (number): 推薦數量 (預設: 20，最大: 100)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `sort_by` (string): 排序欄位 (recommendation_score, content_similarity, preference_match, hot_score, created_at, title) (預設: recommendation_score)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `min_similarity` (number): 最小相似度閾值 (預設: 0.1)
 - `exclude_interacted` (boolean): 是否排除已互動的迷因 (預設: true)
 - `include_hot_score` (boolean): 是否結合熱門分數 (預設: true)
@@ -319,10 +516,23 @@
     "user_id": "user123",
     "filters": {
       "limit": 20,
+      "page": 1,
+      "sort_by": "recommendation_score",
+      "sort_order": "desc",
       "min_similarity": 0.1,
       "exclude_interacted": true,
       "include_hot_score": true,
       "hot_score_weight": 0.3
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "skip": 0,
+      "total": 120,
+      "hasMore": true,
+      "totalPages": 6,
+      "nextPage": 2,
+      "prevPage": null
     },
     "algorithm": "content_based",
     "algorithm_details": {
@@ -349,7 +559,10 @@
 **查詢參數**:
 
 - `tags` (string): 標籤列表（逗號分隔，必填）
-- `limit` (number): 推薦數量 (預設: 20)
+- `limit` (number): 推薦數量 (預設: 20，最大: 100)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `sort_by` (string): 排序欄位 (recommendation_score, tag_similarity, hot_score, created_at, title) (預設: tag_similarity)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `min_similarity` (number): 最小相似度閾值 (預設: 0.1)
 - `include_hot_score` (boolean): 是否結合熱門分數 (預設: true)
 - `hot_score_weight` (number): 熱門分數權重 (預設: 0.3)
@@ -383,9 +596,22 @@
     "query_tags": ["funny", "meme", "viral"],
     "filters": {
       "limit": 20,
+      "page": 1,
+      "sort_by": "tag_similarity",
+      "sort_order": "desc",
       "min_similarity": 0.1,
       "include_hot_score": true,
       "hot_score_weight": 0.3
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "skip": 0,
+      "total": 95,
+      "hasMore": true,
+      "totalPages": 5,
+      "nextPage": 2,
+      "prevPage": null
     },
     "algorithm": "tag_based",
     "algorithm_details": {
@@ -478,7 +704,10 @@
 
 **查詢參數**:
 
-- `limit` (number): 推薦數量 (預設: 20)
+- `limit` (number): 推薦數量 (預設: 20，最大: 100)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `sort_by` (string): 排序欄位 (recommendation_score, collaborative_score, hot_score, created_at, title) (預設: recommendation_score)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `min_similarity` (number): 最小相似度閾值 (預設: 0.1)
 - `max_similar_users` (number): 最大相似用戶數 (預設: 50)
 - `exclude_interacted` (boolean): 是否排除已互動的迷因 (預設: true)
@@ -513,11 +742,24 @@
     "user_id": "user123",
     "filters": {
       "limit": 20,
+      "page": 1,
+      "sort_by": "recommendation_score",
+      "sort_order": "desc",
       "min_similarity": 0.1,
       "max_similar_users": 50,
       "exclude_interacted": true,
       "include_hot_score": true,
       "hot_score_weight": 0.3
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "skip": 0,
+      "total": 85,
+      "hasMore": true,
+      "totalPages": 5,
+      "nextPage": 2,
+      "prevPage": null
     },
     "algorithm": "collaborative_filtering",
     "algorithm_details": {
@@ -545,7 +787,10 @@
 
 **查詢參數**:
 
-- `limit` (number): 推薦數量 (預設: 20)
+- `limit` (number): 推薦數量 (預設: 20，最大: 100)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `sort_by` (string): 排序欄位 (recommendation_score, social_collaborative_score, hot_score, created_at, title) (預設: recommendation_score)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `min_similarity` (number): 最小相似度閾值 (預設: 0.1)
 - `max_similar_users` (number): 最大相似用戶數 (預設: 50)
 - `exclude_interacted` (boolean): 是否排除已互動的迷因 (預設: true)
@@ -581,11 +826,24 @@
     "user_id": "user123",
     "filters": {
       "limit": 20,
+      "page": 1,
+      "sort_by": "recommendation_score",
+      "sort_order": "desc",
       "min_similarity": 0.1,
       "max_similar_users": 50,
       "exclude_interacted": true,
       "include_hot_score": true,
       "hot_score_weight": 0.3
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "skip": 0,
+      "total": 75,
+      "hasMore": true,
+      "totalPages": 4,
+      "nextPage": 2,
+      "prevPage": null
     },
     "algorithm": "social_collaborative_filtering",
     "algorithm_details": {
@@ -793,13 +1051,15 @@
 
 **查詢參數**:
 
-- `limit` (number): 推薦數量 (預設: 30)
+- `limit` (number): 推薦數量 (預設: 30，最大: 100)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `sort_by` (string): 排序欄位 (recommendation_score, hot_score, created_at, title, social_score) (預設: recommendation_score)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `custom_weights` (string): 自定義權重 JSON 字串 (預設: {})
 - `include_diversity` (boolean): 是否包含多樣性計算 (預設: true)
 - `include_cold_start_analysis` (boolean): 是否包含冷啟動分析 (預設: true)
 - `include_social_scores` (boolean): 是否包含社交層分數計算 (預設: true)
 - `include_recommendation_reasons` (boolean): 是否包含推薦原因生成 (預設: true)
-- `page` (number): 頁碼 (預設: 1)
 - `exclude_ids` (string): 要排除的項目ID列表（逗號分隔）
 
 **回應範例**:
@@ -852,10 +1112,12 @@
     ],
     "filters": {
       "limit": 30,
+      "page": 1,
+      "sort_by": "recommendation_score",
+      "sort_order": "desc",
       "custom_weights": {},
       "include_diversity": true,
       "include_cold_start_analysis": true,
-      "page": 1,
       "exclude_ids": []
     },
     "algorithm": "mixed",
@@ -933,8 +1195,10 @@
 
 **查詢參數**:
 
-- `page` (number): 頁碼 (預設: 1)
-- `limit` (number): 每頁推薦數量 (預設: 10)
+- `page` (number): 頁碼，從 1 開始 (預設: 1)
+- `limit` (number): 每頁推薦數量 (預設: 10，最大: 50)
+- `sort_by` (string): 排序欄位 (recommendation_score, hot_score, created_at, title, social_score) (預設: recommendation_score)
+- `sort_order` (string): 排序方向 (desc, asc) (預設: desc)
 - `exclude_ids` (string): 要排除的項目ID列表（逗號分隔）
 - `tags` (string): 標籤列表（逗號分隔）
 - `custom_weights` (string): 自定義權重 JSON 字串 (預設: {})
@@ -973,6 +1237,8 @@
     "filters": {
       "page": 1,
       "limit": 10,
+      "sort_by": "recommendation_score",
+      "sort_order": "desc",
       "exclude_ids": ["meme1", "meme2"],
       "tags": ["funny"],
       "custom_weights": {},
@@ -1681,6 +1947,119 @@ const hotScore = baseScore * timeFactor
 - 公式: `(熱門分數 × 熱門權重) + (時間分數 × 最新權重) + (內容分數 × 內容權重) + (協同過濾分數 × 協同過濾權重)`
 - 可調整權重平衡不同策略
 
+## 分頁和排序最佳實踐
+
+### 分頁策略
+
+#### 1. 無限捲動分頁
+
+```javascript
+// 第一頁載入
+const response = await fetch('/api/recommendations/infinite-scroll?page=1&limit=20')
+
+// 第二頁載入，排除已顯示項目
+const response = await fetch(
+  '/api/recommendations/infinite-scroll?page=2&limit=20&exclude_ids=meme1,meme2,meme3',
+)
+```
+
+#### 2. 傳統分頁
+
+```javascript
+// 熱門推薦分頁
+const response = await fetch(
+  '/api/recommendations/hot?page=1&limit=30&sort_by=hot_score&sort_order=desc',
+)
+
+// 最新推薦分頁
+const response = await fetch(
+  '/api/recommendations/latest?page=2&limit=30&sort_by=created_at&sort_order=desc',
+)
+```
+
+### 排序策略
+
+#### 1. 推薦分數排序（預設）
+
+```javascript
+// 按推薦分數降序排列
+const response = await fetch(
+  '/api/recommendations/mixed?sort_by=recommendation_score&sort_order=desc',
+)
+```
+
+#### 2. 熱門分數排序
+
+```javascript
+// 按熱門分數降序排列
+const response = await fetch('/api/recommendations/hot?sort_by=hot_score&sort_order=desc')
+```
+
+#### 3. 時間排序
+
+```javascript
+// 按創建時間降序排列（最新優先）
+const response = await fetch('/api/recommendations/latest?sort_by=created_at&sort_order=desc')
+
+// 按創建時間升序排列（最舊優先）
+const response = await fetch('/api/recommendations/latest?sort_by=created_at&sort_order=asc')
+```
+
+#### 4. 社交分數排序
+
+```javascript
+// 按社交分數降序排列
+const response = await fetch('/api/recommendations/mixed?sort_by=social_score&sort_order=desc')
+```
+
+### 效能優化建議
+
+#### 1. 分頁大小選擇
+
+- **移動端**: 建議 `limit=10-15`
+- **桌面端**: 建議 `limit=20-30`
+- **無限捲動**: 建議 `limit=10-20`
+
+#### 2. 快取策略
+
+```javascript
+// 快取分頁結果
+const cacheKey = `recommendations:${algorithm}:${page}:${limit}:${sort_by}:${sort_order}`
+```
+
+#### 3. 預載入策略
+
+```javascript
+// 預載入下一頁
+const preloadNextPage = async (currentPage) => {
+  const nextPage = currentPage + 1
+  await fetch(`/api/recommendations/infinite-scroll?page=${nextPage}&limit=20`)
+}
+```
+
+### 錯誤處理
+
+#### 1. 分頁邊界檢查
+
+```javascript
+if (response.data.pagination.hasMore) {
+  // 載入下一頁
+} else {
+  // 已到最後一頁
+}
+```
+
+#### 2. 排序參數驗證
+
+```javascript
+const validSortFields = ['recommendation_score', 'hot_score', 'created_at', 'title']
+const validSortOrders = ['desc', 'asc']
+
+if (!validSortFields.includes(sortBy) || !validSortOrders.includes(sortOrder)) {
+  // 使用預設排序
+}
+```
+
 ## 使用建議
 
 ### 前端實作建議
@@ -1850,6 +2229,9 @@ const hotScore = baseScore * timeFactor
 3. **內容分析**: 分析迷因內容特徵
 4. **實時推薦**: 支援實時更新推薦結果
 5. **個人化熱門分數**: 結合用戶偏好的個人化熱門分數
+6. **進階分頁**: 支援游標分頁和鍵集分頁
+7. **動態排序**: 根據用戶行為動態調整排序策略
+8. **分頁快取優化**: 實作更智能的分頁快取策略
 
 ## 注意事項
 
@@ -1860,6 +2242,9 @@ const hotScore = baseScore * timeFactor
 5. **效能監控**：持續監控系統效能和推薦效果
 6. **用戶控制**：允許用戶查看和調整個人偏好
 7. **定期維護**：定期更新熱門分數，保持系統活躍度
+8. **分頁效能**：大量數據分頁時注意查詢效能
+9. **排序一致性**：確保相同分數的項目排序穩定
+10. **快取管理**：合理管理分頁和排序的快取策略
 
 ## 錯誤處理
 
@@ -1882,4 +2267,4 @@ const hotScore = baseScore * timeFactor
 
 ---
 
-_本文檔最後更新：2025年8月_
+_本文檔最後更新：2025年1月_

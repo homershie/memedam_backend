@@ -301,6 +301,9 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     includeHotScore = true,
     hotScoreWeight = 0.3,
     tags = [],
+    // 新增：分頁和排除功能
+    page = 1,
+    excludeIds = [],
   } = options || {}
 
   try {
@@ -415,13 +418,21 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
 
     // 建立查詢條件
     const filter = {
-      _id: { $in: recommendations.slice(0, limit).map((r) => r.memeId) },
+      _id: { $in: recommendations.map((r) => r.memeId) },
       status: 'public',
     }
 
     // 如果有標籤篩選，加入標籤條件
     if (tags && tags.length > 0) {
       filter.tags_cache = { $in: tags }
+    }
+
+    // 如果有排除ID，加入查詢條件
+    if (excludeIds && excludeIds.length > 0) {
+      filter._id = {
+        $in: recommendations.map((r) => r.memeId),
+        $nin: excludeIds,
+      }
     }
 
     // 取得迷因詳細資訊
@@ -467,11 +478,15 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       }
     })
 
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const paginatedRecommendations = finalRecommendations.slice(skip, skip + parseInt(limit))
+
     console.log(
-      `協同過濾推薦生成完成，找到 ${similarUsers.length} 個相似用戶，推薦 ${finalRecommendations.length} 個迷因`,
+      `協同過濾推薦生成完成，找到 ${similarUsers.length} 個相似用戶，推薦 ${paginatedRecommendations.length} 個迷因`,
     )
 
-    return finalRecommendations
+    return paginatedRecommendations
   } catch (error) {
     console.error('協同過濾推薦生成失敗:', error)
     return []
@@ -754,6 +769,9 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     includeHotScore = true,
     hotScoreWeight = 0.3,
     tags = [],
+    // 新增：分頁和排除功能
+    page = 1,
+    excludeIds = [],
   } = options || {}
 
   try {
@@ -879,13 +897,21 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     // 建立查詢條件
     const filter = {
-      _id: { $in: recommendations.slice(0, limit).map((r) => r.memeId) },
+      _id: { $in: recommendations.map((r) => r.memeId) },
       status: 'public',
     }
 
     // 如果有標籤篩選，加入標籤條件
     if (tags && tags.length > 0) {
       filter.tags_cache = { $in: tags }
+    }
+
+    // 如果有排除ID，加入查詢條件
+    if (excludeIds && excludeIds.length > 0) {
+      filter._id = {
+        $in: recommendations.map((r) => r.memeId),
+        $nin: excludeIds,
+      }
     }
 
     // 取得迷因詳細資訊
@@ -932,10 +958,14 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       }
     })
 
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const paginatedRecommendations = finalRecommendations.slice(skip, skip + parseInt(limit))
+
     console.log(
-      `社交協同過濾推薦生成完成，找到 ${socialSimilarUsers.length} 個社交相似用戶，推薦 ${finalRecommendations.length} 個迷因`,
+      `社交協同過濾推薦生成完成，找到 ${socialSimilarUsers.length} 個社交相似用戶，推薦 ${paginatedRecommendations.length} 個迷因`,
     )
-    return finalRecommendations
+    return paginatedRecommendations
   } catch (error) {
     console.error('生成社交協同過濾推薦時發生錯誤:', error)
     throw error
