@@ -1386,3 +1386,138 @@ export const getMemeScoreAnalysis = async (req, res) => {
     res.status(500).json({ success: false, error: err.message })
   }
 }
+
+// 取得隨機迷因
+export const getRandomMeme = async (req, res) => {
+  try {
+    const { type = 'all', status = 'public', excludeId = null, tags = null } = req.query
+
+    // 建立篩選條件
+    const filter = {
+      status: status,
+    }
+
+    // 根據類型篩選
+    if (type !== 'all') {
+      filter.type = type
+    }
+
+    // 排除指定ID（避免重複顯示同一個迷因）
+    if (excludeId) {
+      filter._id = { $ne: excludeId }
+    }
+
+    // 根據標籤篩選
+    if (tags) {
+      const tagArray = Array.isArray(tags) ? tags : [tags]
+      filter.tags_cache = { $in: tagArray }
+    }
+
+    // 使用 MongoDB 的 $sample 操作符來隨機選擇一個迷因
+    const randomMeme = await Meme.aggregate([
+      { $match: filter },
+      { $sample: { size: 1 } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'author_id',
+          foreignField: '_id',
+          as: 'author',
+        },
+      },
+      {
+        $unwind: {
+          path: '$author',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          content: 1,
+          image_url: 1,
+          video_url: 1,
+          audio_url: 1,
+          type: 1,
+          detail_markdown: 1,
+          tags_cache: 1,
+          source_url: 1,
+          views: 1,
+          like_count: 1,
+          dislike_count: 1,
+          comment_count: 1,
+          collection_count: 1,
+          share_count: 1,
+          hot_score: 1,
+          status: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          'author._id': 1,
+          'author.username': 1,
+          'author.display_name': 1,
+          'author.avatar': 1,
+        },
+      },
+    ])
+
+    if (randomMeme.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: '找不到符合條件的迷因',
+        data: null,
+      })
+    }
+
+    const meme = randomMeme[0]
+
+    // 計算熱門分數和等級
+    const hotScore = calculateMemeHotScore(meme)
+    const hotLevel = getHotScoreLevel(hotScore)
+    const engagementScore = calculateEngagementScore(meme)
+    const qualityScore = calculateQualityScore(meme)
+
+    // 重新組織作者資訊
+    const author = meme.author
+      ? {
+          _id: meme.author._id,
+          username: meme.author.username,
+          display_name: meme.author.display_name,
+          avatar: meme.author.avatar,
+        }
+      : null
+
+    // 移除聚合查詢產生的 author 欄位，改用重新組織的 author 物件
+    delete meme.author
+
+    const memeWithScores = {
+      ...meme,
+      author,
+      hot_score: hotScore,
+      hot_level: hotLevel,
+      engagement_score: engagementScore,
+      quality_score: qualityScore,
+    }
+
+    res.json({
+      success: true,
+      data: {
+        meme: memeWithScores,
+        filters: {
+          type,
+          status,
+          excludeId,
+          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : null,
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    console.error('取得隨機迷因時發生錯誤:', err)
+    res.status(500).json({
+      success: false,
+      error: '取得隨機迷因時發生錯誤',
+      data: null,
+    })
+  }
+}

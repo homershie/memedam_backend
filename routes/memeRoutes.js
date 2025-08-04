@@ -15,6 +15,7 @@ import {
   getHotMemes,
   getTrendingMemes,
   getMemeScoreAnalysis,
+  getRandomMeme,
 } from '../controllers/memeController.js'
 import {
   proposeEdit,
@@ -484,8 +485,92 @@ router.get('/', getMemes)
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+/**
+ * @swagger
+ * /api/memes/random:
+ *   get:
+ *     summary: 取得隨機迷因
+ *     tags: [Memes]
+ *     parameters:
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [all, image, video, audio, text]
+ *           default: all
+ *         description: 迷因類型篩選
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [public, private, draft]
+ *           default: public
+ *         description: 迷因狀態篩選
+ *       - in: query
+ *         name: excludeId
+ *         schema:
+ *           type: string
+ *         description: 排除指定ID的迷因（避免重複顯示）
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         description: 根據標籤篩選迷因
+ *     responses:
+ *       200:
+ *         description: 成功取得隨機迷因
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     meme:
+ *                       $ref: '#/components/schemas/Meme'
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         type:
+ *                           type: string
+ *                         status:
+ *                           type: string
+ *                         excludeId:
+ *                           type: string
+ *                         tags:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                 error:
+ *                   type: null
+ *       404:
+ *         description: 找不到符合條件的迷因
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 data:
+ *                   type: null
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/search-suggestions', getSearchSuggestions)
 router.get('/by-tags', getMemesByTags)
+router.get('/random', getRandomMeme)
 /**
  * @swagger
  * /api/memes/batch-update-hot-scores:
