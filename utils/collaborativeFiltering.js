@@ -102,7 +102,19 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     } else {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
+<<<<<<< Updated upstream
         .map(safeToObjectId)
+=======
+        .map((id) => {
+          // 如果已經是 ObjectId，直接使用，否則嘗試轉換
+          if (id instanceof mongoose.Types.ObjectId) return id
+          if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+            return new mongoose.Types.ObjectId(id)
+          }
+          console.warn(`無效的用戶ID格式: ${id}`)
+          return null
+        })
+>>>>>>> Stashed changes
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -120,7 +132,18 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     } else {
       // 確保所有迷因ID都是ObjectId格式
       targetMemeIds = memeIds
+<<<<<<< Updated upstream
         .map(safeToObjectId)
+=======
+        .map((id) => {
+          if (id instanceof mongoose.Types.ObjectId) return id
+          if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+            return new mongoose.Types.ObjectId(id)
+          }
+          console.warn(`無效的迷因ID格式: ${id}`)
+          return null
+        })
+>>>>>>> Stashed changes
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -132,36 +155,43 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
 
     console.log(`處理 ${targetUserIds.length} 個用戶和 ${targetMemeIds.length} 個迷因`)
 
+<<<<<<< Updated upstream
     // 取得所有互動數據 - 確保查詢參數格式正確
+=======
+    // 取得所有互動數據
+    const userIdList = targetUserIds.map((id) => id.toString())
+    const memeIdList = targetMemeIds.map((id) => id.toString())
+
+>>>>>>> Stashed changes
     const [likes, collections, comments, shares, views] = await Promise.all([
       Like.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
+        user_id: { $in: userIdList },
+        meme_id: { $in: memeIdList },
       })
         .select('user_id meme_id createdAt')
         .lean(),
       Collection.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
+        user_id: { $in: userIdList },
+        meme_id: { $in: memeIdList },
       })
         .select('user_id meme_id createdAt')
         .lean(),
       Comment.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
+        user_id: { $in: userIdList },
+        meme_id: { $in: memeIdList },
         status: 'normal',
       })
         .select('user_id meme_id createdAt')
         .lean(),
       Share.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
+        user_id: { $in: userIdList },
+        meme_id: { $in: memeIdList },
       })
         .select('user_id meme_id createdAt')
         .lean(),
       View.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
+        user_id: { $in: userIdList },
+        meme_id: { $in: memeIdList },
       })
         .select('user_id meme_id createdAt')
         .lean(),
@@ -589,7 +619,18 @@ export const buildSocialGraph = async (userIds = []) => {
     } else {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
+<<<<<<< Updated upstream
         .map(safeToObjectId)
+=======
+        .map((id) => {
+          if (id instanceof mongoose.Types.ObjectId) return id
+          if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+            return new mongoose.Types.ObjectId(id)
+          }
+          console.warn(`無效的用戶ID格式: ${id}`)
+          return null
+        })
+>>>>>>> Stashed changes
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -599,12 +640,19 @@ export const buildSocialGraph = async (userIds = []) => {
       return {}
     }
 
+<<<<<<< Updated upstream
     // 取得所有追隨關係 - 修正查詢語法
     const follows = await Follow.find({
       $or: [
         { follower_id: { $in: targetUserIds } }, 
         { following_id: { $in: targetUserIds } }
       ],
+=======
+    // 取得所有追隨關係
+    const userIdList = targetUserIds.map((id) => id.toString())
+    const follows = await Follow.find({
+      $or: [{ follower_id: { $in: userIdList } }, { following_id: { $in: userIdList } }],
+>>>>>>> Stashed changes
       status: 'active',
     })
       .select('follower_id following_id createdAt')
