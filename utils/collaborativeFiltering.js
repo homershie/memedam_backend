@@ -148,38 +148,36 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     console.log(`處理 ${targetUserIds.length} 個用戶和 ${targetMemeIds.length} 個迷因`)
 
     // 取得所有互動數據
-    const userIdList = targetUserIds.map((id) => id.toString())
-    const memeIdList = targetMemeIds.map((id) => id.toString())
-
+    // 使用 ObjectId 而不是字符串進行查詢
     const [likes, collections, comments, shares, views] = await Promise.all([
       Like.find({
-        user_id: { $in: userIdList },
-        meme_id: { $in: memeIdList },
+        user_id: { $in: targetUserIds },
+        meme_id: { $in: targetMemeIds },
       })
         .select('user_id meme_id createdAt')
         .lean(),
       Collection.find({
-        user_id: { $in: userIdList },
-        meme_id: { $in: memeIdList },
+        user_id: { $in: targetUserIds },
+        meme_id: { $in: targetMemeIds },
       })
         .select('user_id meme_id createdAt')
         .lean(),
       Comment.find({
-        user_id: { $in: userIdList },
-        meme_id: { $in: memeIdList },
+        user_id: { $in: targetUserIds },
+        meme_id: { $in: targetMemeIds },
         status: 'normal',
       })
         .select('user_id meme_id createdAt')
         .lean(),
       Share.find({
-        user_id: { $in: userIdList },
-        meme_id: { $in: memeIdList },
+        user_id: { $in: targetUserIds },
+        meme_id: { $in: targetMemeIds },
       })
         .select('user_id meme_id createdAt')
         .lean(),
       View.find({
-        user_id: { $in: userIdList },
-        meme_id: { $in: memeIdList },
+        user_id: { $in: targetUserIds },
+        meme_id: { $in: targetMemeIds },
       })
         .select('user_id meme_id createdAt')
         .lean(),
@@ -627,9 +625,9 @@ export const buildSocialGraph = async (userIds = []) => {
     }
 
     // 取得所有追隨關係
-    const userIdList = targetUserIds.map((id) => id.toString())
+    // 使用 ObjectId 而不是字符串進行查詢
     const follows = await Follow.find({
-      $or: [{ follower_id: { $in: userIdList } }, { following_id: { $in: userIdList } }],
+      $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
       status: 'active',
     })
       .select('follower_id following_id createdAt')
