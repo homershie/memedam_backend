@@ -17,21 +17,21 @@ const mockAuth = (req, res, next) => {
 }
 
 // Mock 工具函數
-const mockContentBasedRecommendations = (userId, options) => {
+const mockContentBasedRecommendations = () => {
   return Promise.resolve([
     { _id: 'meme1', recommendation_score: 0.9 },
     { _id: 'meme2', recommendation_score: 0.8 },
   ])
 }
 
-const mockCollaborativeFilteringRecommendations = (userId, options) => {
+const mockCollaborativeFilteringRecommendations = () => {
   return Promise.resolve([
     { _id: 'meme1', recommendation_score: 0.9 },
     { _id: 'meme2', recommendation_score: 0.8 },
   ])
 }
 
-const mockSocialCollaborativeFilteringRecommendations = (userId, options) => {
+const mockSocialCollaborativeFilteringRecommendations = () => {
   return Promise.resolve([
     { _id: 'meme1', recommendation_score: 0.9 },
     { _id: 'meme2', recommendation_score: 0.8 },
@@ -43,7 +43,7 @@ const mockContentBasedController = (req, res) => {
   const { page = 1, limit = 20, exclude_ids } = req.query
 
   const excludeIds = exclude_ids ? exclude_ids.split(',').map((id) => id.trim()) : []
-  
+
   // 正確處理無效的頁碼參數
   const pageNum = parseInt(page) || 1
   const limitNum = parseInt(limit) || 20
@@ -85,7 +85,7 @@ const mockTagBasedController = (req, res) => {
   const { page = 1, limit = 20, exclude_ids, tags } = req.query
 
   const excludeIds = exclude_ids ? exclude_ids.split(',').map((id) => id.trim()) : []
-  
+
   // 正確處理無效的頁碼參數
   const pageNum = parseInt(page) || 1
   const limitNum = parseInt(limit) || 20
@@ -129,7 +129,7 @@ const mockCollaborativeFilteringController = (req, res) => {
   const { page = 1, limit = 20, exclude_ids } = req.query
 
   const excludeIds = exclude_ids ? exclude_ids.split(',').map((id) => id.trim()) : []
-  
+
   // 正確處理無效的頁碼參數
   const pageNum = parseInt(page) || 1
   const limitNum = parseInt(limit) || 20
@@ -172,7 +172,7 @@ const mockSocialCollaborativeFilteringController = (req, res) => {
   const { page = 1, limit = 20, exclude_ids } = req.query
 
   const excludeIds = exclude_ids ? exclude_ids.split(',').map((id) => id.trim()) : []
-  
+
   // 正確處理無效的頁碼參數
   const pageNum = parseInt(page) || 1
   const limitNum = parseInt(limit) || 20

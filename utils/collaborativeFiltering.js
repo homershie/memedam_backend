@@ -64,15 +64,13 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
         .map((id) => {
-          if (typeof id === 'string') {
-            try {
-              return new mongoose.Types.ObjectId(id)
-            } catch {
-              console.warn(`無效的用戶ID格式: ${id}`)
-              return null
-            }
+          try {
+            // 無論輸入是字串或 ObjectId，統一轉換為 ObjectId
+            return new mongoose.Types.ObjectId(id)
+          } catch {
+            console.warn(`無效的用戶ID格式: ${id}`)
+            return null
           }
-          return id
         })
         .filter(Boolean) // 過濾掉無效的ID
     }
@@ -92,15 +90,13 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
       // 確保所有迷因ID都是ObjectId格式
       targetMemeIds = memeIds
         .map((id) => {
-          if (typeof id === 'string') {
-            try {
-              return new mongoose.Types.ObjectId(id)
-            } catch {
-              console.warn(`無效的迷因ID格式: ${id}`)
-              return null
-            }
+          try {
+            // 無論輸入是字串或 ObjectId，統一轉換為 ObjectId
+            return new mongoose.Types.ObjectId(id)
+          } catch {
+            console.warn(`無效的迷因ID格式: ${id}`)
+            return null
           }
-          return id
         })
         .filter(Boolean) // 過濾掉無效的ID
     }
@@ -564,15 +560,13 @@ export const buildSocialGraph = async (userIds = []) => {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
         .map((id) => {
-          if (typeof id === 'string') {
-            try {
-              return new mongoose.Types.ObjectId(id)
-            } catch {
-              console.warn(`無效的用戶ID格式: ${id}`)
-              return null
-            }
+          try {
+            // 無論輸入是字串或 ObjectId，統一轉換為 ObjectId
+            return new mongoose.Types.ObjectId(id)
+          } catch {
+            console.warn(`無效的用戶ID格式: ${id}`)
+            return null
           }
-          return id
         })
         .filter(Boolean) // 過濾掉無效的ID
     }
