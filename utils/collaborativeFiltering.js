@@ -35,6 +35,45 @@ const TIME_DECAY_CONFIG = {
 }
 
 /**
+ * 安全地轉換為 ObjectId
+ * @param {string|ObjectId} id - 要轉換的 ID
+ * @returns {ObjectId|null} 轉換後的 ObjectId 或 null
+ */
+const safeToObjectId = (id) => {
+  try {
+    if (!id) return null
+    
+    // 如果已經是 ObjectId，直接返回
+    if (id instanceof mongoose.Types.ObjectId) {
+      return id
+    }
+    
+    // 如果是字符串，檢查是否為有效的 ObjectId 格式
+    if (typeof id === 'string') {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        console.warn(`無效的 ObjectId 格式: ${id}`)
+        return null
+      }
+      return new mongoose.Types.ObjectId(id)
+    }
+    
+    // 其他類型的處理
+    if (id && typeof id === 'object' && id.toString) {
+      const idStr = id.toString()
+      if (mongoose.Types.ObjectId.isValid(idStr)) {
+        return new mongoose.Types.ObjectId(idStr)
+      }
+    }
+    
+    console.warn(`無法轉換為 ObjectId: ${JSON.stringify(id)}`)
+    return null
+  } catch (error) {
+    console.warn(`ObjectId 轉換錯誤: ${error.message}`, id)
+    return null
+  }
+}
+
+/**
  * 社交影響力配置
  */
 const SOCIAL_INFLUENCE_CONFIG = {
@@ -63,15 +102,7 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     } else {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
-        .map((id) => {
-          try {
-            // 無論輸入是字串或 ObjectId，統一轉換為 ObjectId
-            return new mongoose.Types.ObjectId(id)
-          } catch {
-            console.warn(`無效的用戶ID格式: ${id}`)
-            return null
-          }
-        })
+        .map(safeToObjectId)
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -89,15 +120,7 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     } else {
       // 確保所有迷因ID都是ObjectId格式
       targetMemeIds = memeIds
-        .map((id) => {
-          try {
-            // 無論輸入是字串或 ObjectId，統一轉換為 ObjectId
-            return new mongoose.Types.ObjectId(id)
-          } catch {
-            console.warn(`無效的迷因ID格式: ${id}`)
-            return null
-          }
-        })
+        .map(safeToObjectId)
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -109,7 +132,7 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
 
     console.log(`處理 ${targetUserIds.length} 個用戶和 ${targetMemeIds.length} 個迷因`)
 
-    // 取得所有互動數據
+    // 取得所有互動數據 - 確保查詢參數格式正確
     const [likes, collections, comments, shares, views] = await Promise.all([
       Like.find({
         user_id: { $in: targetUserIds },
@@ -358,13 +381,20 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
   try {
     console.log(`開始為用戶 ${targetUserId} 生成協同過濾推薦...`)
 
+    // 確保 targetUserId 是 ObjectId 格式
+    const targetUserIdObj = safeToObjectId(targetUserId)
+    if (!targetUserIdObj) {
+      console.error(`無效的目標用戶ID格式: ${targetUserId}`)
+      throw new Error(`無效的用戶ID格式: ${targetUserId}`)
+    }
+
     // 建立互動矩陣
-    const interactionMatrix = await buildInteractionMatrix([targetUserId])
+    const interactionMatrix = await buildInteractionMatrix([targetUserIdObj])
 
     // 如果目標用戶沒有互動歷史，返回熱門推薦
     if (
-      !interactionMatrix[targetUserId] ||
-      Object.keys(interactionMatrix[targetUserId]).length === 0
+      !interactionMatrix[targetUserIdObj.toString()] ||
+      Object.keys(interactionMatrix[targetUserIdObj.toString()]).length === 0
     ) {
       console.log('用戶沒有互動歷史，使用熱門推薦作為備選')
       const filter = { status: 'public' }
@@ -390,7 +420,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
 
     // 找到相似用戶
     const similarUsers = findSimilarUsers(
-      targetUserId,
+      targetUserIdObj.toString(),
       interactionMatrix,
       minSimilarity,
       maxSimilarUsers,
@@ -421,7 +451,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
 
     // 收集相似用戶互動過的迷因
     const candidateMemes = new Map()
-    const targetUserInteractions = new Set(Object.keys(interactionMatrix[targetUserId]))
+    const targetUserInteractions = new Set(Object.keys(interactionMatrix[targetUserIdObj.toString()]))
 
     for (const { userId, similarity } of similarUsers) {
       const userInteractions = interactionMatrix[userId]
@@ -559,15 +589,7 @@ export const buildSocialGraph = async (userIds = []) => {
     } else {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
-        .map((id) => {
-          try {
-            // 無論輸入是字串或 ObjectId，統一轉換為 ObjectId
-            return new mongoose.Types.ObjectId(id)
-          } catch {
-            console.warn(`無效的用戶ID格式: ${id}`)
-            return null
-          }
-        })
+        .map(safeToObjectId)
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -577,9 +599,12 @@ export const buildSocialGraph = async (userIds = []) => {
       return {}
     }
 
-    // 取得所有追隨關係
+    // 取得所有追隨關係 - 修正查詢語法
     const follows = await Follow.find({
-      $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
+      $or: [
+        { follower_id: { $in: targetUserIds } }, 
+        { following_id: { $in: targetUserIds } }
+      ],
       status: 'active',
     })
       .select('follower_id following_id createdAt')
@@ -848,16 +873,14 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     console.log(`開始為用戶 ${targetUserId} 生成社交協同過濾推薦...`)
 
     // 確保 targetUserId 是 ObjectId 格式
-    let targetUserIdObj
-    try {
-      targetUserIdObj =
-        typeof targetUserId === 'string' ? new mongoose.Types.ObjectId(targetUserId) : targetUserId
-    } catch {
+    const targetUserIdObj = safeToObjectId(targetUserId)
+    if (!targetUserIdObj) {
       console.error(`無效的目標用戶ID格式: ${targetUserId}`)
       throw new Error(`無效的用戶ID格式: ${targetUserId}`)
     }
 
     // 建立互動矩陣和社交圖譜
+    console.log('準備建立互動矩陣和社交圖譜，目標用戶ID:', targetUserIdObj.toString())
     const [interactionMatrix, socialGraph] = await Promise.all([
       buildInteractionMatrix([targetUserIdObj]),
       buildSocialGraph([targetUserIdObj]),
@@ -981,17 +1004,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     const filter = {
       _id: {
         $in: recommendations
-          .map((r) => {
-            try {
-              if (typeof r.memeId === 'string') {
-                return new mongoose.Types.ObjectId(r.memeId)
-              }
-              return r.memeId
-            } catch {
-              console.warn(`無效的迷因ID格式: ${r.memeId}`)
-              return null
-            }
-          })
+          .map((r) => safeToObjectId(r.memeId))
           .filter(Boolean), // 過濾掉無效的ID
       },
       status: 'public',
@@ -1006,33 +1019,13 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     if (excludeIds && excludeIds.length > 0) {
       // 確保排除ID都是ObjectId格式
       const excludeObjectIds = excludeIds
-        .map((id) => {
-          try {
-            if (typeof id === 'string') {
-              return new mongoose.Types.ObjectId(id)
-            }
-            return id
-          } catch {
-            console.warn(`無效的排除ID格式: ${id}`)
-            return null
-          }
-        })
+        .map(safeToObjectId)
         .filter(Boolean) // 過濾掉無效的ID
 
       if (excludeObjectIds.length > 0) {
         filter._id = {
           $in: recommendations
-            .map((r) => {
-              try {
-                if (typeof r.memeId === 'string') {
-                  return new mongoose.Types.ObjectId(r.memeId)
-                }
-                return r.memeId
-              } catch {
-                console.warn(`無效的迷因ID格式: ${r.memeId}`)
-                return null
-              }
-            })
+            .map((r) => safeToObjectId(r.memeId))
             .filter(Boolean), // 過濾掉無效的ID
           $nin: excludeObjectIds,
         }
@@ -1120,10 +1113,8 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 export const getSocialCollaborativeFilteringStats = async (userId) => {
   try {
     // 確保 userId 是 ObjectId 格式
-    let userIdObj
-    try {
-      userIdObj = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId
-    } catch {
+    const userIdObj = safeToObjectId(userId)
+    if (!userIdObj) {
       console.error(`無效的用戶ID格式: ${userId}`)
       throw new Error(`無效的用戶ID格式: ${userId}`)
     }
