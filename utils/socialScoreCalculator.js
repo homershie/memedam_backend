@@ -3,6 +3,7 @@
  * 實作詳細的社交分數配置、社交距離計算、社交影響力傳播效果和推薦原因生成
  */
 
+import mongoose from 'mongoose'
 import Follow from '../models/Follow.js'
 import Like from '../models/Like.js'
 import Comment from '../models/Comment.js'
@@ -150,9 +151,42 @@ export const buildSocialGraph = async (userIds = []) => {
     if (userIds.length === 0) {
       const activeUsers = await User.find({ status: 'active' }).select('_id').limit(1000)
       targetUserIds = activeUsers.map((user) => user._id)
+    } else {
+      // 確保所有用戶ID都是ObjectId格式
+      targetUserIds = userIds
+        .map((id) => {
+          if (id instanceof mongoose.Types.ObjectId) return id
+          if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+            return new mongoose.Types.ObjectId(id)
+          }
+          console.warn(`無效的用戶ID格式: ${id}`)
+          return null
+        })
+        .filter(Boolean) // 過濾掉無效的ID
+    }
+
+    // 確保 targetUserIds 是純 ObjectId 數組
+    targetUserIds = targetUserIds
+      .map((id) => {
+        if (id instanceof mongoose.Types.ObjectId) {
+          return id
+        }
+        if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+          return new mongoose.Types.ObjectId(id)
+        }
+        console.warn(`無效的用戶ID格式: ${id}`)
+        return null
+      })
+      .filter(Boolean) // 過濾掉無效的ID
+
+    // 如果沒有有效的用戶ID，返回空的社交圖譜
+    if (targetUserIds.length === 0) {
+      console.log('沒有有效的用戶ID，返回空的社交圖譜')
+      return {}
     }
 
     // 取得所有關注關係
+    // 確保使用純 ObjectId 進行查詢，避免 CastError
     const follows = await Follow.find({
       $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
     }).select('follower_id following_id createdAt')
