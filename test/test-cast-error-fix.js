@@ -11,12 +11,12 @@ async function testCastErrorFix() {
 
     // 測試協同過濾模組的 buildSocialGraph
     console.log('測試協同過濾模組的 buildSocialGraph...')
-    const socialGraph1 = await buildSocialGraph([testUserId])
+    await buildSocialGraph([testUserId])
     console.log('協同過濾模組 buildSocialGraph 測試成功')
 
     // 測試社交分數計算器模組的 buildSocialGraph
     console.log('測試社交分數計算器模組的 buildSocialGraph...')
-    const socialGraph2 = await buildSocialGraph2([testUserId])
+    await buildSocialGraph2([testUserId])
     console.log('社交分數計算器模組 buildSocialGraph 測試成功')
 
     console.log('所有 CastError 修復測試通過！')

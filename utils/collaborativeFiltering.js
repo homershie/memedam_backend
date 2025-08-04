@@ -182,12 +182,14 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
       })
+        .setOptions({ sanitizeFilter: false })
         .select('user_id meme_id createdAt')
         .lean(),
       Collection.find({
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
       })
+        .setOptions({ sanitizeFilter: false })
         .select('user_id meme_id createdAt')
         .lean(),
       Comment.find({
@@ -195,18 +197,21 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
         meme_id: { $in: targetMemeIds },
         status: 'normal',
       })
+        .setOptions({ sanitizeFilter: false })
         .select('user_id meme_id createdAt')
         .lean(),
       Share.find({
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
       })
+        .setOptions({ sanitizeFilter: false })
         .select('user_id meme_id createdAt')
         .lean(),
       View.find({
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
       })
+        .setOptions({ sanitizeFilter: false })
         .select('user_id meme_id createdAt')
         .lean(),
     ])
@@ -449,6 +454,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       }
 
       const hotMemes = await Meme.find(filter)
+        .setOptions({ sanitizeFilter: false })
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -480,6 +486,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       }
 
       const hotMemes = await Meme.find(filter)
+        .setOptions({ sanitizeFilter: false })
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -561,7 +568,9 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     }
 
     // 取得迷因詳細資訊
-    const memes = await Meme.find(filter).populate('author_id', 'username display_name avatar')
+    const memes = await Meme.find(filter)
+      .setOptions({ sanitizeFilter: false })
+      .populate('author_id', 'username display_name avatar')
 
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()
@@ -672,6 +681,7 @@ export const buildSocialGraph = async (userIds = []) => {
       $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
       status: 'active',
     })
+      .setOptions({ sanitizeFilter: false })
       .select('follower_id following_id createdAt')
       .lean()
 
@@ -965,6 +975,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       }
 
       const hotMemes = await Meme.find(filter)
+        .setOptions({ sanitizeFilter: false })
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -997,6 +1008,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       }
 
       const hotMemes = await Meme.find(filter)
+        .setOptions({ sanitizeFilter: false })
         .sort({ hot_score: -1 })
         .limit(limit)
         .populate('author_id', 'username display_name avatar')
@@ -1092,7 +1104,9 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     }
 
     // 取得迷因詳細資訊
-    const memes = await Meme.find(filter).populate('author_id', 'username display_name avatar')
+    const memes = await Meme.find(filter)
+      .setOptions({ sanitizeFilter: false })
+      .populate('author_id', 'username display_name avatar')
 
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()

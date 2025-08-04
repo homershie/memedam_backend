@@ -189,7 +189,9 @@ export const buildSocialGraph = async (userIds = []) => {
     // 確保使用純 ObjectId 進行查詢，避免 CastError
     const follows = await Follow.find({
       $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
-    }).select('follower_id following_id createdAt')
+    })
+      .setOptions({ sanitizeFilter: false })
+      .select('follower_id following_id createdAt')
 
     // 建立社交圖譜
     const socialGraph = {}
