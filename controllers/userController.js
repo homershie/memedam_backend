@@ -427,10 +427,30 @@ export const getActiveUsers = async (req, res) => {
     }
 
     // 查詢活躍用戶，按迷因數量降序排列
-    const activeUsers = await User.find({ meme_count: { $gt: 0 } })
-      .select('username display_name avatar bio meme_count total_likes_received follower_count')
-      .sort({ meme_count: -1 })
-      .limit(limitNum)
+    const activeUsers = await User.aggregate([
+      {
+        $match: {
+          meme_count: { $exists: true, $ne: null, $gt: 0 },
+        },
+      },
+      {
+        $project: {
+          username: 1,
+          display_name: 1,
+          avatar: 1,
+          bio: 1,
+          meme_count: 1,
+          total_likes_received: 1,
+          follower_count: 1,
+        },
+      },
+      {
+        $sort: { meme_count: -1 },
+      },
+      {
+        $limit: limitNum,
+      },
+    ])
 
     res.json({
       success: true,
