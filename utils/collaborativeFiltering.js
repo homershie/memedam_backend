@@ -42,12 +42,12 @@ const TIME_DECAY_CONFIG = {
 const safeToObjectId = (id) => {
   try {
     if (!id) return null
-    
+
     // 如果已經是 ObjectId，直接返回
     if (id instanceof mongoose.Types.ObjectId) {
       return id
     }
-    
+
     // 如果是字符串，檢查是否為有效的 ObjectId 格式
     if (typeof id === 'string') {
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -56,7 +56,7 @@ const safeToObjectId = (id) => {
       }
       return new mongoose.Types.ObjectId(id)
     }
-    
+
     // 其他類型的處理
     if (id && typeof id === 'object' && id.toString) {
       const idStr = id.toString()
@@ -64,7 +64,7 @@ const safeToObjectId = (id) => {
         return new mongoose.Types.ObjectId(idStr)
       }
     }
-    
+
     console.warn(`無法轉換為 ObjectId: ${JSON.stringify(id)}`)
     return null
   } catch (error) {
@@ -102,9 +102,6 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     } else {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
-<<<<<<< Updated upstream
-        .map(safeToObjectId)
-=======
         .map((id) => {
           // 如果已經是 ObjectId，直接使用，否則嘗試轉換
           if (id instanceof mongoose.Types.ObjectId) return id
@@ -114,7 +111,6 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
           console.warn(`無效的用戶ID格式: ${id}`)
           return null
         })
->>>>>>> Stashed changes
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -132,9 +128,6 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     } else {
       // 確保所有迷因ID都是ObjectId格式
       targetMemeIds = memeIds
-<<<<<<< Updated upstream
-        .map(safeToObjectId)
-=======
         .map((id) => {
           if (id instanceof mongoose.Types.ObjectId) return id
           if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
@@ -143,7 +136,6 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
           console.warn(`無效的迷因ID格式: ${id}`)
           return null
         })
->>>>>>> Stashed changes
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -155,14 +147,10 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
 
     console.log(`處理 ${targetUserIds.length} 個用戶和 ${targetMemeIds.length} 個迷因`)
 
-<<<<<<< Updated upstream
-    // 取得所有互動數據 - 確保查詢參數格式正確
-=======
     // 取得所有互動數據
     const userIdList = targetUserIds.map((id) => id.toString())
     const memeIdList = targetMemeIds.map((id) => id.toString())
 
->>>>>>> Stashed changes
     const [likes, collections, comments, shares, views] = await Promise.all([
       Like.find({
         user_id: { $in: userIdList },
@@ -481,7 +469,9 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
 
     // 收集相似用戶互動過的迷因
     const candidateMemes = new Map()
-    const targetUserInteractions = new Set(Object.keys(interactionMatrix[targetUserIdObj.toString()]))
+    const targetUserInteractions = new Set(
+      Object.keys(interactionMatrix[targetUserIdObj.toString()]),
+    )
 
     for (const { userId, similarity } of similarUsers) {
       const userInteractions = interactionMatrix[userId]
@@ -619,9 +609,6 @@ export const buildSocialGraph = async (userIds = []) => {
     } else {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
-<<<<<<< Updated upstream
-        .map(safeToObjectId)
-=======
         .map((id) => {
           if (id instanceof mongoose.Types.ObjectId) return id
           if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
@@ -630,7 +617,6 @@ export const buildSocialGraph = async (userIds = []) => {
           console.warn(`無效的用戶ID格式: ${id}`)
           return null
         })
->>>>>>> Stashed changes
         .filter(Boolean) // 過濾掉無效的ID
     }
 
@@ -640,19 +626,10 @@ export const buildSocialGraph = async (userIds = []) => {
       return {}
     }
 
-<<<<<<< Updated upstream
-    // 取得所有追隨關係 - 修正查詢語法
-    const follows = await Follow.find({
-      $or: [
-        { follower_id: { $in: targetUserIds } }, 
-        { following_id: { $in: targetUserIds } }
-      ],
-=======
     // 取得所有追隨關係
     const userIdList = targetUserIds.map((id) => id.toString())
     const follows = await Follow.find({
       $or: [{ follower_id: { $in: userIdList } }, { following_id: { $in: userIdList } }],
->>>>>>> Stashed changes
       status: 'active',
     })
       .select('follower_id following_id createdAt')
@@ -1051,9 +1028,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 建立查詢條件
     const filter = {
       _id: {
-        $in: recommendations
-          .map((r) => safeToObjectId(r.memeId))
-          .filter(Boolean), // 過濾掉無效的ID
+        $in: recommendations.map((r) => safeToObjectId(r.memeId)).filter(Boolean), // 過濾掉無效的ID
       },
       status: 'public',
     }
@@ -1066,15 +1041,11 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 如果有排除ID，加入查詢條件
     if (excludeIds && excludeIds.length > 0) {
       // 確保排除ID都是ObjectId格式
-      const excludeObjectIds = excludeIds
-        .map(safeToObjectId)
-        .filter(Boolean) // 過濾掉無效的ID
+      const excludeObjectIds = excludeIds.map(safeToObjectId).filter(Boolean) // 過濾掉無效的ID
 
       if (excludeObjectIds.length > 0) {
         filter._id = {
-          $in: recommendations
-            .map((r) => safeToObjectId(r.memeId))
-            .filter(Boolean), // 過濾掉無效的ID
+          $in: recommendations.map((r) => safeToObjectId(r.memeId)).filter(Boolean), // 過濾掉無效的ID
           $nin: excludeObjectIds,
         }
       }
