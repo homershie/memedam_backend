@@ -1243,6 +1243,17 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
+
+      // 確保所有ID都是有效的ObjectId格式
+      excludeIds = excludeIds.filter((id) => {
+        try {
+          new mongoose.Types.ObjectId(id)
+          return true
+        } catch {
+          console.warn(`無效的ObjectId格式: ${id}`)
+          return false
+        }
+      })
     }
 
     // 計算分頁
@@ -1261,13 +1272,20 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       excludeIds: excludeIds,
     }
 
-    const recommendations = await getSocialCollaborativeFilteringRecommendations(userId, options)
+    const recommendations = await getSocialCollaborativeFilteringRecommendations(
+      userId.toString(),
+      options,
+    )
 
     // 計算總數（用於分頁資訊）
     const totalCount = await Meme.countDocuments({
       status: 'public',
       ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
-      ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
+      ...(excludeIds.length > 0 && {
+        _id: {
+          $nin: excludeIds.map((id) => new mongoose.Types.ObjectId(id)),
+        },
+      }),
     })
 
     res.json({
@@ -1340,7 +1358,7 @@ export const getSocialCollaborativeFilteringStatsController = async (req, res) =
       })
     }
 
-    const stats = await getSocialCollaborativeFilteringStats(userId)
+    const stats = await getSocialCollaborativeFilteringStats(userId.toString())
 
     res.json({
       success: true,
@@ -1378,7 +1396,7 @@ export const updateSocialCollaborativeFilteringCacheController = async (req, res
       })
     }
 
-    const cacheResults = await updateSocialCollaborativeFilteringCache([userId])
+    const cacheResults = await updateSocialCollaborativeFilteringCache([userId.toString()])
 
     res.json({
       success: true,

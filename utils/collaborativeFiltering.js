@@ -4,6 +4,7 @@
  * 包含社交協同過濾功能
  */
 
+import mongoose from 'mongoose'
 import Like from '../models/Like.js'
 import Collection from '../models/Collection.js'
 import Comment from '../models/Comment.js'
@@ -59,6 +60,27 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     if (userIds.length === 0) {
       const activeUsers = await User.find({ status: 'active' }).select('_id').limit(1000) // 限制用戶數量避免效能問題
       targetUserIds = activeUsers.map((user) => user._id)
+    } else {
+      // 確保所有用戶ID都是ObjectId格式
+      targetUserIds = userIds
+        .map((id) => {
+          if (typeof id === 'string') {
+            try {
+              return new mongoose.Types.ObjectId(id)
+            } catch {
+              console.warn(`無效的用戶ID格式: ${id}`)
+              return null
+            }
+          }
+          return id
+        })
+        .filter(Boolean) // 過濾掉無效的ID
+    }
+
+    // 如果沒有有效的用戶ID，返回空的互動矩陣
+    if (targetUserIds.length === 0) {
+      console.log('沒有有效的用戶ID，返回空的互動矩陣')
+      return {}
     }
 
     // 如果沒有提供迷因ID，取得所有公開迷因
@@ -66,6 +88,27 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     if (memeIds.length === 0) {
       const publicMemes = await Meme.find({ status: 'public' }).select('_id').limit(5000) // 限制迷因數量避免效能問題
       targetMemeIds = publicMemes.map((meme) => meme._id)
+    } else {
+      // 確保所有迷因ID都是ObjectId格式
+      targetMemeIds = memeIds
+        .map((id) => {
+          if (typeof id === 'string') {
+            try {
+              return new mongoose.Types.ObjectId(id)
+            } catch {
+              console.warn(`無效的迷因ID格式: ${id}`)
+              return null
+            }
+          }
+          return id
+        })
+        .filter(Boolean) // 過濾掉無效的ID
+    }
+
+    // 如果沒有有效的迷因ID，返回空的互動矩陣
+    if (targetMemeIds.length === 0) {
+      console.log('沒有有效的迷因ID，返回空的互動矩陣')
+      return {}
     }
 
     console.log(`處理 ${targetUserIds.length} 個用戶和 ${targetMemeIds.length} 個迷因`)
@@ -75,24 +118,34 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
       Like.find({
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
-      }).select('user_id meme_id createdAt'),
+      })
+        .select('user_id meme_id createdAt')
+        .lean(),
       Collection.find({
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
-      }).select('user_id meme_id createdAt'),
+      })
+        .select('user_id meme_id createdAt')
+        .lean(),
       Comment.find({
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
         status: 'normal',
-      }).select('user_id meme_id createdAt'),
+      })
+        .select('user_id meme_id createdAt')
+        .lean(),
       Share.find({
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
-      }).select('user_id meme_id createdAt'),
+      })
+        .select('user_id meme_id createdAt')
+        .lean(),
       View.find({
         user_id: { $in: targetUserIds },
         meme_id: { $in: targetMemeIds },
-      }).select('user_id meme_id createdAt'),
+      })
+        .select('user_id meme_id createdAt')
+        .lean(),
     ])
 
     // 初始化互動矩陣
@@ -507,13 +560,36 @@ export const buildSocialGraph = async (userIds = []) => {
     if (userIds.length === 0) {
       const activeUsers = await User.find({ status: 'active' }).select('_id').limit(1000)
       targetUserIds = activeUsers.map((user) => user._id)
+    } else {
+      // 確保所有用戶ID都是ObjectId格式
+      targetUserIds = userIds
+        .map((id) => {
+          if (typeof id === 'string') {
+            try {
+              return new mongoose.Types.ObjectId(id)
+            } catch {
+              console.warn(`無效的用戶ID格式: ${id}`)
+              return null
+            }
+          }
+          return id
+        })
+        .filter(Boolean) // 過濾掉無效的ID
+    }
+
+    // 如果沒有有效的用戶ID，返回空的社交圖譜
+    if (targetUserIds.length === 0) {
+      console.log('沒有有效的用戶ID，返回空的社交圖譜')
+      return {}
     }
 
     // 取得所有追隨關係
     const follows = await Follow.find({
       $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
       status: 'active',
-    }).select('follower_id following_id createdAt')
+    })
+      .select('follower_id following_id createdAt')
+      .lean()
 
     // 建立社交圖譜
     const socialGraph = {}
@@ -777,16 +853,26 @@ export const getSocialCollaborativeFilteringRecommendations = async (
   try {
     console.log(`開始為用戶 ${targetUserId} 生成社交協同過濾推薦...`)
 
+    // 確保 targetUserId 是 ObjectId 格式
+    let targetUserIdObj
+    try {
+      targetUserIdObj =
+        typeof targetUserId === 'string' ? new mongoose.Types.ObjectId(targetUserId) : targetUserId
+    } catch {
+      console.error(`無效的目標用戶ID格式: ${targetUserId}`)
+      throw new Error(`無效的用戶ID格式: ${targetUserId}`)
+    }
+
     // 建立互動矩陣和社交圖譜
     const [interactionMatrix, socialGraph] = await Promise.all([
-      buildInteractionMatrix([targetUserId]),
-      buildSocialGraph([targetUserId]),
+      buildInteractionMatrix([targetUserIdObj]),
+      buildSocialGraph([targetUserIdObj]),
     ])
 
     // 如果目標用戶沒有互動歷史，返回熱門推薦
     if (
-      !interactionMatrix[targetUserId] ||
-      Object.keys(interactionMatrix[targetUserId]).length === 0
+      !interactionMatrix[targetUserIdObj.toString()] ||
+      Object.keys(interactionMatrix[targetUserIdObj.toString()]).length === 0
     ) {
       console.log('用戶沒有互動歷史，使用熱門推薦作為備選')
       const filter = { status: 'public' }
@@ -813,7 +899,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     // 找到社交相似用戶
     const socialSimilarUsers = findSocialSimilarUsers(
-      targetUserId,
+      targetUserIdObj.toString(),
       socialGraph,
       minSimilarity,
       maxSimilarUsers,
@@ -845,7 +931,9 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     // 收集社交相似用戶互動過的迷因
     const candidateMemes = new Map()
-    const targetUserInteractions = new Set(Object.keys(interactionMatrix[targetUserId]))
+    const targetUserInteractions = new Set(
+      Object.keys(interactionMatrix[targetUserIdObj.toString()]),
+    )
 
     for (const { userId, similarity, influence_score } of socialSimilarUsers) {
       const userInteractions = interactionMatrix[userId] || {}
@@ -897,7 +985,21 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     // 建立查詢條件
     const filter = {
-      _id: { $in: recommendations.map((r) => r.memeId) },
+      _id: {
+        $in: recommendations
+          .map((r) => {
+            try {
+              if (typeof r.memeId === 'string') {
+                return new mongoose.Types.ObjectId(r.memeId)
+              }
+              return r.memeId
+            } catch {
+              console.warn(`無效的迷因ID格式: ${r.memeId}`)
+              return null
+            }
+          })
+          .filter(Boolean), // 過濾掉無效的ID
+      },
       status: 'public',
     }
 
@@ -908,9 +1010,38 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     // 如果有排除ID，加入查詢條件
     if (excludeIds && excludeIds.length > 0) {
-      filter._id = {
-        $in: recommendations.map((r) => r.memeId),
-        $nin: excludeIds,
+      // 確保排除ID都是ObjectId格式
+      const excludeObjectIds = excludeIds
+        .map((id) => {
+          try {
+            if (typeof id === 'string') {
+              return new mongoose.Types.ObjectId(id)
+            }
+            return id
+          } catch {
+            console.warn(`無效的排除ID格式: ${id}`)
+            return null
+          }
+        })
+        .filter(Boolean) // 過濾掉無效的ID
+
+      if (excludeObjectIds.length > 0) {
+        filter._id = {
+          $in: recommendations
+            .map((r) => {
+              try {
+                if (typeof r.memeId === 'string') {
+                  return new mongoose.Types.ObjectId(r.memeId)
+                }
+                return r.memeId
+              } catch {
+                console.warn(`無效的迷因ID格式: ${r.memeId}`)
+                return null
+              }
+            })
+            .filter(Boolean), // 過濾掉無效的ID
+          $nin: excludeObjectIds,
+        }
       }
     }
 
@@ -920,13 +1051,28 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()
     recommendations.forEach((rec) => {
-      recommendationMap.set(rec.memeId, rec)
+      const memeIdStr = typeof rec.memeId === 'string' ? rec.memeId : rec.memeId.toString()
+      recommendationMap.set(memeIdStr, rec)
     })
 
     // 組合最終推薦結果
     const finalRecommendations = memes.map((meme) => {
       const memeObj = meme.toObject()
-      const recommendationData = recommendationMap.get(meme._id.toString())
+      const memeIdStr = meme._id.toString()
+      const recommendationData = recommendationMap.get(memeIdStr)
+
+      if (!recommendationData) {
+        console.warn(`找不到迷因 ${memeIdStr} 的推薦數據`)
+        return {
+          ...memeObj,
+          recommendation_score: memeObj.hot_score || 0,
+          recommendation_type: 'social_collaborative_fallback',
+          social_collaborative_score: 0,
+          similar_users_count: 0,
+          average_similarity: 0,
+          average_influence_score: 0,
+        }
+      }
 
       let finalScore = recommendationData.socialCollaborativeScore
 
@@ -940,10 +1086,10 @@ export const getSocialCollaborativeFilteringRecommendations = async (
         ...memeObj,
         recommendation_score: finalScore,
         recommendation_type: 'social_collaborative_filtering',
-        social_collaborative_score: recommendationData.socialCollaborativeScore,
-        similar_users_count: recommendationData.similarUsersCount,
-        average_similarity: recommendationData.averageSimilarity,
-        average_influence_score: recommendationData.averageInfluenceScore,
+        social_collaborative_score: recommendationData.socialCollaborativeScore || 0,
+        similar_users_count: recommendationData.similarUsersCount || 0,
+        average_similarity: recommendationData.averageSimilarity || 0,
+        average_influence_score: recommendationData.averageInfluenceScore || 0,
         algorithm_details: {
           description: '基於社交關係和用戶行為相似性的社交協同過濾推薦',
           features: [
@@ -979,15 +1125,25 @@ export const getSocialCollaborativeFilteringRecommendations = async (
  */
 export const getSocialCollaborativeFilteringStats = async (userId) => {
   try {
+    // 確保 userId 是 ObjectId 格式
+    let userIdObj
+    try {
+      userIdObj = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId
+    } catch {
+      console.error(`無效的用戶ID格式: ${userId}`)
+      throw new Error(`無效的用戶ID格式: ${userId}`)
+    }
+    const userIdStr = userIdObj.toString()
+
     const [interactionMatrix, socialGraph] = await Promise.all([
-      buildInteractionMatrix([userId]),
-      buildSocialGraph([userId]),
+      buildInteractionMatrix([userIdObj]),
+      buildSocialGraph([userIdObj]),
     ])
 
-    const userInteractions = interactionMatrix[userId] || {}
-    const userSocialData = socialGraph[userId] || {}
+    const userInteractions = interactionMatrix[userIdStr] || {}
+    const userSocialData = socialGraph[userIdStr] || {}
 
-    const socialSimilarUsers = findSocialSimilarUsers(userId, socialGraph, 0.1, 100)
+    const socialSimilarUsers = findSocialSimilarUsers(userIdStr, socialGraph, 0.1, 100)
 
     return {
       user_id: userId,
