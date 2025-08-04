@@ -41,7 +41,10 @@ const TIME_DECAY_CONFIG = {
  */
 const safeToObjectId = (id) => {
   try {
-    if (!id) return null
+    if (!id) {
+      console.warn('safeToObjectId: 傳入的 ID 為空')
+      return null
+    }
 
     // 如果已經是 ObjectId，直接返回
     if (id instanceof mongoose.Types.ObjectId) {
@@ -50,25 +53,40 @@ const safeToObjectId = (id) => {
 
     // 如果是字符串，檢查是否為有效的 ObjectId 格式
     if (typeof id === 'string') {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        console.warn(`無效的 ObjectId 格式: ${id}`)
+      // 移除可能的空格
+      const trimmedId = id.trim()
+      if (!trimmedId) {
+        console.warn('safeToObjectId: 傳入的字符串為空')
         return null
       }
-      return new mongoose.Types.ObjectId(id)
+      
+      if (!mongoose.Types.ObjectId.isValid(trimmedId)) {
+        console.warn(`safeToObjectId: 無效的 ObjectId 格式: "${trimmedId}"`)
+        return null
+      }
+      return new mongoose.Types.ObjectId(trimmedId)
     }
 
     // 其他類型的處理
-    if (id && typeof id === 'object' && id.toString) {
-      const idStr = id.toString()
-      if (mongoose.Types.ObjectId.isValid(idStr)) {
-        return new mongoose.Types.ObjectId(idStr)
+    if (id && typeof id === 'object') {
+      // 如果是包含 toString 方法的對象
+      if (typeof id.toString === 'function') {
+        const idStr = id.toString()
+        if (mongoose.Types.ObjectId.isValid(idStr)) {
+          return new mongoose.Types.ObjectId(idStr)
+        }
+      }
+      
+      // 如果是包含 _id 屬性的對象
+      if (id._id) {
+        return safeToObjectId(id._id)
       }
     }
 
-    console.warn(`無法轉換為 ObjectId: ${JSON.stringify(id)}`)
+    console.warn(`safeToObjectId: 無法轉換為 ObjectId: ${JSON.stringify(id)}, 類型: ${typeof id}`)
     return null
   } catch (error) {
-    console.warn(`ObjectId 轉換錯誤: ${error.message}`, id)
+    console.error(`safeToObjectId: ObjectId 轉換錯誤: ${error.message}`, { id, type: typeof id })
     return null
   }
 }
@@ -175,45 +193,65 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
 
     console.log(`處理 ${targetUserIds.length} 個用戶和 ${targetMemeIds.length} 個迷因`)
 
-    // 取得所有互動數據
-    // 確保使用純 ObjectId 進行查詢，避免 CastError
+    // 驗證每個 ObjectId 的有效性
+    const validatedUserIds = []
+    for (const userId of targetUserIds) {
+      if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+        validatedUserIds.push(userId)
+      } else {
+        console.warn(`跳過無效的用戶ID: ${userId}`)
+      }
+    }
+
+    const validatedMemeIds = []
+    for (const memeId of targetMemeIds) {
+      if (memeId && mongoose.Types.ObjectId.isValid(memeId)) {
+        validatedMemeIds.push(memeId)
+      } else {
+        console.warn(`跳過無效的迷因ID: ${memeId}`)
+      }
+    }
+
+    if (validatedUserIds.length === 0 || validatedMemeIds.length === 0) {
+      console.log('沒有有效的用戶ID或迷因ID，返回空的互動矩陣')
+      return {}
+    }
+
+    console.log(`處理 ${validatedUserIds.length} 個用戶和 ${validatedMemeIds.length} 個迷因`)
+
+    // 取得所有互動數據 - 使用更安全的查詢方式
     const [likes, collections, comments, shares, views] = await Promise.all([
-      Like.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
-      })
-        .setOptions({ sanitizeFilter: false })
+      Like.find()
+        .where('user_id').in(validatedUserIds)
+        .where('meme_id').in(validatedMemeIds)
         .select('user_id meme_id createdAt')
-        .lean(),
-      Collection.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
-      })
-        .setOptions({ sanitizeFilter: false })
+        .lean()
+        .exec(),
+      Collection.find()
+        .where('user_id').in(validatedUserIds)
+        .where('meme_id').in(validatedMemeIds)
         .select('user_id meme_id createdAt')
-        .lean(),
-      Comment.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
-        status: 'normal',
-      })
-        .setOptions({ sanitizeFilter: false })
+        .lean()
+        .exec(),
+      Comment.find()
+        .where('user_id').in(validatedUserIds)
+        .where('meme_id').in(validatedMemeIds)
+        .where('status').equals('normal')
         .select('user_id meme_id createdAt')
-        .lean(),
-      Share.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
-      })
-        .setOptions({ sanitizeFilter: false })
+        .lean()
+        .exec(),
+      Share.find()
+        .where('user_id').in(validatedUserIds)
+        .where('meme_id').in(validatedMemeIds)
         .select('user_id meme_id createdAt')
-        .lean(),
-      View.find({
-        user_id: { $in: targetUserIds },
-        meme_id: { $in: targetMemeIds },
-      })
-        .setOptions({ sanitizeFilter: false })
+        .lean()
+        .exec(),
+      View.find()
+        .where('user_id').in(validatedUserIds)
+        .where('meme_id').in(validatedMemeIds)
         .select('user_id meme_id createdAt')
-        .lean(),
+        .lean()
+        .exec(),
     ])
 
     // 初始化互動矩陣
@@ -548,9 +586,26 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     // 按協同過濾分數排序
     recommendations.sort((a, b) => b.collaborativeScore - a.collaborativeScore)
 
-    // 建立查詢條件
+    // 確保所有推薦的 memeId 都是有效的 ObjectId
+    const validRecommendations = recommendations.filter(r => {
+      const validMemeId = safeToObjectId(r.memeId)
+      if (!validMemeId) {
+        console.warn(`跳過無效的推薦迷因ID: ${r.memeId}`)
+        return false
+      }
+      r.memeId = validMemeId.toString() // 統一轉換為字符串格式
+      return true
+    })
+
+    if (validRecommendations.length === 0) {
+      console.log('沒有有效的推薦迷因ID')
+      return []
+    }
+
+    const validMemeIds = validRecommendations.map(r => new mongoose.Types.ObjectId(r.memeId))
+
     const filter = {
-      _id: { $in: recommendations.map((r) => r.memeId) },
+      _id: { $in: validMemeIds },
       status: 'public',
     }
 
@@ -561,9 +616,16 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
 
     // 如果有排除ID，加入查詢條件
     if (excludeIds && excludeIds.length > 0) {
-      filter._id = {
-        $in: recommendations.map((r) => r.memeId),
-        $nin: excludeIds,
+      // 確保排除的ID也是有效的ObjectId
+      const validExcludeIds = excludeIds
+        .map(id => safeToObjectId(id))
+        .filter(Boolean)
+      
+      if (validExcludeIds.length > 0) {
+        filter._id = {
+          $in: validMemeIds,
+          $nin: validExcludeIds,
+        }
       }
     }
 
@@ -574,7 +636,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
 
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()
-    recommendations.forEach((rec) => {
+    validRecommendations.forEach((rec) => {
       recommendationMap.set(rec.memeId, rec)
     })
 
@@ -675,21 +737,37 @@ export const buildSocialGraph = async (userIds = []) => {
       return {}
     }
 
-    // 取得所有追隨關係
-    // 確保使用純 ObjectId 進行查詢，避免 CastError
-    const follows = await Follow.find({
-      $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
-      status: 'active',
-    })
-      .setOptions({ sanitizeFilter: false })
+    // 驗證每個 ObjectId 的有效性
+    const validatedUserIds = []
+    for (const userId of targetUserIds) {
+      if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+        validatedUserIds.push(userId)
+      } else {
+        console.warn(`跳過無效的用戶ID: ${userId}`)
+      }
+    }
+
+    if (validatedUserIds.length === 0) {
+      console.log('沒有有效的用戶ID通過驗證，返回空的社交圖譜')
+      return {}
+    }
+
+    // 取得所有追隨關係 - 使用更安全的查詢方式
+    const follows = await Follow.find()
+      .where('follower_id').in(validatedUserIds)
+      .or([
+        { 'following_id': { $in: validatedUserIds } }
+      ])
+      .where('status').equals('active')
       .select('follower_id following_id createdAt')
       .lean()
+      .exec()
 
     // 建立社交圖譜
     const socialGraph = {}
 
     // 初始化用戶節點
-    targetUserIds.forEach((userId) => {
+    validatedUserIds.forEach((userId) => {
       const userIdStr = userId.toString()
       socialGraph[userIdStr] = {
         followers: [],
@@ -1077,10 +1155,27 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 按社交協同過濾分數排序
     recommendations.sort((a, b) => b.socialCollaborativeScore - a.socialCollaborativeScore)
 
-    // 建立查詢條件
+    // 確保所有推薦的 memeId 都是有效的 ObjectId
+    const validRecommendations = recommendations.filter(r => {
+      const validMemeId = safeToObjectId(r.memeId)
+      if (!validMemeId) {
+        console.warn(`跳過無效的推薦迷因ID: ${r.memeId}`)
+        return false
+      }
+      r.memeId = validMemeId.toString() // 統一轉換為字符串格式
+      return true
+    })
+
+    if (validRecommendations.length === 0) {
+      console.log('沒有有效的推薦迷因ID')
+      return []
+    }
+
+    const validMemeIds = validRecommendations.map(r => new mongoose.Types.ObjectId(r.memeId))
+
     const filter = {
       _id: {
-        $in: recommendations.map((r) => safeToObjectId(r.memeId)).filter(Boolean), // 過濾掉無效的ID
+        $in: validMemeIds,
       },
       status: 'public',
     }
@@ -1092,13 +1187,15 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     // 如果有排除ID，加入查詢條件
     if (excludeIds && excludeIds.length > 0) {
-      // 確保排除ID都是ObjectId格式
-      const excludeObjectIds = excludeIds.map(safeToObjectId).filter(Boolean) // 過濾掉無效的ID
-
-      if (excludeObjectIds.length > 0) {
+      // 確保排除的ID也是有效的ObjectId
+      const validExcludeIds = excludeIds
+        .map(id => safeToObjectId(id))
+        .filter(Boolean)
+      
+      if (validExcludeIds.length > 0) {
         filter._id = {
-          $in: recommendations.map((r) => safeToObjectId(r.memeId)).filter(Boolean), // 過濾掉無效的ID
-          $nin: excludeObjectIds,
+          $in: validMemeIds,
+          $nin: validExcludeIds,
         }
       }
     }
@@ -1110,9 +1207,8 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()
-    recommendations.forEach((rec) => {
-      const memeIdStr = typeof rec.memeId === 'string' ? rec.memeId : rec.memeId.toString()
-      recommendationMap.set(memeIdStr, rec)
+    validRecommendations.forEach((rec) => {
+      recommendationMap.set(rec.memeId, rec)
     })
 
     // 組合最終推薦結果
