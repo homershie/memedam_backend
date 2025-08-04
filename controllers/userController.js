@@ -411,3 +411,37 @@ export const deleteMe = async (req, res) => {
     session.endSession()
   }
 }
+
+// 取得活躍用戶（按迷因數量排序）
+export const getActiveUsers = async (req, res) => {
+  try {
+    const { limit = 10 } = req.query
+    const limitNum = parseInt(limit, 10)
+
+    // 驗證 limit 參數
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 50) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: 'limit 參數必須是 1-50 之間的數字',
+      })
+    }
+
+    // 查詢活躍用戶，按迷因數量降序排列
+    const activeUsers = await User.find({ meme_count: { $gt: 0 } })
+      .select('username display_name avatar bio meme_count total_likes_received follower_count')
+      .sort({ meme_count: -1 })
+      .limit(limitNum)
+
+    res.json({
+      success: true,
+      activeUsers,
+      count: activeUsers.length,
+    })
+  } catch (error) {
+    console.error('getActiveUsers 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+    })
+  }
+}

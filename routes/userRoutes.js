@@ -9,6 +9,7 @@ import {
   getMe, // 新增 getMe
   updateMe, // 新增
   deleteMe, // 新增
+  getActiveUsers, // 新增 getActiveUsers
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -193,6 +194,79 @@ const router = express.Router()
  */
 router.post('/', createUser)
 router.get('/', token, isManager, getUsers)
+
+/**
+ * @swagger
+ * /api/users/active:
+ *   get:
+ *     summary: 取得活躍用戶排行榜
+ *     tags: [Users]
+ *     description: 根據用戶創作的迷因數量排序，取得前幾名的活躍用戶
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           minimum: 1
+ *           maximum: 50
+ *         description: 要取得的活躍用戶數量 (1-50)
+ *     responses:
+ *       200:
+ *         description: 成功取得活躍用戶列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 activeUsers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         description: 用戶ID
+ *                       username:
+ *                         type: string
+ *                         description: 用戶名
+ *                       display_name:
+ *                         type: string
+ *                         description: 顯示名稱
+ *                       avatar:
+ *                         type: string
+ *                         description: 頭像URL
+ *                       bio:
+ *                         type: string
+ *                         description: 個人簡介
+ *                       meme_count:
+ *                         type: integer
+ *                         description: 創作的迷因數量
+ *                       total_likes_received:
+ *                         type: integer
+ *                         description: 獲得的總讚數
+ *                       follower_count:
+ *                         type: integer
+ *                         description: 追隨者數量
+ *                 count:
+ *                   type: integer
+ *                   description: 實際返回的用戶數量
+ *       400:
+ *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/active', getActiveUsers)
 
 /**
  * @swagger
