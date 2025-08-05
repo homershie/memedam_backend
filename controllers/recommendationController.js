@@ -1630,29 +1630,76 @@ export const getTrendingRecommendationsController = async (req, res) => {
     if (include_social_signals === 'true') {
       enhancedMemes = await Promise.all(
         memes.map(async (meme) => {
-          // 使用 meme._id (已經是 ObjectId)
-          const memeId = meme._id
+          try {
+            // 確保 meme._id 存在且有效
+            if (!meme._id) {
+              console.warn('發現空的 meme ID，跳過社交信號計算')
+              return {
+                ...meme,
+                social_metrics: {
+                  likes: 0,
+                  comments: 0,
+                  shares: 0,
+                  views: 0,
+                  social_score: 0,
+                },
+              }
+            }
 
-          // 計算社交互動數據
-          const [likes, comments, shares, views] = await Promise.all([
-            Like.countDocuments({ meme_id: memeId, status: 'normal' }),
-            Comment.countDocuments({ meme_id: memeId, status: 'normal' }),
-            Share.countDocuments({ meme_id: memeId }),
-            View.countDocuments({ meme_id: memeId }),
-          ])
+            // 將 ID 轉換為 ObjectId（如果尚未是 ObjectId）
+            let memeId
+            if (mongoose.Types.ObjectId.isValid(meme._id)) {
+              memeId = meme._id instanceof mongoose.Types.ObjectId 
+                ? meme._id 
+                : new mongoose.Types.ObjectId(meme._id)
+            } else {
+              console.warn(`無效的 meme ID: ${meme._id}，跳過社交信號計算`)
+              return {
+                ...meme,
+                social_metrics: {
+                  likes: 0,
+                  comments: 0,
+                  shares: 0,
+                  views: 0,
+                  social_score: 0,
+                },
+              }
+            }
 
-          // 計算社交熱度分數
-          const socialScore = (likes * 2 + comments * 3 + shares * 4 + views * 1) / 10
+            // 計算社交互動數據
+            const [likes, comments, shares, views] = await Promise.all([
+              Like.countDocuments({ meme_id: memeId, status: 'normal' }),
+              Comment.countDocuments({ meme_id: memeId, status: 'normal' }),
+              Share.countDocuments({ meme_id: memeId }),
+              View.countDocuments({ meme_id: memeId }),
+            ])
 
-          return {
-            ...meme,
-            social_metrics: {
-              likes,
-              comments,
-              shares,
-              views,
-              social_score: socialScore,
-            },
+                      // 計算社交熱度分數
+            const socialScore = (likes * 2 + comments * 3 + shares * 4 + views * 1) / 10
+
+            return {
+              ...meme,
+              social_metrics: {
+                likes,
+                comments,
+                shares,
+                views,
+                social_score: socialScore,
+              },
+            }
+          } catch (error) {
+            console.error(`計算 meme ${meme._id} 的社交信號時發生錯誤:`, error)
+            // 返回默認的社交指標
+            return {
+              ...meme,
+              social_metrics: {
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                views: 0,
+                social_score: 0,
+              },
+            }
           }
         }),
       )
@@ -1699,9 +1746,12 @@ export const getTrendingRecommendationsController = async (req, res) => {
     })
   } catch (error) {
     console.error('取得大家都在看的內容失敗:', error)
+    console.error('錯誤堆疊:', error.stack)
+    console.error('錯誤訊息:', error.message)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: '取得推薦內容失敗',
+      debug: process.env.NODE_ENV === 'development' ? error.message : undefined,
     })
   }
 }
