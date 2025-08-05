@@ -247,6 +247,8 @@ export const getLatestRecommendations = async (req, res) => {
             .map((id) => id.trim())
             .filter((id) => id)
       
+      console.log('Latest 推薦 - 開始處理排除ID:', rawIds)
+      
       // 確保所有ID都轉換為有效的ObjectId
       excludeIds = rawIds
         .filter((id) => {
@@ -259,21 +261,39 @@ export const getLatestRecommendations = async (req, res) => {
         })
         .map((id) => {
           try {
-            const objectId = id instanceof mongoose.Types.ObjectId 
-              ? id 
-              : new mongoose.Types.ObjectId(id)
-            return objectId
+            // 如果已經是 ObjectId，直接返回；否則創建新的 ObjectId
+            if (id instanceof mongoose.Types.ObjectId) {
+              return id
+            }
+            // 使用字符串創建 ObjectId，避免任何潛在的類型問題
+            return new mongoose.Types.ObjectId(String(id))
           } catch (error) {
             console.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
         .filter(id => id !== null)
+        
+      console.log('Latest 推薦 - 處理後的 excludeIds:', excludeIds.map(id => id.toString()))
     }
 
-    // 如果有排除ID，加入查詢條件
+    // 如果有排除ID，加入查詢條件 - 確保正確構建 $nin 查詢
     if (excludeIds.length > 0) {
-      filter._id = { $nin: excludeIds }
+      console.log('Latest 推薦 - 添加排除ID篩選，數量:', excludeIds.length)
+      // 確保每個元素都是有效的 ObjectId 實例
+      const validObjectIds = excludeIds.filter(id => {
+        const isValid = id instanceof mongoose.Types.ObjectId
+        if (!isValid) {
+          console.warn('Latest 推薦 - 發現無效的ObjectId實例:', id)
+        }
+        return isValid
+      })
+      
+      if (validObjectIds.length > 0) {
+        console.log('Latest 推薦 - 設置 $nin 查詢，有效ID數量:', validObjectIds.length)
+        // 直接設置 _id 條件
+        filter._id = { $nin: validObjectIds }
+      }
     }
 
     // 計算分頁
@@ -296,8 +316,45 @@ export const getLatestRecommendations = async (req, res) => {
       }
     })
 
-    // 計算總數（用於分頁資訊）
-    const totalCount = await Meme.countDocuments(filter)
+    // 計算總數（用於分頁資訊）- 創建新的查詢對象避免ObjectId類型問題
+    const countFilter = {
+      status: 'public',
+    }
+
+    // 重新添加時間篩選
+    if (hours !== 'all' && hours !== '0') {
+      const parsedHours = parseInt(hours)
+      const validHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 24
+
+      const dateLimit = new Date()
+      dateLimit.setHours(dateLimit.getHours() - validHours)
+
+      countFilter.createdAt = mongoose.trusted({ $gte: dateLimit })
+    }
+
+    if (type !== 'all') {
+      countFilter.type = type
+    }
+
+    // 重新添加標籤篩選
+    if (tags) {
+      const tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+      if (tagArray.length > 0) {
+        countFilter.tags_cache = { $in: tagArray }
+      }
+    }
+
+    // 重新添加排除ID篩選
+    if (excludeIds.length > 0) {
+      const validObjectIds = excludeIds.filter(id => 
+        id instanceof mongoose.Types.ObjectId
+      )
+      if (validObjectIds.length > 0) {
+        countFilter._id = { $nin: validObjectIds }
+      }
+    }
+
+    const totalCount = await Meme.countDocuments(countFilter)
 
     res.json({
       success: true,
@@ -1611,40 +1668,41 @@ export const getTrendingRecommendationsController = async (req, res) => {
     // 解析排除ID參數 - 使用更安全的ObjectId處理方式
     let excludeObjectIds = []
     if (exclude_ids) {
-      const excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
 
+      console.log('開始處理排除ID:', rawIds)
+
       // 確保所有ID都是有效的ObjectId格式，並正確轉換為 ObjectId 實例
-      excludeObjectIds = excludeIds
+      excludeObjectIds = rawIds
         .filter((id) => {
           try {
-            if (mongoose.Types.ObjectId.isValid(id)) {
-              return true
-            }
-            console.warn(`無效的ObjectId格式: ${id}`)
-            return false
+            return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`ObjectId驗證失敗: ${id}`)
+            console.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
         .map((id) => {
           try {
-            // 確保創建純淨的ObjectId實例，避免包含查詢物件
-            const objectId = id instanceof mongoose.Types.ObjectId 
-              ? id 
-              : new mongoose.Types.ObjectId(id)
-            return objectId
+            // 如果已經是 ObjectId，直接返回；否則創建新的 ObjectId
+            if (id instanceof mongoose.Types.ObjectId) {
+              return id
+            }
+            // 使用字符串創建 ObjectId，避免任何潛在的類型問題
+            return new mongoose.Types.ObjectId(String(id))
           } catch (error) {
             console.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
         .filter(id => id !== null)
+
+      console.log('處理後的 excludeObjectIds:', excludeObjectIds.map(id => id.toString()))
     }
 
     // 計算時間範圍
@@ -1687,13 +1745,21 @@ export const getTrendingRecommendationsController = async (req, res) => {
       query.tags_cache = { $in: tagArray }
     }
 
-    // 添加排除ID篩選 - 確保ObjectId陣列正確傳遞給$nin操作符
+    // 添加排除ID篩選 - 確保正確構建 $nin 查詢
     if (excludeObjectIds.length > 0) {
-      // 確保excludeObjectIds陣列中的每個元素都是純淨的ObjectId實例
-      const validObjectIds = excludeObjectIds.filter(id => 
-        id instanceof mongoose.Types.ObjectId
-      )
+      console.log('添加排除ID篩選，數量:', excludeObjectIds.length)
+      // 確保每個元素都是有效的 ObjectId 實例
+      const validObjectIds = excludeObjectIds.filter(id => {
+        const isValid = id instanceof mongoose.Types.ObjectId
+        if (!isValid) {
+          console.warn('發現無效的ObjectId實例:', id)
+        }
+        return isValid
+      })
+      
       if (validObjectIds.length > 0) {
+        console.log('設置 $nin 查詢，有效ID數量:', validObjectIds.length)
+        // 直接設置 _id 條件，避免與其他條件衝突
         query._id = { $nin: validObjectIds }
       }
     }
@@ -1789,8 +1855,28 @@ export const getTrendingRecommendationsController = async (req, res) => {
       enhancedMemes.sort((a, b) => b.social_metrics.social_score - a.social_metrics.social_score)
     }
 
-    // 計算總數用於分頁
-    const total = await Meme.countDocuments(query)
+    // 計算總數用於分頁 - 創建新的查詢對象避免ObjectId類型問題
+    const countQuery = {
+      status: 'public',
+      ...timeFilter,
+    }
+    
+    // 重新添加標籤篩選
+    if (tagArray.length > 0) {
+      countQuery.tags_cache = { $in: tagArray }
+    }
+    
+    // 重新添加排除ID篩選
+    if (excludeObjectIds.length > 0) {
+      const validObjectIds = excludeObjectIds.filter(id => 
+        id instanceof mongoose.Types.ObjectId
+      )
+      if (validObjectIds.length > 0) {
+        countQuery._id = { $nin: validObjectIds }
+      }
+    }
+    
+    const total = await Meme.countDocuments(countQuery)
 
     // 計算分頁資訊
     const totalPages = Math.ceil(total / totalLimit)
