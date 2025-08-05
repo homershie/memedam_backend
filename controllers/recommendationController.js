@@ -1614,7 +1614,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
 
     // 添加排除ID篩選
     if (excludeIds.length > 0) {
-      query._id = { $nin: excludeIds }
+      query._id = { $nin: excludeIds.map(id => new mongoose.Types.ObjectId(id)) }
     }
 
     // 取得基礎迷因數據
@@ -1660,11 +1660,6 @@ export const getTrendingRecommendationsController = async (req, res) => {
 
       // 根據社交分數重新排序
       enhancedMemes.sort((a, b) => b.social_metrics.social_score - a.social_metrics.social_score)
-    }
-
-    // 修復排除ID篩選問題
-    if (excludeIds.length > 0) {
-      query._id = { $nin: excludeIds.map((id) => new mongoose.Types.ObjectId(id)) }
     }
 
     // 計算總數用於分頁

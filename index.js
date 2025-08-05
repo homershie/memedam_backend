@@ -303,11 +303,14 @@ const printAllRoutes = (app) => {
 
 const startServer = async () => {
   try {
-    // 連線資料庫
-    await connectDB()
-
-    // 設定 Mongoose 配置
-    mongoose.set('sanitizeFilter', true)
+    // 連線資料庫（暫時跳過以便測試API）
+    try {
+      await connectDB()
+      // 設定 Mongoose 配置
+      mongoose.set('sanitizeFilter', true)
+    } catch (dbError) {
+      logger.warn('資料庫連線失敗，將繼續運行但資料庫功能將受限:', dbError.message)
+    }
 
     // 連線 Redis（可選）
     try {
@@ -324,9 +327,13 @@ const startServer = async () => {
       logger.info('開發模式：跳過定期維護任務')
     }
 
-    // 啟動分析監控
-    await analyticsMonitor.startMonitoring()
-    logger.info('已啟動分析監控系統')
+    // 啟動分析監控（暫時跳過以便測試API）
+    try {
+      await analyticsMonitor.startMonitoring()
+      logger.info('已啟動分析監控系統')
+    } catch (monitorError) {
+      logger.warn('分析監控啟動失敗，將繼續運行:', monitorError.message)
+    }
 
     // 列印所有註冊的路徑（調試用）
     printAllRoutes(app)
