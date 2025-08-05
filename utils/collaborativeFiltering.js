@@ -193,11 +193,15 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
 
     console.log(`處理 ${targetUserIds.length} 個用戶和 ${targetMemeIds.length} 個迷因`)
 
-    // 驗證每個 ObjectId 的有效性
+    // 驗證每個 ObjectId 的有效性 - 確保格式正確
     const validatedUserIds = []
     for (const userId of targetUserIds) {
       if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        validatedUserIds.push(userId)
+        // 確保是純 ObjectId 實例
+        const objectId = userId instanceof mongoose.Types.ObjectId 
+          ? userId 
+          : new mongoose.Types.ObjectId(userId)
+        validatedUserIds.push(objectId)
       } else {
         console.warn(`跳過無效的用戶ID: ${userId}`)
       }
@@ -206,7 +210,11 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     const validatedMemeIds = []
     for (const memeId of targetMemeIds) {
       if (memeId && mongoose.Types.ObjectId.isValid(memeId)) {
-        validatedMemeIds.push(memeId)
+        // 確保是純 ObjectId 實例
+        const objectId = memeId instanceof mongoose.Types.ObjectId 
+          ? memeId 
+          : new mongoose.Types.ObjectId(memeId)
+        validatedMemeIds.push(objectId)
       } else {
         console.warn(`跳過無效的迷因ID: ${memeId}`)
       }
@@ -218,6 +226,10 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     }
 
     console.log(`處理 ${validatedUserIds.length} 個用戶和 ${validatedMemeIds.length} 個迷因`)
+
+    // 記錄查詢條件以便調試
+    console.log('查詢互動數據，用戶IDs:', validatedUserIds.map(id => id.toString()))
+    console.log('查詢互動數據，迷因IDs:', validatedMemeIds.slice(0, 5).map(id => id.toString()), '...')
 
     // 取得所有互動數據 - 使用正確的查詢方式
     const [likes, collections, comments, shares, views] = await Promise.all([
@@ -740,11 +752,15 @@ export const buildSocialGraph = async (userIds = []) => {
       return {}
     }
 
-    // 驗證每個 ObjectId 的有效性
+    // 驗證每個 ObjectId 的有效性 - 確保格式正確
     const validatedUserIds = []
     for (const userId of targetUserIds) {
       if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        validatedUserIds.push(userId)
+        // 確保是純 ObjectId 實例
+        const objectId = userId instanceof mongoose.Types.ObjectId 
+          ? userId 
+          : new mongoose.Types.ObjectId(userId)
+        validatedUserIds.push(objectId)
       } else {
         console.warn(`跳過無效的用戶ID: ${userId}`)
       }
@@ -755,7 +771,10 @@ export const buildSocialGraph = async (userIds = []) => {
       return {}
     }
 
-    // 取得所有追隨關係 - 使用正確的查詢方式
+    // 記錄查詢條件以便調試
+    console.log('查詢追隨關係，用戶IDs:', validatedUserIds.map(id => id.toString()))
+
+    // 取得所有追隨關係 - 使用明確的查詢方式避免類型轉換錯誤
     const follows = await Follow.find({
       $or: [
         { follower_id: { $in: validatedUserIds } },
@@ -1041,7 +1060,10 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     const [interactionMatrix, socialGraph] = await Promise.all([
       buildInteractionMatrix([targetUserIdObj]),
       buildSocialGraph([targetUserIdObj]),
-    ])
+    ]).catch(error => {
+      console.error('建立社交關係圖譜時發生錯誤:', error)
+      throw error
+    })
 
     // 如果目標用戶沒有互動歷史，返回熱門推薦
     if (
