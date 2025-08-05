@@ -7,6 +7,10 @@ import { StatusCodes } from 'http-status-codes'
 import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
+import Like from '../models/Like.js'
+import Comment from '../models/Comment.js'
+import Share from '../models/Share.js'
+import View from '../models/View.js'
 import { getHotScoreLevel } from '../utils/hotScore.js'
 import {
   getContentBasedRecommendations,
@@ -176,22 +180,26 @@ export const getLatestRecommendations = async (req, res) => {
     const {
       limit = 20,
       type = 'all',
-      hours = 24,
+      hours = 'all', // 改為預設 'all' 表示不限制時間
       tags,
       // 新增：分頁和排除功能
       page = 1,
       exclude_ids,
     } = req.query
 
-    const parsedHours = parseInt(hours)
-    const validHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 24
-
-    const dateLimit = new Date()
-    dateLimit.setHours(dateLimit.getHours() - validHours)
-
     const filter = {
       status: 'public',
-      createdAt: mongoose.trusted({ $gte: dateLimit }),
+    }
+
+    // 只有在指定時間範圍時才加入時間篩選
+    if (hours !== 'all' && hours !== '0') {
+      const parsedHours = parseInt(hours)
+      const validHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 24
+
+      const dateLimit = new Date()
+      dateLimit.setHours(dateLimit.getHours() - validHours)
+
+      filter.createdAt = mongoose.trusted({ $gte: dateLimit })
     }
 
     if (type !== 'all') {
@@ -251,7 +259,7 @@ export const getLatestRecommendations = async (req, res) => {
         recommendations,
         filters: {
           type,
-          hours: parseInt(hours),
+          hours: hours === 'all' ? 'all' : parseInt(hours),
           limit: parseInt(limit),
           page: parseInt(page),
           exclude_ids: excludeIds,
@@ -1521,6 +1529,189 @@ export const getUserSocialInfluenceStatsController = async (req, res) => {
   }
 }
 
+/**
+ * 取得大家都在看的熱門內容（公開）
+ * 基於整體社群行為的推薦，不需要登入
+ */
+export const getTrendingRecommendationsController = async (req, res) => {
+  try {
+    const {
+      limit = 20,
+      time_range = 'all',
+      include_social_signals = 'true',
+      tags,
+      page = 1,
+      exclude_ids,
+    } = req.query
+
+    // 解析標籤參數
+    let tagArray = []
+    if (tags) {
+      tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
+    // 解析排除ID參數
+    let excludeIds = []
+    if (exclude_ids) {
+      excludeIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+
+      // 確保所有ID都是有效的ObjectId格式
+      excludeIds = excludeIds.filter((id) => {
+        try {
+          new mongoose.Types.ObjectId(id)
+          return true
+        } catch {
+          console.warn(`無效的ObjectId格式: ${id}`)
+          return false
+        }
+      })
+    }
+
+    // 計算時間範圍
+    const now = new Date()
+    let timeFilter = {}
+
+    switch (time_range) {
+      case '1h':
+        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 60 * 60 * 1000) } }
+        break
+      case '6h':
+        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) } }
+        break
+      case '7d':
+        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } }
+        break
+      case '30d':
+        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }
+        break
+      case 'all':
+        // 不加入時間限制，顯示所有內容
+        timeFilter = {}
+        break
+      default: // 24h
+        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } }
+    }
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const totalLimit = parseInt(limit)
+
+    // 建立查詢條件
+    const query = {
+      status: 'public',
+      ...timeFilter,
+    }
+
+    // 添加標籤篩選
+    if (tagArray.length > 0) {
+      query.tags_cache = { $in: tagArray }
+    }
+
+    // 添加排除ID篩選
+    if (excludeIds.length > 0) {
+      query._id = { $nin: excludeIds }
+    }
+
+    // 取得基礎迷因數據
+    const memes = await Meme.find(query)
+      .populate('author_id', 'username display_name avatar')
+      .populate('tags')
+      .sort({ hot_score: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(totalLimit)
+      .lean()
+
+    // 如果啟用社交信號，計算社交分數
+    let enhancedMemes = memes
+    if (include_social_signals === 'true') {
+      enhancedMemes = await Promise.all(
+        memes.map(async (meme) => {
+          // 將字串 ID 轉換為 ObjectId
+          const memeId = new mongoose.Types.ObjectId(meme._id)
+
+          // 計算社交互動數據
+          const [likes, comments, shares, views] = await Promise.all([
+            Like.countDocuments({ meme_id: memeId, status: 'normal' }),
+            Comment.countDocuments({ meme_id: memeId, status: 'normal' }),
+            Share.countDocuments({ meme_id: memeId }),
+            View.countDocuments({ meme_id: memeId }),
+          ])
+
+          // 計算社交熱度分數
+          const socialScore = (likes * 2 + comments * 3 + shares * 4 + views * 1) / 10
+
+          return {
+            ...meme,
+            social_metrics: {
+              likes,
+              comments,
+              shares,
+              views,
+              social_score: socialScore,
+            },
+          }
+        }),
+      )
+
+      // 根據社交分數重新排序
+      enhancedMemes.sort((a, b) => b.social_metrics.social_score - a.social_metrics.social_score)
+    }
+
+    // 修復排除ID篩選問題
+    if (excludeIds.length > 0) {
+      query._id = { $nin: excludeIds.map((id) => new mongoose.Types.ObjectId(id)) }
+    }
+
+    // 計算總數用於分頁
+    const total = await Meme.countDocuments(query)
+
+    // 計算分頁資訊
+    const totalPages = Math.ceil(total / totalLimit)
+    const hasMore = parseInt(page) < totalPages
+
+    res.json({
+      success: true,
+      data: {
+        recommendations: enhancedMemes,
+        filters: {
+          time_range,
+          limit: totalLimit,
+          include_social_signals: include_social_signals === 'true',
+          tags: tagArray,
+          page: parseInt(page),
+          exclude_ids: excludeIds,
+        },
+        algorithm: 'trending',
+        algorithm_details: {
+          description: '基於整體社群行為的熱門內容推薦',
+          time_range,
+          include_social_signals: include_social_signals === 'true',
+        },
+        pagination: {
+          page: parseInt(page),
+          limit: totalLimit,
+          skip,
+          total,
+          hasMore,
+          totalPages,
+        },
+      },
+      error: null,
+    })
+  } catch (error) {
+    console.error('取得大家都在看的內容失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: '取得推薦內容失敗',
+    })
+  }
+}
+
 export default {
   getHotRecommendations,
   getLatestRecommendations,
@@ -1543,4 +1734,5 @@ export default {
   updateSocialCollaborativeFilteringCacheController,
   calculateMemeSocialScoreController,
   getUserSocialInfluenceStatsController,
+  getTrendingRecommendationsController,
 }

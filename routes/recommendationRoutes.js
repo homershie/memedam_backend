@@ -26,6 +26,7 @@ import {
   calculateMemeSocialScoreController,
   getUserSocialInfluenceStatsController,
   getInfiniteScrollRecommendationsController,
+  getTrendingRecommendationsController,
 } from '../controllers/recommendationController.js'
 import { token } from '../middleware/auth.js'
 
@@ -204,9 +205,10 @@ router.get('/hot', getHotRecommendations)
  *       - in: query
  *         name: hours
  *         schema:
- *           type: integer
- *           default: 24
- *         description: 時間範圍小時數
+ *           type: string
+ *           default: all
+ *           enum: [all, 1, 6, 12, 24, 48, 72, 168]
+ *         description: 時間範圍小時數（all=不限制時間，數字=指定小時數）
  *       - in: query
  *         name: page
  *         schema:
@@ -732,6 +734,109 @@ router.get('/mixed', getMixedRecommendationsController)
  *               $ref: '#/components/schemas/RecommendationResponse'
  */
 router.get('/infinite-scroll', getInfiniteScrollRecommendationsController)
+
+/**
+ * @swagger
+ * /api/recommendations/trending:
+ *   get:
+ *     summary: 取得大家都在看的熱門內容（公開）
+ *     tags: [Recommendations]
+ *     parameters:
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: 標籤列表（逗號分隔）
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 推薦數量限制
+ *       - in: query
+ *         name: time_range
+ *         schema:
+ *           type: string
+ *           enum: [1h, 6h, 24h, 7d, 30d]
+ *           default: 24h
+ *         description: 時間範圍
+ *       - in: query
+ *         name: include_social_signals
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: 是否包含社交信號
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼（用於分頁）
+ *       - in: query
+ *         name: exclude_ids
+ *         schema:
+ *           type: string
+ *         description: 排除的迷因ID（逗號分隔，用於無限捲動）
+ *     responses:
+ *       200:
+ *         description: 成功取得大家都在看的內容
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     recommendations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Meme'
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         time_range:
+ *                           type: string
+ *                         limit:
+ *                           type: integer
+ *                         include_social_signals:
+ *                           type: boolean
+ *                         tags:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         page:
+ *                           type: integer
+ *                         exclude_ids:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     algorithm:
+ *                       type: string
+ *                     algorithm_details:
+ *                       type: object
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         skip:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                         totalPages:
+ *                           type: integer
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ */
+router.get('/trending', getTrendingRecommendationsController)
 
 /**
  * @swagger
@@ -1279,7 +1384,7 @@ router.get('/social-influence-stats', token, getUserSocialInfluenceStatsControll
  *         name: algorithm
  *         schema:
  *           type: string
- *           enum: [hot, latest, mixed, user-interest, content-based, tag-based, collaborative-filtering, social-collaborative-filtering]
+ *           enum: [hot, latest, mixed, trending, user-interest, content-based, tag-based, collaborative-filtering, social-collaborative-filtering]
  *           default: mixed
  *         description: 推薦演算法
  *       - in: query
@@ -1305,6 +1410,8 @@ router.get('/', (req, res) => {
       return getHotRecommendations(req, res)
     case 'latest':
       return getLatestRecommendations(req, res)
+    case 'trending':
+      return getTrendingRecommendationsController(req, res)
     case 'user-interest':
       return getUserInterestRecommendations(req, res)
     case 'content-based':
