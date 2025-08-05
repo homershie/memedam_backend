@@ -129,7 +129,7 @@ export const getHotRecommendations = async (req, res) => {
 
     // 如果有排除ID，加入查詢條件
     if (excludeIds.length > 0) {
-      filter._id = { $nin: excludeIds }
+      filter._id = mongoose.trusted({ $nin: excludeIds })
     }
 
     // 排除用戶已看過的迷因
@@ -270,7 +270,7 @@ export const getLatestRecommendations = async (req, res) => {
 
     // 如果有排除ID，加入查詢條件
     if (excludeIds.length > 0) {
-      filter._id = { $nin: excludeIds }
+      filter._id = mongoose.trusted({ $nin: excludeIds })
     }
 
     // 計算分頁
@@ -323,7 +323,7 @@ export const getLatestRecommendations = async (req, res) => {
 
     // 重新添加排除ID篩選
     if (excludeIds.length > 0) {
-      countFilter._id = { $nin: excludeIds }
+      countFilter._id = mongoose.trusted({ $nin: excludeIds })
     }
 
     const totalCount = await Meme.countDocuments(countFilter)
@@ -464,15 +464,34 @@ export const getContentBasedRecommendationsController = async (req, res) => {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用安全的ObjectId轉換
     let excludeIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
+
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
     }
 
     // 計算分頁
@@ -495,7 +514,7 @@ export const getContentBasedRecommendationsController = async (req, res) => {
     const totalCount = await Meme.countDocuments({
       status: 'public',
       ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
-      ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
+      ...(excludeIds.length > 0 && { _id: mongoose.trusted({ $nin: excludeIds }) }),
     })
 
     res.json({
@@ -570,15 +589,34 @@ export const getTagBasedRecommendationsController = async (req, res) => {
 
     const tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用安全的ObjectId轉換
     let excludeIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
+
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
     }
 
     // 計算分頁
@@ -599,7 +637,7 @@ export const getTagBasedRecommendationsController = async (req, res) => {
     const totalCount = await Meme.countDocuments({
       status: 'public',
       tags_cache: { $in: tagArray },
-      ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
+      ...(excludeIds.length > 0 && { _id: mongoose.trusted({ $nin: excludeIds }) }),
     })
 
     res.json({
@@ -867,15 +905,34 @@ export const getMixedRecommendationsController = async (req, res) => {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用安全的ObjectId轉換
     let excludeIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
+
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
     }
 
     // 使用新的混合推薦系統
@@ -970,15 +1027,34 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用安全的ObjectId轉換
     let excludeIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
+
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
     }
 
     // 使用無限捲動推薦系統
@@ -1110,15 +1186,34 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用安全的ObjectId轉換
     let excludeIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
+
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
     }
 
     // 計算分頁
@@ -1142,7 +1237,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
     const totalCount = await Meme.countDocuments({
       status: 'public',
       ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
-      ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
+      ...(excludeIds.length > 0 && { _id: mongoose.trusted({ $nin: excludeIds }) }),
     })
 
     res.json({
@@ -1376,11 +1471,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
     const totalCount = await Meme.countDocuments({
       status: 'public',
       ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
-      ...(excludeIds.length > 0 && {
-        _id: {
-          $nin: excludeIds, // excludeIds 已經是ObjectId實例陣列
-        },
-      }),
+      ...(excludeIds.length > 0 && { _id: mongoose.trusted({ $nin: excludeIds }) }),
     })
 
     res.json({
