@@ -93,15 +93,38 @@ export const getHotRecommendations = async (req, res) => {
       }
     }
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用安全的ObjectId轉換 (getHotRecommendations)
     let excludeIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
+      
+      // 確保所有ID都轉換為有效的ObjectId
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            const objectId = id instanceof mongoose.Types.ObjectId 
+              ? id 
+              : new mongoose.Types.ObjectId(id)
+            return objectId
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter(id => id !== null)
     }
 
     // 如果有排除ID，加入查詢條件
@@ -214,15 +237,38 @@ export const getLatestRecommendations = async (req, res) => {
       }
     }
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用安全的ObjectId轉換 (getLatestRecommendations)
     let excludeIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
+      
+      // 確保所有ID都轉換為有效的ObjectId
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            const objectId = id instanceof mongoose.Types.ObjectId 
+              ? id 
+              : new mongoose.Types.ObjectId(id)
+            return objectId
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter(id => id !== null)
     }
 
     // 如果有排除ID，加入查詢條件
@@ -1242,26 +1288,38 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用安全的ObjectId轉換 (社交協同過濾)
     let excludeIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const rawIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
 
-      // 確保所有ID都是有效的ObjectId格式
-      excludeIds = excludeIds.filter((id) => {
-        try {
-          new mongoose.Types.ObjectId(id)
-          return true
-        } catch {
-          console.warn(`無效的ObjectId格式: ${id}`)
-          return false
-        }
-      })
+      // 確保所有ID都轉換為有效的ObjectId實例
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            const objectId = id instanceof mongoose.Types.ObjectId 
+              ? id 
+              : new mongoose.Types.ObjectId(id)
+            return objectId
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter(id => id !== null)
     }
 
     // 計算分頁
@@ -1291,7 +1349,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
       ...(excludeIds.length > 0 && {
         _id: {
-          $nin: excludeIds.map((id) => new mongoose.Types.ObjectId(id)),
+          $nin: excludeIds, // excludeIds 已經是ObjectId實例陣列
         },
       }),
     })
@@ -1550,7 +1608,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
-    // 解析排除ID參數
+    // 解析排除ID參數 - 使用更安全的ObjectId處理方式
     let excludeObjectIds = []
     if (exclude_ids) {
       const excludeIds = Array.isArray(exclude_ids)
@@ -1560,7 +1618,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
             .map((id) => id.trim())
             .filter((id) => id)
 
-      // 確保所有ID都是有效的ObjectId格式，並直接轉換為 ObjectId
+      // 確保所有ID都是有效的ObjectId格式，並正確轉換為 ObjectId 實例
       excludeObjectIds = excludeIds
         .filter((id) => {
           try {
@@ -1576,7 +1634,11 @@ export const getTrendingRecommendationsController = async (req, res) => {
         })
         .map((id) => {
           try {
-            return new mongoose.Types.ObjectId(id)
+            // 確保創建純淨的ObjectId實例，避免包含查詢物件
+            const objectId = id instanceof mongoose.Types.ObjectId 
+              ? id 
+              : new mongoose.Types.ObjectId(id)
+            return objectId
           } catch (error) {
             console.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
@@ -1625,9 +1687,15 @@ export const getTrendingRecommendationsController = async (req, res) => {
       query.tags_cache = { $in: tagArray }
     }
 
-    // 添加排除ID篩選 - 使用更安全的方式
+    // 添加排除ID篩選 - 確保ObjectId陣列正確傳遞給$nin操作符
     if (excludeObjectIds.length > 0) {
-      query._id = { $nin: excludeObjectIds }
+      // 確保excludeObjectIds陣列中的每個元素都是純淨的ObjectId實例
+      const validObjectIds = excludeObjectIds.filter(id => 
+        id instanceof mongoose.Types.ObjectId
+      )
+      if (validObjectIds.length > 0) {
+        query._id = { $nin: validObjectIds }
+      }
     }
 
     // 取得基礎迷因數據
