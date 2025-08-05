@@ -104,19 +104,26 @@ const SOCIAL_INFLUENCE_CONFIG = {
 
 /**
  * 建立用戶-迷因互動矩陣
- * @param {Array} userIds - 用戶ID列表
- * @param {Array} memeIds - 迷因ID列表
- * @returns {Object} 互動矩陣 {userId: {memeId: score}}
  */
 export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
   try {
     console.log('開始建立用戶-迷因互動矩陣...')
 
-    // 如果沒有提供用戶ID，取得所有活躍用戶
+    // 如果沒有提供用戶ID，取得所有活躍用戶（限制數量避免性能問題）
     let targetUserIds = userIds
     if (userIds.length === 0) {
-      const activeUsers = await User.find({ status: 'active' }).select('_id').limit(1000) // 限制用戶數量避免效能問題
-      targetUserIds = activeUsers.map((user) => user._id)
+      try {
+        const activeUsers = await User.find({ status: 'active' })
+          .select('_id')
+          .limit(500) // 減少限制數量以提高性能
+          .lean()
+          .exec()
+        targetUserIds = activeUsers.map((user) => user._id)
+        console.log(`找到 ${targetUserIds.length} 個活躍用戶`)
+      } catch (error) {
+        console.error('獲取活躍用戶失敗:', error)
+        return {}
+      }
     } else {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
@@ -152,11 +159,44 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
       return {}
     }
 
-    // 如果沒有提供迷因ID，取得所有公開迷因
+    // 如果沒有提供迷因ID，取得所有公開迷因（大幅減少數量並添加錯誤處理）
     let targetMemeIds = memeIds
     if (memeIds.length === 0) {
-      const publicMemes = await Meme.find({ status: 'public' }).select('_id').limit(5000) // 限制迷因數量避免效能問題
-      targetMemeIds = publicMemes.map((meme) => meme._id)
+      try {
+        // 減少查詢數量，並添加時間限制
+        const publicMemes = await Meme.find({ 
+          status: 'public',
+          created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // 只取最近30天的迷因
+        })
+          .select('_id')
+          .sort({ created_at: -1 }) // 按創建時間倒序
+          .limit(1000) // 大幅減少限制數量
+          .lean()
+          .exec()
+        
+        targetMemeIds = publicMemes.map((meme) => meme._id)
+        console.log(`找到 ${targetMemeIds.length} 個公開迷因`)
+        
+        if (targetMemeIds.length === 0) {
+          console.log('沒有找到公開迷因，返回空的互動矩陣')
+          return {}
+        }
+      } catch (error) {
+        console.error('獲取公開迷因失敗:', error)
+        // 如果查詢失敗，嘗試使用備用方案
+        try {
+          const fallbackMemes = await Meme.find({ status: 'public' })
+            .select('_id')
+            .limit(100) // 更小的備用限制
+            .lean()
+            .exec()
+          targetMemeIds = fallbackMemes.map((meme) => meme._id)
+          console.log(`使用備用方案，找到 ${targetMemeIds.length} 個迷因`)
+        } catch (fallbackError) {
+          console.error('備用查詢也失敗:', fallbackError)
+          return {}
+        }
+      }
     } else {
       // 確保所有迷因ID都是ObjectId格式
       targetMemeIds = memeIds
@@ -228,127 +268,140 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     console.log(`處理 ${validatedUserIds.length} 個用戶和 ${validatedMemeIds.length} 個迷因`)
 
     // 記錄查詢條件以便調試
-    console.log('查詢互動數據，用戶IDs:', validatedUserIds.map(id => id.toString()))
+    console.log('查詢互動數據，用戶IDs:', validatedUserIds.slice(0, 3).map(id => id.toString()), '...')
     console.log('查詢互動數據，迷因IDs:', validatedMemeIds.slice(0, 5).map(id => id.toString()), '...')
 
-    // 取得所有互動數據 - 使用正確的查詢方式
-    const [likes, collections, comments, shares, views] = await Promise.all([
-      Like.find({
-        user_id: { $in: validatedUserIds },
-        meme_id: { $in: validatedMemeIds }
+    // 取得所有互動數據 - 使用正確的查詢方式並添加超時保護
+    try {
+      const queryTimeout = 30000 // 30秒超時
+      const [likes, collections, comments, shares, views] = await Promise.all([
+        Like.find({
+          user_id: { $in: validatedUserIds },
+          meme_id: { $in: validatedMemeIds }
+        })
+          .select('user_id meme_id createdAt')
+          .maxTimeMS(queryTimeout)
+          .lean()
+          .exec(),
+        Collection.find({
+          user_id: { $in: validatedUserIds },
+          meme_id: { $in: validatedMemeIds }
+        })
+          .select('user_id meme_id createdAt')
+          .maxTimeMS(queryTimeout)
+          .lean()
+          .exec(),
+        Comment.find({
+          user_id: { $in: validatedUserIds },
+          meme_id: { $in: validatedMemeIds },
+          status: 'normal'
+        })
+          .select('user_id meme_id createdAt')
+          .maxTimeMS(queryTimeout)
+          .lean()
+          .exec(),
+        Share.find({
+          user_id: { $in: validatedUserIds },
+          meme_id: { $in: validatedMemeIds }
+        })
+          .select('user_id meme_id createdAt')
+          .maxTimeMS(queryTimeout)
+          .lean()
+          .exec(),
+        View.find({
+          user_id: { $in: validatedUserIds },
+          meme_id: { $in: validatedMemeIds }
+        })
+          .select('user_id meme_id createdAt')
+          .maxTimeMS(queryTimeout)
+          .lean()
+          .exec(),
+      ])
+
+      console.log(`查詢完成 - 按讚: ${likes.length}, 收藏: ${collections.length}, 評論: ${comments.length}, 分享: ${shares.length}, 瀏覽: ${views.length}`)
+
+      // 初始化互動矩陣
+      const interactionMatrix = {}
+
+      // 處理按讚數據
+      likes.forEach((like) => {
+        const userId = like.user_id.toString()
+        const memeId = like.meme_id.toString()
+        const timeDecay = calculateTimeDecay(like.createdAt)
+
+        if (!interactionMatrix[userId]) {
+          interactionMatrix[userId] = {}
+        }
+
+        interactionMatrix[userId][memeId] =
+          (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.like * timeDecay
       })
-        .select('user_id meme_id createdAt')
-        .lean()
-        .exec(),
-      Collection.find({
-        user_id: { $in: validatedUserIds },
-        meme_id: { $in: validatedMemeIds }
+
+      // 處理收藏數據
+      collections.forEach((collection) => {
+        const userId = collection.user_id.toString()
+        const memeId = collection.meme_id.toString()
+        const timeDecay = calculateTimeDecay(collection.createdAt)
+
+        if (!interactionMatrix[userId]) {
+          interactionMatrix[userId] = {}
+        }
+
+        interactionMatrix[userId][memeId] =
+          (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.collection * timeDecay
       })
-        .select('user_id meme_id createdAt')
-        .lean()
-        .exec(),
-      Comment.find({
-        user_id: { $in: validatedUserIds },
-        meme_id: { $in: validatedMemeIds },
-        status: 'normal'
+
+      // 處理留言數據
+      comments.forEach((comment) => {
+        const userId = comment.user_id.toString()
+        const memeId = comment.meme_id.toString()
+        const timeDecay = calculateTimeDecay(comment.createdAt)
+
+        if (!interactionMatrix[userId]) {
+          interactionMatrix[userId] = {}
+        }
+
+        interactionMatrix[userId][memeId] =
+          (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.comment * timeDecay
       })
-        .select('user_id meme_id createdAt')
-        .lean()
-        .exec(),
-      Share.find({
-        user_id: { $in: validatedUserIds },
-        meme_id: { $in: validatedMemeIds }
+
+      // 處理分享數據
+      shares.forEach((share) => {
+        const userId = share.user_id.toString()
+        const memeId = share.meme_id.toString()
+        const timeDecay = calculateTimeDecay(share.createdAt)
+
+        if (!interactionMatrix[userId]) {
+          interactionMatrix[userId] = {}
+        }
+
+        interactionMatrix[userId][memeId] =
+          (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.share * timeDecay
       })
-        .select('user_id meme_id createdAt')
-        .lean()
-        .exec(),
-      View.find({
-        user_id: { $in: validatedUserIds },
-        meme_id: { $in: validatedMemeIds }
+
+      // 處理瀏覽數據
+      views.forEach((view) => {
+        const userId = view.user_id.toString()
+        const memeId = view.meme_id.toString()
+        const timeDecay = calculateTimeDecay(view.createdAt)
+
+        if (!interactionMatrix[userId]) {
+          interactionMatrix[userId] = {}
+        }
+
+        interactionMatrix[userId][memeId] =
+          (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.view * timeDecay
       })
-        .select('user_id meme_id createdAt')
-        .lean()
-        .exec(),
-    ])
 
-    // 初始化互動矩陣
-    const interactionMatrix = {}
-
-    // 處理按讚數據
-    likes.forEach((like) => {
-      const userId = like.user_id.toString()
-      const memeId = like.meme_id.toString()
-      const timeDecay = calculateTimeDecay(like.createdAt)
-
-      if (!interactionMatrix[userId]) {
-        interactionMatrix[userId] = {}
-      }
-
-      interactionMatrix[userId][memeId] =
-        (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.like * timeDecay
-    })
-
-    // 處理收藏數據
-    collections.forEach((collection) => {
-      const userId = collection.user_id.toString()
-      const memeId = collection.meme_id.toString()
-      const timeDecay = calculateTimeDecay(collection.createdAt)
-
-      if (!interactionMatrix[userId]) {
-        interactionMatrix[userId] = {}
-      }
-
-      interactionMatrix[userId][memeId] =
-        (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.collection * timeDecay
-    })
-
-    // 處理留言數據
-    comments.forEach((comment) => {
-      const userId = comment.user_id.toString()
-      const memeId = comment.meme_id.toString()
-      const timeDecay = calculateTimeDecay(comment.createdAt)
-
-      if (!interactionMatrix[userId]) {
-        interactionMatrix[userId] = {}
-      }
-
-      interactionMatrix[userId][memeId] =
-        (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.comment * timeDecay
-    })
-
-    // 處理分享數據
-    shares.forEach((share) => {
-      const userId = share.user_id.toString()
-      const memeId = share.meme_id.toString()
-      const timeDecay = calculateTimeDecay(share.createdAt)
-
-      if (!interactionMatrix[userId]) {
-        interactionMatrix[userId] = {}
-      }
-
-      interactionMatrix[userId][memeId] =
-        (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.share * timeDecay
-    })
-
-    // 處理瀏覽數據
-    views.forEach((view) => {
-      const userId = view.user_id.toString()
-      const memeId = view.meme_id.toString()
-      const timeDecay = calculateTimeDecay(view.createdAt)
-
-      if (!interactionMatrix[userId]) {
-        interactionMatrix[userId] = {}
-      }
-
-      interactionMatrix[userId][memeId] =
-        (interactionMatrix[userId][memeId] || 0) + INTERACTION_WEIGHTS.view * timeDecay
-    })
-
-    console.log(`互動矩陣建立完成，包含 ${Object.keys(interactionMatrix).length} 個用戶`)
-    return interactionMatrix
+      console.log(`互動矩陣建立完成，包含 ${Object.keys(interactionMatrix).length} 個用戶`)
+      return interactionMatrix
+    } catch (error) {
+      console.error('查詢互動數據時發生錯誤:', error)
+      return {}
+    }
   } catch (error) {
     console.error('建立互動矩陣時發生錯誤:', error)
-    throw error
+    return {}
   }
 }
 
@@ -713,11 +766,21 @@ export const buildSocialGraph = async (userIds = []) => {
   try {
     console.log('開始建立社交關係圖譜...')
 
-    // 如果沒有提供用戶ID，取得所有活躍用戶
+    // 如果沒有提供用戶ID，取得所有活躍用戶（限制數量避免性能問題）
     let targetUserIds = userIds
     if (userIds.length === 0) {
-      const activeUsers = await User.find({ status: 'active' }).select('_id').limit(1000)
-      targetUserIds = activeUsers.map((user) => user._id)
+      try {
+        const activeUsers = await User.find({ status: 'active' })
+          .select('_id')
+          .limit(500) // 減少限制數量以提高性能
+          .lean()
+          .exec()
+        targetUserIds = activeUsers.map((user) => user._id)
+        console.log(`找到 ${targetUserIds.length} 個活躍用戶`)
+      } catch (error) {
+        console.error('獲取活躍用戶失敗:', error)
+        return {}
+      }
     } else {
       // 確保所有用戶ID都是ObjectId格式
       targetUserIds = userIds
@@ -772,19 +835,30 @@ export const buildSocialGraph = async (userIds = []) => {
     }
 
     // 記錄查詢條件以便調試
-    console.log('查詢追隨關係，用戶IDs:', validatedUserIds.map(id => id.toString()))
+    console.log('查詢追隨關係，用戶IDs:', validatedUserIds.slice(0, 5).map(id => id.toString()), '...')
 
-    // 取得所有追隨關係 - 使用明確的查詢方式避免類型轉換錯誤
-    const follows = await Follow.find({
-      $or: [
-        { follower_id: { $in: validatedUserIds } },
-        { following_id: { $in: validatedUserIds } }
-      ],
-      status: 'active'
-    })
-      .select('follower_id following_id createdAt')
-      .lean()
-      .exec()
+    // 取得所有追隨關係 - 使用明確的查詢方式避免類型轉換錯誤並添加超時保護
+    let follows = []
+    try {
+      const queryTimeout = 30000 // 30秒超時
+      follows = await Follow.find({
+        $or: [
+          { follower_id: { $in: validatedUserIds } },
+          { following_id: { $in: validatedUserIds } }
+        ],
+        status: 'active'
+      })
+        .select('follower_id following_id createdAt')
+        .maxTimeMS(queryTimeout)
+        .lean()
+        .exec()
+      
+      console.log(`查詢到 ${follows.length} 個追隨關係`)
+    } catch (error) {
+      console.error('查詢追隨關係失敗:', error)
+      // 如果查詢失敗，返回空的社交圖譜而不是拋出錯誤
+      follows = []
+    }
 
     // 建立社交圖譜
     const socialGraph = {}
@@ -844,7 +918,8 @@ export const buildSocialGraph = async (userIds = []) => {
     return socialGraph
   } catch (error) {
     console.error('建立社交關係圖譜時發生錯誤:', error)
-    throw error
+    // 返回空的社交圖譜而不是拋出錯誤，避免整個推薦系統崩潰
+    return {}
   }
 }
 
@@ -1058,12 +1133,15 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 建立互動矩陣和社交圖譜
     console.log('準備建立互動矩陣和社交圖譜，目標用戶ID:', targetUserIdObj.toString())
     const [interactionMatrix, socialGraph] = await Promise.all([
-      buildInteractionMatrix([targetUserIdObj]),
-      buildSocialGraph([targetUserIdObj]),
-    ]).catch(error => {
-      console.error('建立社交關係圖譜時發生錯誤:', error)
-      throw error
-    })
+      buildInteractionMatrix([targetUserIdObj]).catch(error => {
+        console.error('建立互動矩陣時發生錯誤:', error)
+        return {} // 返回空的互動矩陣而不是拋出錯誤
+      }),
+      buildSocialGraph([targetUserIdObj]).catch(error => {
+        console.error('建立社交圖譜時發生錯誤:', error) 
+        return {} // 返回空的社交圖譜而不是拋出錯誤
+      }),
+    ])
 
     // 如果目標用戶沒有互動歷史，返回熱門推薦
     if (
