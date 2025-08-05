@@ -1551,25 +1551,38 @@ export const getTrendingRecommendationsController = async (req, res) => {
     }
 
     // 解析排除ID參數
-    let excludeIds = []
+    let excludeObjectIds = []
     if (exclude_ids) {
-      excludeIds = Array.isArray(exclude_ids)
+      const excludeIds = Array.isArray(exclude_ids)
         ? exclude_ids
         : exclude_ids
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
 
-      // 確保所有ID都是有效的ObjectId格式
-      excludeIds = excludeIds.filter((id) => {
-        try {
-          new mongoose.Types.ObjectId(id)
-          return true
-        } catch {
-          console.warn(`無效的ObjectId格式: ${id}`)
-          return false
-        }
-      })
+      // 確保所有ID都是有效的ObjectId格式，並直接轉換為 ObjectId
+      excludeObjectIds = excludeIds
+        .filter((id) => {
+          try {
+            if (mongoose.Types.ObjectId.isValid(id)) {
+              return true
+            }
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          } catch {
+            console.warn(`ObjectId驗證失敗: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            return new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter(id => id !== null)
     }
 
     // 計算時間範圍
@@ -1612,9 +1625,9 @@ export const getTrendingRecommendationsController = async (req, res) => {
       query.tags_cache = { $in: tagArray }
     }
 
-    // 添加排除ID篩選
-    if (excludeIds.length > 0) {
-      query._id = { $nin: excludeIds.map(id => new mongoose.Types.ObjectId(id)) }
+    // 添加排除ID篩選 - 使用更安全的方式
+    if (excludeObjectIds.length > 0) {
+      query._id = { $nin: excludeObjectIds }
     }
 
     // 取得基礎迷因數據
@@ -1725,7 +1738,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
           include_social_signals: include_social_signals === 'true',
           tags: tagArray,
           page: parseInt(page),
-          exclude_ids: excludeIds,
+          exclude_ids: excludeObjectIds.map(id => id.toString()),
         },
         algorithm: 'trending',
         algorithm_details: {
