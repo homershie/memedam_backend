@@ -237,7 +237,7 @@ export const getLatestRecommendations = async (req, res) => {
       }
     }
 
-    // 解析排除ID參數 - 修正 ObjectId 處理方式
+    // 解析排除ID參數 - 使用安全的ObjectId轉換
     let excludeIds = []
     if (exclude_ids) {
       const rawIds = Array.isArray(exclude_ids)
@@ -246,27 +246,30 @@ export const getLatestRecommendations = async (req, res) => {
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
-      
-      console.log('Latest 推薦 - 開始處理排除ID:', rawIds)
-      
-      // 只保留有效的ObjectId字符串，讓 Mongoose 自動轉換
+
+      // 確保所有ID都轉換為有效的ObjectId
       excludeIds = rawIds
         .filter((id) => {
           try {
-            return mongoose.Types.ObjectId.isValid(id) && typeof id === 'string'
+            return mongoose.Types.ObjectId.isValid(id)
           } catch {
             console.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
-        
-      console.log('Latest 推薦 - 處理後的 excludeIds:', excludeIds)
+        .map((id) => {
+          try {
+            return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
     }
 
     // 如果有排除ID，加入查詢條件
     if (excludeIds.length > 0) {
-      console.log('Latest 推薦 - 添加排除ID篩選，數量:', excludeIds.length)
-      // 直接使用字符串陣列，讓 Mongoose 自動轉換為 ObjectId
       filter._id = { $nin: excludeIds }
     }
 
@@ -320,12 +323,7 @@ export const getLatestRecommendations = async (req, res) => {
 
     // 重新添加排除ID篩選
     if (excludeIds.length > 0) {
-      const validObjectIds = excludeIds.filter(id => 
-        id instanceof mongoose.Types.ObjectId
-      )
-      if (validObjectIds.length > 0) {
-        countFilter._id = { $nin: validObjectIds }
-      }
+      countFilter._id = { $nin: excludeIds }
     }
 
     const totalCount = await Meme.countDocuments(countFilter)
