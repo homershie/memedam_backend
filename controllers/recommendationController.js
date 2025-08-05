@@ -1639,7 +1639,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
-    // 解析排除ID參數 - 修正 ObjectId 處理方式
+    // 解析排除ID參數 - 轉換為安全的 ObjectId 陣列
     let excludeObjectIds = []
     if (exclude_ids) {
       const rawIds = Array.isArray(exclude_ids)
@@ -1651,16 +1651,25 @@ export const getTrendingRecommendationsController = async (req, res) => {
 
       console.log('開始處理排除ID:', rawIds)
 
-      // 只保留有效的ObjectId字符串，讓 Mongoose 自動轉換
+      // 只保留有效的 ObjectId 字串並轉換為 ObjectId 物件
       excludeObjectIds = rawIds
         .filter((id) => {
           try {
-            return mongoose.Types.ObjectId.isValid(id) && typeof id === 'string'
+            return mongoose.Types.ObjectId.isValid(id)
           } catch {
             console.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
+        .map((id) => {
+          try {
+            return new mongoose.Types.ObjectId(id)
+          } catch (err) {
+            console.warn(`轉換ObjectId失敗: ${id}`, err)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
 
       console.log('處理後的 excludeObjectIds:', excludeObjectIds)
     }
@@ -1671,23 +1680,23 @@ export const getTrendingRecommendationsController = async (req, res) => {
 
     switch (time_range) {
       case '1h':
-        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 60 * 60 * 1000) } }
+        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 60 * 60 * 1000) }) }
         break
       case '6h':
-        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) } }
+        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) }) }
         break
       case '7d':
-        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } }
+        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }) }
         break
       case '30d':
-        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }
+        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }) }
         break
       case 'all':
         // 不加入時間限制，顯示所有內容
         timeFilter = {}
         break
       default: // 24h
-        timeFilter = { createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } }
+        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) }) }
     }
 
     // 計算分頁
@@ -1708,8 +1717,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
     // 添加排除ID篩選
     if (excludeObjectIds.length > 0) {
       console.log('添加排除ID篩選，數量:', excludeObjectIds.length)
-      // 直接使用字符串陣列，讓 Mongoose 自動轉換為 ObjectId
-      query._id = { $nin: excludeObjectIds }
+      query._id = mongoose.trusted({ $nin: excludeObjectIds })
     }
 
     // 取得基礎迷因數據
@@ -1816,7 +1824,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
     
     // 重新添加排除ID篩選
     if (excludeObjectIds.length > 0) {
-      countQuery._id = { $nin: excludeObjectIds }
+      countQuery._id = mongoose.trusted({ $nin: excludeObjectIds })
     }
     
     const total = await Meme.countDocuments(countQuery)
