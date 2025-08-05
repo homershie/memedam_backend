@@ -1614,13 +1614,12 @@ export const getTrendingRecommendationsController = async (req, res) => {
 
     // 添加排除ID篩選
     if (excludeIds.length > 0) {
-      query._id = { $nin: excludeIds }
+      query._id = { $nin: excludeIds.map(id => new mongoose.Types.ObjectId(id)) }
     }
 
     // 取得基礎迷因數據
     const memes = await Meme.find(query)
       .populate('author_id', 'username display_name avatar')
-      .populate('tags')
       .sort({ hot_score: -1, createdAt: -1 })
       .skip(skip)
       .limit(totalLimit)
@@ -1631,8 +1630,8 @@ export const getTrendingRecommendationsController = async (req, res) => {
     if (include_social_signals === 'true') {
       enhancedMemes = await Promise.all(
         memes.map(async (meme) => {
-          // 將字串 ID 轉換為 ObjectId
-          const memeId = new mongoose.Types.ObjectId(meme._id)
+          // 使用 meme._id (已經是 ObjectId)
+          const memeId = meme._id
 
           // 計算社交互動數據
           const [likes, comments, shares, views] = await Promise.all([
@@ -1660,11 +1659,6 @@ export const getTrendingRecommendationsController = async (req, res) => {
 
       // 根據社交分數重新排序
       enhancedMemes.sort((a, b) => b.social_metrics.social_score - a.social_metrics.social_score)
-    }
-
-    // 修復排除ID篩選問題
-    if (excludeIds.length > 0) {
-      query._id = { $nin: excludeIds.map((id) => new mongoose.Types.ObjectId(id)) }
     }
 
     // 計算總數用於分頁
