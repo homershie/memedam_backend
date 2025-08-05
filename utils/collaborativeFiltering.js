@@ -219,47 +219,41 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
 
     console.log(`處理 ${validatedUserIds.length} 個用戶和 ${validatedMemeIds.length} 個迷因`)
 
-    // 取得所有互動數據 - 使用更安全的查詢方式
+    // 取得所有互動數據 - 使用正確的查詢方式
     const [likes, collections, comments, shares, views] = await Promise.all([
-      Like.find()
-        .where('user_id')
-        .in(validatedUserIds)
-        .where('meme_id')
-        .in(validatedMemeIds)
+      Like.find({
+        user_id: { $in: validatedUserIds },
+        meme_id: { $in: validatedMemeIds }
+      })
         .select('user_id meme_id createdAt')
         .lean()
         .exec(),
-      Collection.find()
-        .where('user_id')
-        .in(validatedUserIds)
-        .where('meme_id')
-        .in(validatedMemeIds)
+      Collection.find({
+        user_id: { $in: validatedUserIds },
+        meme_id: { $in: validatedMemeIds }
+      })
         .select('user_id meme_id createdAt')
         .lean()
         .exec(),
-      Comment.find()
-        .where('user_id')
-        .in(validatedUserIds)
-        .where('meme_id')
-        .in(validatedMemeIds)
-        .where('status')
-        .equals('normal')
+      Comment.find({
+        user_id: { $in: validatedUserIds },
+        meme_id: { $in: validatedMemeIds },
+        status: 'normal'
+      })
         .select('user_id meme_id createdAt')
         .lean()
         .exec(),
-      Share.find()
-        .where('user_id')
-        .in(validatedUserIds)
-        .where('meme_id')
-        .in(validatedMemeIds)
+      Share.find({
+        user_id: { $in: validatedUserIds },
+        meme_id: { $in: validatedMemeIds }
+      })
         .select('user_id meme_id createdAt')
         .lean()
         .exec(),
-      View.find()
-        .where('user_id')
-        .in(validatedUserIds)
-        .where('meme_id')
-        .in(validatedMemeIds)
+      View.find({
+        user_id: { $in: validatedUserIds },
+        meme_id: { $in: validatedMemeIds }
+      })
         .select('user_id meme_id createdAt')
         .lean()
         .exec(),
@@ -761,13 +755,14 @@ export const buildSocialGraph = async (userIds = []) => {
       return {}
     }
 
-    // 取得所有追隨關係 - 使用更安全的查詢方式
-    const follows = await Follow.find()
-      .where('follower_id')
-      .in(validatedUserIds)
-      .or([{ following_id: { $in: validatedUserIds } }])
-      .where('status')
-      .equals('active')
+    // 取得所有追隨關係 - 使用正確的查詢方式
+    const follows = await Follow.find({
+      $or: [
+        { follower_id: { $in: validatedUserIds } },
+        { following_id: { $in: validatedUserIds } }
+      ],
+      status: 'active'
+    })
       .select('follower_id following_id createdAt')
       .lean()
       .exec()
