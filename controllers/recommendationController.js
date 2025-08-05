@@ -1620,6 +1620,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
     // 取得基礎迷因數據
     const memes = await Meme.find(query)
       .populate('author_id', 'username display_name avatar')
+      .populate('tags')
       .sort({ hot_score: -1, createdAt: -1 })
       .skip(skip)
       .limit(totalLimit)
@@ -1630,8 +1631,8 @@ export const getTrendingRecommendationsController = async (req, res) => {
     if (include_social_signals === 'true') {
       enhancedMemes = await Promise.all(
         memes.map(async (meme) => {
-          // 使用 meme._id (已經是 ObjectId)
-          const memeId = meme._id
+          // 將字串 ID 轉換為 ObjectId
+          const memeId = new mongoose.Types.ObjectId(meme._id)
 
           // 計算社交互動數據
           const [likes, comments, shares, views] = await Promise.all([
