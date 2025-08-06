@@ -204,6 +204,7 @@ export const getLatestRecommendations = async (req, res) => {
       type = 'all',
       hours = 'all', // 改為預設 'all' 表示不限制時間
       tags,
+      types, // 新增：支援多個類型篩選
       // 新增：分頁和排除功能
       page = 1,
       exclude_ids,
@@ -225,7 +226,19 @@ export const getLatestRecommendations = async (req, res) => {
       baseFilter.createdAt = mongoose.trusted({ $gte: dateLimit })
     }
 
-    if (type !== 'all') {
+    // 處理類型篩選
+    if (types) {
+      // 支援多個類型篩選
+      const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
+      if (typeArray.length > 0) {
+        if (typeArray.length === 1) {
+          baseFilter.type = typeArray[0] // 單一類型直接設置
+        } else {
+          baseFilter.type = { $in: typeArray } // 多個類型使用$in查詢
+        }
+      }
+    } else if (type !== 'all') {
+      // 向後相容：單一類型篩選
       baseFilter.type = type
     }
 
@@ -315,6 +328,11 @@ export const getLatestRecommendations = async (req, res) => {
         recommendations,
         filters: {
           type,
+          types: types
+            ? Array.isArray(types)
+              ? types
+              : types.split(',').map((t) => t.trim())
+            : [],
           hours: hours === 'all' ? 'all' : parseInt(hours),
           limit: parseInt(limit),
           page: parseInt(page),
@@ -1698,6 +1716,8 @@ export const getTrendingRecommendationsController = async (req, res) => {
       time_range = 'all',
       include_social_signals = 'true',
       tags,
+      type = 'all',
+      types, // 新增：支援多個類型篩選
       page = 1,
       exclude_ids,
     } = req.query
@@ -1782,6 +1802,22 @@ export const getTrendingRecommendationsController = async (req, res) => {
     const baseQuery = {
       status: 'public',
       ...timeFilter,
+    }
+
+    // 處理類型篩選
+    if (types) {
+      // 支援多個類型篩選
+      const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
+      if (typeArray.length > 0) {
+        if (typeArray.length === 1) {
+          baseQuery.type = typeArray[0] // 單一類型直接設置
+        } else {
+          baseQuery.type = { $in: typeArray } // 多個類型使用$in查詢
+        }
+      }
+    } else if (type !== 'all') {
+      // 向後相容：單一類型篩選
+      baseQuery.type = type
     }
 
     // 添加標籤篩選
@@ -1915,6 +1951,12 @@ export const getTrendingRecommendationsController = async (req, res) => {
           limit: totalLimit,
           include_social_signals: include_social_signals === 'true',
           tags: tagArray,
+          type,
+          types: types
+            ? Array.isArray(types)
+              ? types
+              : types.split(',').map((t) => t.trim())
+            : [],
           page: parseInt(page),
           exclude_ids: excludeObjectIds,
         },
