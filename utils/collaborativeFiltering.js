@@ -634,7 +634,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
         if (types.length === 1) {
           filter.type = types[0] // 單一類型直接設置
         } else {
-          filter.type = { $in: types } // 多個類型使用$in查詢
+          filter.type = mongoose.trusted({ $in: types }) // 多個類型使用$in查詢
         }
       } else if (type && type !== 'all') {
         filter.type = type
@@ -766,7 +766,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       if (types.length === 1) {
         filter.type = types[0] // 單一類型直接設置
       } else {
-        filter.type = { $in: types } // 多個類型使用$in查詢
+        filter.type = mongoose.trusted({ $in: types }) // 多個類型使用$in查詢
       }
     } else if (type && type !== 'all') {
       filter.type = type
@@ -1311,7 +1311,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
         if (types.length === 1) {
           filter.type = types[0] // 單一類型直接設置
         } else {
-          filter.type = { $in: types } // 多個類型使用$in查詢
+          filter.type = mongoose.trusted({ $in: types }) // 多個類型使用$in查詢
         }
       } else if (type && type !== 'all') {
         filter.type = type
@@ -1452,7 +1452,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       if (types.length === 1) {
         filter.type = types[0] // 單一類型直接設置
       } else {
-        filter.type = { $in: types } // 多個類型使用$in查詢
+        filter.type = mongoose.trusted({ $in: types }) // 多個類型使用$in查詢
       }
     } else if (type && type !== 'all') {
       filter.type = type

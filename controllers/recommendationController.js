@@ -77,7 +77,8 @@ export const getHotRecommendations = async (req, res) => {
         if (typeArray.length === 1) {
           filter.type = typeArray[0] // 單一類型直接設置
         } else {
-          filter.type = { $in: typeArray } // 多個類型使用$in查詢
+          // 多個類型使用$in查詢，使用 mongoose.trusted 避免 CastError
+          filter.type = mongoose.trusted({ $in: typeArray })
         }
       }
     } else if (type !== 'all') {
@@ -234,7 +235,7 @@ export const getLatestRecommendations = async (req, res) => {
         if (typeArray.length === 1) {
           baseFilter.type = typeArray[0] // 單一類型直接設置
         } else {
-          baseFilter.type = { $in: typeArray } // 多個類型使用$in查詢
+          baseFilter.type = mongoose.trusted({ $in: typeArray }) // 多個類型使用$in查詢
         }
       }
     } else if (type !== 'all') {
@@ -428,7 +429,7 @@ export const getSimilarRecommendations = async (req, res) => {
         if (typeArray.length === 1) {
           baseFilter.type = typeArray[0] // 單一類型直接設置
         } else {
-          baseFilter.type = { $in: typeArray } // 多個類型使用$in查詢
+          baseFilter.type = mongoose.trusted({ $in: typeArray }) // 多個類型使用$in查詢
         }
       }
     } else if (type !== 'all') {
@@ -957,7 +958,7 @@ export const getUserInterestRecommendations = async (req, res) => {
         if (typeArray.length === 1) {
           baseFilter.type = typeArray[0] // 單一類型直接設置
         } else {
-          baseFilter.type = { $in: typeArray } // 多個類型使用$in查詢
+          baseFilter.type = mongoose.trusted({ $in: typeArray }) // 多個類型使用$in查詢
         }
       }
     } else if (type !== 'all') {
@@ -2057,7 +2058,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
         if (typeArray.length === 1) {
           baseQuery.type = typeArray[0] // 單一類型直接設置
         } else {
-          baseQuery.type = { $in: typeArray } // 多個類型使用$in查詢
+          baseQuery.type = mongoose.trusted({ $in: typeArray }) // 多個類型使用$in查詢
         }
       }
     } else if (type !== 'all') {
