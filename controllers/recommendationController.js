@@ -366,7 +366,14 @@ export const getLatestRecommendations = async (req, res) => {
 export const getSimilarRecommendations = async (req, res) => {
   try {
     const { memeId } = req.params
-    const { limit = 10 } = req.query
+    const {
+      limit = 10,
+      type = 'all',
+      types, // 新增：支援多個類型篩選
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
+    } = req.query
 
     const targetMeme = await Meme.findById(memeId)
     if (!targetMeme) {
@@ -376,14 +383,78 @@ export const getSimilarRecommendations = async (req, res) => {
       })
     }
 
-    // 基於標籤相似度推薦
-    const similarMemes = await Meme.find({
+    // 解析排除ID參數 - 使用安全的ObjectId轉換
+    let excludeIds = []
+    if (exclude_ids) {
+      const rawIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
+    }
+
+    // 建立基礎查詢條件
+    const baseFilter = {
       _id: { $ne: memeId },
       status: 'public',
       tags_cache: { $in: targetMeme.tags_cache },
-    })
+    }
+
+    // 處理類型篩選
+    if (types) {
+      // 支援多個類型篩選
+      const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
+      if (typeArray.length > 0) {
+        if (typeArray.length === 1) {
+          baseFilter.type = typeArray[0] // 單一類型直接設置
+        } else {
+          baseFilter.type = { $in: typeArray } // 多個類型使用$in查詢
+        }
+      }
+    } else if (type !== 'all') {
+      // 向後相容：單一類型篩選
+      baseFilter.type = type
+    }
+
+    // 建立完整查詢條件（含排除ID）
+    const filter = { ...baseFilter }
+    if (excludeIds.length > 0) {
+      filter._id = mongoose.trusted({
+        $ne: memeId,
+        $nin: excludeIds,
+      })
+    }
+
+    // 計算分頁
+    const totalLimit = parseInt(limit)
+    const skipBase = (parseInt(page) - 1) * totalLimit
+    const skip = Math.max(skipBase - excludeIds.length, 0)
+
+    // 基於標籤相似度推薦
+    const similarMemes = await Meme.find(filter)
       .sort({ hot_score: -1 })
-      .limit(parseInt(limit))
+      .skip(skip)
+      .limit(totalLimit)
       .populate('author_id', 'username display_name avatar')
 
     const recommendations = similarMemes.map((meme) => {
@@ -399,6 +470,9 @@ export const getSimilarRecommendations = async (req, res) => {
       }
     })
 
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments(baseFilter)
+
     res.json({
       success: true,
       data: {
@@ -410,8 +484,24 @@ export const getSimilarRecommendations = async (req, res) => {
         recommendations,
         filters: {
           limit: parseInt(limit),
+          type,
+          types: types
+            ? Array.isArray(types)
+              ? types
+              : types.split(',').map((t) => t.trim())
+            : [],
+          page: parseInt(page),
+          exclude_ids: excludeIds,
         },
         algorithm: 'similar_tags',
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: totalCount,
+          hasMore: skip + totalLimit < totalCount,
+          totalPages: Math.ceil(totalCount / parseInt(limit)),
+        },
       },
       error: null,
     })
@@ -792,7 +882,15 @@ export const updateUserPreferences = async (req, res) => {
  */
 export const getUserInterestRecommendations = async (req, res) => {
   try {
-    const { limit = 20, tags } = req.query
+    const {
+      limit = 20,
+      type = 'all',
+      tags,
+      types, // 新增：支援多個類型篩選
+      // 新增：分頁和排除功能
+      page = 1,
+      exclude_ids,
+    } = req.query
     const userId = req.user?._id
 
     if (!userId) {
@@ -818,19 +916,77 @@ export const getUserInterestRecommendations = async (req, res) => {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
     }
 
-    // 建立查詢條件
-    const filter = { status: 'public' }
+    // 解析排除ID參數 - 使用安全的ObjectId轉換
+    let excludeIds = []
+    if (exclude_ids) {
+      const rawIds = Array.isArray(exclude_ids)
+        ? exclude_ids
+        : exclude_ids
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id)
+
+      excludeIds = rawIds
+        .filter((id) => {
+          try {
+            return mongoose.Types.ObjectId.isValid(id)
+          } catch {
+            console.warn(`無效的ObjectId格式: ${id}`)
+            return false
+          }
+        })
+        .map((id) => {
+          try {
+            return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+          } catch (error) {
+            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            return null
+          }
+        })
+        .filter((id) => id !== null)
+    }
+
+    // 建立基礎查詢條件（不含排除ID）
+    const baseFilter = { status: 'public' }
+
+    // 處理類型篩選
+    if (types) {
+      // 支援多個類型篩選
+      const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
+      if (typeArray.length > 0) {
+        if (typeArray.length === 1) {
+          baseFilter.type = typeArray[0] // 單一類型直接設置
+        } else {
+          baseFilter.type = { $in: typeArray } // 多個類型使用$in查詢
+        }
+      }
+    } else if (type !== 'all') {
+      // 向後相容：單一類型篩選
+      baseFilter.type = type
+    }
 
     // 如果有標籤篩選，加入標籤條件
     if (tagArray.length > 0) {
-      filter.tags_cache = { $in: tagArray }
+      baseFilter.tags_cache = { $in: tagArray }
     }
+
+    // 建立完整查詢條件（含排除ID）
+    const filter = { ...baseFilter }
+    if (excludeIds.length > 0) {
+      filter._id = mongoose.trusted({ $nin: excludeIds })
+    }
+
+    // 計算分頁
+    const totalLimit = parseInt(limit)
+    const skipBase = (parseInt(page) - 1) * totalLimit
+    const skip = Math.max(skipBase - excludeIds.length, 0)
 
     // 這裡可以加入更複雜的用戶興趣分析
     // 暫時返回熱門推薦，未來可以實作真正的個人化推薦
     const recommendations = await Meme.find(filter)
       .sort({ hot_score: -1 })
-      .limit(parseInt(limit))
+      .skip(skip)
+      .limit(totalLimit)
       .populate('author_id', 'username display_name avatar')
 
     const recommendationsWithScores = recommendations.map((meme) => {
@@ -843,6 +999,9 @@ export const getUserInterestRecommendations = async (req, res) => {
       }
     })
 
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments(baseFilter)
+
     res.json({
       success: true,
       data: {
@@ -850,10 +1009,26 @@ export const getUserInterestRecommendations = async (req, res) => {
         user_id: userId,
         filters: {
           limit: parseInt(limit),
+          type,
+          types: types
+            ? Array.isArray(types)
+              ? types
+              : types.split(',').map((t) => t.trim())
+            : [],
           tags: tagArray,
+          page: parseInt(page),
+          exclude_ids: excludeIds,
         },
         algorithm: 'user_interest',
         note: '目前使用基礎推薦，未來將實作更進階的個人化演算法',
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: totalCount,
+          hasMore: skip + totalLimit < totalCount,
+          totalPages: Math.ceil(totalCount / parseInt(limit)),
+        },
       },
       error: null,
     })
@@ -873,6 +1048,8 @@ export const getMixedRecommendationsController = async (req, res) => {
   try {
     const {
       limit = 30,
+      type = 'all',
+      types, // 新增：支援多個類型篩選
       custom_weights = '{}',
       include_diversity = 'true',
       include_cold_start_analysis = 'true',
@@ -902,6 +1079,12 @@ export const getMixedRecommendationsController = async (req, res) => {
     let tagArray = []
     if (tags) {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
+    // 解析類型參數
+    let typeArray = []
+    if (types) {
+      typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
     }
 
     // 解析排除ID參數 - 使用安全的ObjectId轉換
@@ -941,6 +1124,8 @@ export const getMixedRecommendationsController = async (req, res) => {
       includeDiversity: include_diversity === 'true',
       includeColdStartAnalysis: include_cold_start_analysis === 'true',
       tags: tagArray,
+      type: type !== 'all' ? type : undefined,
+      types: typeArray.length > 0 ? typeArray : undefined,
       page: parseInt(page),
       excludeIds,
       useCache: clear_cache !== 'true', // 如果清除快取，就不使用快取
@@ -955,6 +1140,8 @@ export const getMixedRecommendationsController = async (req, res) => {
         recommendations: sortedRecommendations,
         filters: {
           limit: parseInt(limit),
+          type,
+          types: typeArray,
           custom_weights: customWeights,
           include_diversity: include_diversity === 'true',
           include_cold_start_analysis: include_cold_start_analysis === 'true',
@@ -1004,6 +1191,8 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
     const {
       page = 1,
       limit = 10,
+      type = 'all',
+      types, // 新增：支援多個類型篩選
       exclude_ids,
       tags,
       custom_weights = '{}',
@@ -1056,12 +1245,20 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
         .filter((id) => id !== null)
     }
 
+    // 解析類型參數
+    let typeArray = []
+    if (types) {
+      typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
+    }
+
     // 使用無限捲動推薦系統
     const result = await getInfiniteScrollRecommendations(userId, {
       page: parseInt(page),
       limit: parseInt(limit),
       excludeIds,
       tags: tagArray,
+      type: type !== 'all' ? type : undefined,
+      types: typeArray.length > 0 ? typeArray : undefined,
       customWeights,
       includeSocialScores: include_social_scores === 'true',
       includeRecommendationReasons: include_recommendation_reasons === 'true',
@@ -1075,6 +1272,8 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
         filters: {
           page: parseInt(page),
           limit: parseInt(limit),
+          type,
+          types: typeArray,
           exclude_ids: excludeIds,
           tags: tagArray,
           custom_weights: customWeights,
@@ -1152,6 +1351,8 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
   try {
     const {
       limit = 20,
+      type = 'all',
+      types, // 新增：支援多個類型篩選
       min_similarity = 0.1,
       max_similar_users = 50,
       exclude_interacted = 'true',
@@ -1183,6 +1384,12 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
     let tagArray = []
     if (tags) {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
+    // 解析類型參數
+    let typeArray = []
+    if (types) {
+      typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
     }
 
     // 解析排除ID參數 - 使用安全的ObjectId轉換
@@ -1234,6 +1441,8 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
       tags: tagArray,
+      type: type !== 'all' ? type : undefined,
+      types: typeArray.length > 0 ? typeArray : undefined,
       page: parseInt(page),
       excludeIds: excludeIds,
     })
@@ -1257,6 +1466,8 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
         user_id: userId,
         filters: {
           limit: parseInt(limit),
+          type,
+          types: typeArray,
           min_similarity: parseFloat(min_similarity),
           max_similar_users: parseInt(max_similar_users),
           exclude_interacted: exclude_interacted === 'true',
@@ -1405,6 +1616,8 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
 
     const {
       limit = 20,
+      type = 'all',
+      types, // 新增：支援多個類型篩選
       min_similarity = 0.1,
       max_similar_users = 50,
       exclude_interacted = 'true',
@@ -1420,6 +1633,12 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
     let tagArray = []
     if (tags) {
       tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
+    }
+
+    // 解析類型參數
+    let typeArray = []
+    if (types) {
+      typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
     }
 
     // 解析排除ID參數 - 使用安全的ObjectId轉換 (社交協同過濾)
@@ -1473,6 +1692,8 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       includeHotScore: include_hot_score === 'true',
       hotScoreWeight: parseFloat(hot_score_weight),
       tags: tagArray,
+      type: type !== 'all' ? type : undefined,
+      types: typeArray.length > 0 ? typeArray : undefined,
       page: parseInt(page),
       excludeIds: excludeIds,
     }
@@ -1501,6 +1722,8 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
         user_id: userId,
         filters: {
           limit: parseInt(limit),
+          type,
+          types: typeArray,
           min_similarity: parseFloat(min_similarity),
           max_similar_users: parseInt(max_similar_users),
           exclude_interacted: exclude_interacted === 'true',

@@ -541,6 +541,9 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     // 新增：分頁和排除功能
     page = 1,
     excludeIds = [],
+    // 新增：類型篩選功能
+    type = 'all',
+    types = [],
   } = options || {}
 
   try {
@@ -567,6 +570,17 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       // 如果有標籤篩選，加入標籤條件
       if (tags && tags.length > 0) {
         filter.tags_cache = { $in: tags }
+      }
+
+      // 新增：類型篩選功能
+      if (types && types.length > 0) {
+        if (types.length === 1) {
+          filter.type = types[0] // 單一類型直接設置
+        } else {
+          filter.type = { $in: types } // 多個類型使用$in查詢
+        }
+      } else if (type && type !== 'all') {
+        filter.type = type
       }
 
       // 如果有排除ID，加入查詢條件
@@ -613,6 +627,17 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       // 如果有標籤篩選，加入標籤條件
       if (tags && tags.length > 0) {
         filter.tags_cache = { $in: tags }
+      }
+
+      // 新增：類型篩選功能
+      if (types && types.length > 0) {
+        if (types.length === 1) {
+          filter.type = types[0] // 單一類型直接設置
+        } else {
+          filter.type = { $in: types } // 多個類型使用$in查詢
+        }
+      } else if (type && type !== 'all') {
+        filter.type = type
       }
 
       // 如果有排除ID，加入查詢條件
@@ -734,6 +759,17 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     // 如果有標籤篩選，加入標籤條件
     if (tags && tags.length > 0) {
       filter.tags_cache = { $in: tags }
+    }
+
+    // 新增：類型篩選功能
+    if (types && types.length > 0) {
+      if (types.length === 1) {
+        filter.type = types[0] // 單一類型直接設置
+      } else {
+        filter.type = { $in: types } // 多個類型使用$in查詢
+      }
+    } else if (type && type !== 'all') {
+      filter.type = type
     }
 
     // 取得迷因詳細資訊
@@ -891,11 +927,14 @@ export const buildSocialGraph = async (userIds = []) => {
     let follows = []
     try {
       const queryTimeout = 30000 // 30秒超時
+
+      // 確保所有用戶ID都是純ObjectId格式
+      const cleanUserIds = validatedUserIds.map((id) =>
+        id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id.toString()),
+      )
+
       follows = await Follow.find({
-        $or: [
-          { follower_id: { $in: validatedUserIds } },
-          { following_id: { $in: validatedUserIds } },
-        ],
+        $or: [{ follower_id: { $in: cleanUserIds } }, { following_id: { $in: cleanUserIds } }],
         status: 'active',
       })
         .select('follower_id following_id createdAt')
@@ -1168,6 +1207,9 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 新增：分頁和排除功能
     page = 1,
     excludeIds = [],
+    // 新增：類型篩選功能
+    type = 'all',
+    types = [],
   } = options || {}
 
   try {
@@ -1204,6 +1246,17 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       // 如果有標籤篩選，加入標籤條件
       if (tags && tags.length > 0) {
         filter.tags_cache = { $in: tags }
+      }
+
+      // 新增：類型篩選功能
+      if (types && types.length > 0) {
+        if (types.length === 1) {
+          filter.type = types[0] // 單一類型直接設置
+        } else {
+          filter.type = { $in: types } // 多個類型使用$in查詢
+        }
+      } else if (type && type !== 'all') {
+        filter.type = type
       }
 
       // 如果有排除ID，加入查詢條件
@@ -1251,6 +1304,17 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       // 如果有標籤篩選，加入標籤條件
       if (tags && tags.length > 0) {
         filter.tags_cache = { $in: tags }
+      }
+
+      // 新增：類型篩選功能
+      if (types && types.length > 0) {
+        if (types.length === 1) {
+          filter.type = types[0] // 單一類型直接設置
+        } else {
+          filter.type = { $in: types } // 多個類型使用$in查詢
+        }
+      } else if (type && type !== 'all') {
+        filter.type = type
       }
 
       // 如果有排除ID，加入查詢條件
@@ -1381,6 +1445,17 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 如果有標籤篩選，加入標籤條件
     if (tags && tags.length > 0) {
       filter.tags_cache = { $in: tags }
+    }
+
+    // 新增：類型篩選功能
+    if (types && types.length > 0) {
+      if (types.length === 1) {
+        filter.type = types[0] // 單一類型直接設置
+      } else {
+        filter.type = { $in: types } // 多個類型使用$in查詢
+      }
+    } else if (type && type !== 'all') {
+      filter.type = type
     }
 
     // 取得迷因詳細資訊
