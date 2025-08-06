@@ -102,7 +102,7 @@ export const getHotRecommendations = async (req, res) => {
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id)
-      
+
       // 確保所有ID都轉換為有效的ObjectId
       excludeIds = rawIds
         .filter((id) => {
@@ -115,16 +115,15 @@ export const getHotRecommendations = async (req, res) => {
         })
         .map((id) => {
           try {
-            const objectId = id instanceof mongoose.Types.ObjectId 
-              ? id 
-              : new mongoose.Types.ObjectId(id)
+            const objectId =
+              id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
             return objectId
           } catch (error) {
             console.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
-        .filter(id => id !== null)
+        .filter((id) => id !== null)
     }
 
     // 如果有排除ID，加入查詢條件
@@ -277,11 +276,19 @@ export const getLatestRecommendations = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit)
     const totalLimit = parseInt(limit)
 
+    // 添加調試資訊
+    console.log('=== getLatestRecommendations 調試資訊 ===')
+    console.log('查詢條件:', JSON.stringify(filter, null, 2))
+    console.log('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
+    console.log('排除ID數量:', excludeIds.length)
+
     const memes = await Meme.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(totalLimit)
       .populate('author_id', 'username display_name avatar')
+
+    console.log('實際返回的迷因數量:', memes.length)
 
     const recommendations = memes.map((meme) => {
       const memeObj = meme.toObject()
@@ -293,40 +300,8 @@ export const getLatestRecommendations = async (req, res) => {
       }
     })
 
-    // 計算總數（用於分頁資訊）- 創建新的查詢對象避免ObjectId類型問題
-    const countFilter = {
-      status: 'public',
-    }
-
-    // 重新添加時間篩選
-    if (hours !== 'all' && hours !== '0') {
-      const parsedHours = parseInt(hours)
-      const validHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 24
-
-      const dateLimit = new Date()
-      dateLimit.setHours(dateLimit.getHours() - validHours)
-
-      countFilter.createdAt = mongoose.trusted({ $gte: dateLimit })
-    }
-
-    if (type !== 'all') {
-      countFilter.type = type
-    }
-
-    // 重新添加標籤篩選
-    if (tags) {
-      const tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
-      if (tagArray.length > 0) {
-        countFilter.tags_cache = { $in: tagArray }
-      }
-    }
-
-    // 重新添加排除ID篩選
-    if (excludeIds.length > 0) {
-      countFilter._id = mongoose.trusted({ $nin: excludeIds })
-    }
-
-    const totalCount = await Meme.countDocuments(countFilter)
+    // 計算總數（用於分頁資訊）
+    const totalCount = await Meme.countDocuments(filter)
 
     res.json({
       success: true,
@@ -1434,16 +1409,15 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
         })
         .map((id) => {
           try {
-            const objectId = id instanceof mongoose.Types.ObjectId 
-              ? id 
-              : new mongoose.Types.ObjectId(id)
+            const objectId =
+              id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
             return objectId
           } catch (error) {
             console.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
-        .filter(id => id !== null)
+        .filter((id) => id !== null)
     }
 
     // 計算分頁
@@ -1769,23 +1743,33 @@ export const getTrendingRecommendationsController = async (req, res) => {
 
     switch (time_range) {
       case '1h':
-        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 60 * 60 * 1000) }) }
+        timeFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 60 * 60 * 1000) }),
+        }
         break
       case '6h':
-        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) }) }
+        timeFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) }),
+        }
         break
       case '7d':
-        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }) }
+        timeFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }),
+        }
         break
       case '30d':
-        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }) }
+        timeFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }),
+        }
         break
       case 'all':
         // 不加入時間限制，顯示所有內容
         timeFilter = {}
         break
       default: // 24h
-        timeFilter = { createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) }) }
+        timeFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) }),
+        }
     }
 
     // 計算分頁
@@ -1805,17 +1789,23 @@ export const getTrendingRecommendationsController = async (req, res) => {
 
     // 添加排除ID篩選
     if (excludeObjectIds.length > 0) {
-      console.log('添加排除ID篩選，數量:', excludeObjectIds.length)
       query._id = mongoose.trusted({ $nin: excludeObjectIds })
     }
 
-    // 取得基礎迷因數據
+    // 添加調試資訊
+    console.log('=== getTrendingRecommendationsController 調試資訊 ===')
+    console.log('查詢條件:', JSON.stringify(query, null, 2))
+    console.log('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
+    console.log('排除ID數量:', excludeObjectIds.length)
+
     const memes = await Meme.find(query)
       .populate('author_id', 'username display_name avatar')
       .sort({ hot_score: -1, createdAt: -1 })
       .skip(skip)
       .limit(totalLimit)
       .lean()
+
+    console.log('實際返回的迷因數量:', memes.length)
 
     // 如果啟用社交信號，計算社交分數
     let enhancedMemes = memes
@@ -1841,9 +1831,10 @@ export const getTrendingRecommendationsController = async (req, res) => {
             // 將 ID 轉換為 ObjectId（如果尚未是 ObjectId）
             let memeId
             if (mongoose.Types.ObjectId.isValid(meme._id)) {
-              memeId = meme._id instanceof mongoose.Types.ObjectId 
-                ? meme._id 
-                : new mongoose.Types.ObjectId(meme._id)
+              memeId =
+                meme._id instanceof mongoose.Types.ObjectId
+                  ? meme._id
+                  : new mongoose.Types.ObjectId(meme._id)
             } else {
               console.warn(`無效的 meme ID: ${meme._id}，跳過社交信號計算`)
               return {
@@ -1866,7 +1857,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
               View.countDocuments({ meme_id: memeId }),
             ])
 
-                      // 計算社交熱度分數
+            // 計算社交熱度分數
             const socialScore = (likes * 2 + comments * 3 + shares * 4 + views * 1) / 10
 
             return {
@@ -1900,23 +1891,8 @@ export const getTrendingRecommendationsController = async (req, res) => {
       enhancedMemes.sort((a, b) => b.social_metrics.social_score - a.social_metrics.social_score)
     }
 
-    // 計算總數用於分頁 - 創建新的查詢對象避免ObjectId類型問題
-    const countQuery = {
-      status: 'public',
-      ...timeFilter,
-    }
-    
-    // 重新添加標籤篩選
-    if (tagArray.length > 0) {
-      countQuery.tags_cache = { $in: tagArray }
-    }
-    
-    // 重新添加排除ID篩選
-    if (excludeObjectIds.length > 0) {
-      countQuery._id = mongoose.trusted({ $nin: excludeObjectIds })
-    }
-    
-    const total = await Meme.countDocuments(countQuery)
+    // 計算總數（用於分頁資訊）
+    const total = await Meme.countDocuments(query)
 
     // 計算分頁資訊
     const totalPages = Math.ceil(total / totalLimit)
