@@ -209,7 +209,8 @@ export const getLatestRecommendations = async (req, res) => {
       exclude_ids,
     } = req.query
 
-    const filter = {
+    // 建立基礎查詢條件（不含排除ID）
+    const baseFilter = {
       status: 'public',
     }
 
@@ -221,18 +222,18 @@ export const getLatestRecommendations = async (req, res) => {
       const dateLimit = new Date()
       dateLimit.setHours(dateLimit.getHours() - validHours)
 
-      filter.createdAt = mongoose.trusted({ $gte: dateLimit })
+      baseFilter.createdAt = mongoose.trusted({ $gte: dateLimit })
     }
 
     if (type !== 'all') {
-      filter.type = type
+      baseFilter.type = type
     }
 
     // 如果有標籤篩選，加入標籤條件
     if (tags) {
       const tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
       if (tagArray.length > 0) {
-        filter.tags_cache = { $in: tagArray }
+        baseFilter.tags_cache = { $in: tagArray }
       }
     }
 
@@ -267,14 +268,16 @@ export const getLatestRecommendations = async (req, res) => {
         .filter((id) => id !== null)
     }
 
-    // 如果有排除ID，加入查詢條件
+    // 如果有排除ID，建立完整查詢條件
+    const filter = { ...baseFilter }
     if (excludeIds.length > 0) {
       filter._id = mongoose.trusted({ $nin: excludeIds })
     }
 
-    // 計算分頁
-    const skip = (parseInt(page) - 1) * parseInt(limit)
+    // 計算分頁，排除已載入的ID
     const totalLimit = parseInt(limit)
+    const skipBase = (parseInt(page) - 1) * totalLimit
+    const skip = Math.max(skipBase - excludeIds.length, 0)
 
     // 添加調試資訊
     console.log('=== getLatestRecommendations 調試資訊 ===')
@@ -300,8 +303,11 @@ export const getLatestRecommendations = async (req, res) => {
       }
     })
 
-    // 計算總數（用於分頁資訊）
-    const totalCount = await Meme.countDocuments(filter)
+    // 計算總數（用於分頁資訊，不包含排除ID）
+    const totalCount = await Meme.countDocuments(baseFilter)
+
+    // 判斷是否有更多內容
+    const hasMore = excludeIds.length + skip + memes.length < totalCount
 
     res.json({
       success: true,
@@ -321,7 +327,7 @@ export const getLatestRecommendations = async (req, res) => {
           limit: parseInt(limit),
           skip,
           total: totalCount,
-          hasMore: skip + totalLimit < totalCount,
+          hasMore,
           totalPages: Math.ceil(totalCount / parseInt(limit)),
         },
       },
@@ -1772,25 +1778,27 @@ export const getTrendingRecommendationsController = async (req, res) => {
         }
     }
 
-    // 計算分頁
-    const skip = (parseInt(page) - 1) * parseInt(limit)
-    const totalLimit = parseInt(limit)
-
-    // 建立查詢條件
-    const query = {
+    // 建立基礎查詢條件（不含排除ID）
+    const baseQuery = {
       status: 'public',
       ...timeFilter,
     }
 
     // 添加標籤篩選
     if (tagArray.length > 0) {
-      query.tags_cache = { $in: tagArray }
+      baseQuery.tags_cache = { $in: tagArray }
     }
 
-    // 添加排除ID篩選
+    // 建立完整查詢條件（含排除ID）
+    const query = { ...baseQuery }
     if (excludeObjectIds.length > 0) {
       query._id = mongoose.trusted({ $nin: excludeObjectIds })
     }
+
+    // 計算分頁，扣除已排除的項目
+    const totalLimit = parseInt(limit)
+    const skipBase = (parseInt(page) - 1) * totalLimit
+    const skip = Math.max(skipBase - excludeObjectIds.length, 0)
 
     // 添加調試資訊
     console.log('=== getTrendingRecommendationsController 調試資訊 ===')
@@ -1891,12 +1899,12 @@ export const getTrendingRecommendationsController = async (req, res) => {
       enhancedMemes.sort((a, b) => b.social_metrics.social_score - a.social_metrics.social_score)
     }
 
-    // 計算總數（用於分頁資訊）
-    const total = await Meme.countDocuments(query)
+    // 計算總數（用於分頁資訊，不包含排除ID）
+    const total = await Meme.countDocuments(baseQuery)
 
     // 計算分頁資訊
     const totalPages = Math.ceil(total / totalLimit)
-    const hasMore = parseInt(page) < totalPages
+    const hasMore = excludeObjectIds.length + skip + enhancedMemes.length < total
 
     res.json({
       success: true,
