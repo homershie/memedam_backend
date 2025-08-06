@@ -481,4 +481,130 @@ describe('社交協同過濾推薦系統測試', () => {
       expect(cacheResults.processing_time).toBeGreaterThan(0)
     })
   })
+
+  describe('分頁功能測試', () => {
+    test('應該正確處理分頁和排除ID', async () => {
+      const mockInteractionMatrix = {
+        user1: { meme1: 1.0, meme2: 2.0, meme3: 3.0 },
+        user2: { meme1: 2.0, meme3: 1.0, meme4: 2.0 },
+        user3: { meme2: 1.0, meme4: 3.0, meme5: 2.0 },
+      }
+
+      const mockSocialGraph = {
+        user1: {
+          followers: ['user2'],
+          following: ['user2'],
+          mutualFollows: ['user2'],
+        },
+        user2: {
+          followers: ['user1'],
+          following: ['user1'],
+          mutualFollows: ['user1'],
+        },
+        user3: {
+          followers: [],
+          following: ['user1'],
+          mutualFollows: [],
+        },
+      }
+
+      // Mock Meme.find 返回不同的迷因
+      const mockMemes = [
+        { _id: 'meme1', hot_score: 100, toObject: () => ({ _id: 'meme1', hot_score: 100 }) },
+        { _id: 'meme2', hot_score: 200, toObject: () => ({ _id: 'meme2', hot_score: 200 }) },
+        { _id: 'meme3', hot_score: 300, toObject: () => ({ _id: 'meme3', hot_score: 300 }) },
+        { _id: 'meme4', hot_score: 400, toObject: () => ({ _id: 'meme4', hot_score: 400 }) },
+        { _id: 'meme5', hot_score: 500, toObject: () => ({ _id: 'meme5', hot_score: 500 }) },
+      ]
+
+      jest
+        .spyOn(require('../utils/collaborativeFiltering.js'), 'buildInteractionMatrix')
+        .mockResolvedValue(mockInteractionMatrix)
+      jest
+        .spyOn(require('../utils/collaborativeFiltering.js'), 'buildSocialGraph')
+        .mockResolvedValue(mockSocialGraph)
+
+      // Mock Meme.find 來模擬分頁
+      const mockMemeFind = jest.fn()
+      mockMemeFind.mockResolvedValueOnce([mockMemes[0], mockMemes[1]]) // 第一頁
+      mockMemeFind.mockResolvedValueOnce([mockMemes[2], mockMemes[3]]) // 第二頁
+      require('../models/Meme.js').find = mockMemeFind
+
+      // 測試第一頁
+      const recommendations1 = await getSocialCollaborativeFilteringRecommendations('user1', {
+        limit: 2,
+        page: 1,
+        excludeIds: [],
+      })
+
+      expect(recommendations1).toBeDefined()
+      expect(Array.isArray(recommendations1)).toBe(true)
+      expect(recommendations1.length).toBeLessThanOrEqual(2)
+
+      // 測試第二頁（排除第一頁的內容）
+      const recommendations2 = await getSocialCollaborativeFilteringRecommendations('user1', {
+        limit: 2,
+        page: 2,
+        excludeIds: ['meme1', 'meme2'],
+      })
+
+      expect(recommendations2).toBeDefined()
+      expect(Array.isArray(recommendations2)).toBe(true)
+      expect(recommendations2.length).toBeLessThanOrEqual(2)
+
+      // 驗證第二頁的內容不包含第一頁的內容
+      const firstPageIds = recommendations1.map((r) => r._id)
+      const secondPageIds = recommendations2.map((r) => r._id)
+
+      const hasOverlap = firstPageIds.some((id) => secondPageIds.includes(id))
+      expect(hasOverlap).toBe(false)
+    })
+
+    test('應該處理冷啟動情況下的分頁', async () => {
+      // Mock 空的互動歷史
+      const mockInteractionMatrix = {}
+      const mockSocialGraph = {}
+
+      jest
+        .spyOn(require('../utils/collaborativeFiltering.js'), 'buildInteractionMatrix')
+        .mockResolvedValue(mockInteractionMatrix)
+      jest
+        .spyOn(require('../utils/collaborativeFiltering.js'), 'buildSocialGraph')
+        .mockResolvedValue(mockSocialGraph)
+
+      // Mock Meme.find 返回熱門迷因
+      const mockMemes = [
+        { _id: 'meme1', hot_score: 100, toObject: () => ({ _id: 'meme1', hot_score: 100 }) },
+        { _id: 'meme2', hot_score: 200, toObject: () => ({ _id: 'meme2', hot_score: 200 }) },
+        { _id: 'meme3', hot_score: 300, toObject: () => ({ _id: 'meme3', hot_score: 300 }) },
+      ]
+
+      const mockMemeFind = jest.fn()
+      mockMemeFind.mockResolvedValueOnce([mockMemes[0], mockMemes[1]]) // 第一頁
+      mockMemeFind.mockResolvedValueOnce([mockMemes[2]]) // 第二頁
+      require('../models/Meme.js').find = mockMemeFind
+
+      // 測試第一頁
+      const recommendations1 = await getSocialCollaborativeFilteringRecommendations('user1', {
+        limit: 2,
+        page: 1,
+        excludeIds: [],
+      })
+
+      expect(recommendations1).toBeDefined()
+      expect(Array.isArray(recommendations1)).toBe(true)
+      expect(recommendations1[0].recommendation_type).toBe('social_collaborative_fallback')
+
+      // 測試第二頁
+      const recommendations2 = await getSocialCollaborativeFilteringRecommendations('user1', {
+        limit: 2,
+        page: 2,
+        excludeIds: ['meme1', 'meme2'],
+      })
+
+      expect(recommendations2).toBeDefined()
+      expect(Array.isArray(recommendations2)).toBe(true)
+      expect(recommendations2[0].recommendation_type).toBe('social_collaborative_fallback')
+    })
+  })
 })

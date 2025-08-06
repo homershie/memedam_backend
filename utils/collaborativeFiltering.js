@@ -164,19 +164,19 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     if (memeIds.length === 0) {
       try {
         // 減少查詢數量，並添加時間限制
-        const publicMemes = await Meme.find({ 
+        const publicMemes = await Meme.find({
           status: 'public',
-          created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // 只取最近30天的迷因
+          created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 只取最近30天的迷因
         })
           .select('_id')
           .sort({ created_at: -1 }) // 按創建時間倒序
           .limit(1000) // 大幅減少限制數量
           .lean()
           .exec()
-        
+
         targetMemeIds = publicMemes.map((meme) => meme._id)
         console.log(`找到 ${targetMemeIds.length} 個公開迷因`)
-        
+
         if (targetMemeIds.length === 0) {
           console.log('沒有找到公開迷因，返回空的互動矩陣')
           return {}
@@ -238,9 +238,8 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     for (const userId of targetUserIds) {
       if (userId && mongoose.Types.ObjectId.isValid(userId)) {
         // 確保是純 ObjectId 實例
-        const objectId = userId instanceof mongoose.Types.ObjectId 
-          ? userId 
-          : new mongoose.Types.ObjectId(userId)
+        const objectId =
+          userId instanceof mongoose.Types.ObjectId ? userId : new mongoose.Types.ObjectId(userId)
         validatedUserIds.push(objectId)
       } else {
         console.warn(`跳過無效的用戶ID: ${userId}`)
@@ -251,9 +250,8 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     for (const memeId of targetMemeIds) {
       if (memeId && mongoose.Types.ObjectId.isValid(memeId)) {
         // 確保是純 ObjectId 實例
-        const objectId = memeId instanceof mongoose.Types.ObjectId 
-          ? memeId 
-          : new mongoose.Types.ObjectId(memeId)
+        const objectId =
+          memeId instanceof mongoose.Types.ObjectId ? memeId : new mongoose.Types.ObjectId(memeId)
         validatedMemeIds.push(objectId)
       } else {
         console.warn(`跳過無效的迷因ID: ${memeId}`)
@@ -268,8 +266,16 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
     console.log(`處理 ${validatedUserIds.length} 個用戶和 ${validatedMemeIds.length} 個迷因`)
 
     // 記錄查詢條件以便調試
-    console.log('查詢互動數據，用戶IDs:', validatedUserIds.slice(0, 3).map(id => id.toString()), '...')
-    console.log('查詢互動數據，迷因IDs:', validatedMemeIds.slice(0, 5).map(id => id.toString()), '...')
+    console.log(
+      '查詢互動數據，用戶IDs:',
+      validatedUserIds.slice(0, 3).map((id) => id.toString()),
+      '...',
+    )
+    console.log(
+      '查詢互動數據，迷因IDs:',
+      validatedMemeIds.slice(0, 5).map((id) => id.toString()),
+      '...',
+    )
 
     // 取得所有互動數據 - 使用正確的查詢方式並添加超時保護
     try {
@@ -277,7 +283,7 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
       const [likes, collections, comments, shares, views] = await Promise.all([
         Like.find({
           user_id: { $in: validatedUserIds },
-          meme_id: { $in: validatedMemeIds }
+          meme_id: { $in: validatedMemeIds },
         })
           .select('user_id meme_id createdAt')
           .maxTimeMS(queryTimeout)
@@ -285,7 +291,7 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
           .exec(),
         Collection.find({
           user_id: { $in: validatedUserIds },
-          meme_id: { $in: validatedMemeIds }
+          meme_id: { $in: validatedMemeIds },
         })
           .select('user_id meme_id createdAt')
           .maxTimeMS(queryTimeout)
@@ -294,7 +300,7 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
         Comment.find({
           user_id: { $in: validatedUserIds },
           meme_id: { $in: validatedMemeIds },
-          status: 'normal'
+          status: 'normal',
         })
           .select('user_id meme_id createdAt')
           .maxTimeMS(queryTimeout)
@@ -302,7 +308,7 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
           .exec(),
         Share.find({
           user_id: { $in: validatedUserIds },
-          meme_id: { $in: validatedMemeIds }
+          meme_id: { $in: validatedMemeIds },
         })
           .select('user_id meme_id createdAt')
           .maxTimeMS(queryTimeout)
@@ -310,7 +316,7 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
           .exec(),
         View.find({
           user_id: { $in: validatedUserIds },
-          meme_id: { $in: validatedMemeIds }
+          meme_id: { $in: validatedMemeIds },
         })
           .select('user_id meme_id createdAt')
           .maxTimeMS(queryTimeout)
@@ -318,7 +324,9 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
           .exec(),
       ])
 
-      console.log(`查詢完成 - 按讚: ${likes.length}, 收藏: ${collections.length}, 評論: ${comments.length}, 分享: ${shares.length}, 瀏覽: ${views.length}`)
+      console.log(
+        `查詢完成 - 按讚: ${likes.length}, 收藏: ${collections.length}, 評論: ${comments.length}, 分享: ${shares.length}, 瀏覽: ${views.length}`,
+      )
 
       // 初始化互動矩陣
       const interactionMatrix = {}
@@ -561,10 +569,24 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
         filter.tags_cache = { $in: tags }
       }
 
+      // 如果有排除ID，加入查詢條件
+      if (excludeIds && excludeIds.length > 0) {
+        const validExcludeIds = excludeIds.map((id) => safeToObjectId(id)).filter(Boolean)
+        if (validExcludeIds.length > 0) {
+          filter._id = mongoose.trusted({ $nin: validExcludeIds })
+        }
+      }
+
+      // 計算分頁，排除已載入的ID
+      const totalLimit = parseInt(limit)
+      const skipBase = (parseInt(page) - 1) * totalLimit
+      const skip = Math.max(skipBase - (excludeIds ? excludeIds.length : 0), 0)
+
       const hotMemes = await Meme.find(filter)
         .setOptions({ sanitizeFilter: false })
         .sort({ hot_score: -1 })
-        .limit(limit)
+        .skip(skip)
+        .limit(totalLimit)
         .populate('author_id', 'username display_name avatar')
 
       return hotMemes.map((meme) => ({
@@ -593,10 +615,24 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
         filter.tags_cache = { $in: tags }
       }
 
+      // 如果有排除ID，加入查詢條件
+      if (excludeIds && excludeIds.length > 0) {
+        const validExcludeIds = excludeIds.map((id) => safeToObjectId(id)).filter(Boolean)
+        if (validExcludeIds.length > 0) {
+          filter._id = mongoose.trusted({ $nin: validExcludeIds })
+        }
+      }
+
+      // 計算分頁，排除已載入的ID
+      const totalLimit = parseInt(limit)
+      const skipBase = (parseInt(page) - 1) * totalLimit
+      const skip = Math.max(skipBase - (excludeIds ? excludeIds.length : 0), 0)
+
       const hotMemes = await Meme.find(filter)
         .setOptions({ sanitizeFilter: false })
         .sort({ hot_score: -1 })
-        .limit(limit)
+        .skip(skip)
+        .limit(totalLimit)
         .populate('author_id', 'username display_name avatar')
 
       return hotMemes.map((meme) => ({
@@ -672,7 +708,23 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       return []
     }
 
-    const validMemeIds = validRecommendations.map((r) => new mongoose.Types.ObjectId(r.memeId))
+    // 排除已顯示的項目
+    let filteredRecommendations = validRecommendations
+    if (excludeIds && excludeIds.length > 0) {
+      const excludeSet = new Set(excludeIds.map((id) => id.toString()))
+      filteredRecommendations = filteredRecommendations.filter((rec) => !excludeSet.has(rec.memeId))
+    }
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const paginatedRecommendations = filteredRecommendations.slice(skip, skip + parseInt(limit))
+
+    if (paginatedRecommendations.length === 0) {
+      console.log('分頁後沒有推薦項目')
+      return []
+    }
+
+    const validMemeIds = paginatedRecommendations.map((r) => new mongoose.Types.ObjectId(r.memeId))
 
     const filter = {
       _id: { $in: validMemeIds },
@@ -684,19 +736,6 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       filter.tags_cache = { $in: tags }
     }
 
-    // 如果有排除ID，加入查詢條件
-    if (excludeIds && excludeIds.length > 0) {
-      // 確保排除的ID也是有效的ObjectId
-      const validExcludeIds = excludeIds.map((id) => safeToObjectId(id)).filter(Boolean)
-
-      if (validExcludeIds.length > 0) {
-        filter._id = {
-          $in: validMemeIds,
-          $nin: validExcludeIds,
-        }
-      }
-    }
-
     // 取得迷因詳細資訊
     const memes = await Meme.find(filter)
       .setOptions({ sanitizeFilter: false })
@@ -704,7 +743,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
 
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()
-    validRecommendations.forEach((rec) => {
+    paginatedRecommendations.forEach((rec) => {
       recommendationMap.set(rec.memeId, rec)
     })
 
@@ -712,6 +751,18 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
     const finalRecommendations = memes.map((meme) => {
       const memeObj = meme.toObject()
       const recommendationData = recommendationMap.get(meme._id.toString())
+
+      if (!recommendationData) {
+        console.warn(`找不到迷因 ${meme._id} 的推薦數據`)
+        return {
+          ...memeObj,
+          recommendation_score: memeObj.hot_score || 0,
+          recommendation_type: 'collaborative_fallback',
+          collaborative_score: 0,
+          similar_users_count: 0,
+          average_similarity: 0,
+        }
+      }
 
       let finalScore = recommendationData.collaborativeScore
 
@@ -742,15 +793,11 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
       }
     })
 
-    // 計算分頁
-    const skip = (parseInt(page) - 1) * parseInt(limit)
-    const paginatedRecommendations = finalRecommendations.slice(skip, skip + parseInt(limit))
-
     console.log(
-      `協同過濾推薦生成完成，找到 ${similarUsers.length} 個相似用戶，推薦 ${paginatedRecommendations.length} 個迷因`,
+      `協同過濾推薦生成完成，找到 ${similarUsers.length} 個相似用戶，推薦 ${finalRecommendations.length} 個迷因`,
     )
 
-    return paginatedRecommendations
+    return finalRecommendations
   } catch (error) {
     console.error('協同過濾推薦生成失敗:', error)
     return []
@@ -820,9 +867,8 @@ export const buildSocialGraph = async (userIds = []) => {
     for (const userId of targetUserIds) {
       if (userId && mongoose.Types.ObjectId.isValid(userId)) {
         // 確保是純 ObjectId 實例
-        const objectId = userId instanceof mongoose.Types.ObjectId 
-          ? userId 
-          : new mongoose.Types.ObjectId(userId)
+        const objectId =
+          userId instanceof mongoose.Types.ObjectId ? userId : new mongoose.Types.ObjectId(userId)
         validatedUserIds.push(objectId)
       } else {
         console.warn(`跳過無效的用戶ID: ${userId}`)
@@ -835,7 +881,11 @@ export const buildSocialGraph = async (userIds = []) => {
     }
 
     // 記錄查詢條件以便調試
-    console.log('查詢追隨關係，用戶IDs:', validatedUserIds.slice(0, 5).map(id => id.toString()), '...')
+    console.log(
+      '查詢追隨關係，用戶IDs:',
+      validatedUserIds.slice(0, 5).map((id) => id.toString()),
+      '...',
+    )
 
     // 取得所有追隨關係 - 使用明確的查詢方式避免類型轉換錯誤並添加超時保護
     let follows = []
@@ -844,15 +894,15 @@ export const buildSocialGraph = async (userIds = []) => {
       follows = await Follow.find({
         $or: [
           { follower_id: { $in: validatedUserIds } },
-          { following_id: { $in: validatedUserIds } }
+          { following_id: { $in: validatedUserIds } },
         ],
-        status: 'active'
+        status: 'active',
       })
         .select('follower_id following_id createdAt')
         .maxTimeMS(queryTimeout)
         .lean()
         .exec()
-      
+
       console.log(`查詢到 ${follows.length} 個追隨關係`)
     } catch (error) {
       console.error('查詢追隨關係失敗:', error)
@@ -1133,12 +1183,12 @@ export const getSocialCollaborativeFilteringRecommendations = async (
     // 建立互動矩陣和社交圖譜
     console.log('準備建立互動矩陣和社交圖譜，目標用戶ID:', targetUserIdObj.toString())
     const [interactionMatrix, socialGraph] = await Promise.all([
-      buildInteractionMatrix([targetUserIdObj]).catch(error => {
+      buildInteractionMatrix([targetUserIdObj]).catch((error) => {
         console.error('建立互動矩陣時發生錯誤:', error)
         return {} // 返回空的互動矩陣而不是拋出錯誤
       }),
-      buildSocialGraph([targetUserIdObj]).catch(error => {
-        console.error('建立社交圖譜時發生錯誤:', error) 
+      buildSocialGraph([targetUserIdObj]).catch((error) => {
+        console.error('建立社交圖譜時發生錯誤:', error)
         return {} // 返回空的社交圖譜而不是拋出錯誤
       }),
     ])
@@ -1156,10 +1206,24 @@ export const getSocialCollaborativeFilteringRecommendations = async (
         filter.tags_cache = { $in: tags }
       }
 
+      // 如果有排除ID，加入查詢條件
+      if (excludeIds && excludeIds.length > 0) {
+        const validExcludeIds = excludeIds.map((id) => safeToObjectId(id)).filter(Boolean)
+        if (validExcludeIds.length > 0) {
+          filter._id = mongoose.trusted({ $nin: validExcludeIds })
+        }
+      }
+
+      // 計算分頁，排除已載入的ID
+      const totalLimit = parseInt(limit)
+      const skipBase = (parseInt(page) - 1) * totalLimit
+      const skip = Math.max(skipBase - (excludeIds ? excludeIds.length : 0), 0)
+
       const hotMemes = await Meme.find(filter)
         .setOptions({ sanitizeFilter: false })
         .sort({ hot_score: -1 })
-        .limit(limit)
+        .skip(skip)
+        .limit(totalLimit)
         .populate('author_id', 'username display_name avatar')
 
       return hotMemes.map((meme) => ({
@@ -1189,10 +1253,24 @@ export const getSocialCollaborativeFilteringRecommendations = async (
         filter.tags_cache = { $in: tags }
       }
 
+      // 如果有排除ID，加入查詢條件
+      if (excludeIds && excludeIds.length > 0) {
+        const validExcludeIds = excludeIds.map((id) => safeToObjectId(id)).filter(Boolean)
+        if (validExcludeIds.length > 0) {
+          filter._id = mongoose.trusted({ $nin: validExcludeIds })
+        }
+      }
+
+      // 計算分頁，排除已載入的ID
+      const totalLimit = parseInt(limit)
+      const skipBase = (parseInt(page) - 1) * totalLimit
+      const skip = Math.max(skipBase - (excludeIds ? excludeIds.length : 0), 0)
+
       const hotMemes = await Meme.find(filter)
         .setOptions({ sanitizeFilter: false })
         .sort({ hot_score: -1 })
-        .limit(limit)
+        .skip(skip)
+        .limit(totalLimit)
         .populate('author_id', 'username display_name avatar')
 
       return hotMemes.map((meme) => ({
@@ -1275,7 +1353,23 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       return []
     }
 
-    const validMemeIds = validRecommendations.map((r) => new mongoose.Types.ObjectId(r.memeId))
+    // 排除已顯示的項目
+    let filteredRecommendations = validRecommendations
+    if (excludeIds && excludeIds.length > 0) {
+      const excludeSet = new Set(excludeIds.map((id) => id.toString()))
+      filteredRecommendations = filteredRecommendations.filter((rec) => !excludeSet.has(rec.memeId))
+    }
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const paginatedRecommendations = filteredRecommendations.slice(skip, skip + parseInt(limit))
+
+    if (paginatedRecommendations.length === 0) {
+      console.log('分頁後沒有推薦項目')
+      return []
+    }
+
+    const validMemeIds = paginatedRecommendations.map((r) => new mongoose.Types.ObjectId(r.memeId))
 
     const filter = {
       _id: {
@@ -1289,19 +1383,6 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       filter.tags_cache = { $in: tags }
     }
 
-    // 如果有排除ID，加入查詢條件
-    if (excludeIds && excludeIds.length > 0) {
-      // 確保排除的ID也是有效的ObjectId
-      const validExcludeIds = excludeIds.map((id) => safeToObjectId(id)).filter(Boolean)
-
-      if (validExcludeIds.length > 0) {
-        filter._id = {
-          $in: validMemeIds,
-          $nin: validExcludeIds,
-        }
-      }
-    }
-
     // 取得迷因詳細資訊
     const memes = await Meme.find(filter)
       .setOptions({ sanitizeFilter: false })
@@ -1309,7 +1390,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
     // 建立迷因ID到推薦數據的映射
     const recommendationMap = new Map()
-    validRecommendations.forEach((rec) => {
+    paginatedRecommendations.forEach((rec) => {
       recommendationMap.set(rec.memeId, rec)
     })
 
@@ -1362,14 +1443,10 @@ export const getSocialCollaborativeFilteringRecommendations = async (
       }
     })
 
-    // 計算分頁
-    const skip = (parseInt(page) - 1) * parseInt(limit)
-    const paginatedRecommendations = finalRecommendations.slice(skip, skip + parseInt(limit))
-
     console.log(
-      `社交協同過濾推薦生成完成，找到 ${socialSimilarUsers.length} 個社交相似用戶，推薦 ${paginatedRecommendations.length} 個迷因`,
+      `社交協同過濾推薦生成完成，找到 ${socialSimilarUsers.length} 個社交相似用戶，推薦 ${finalRecommendations.length} 個迷因`,
     )
-    return paginatedRecommendations
+    return finalRecommendations
   } catch (error) {
     console.error('生成社交協同過濾推薦時發生錯誤:', error)
     throw error

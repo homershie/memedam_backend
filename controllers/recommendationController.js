@@ -1216,8 +1216,14 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
     }
 
     // 計算分頁
-    const skip = (parseInt(page) - 1) * parseInt(limit)
     const totalLimit = parseInt(limit)
+    const skipBase = (parseInt(page) - 1) * totalLimit
+    const skip = Math.max(skipBase - excludeIds.length, 0)
+
+    // 添加調試資訊
+    console.log('=== getCollaborativeFilteringRecommendationsController 調試資訊 ===')
+    console.log('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
+    console.log('排除ID數量:', excludeIds.length)
 
     // 取得協同過濾推薦
     const recommendations = await getCollaborativeFilteringRecommendations(userId, {
@@ -1232,12 +1238,17 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       excludeIds: excludeIds,
     })
 
-    // 計算總數（用於分頁資訊）
+    console.log('實際返回的迷因數量:', recommendations.length)
+
+    // 計算總數（用於分頁資訊，不包含排除ID）
     const totalCount = await Meme.countDocuments({
       status: 'public',
       ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
       ...(excludeIds.length > 0 && { _id: mongoose.trusted({ $nin: excludeIds }) }),
     })
+
+    // 判斷是否有更多內容
+    const hasMore = excludeIds.length + skip + recommendations.length < totalCount
 
     res.json({
       success: true,
@@ -1272,7 +1283,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
           limit: parseInt(limit),
           skip,
           total: totalCount,
-          hasMore: skip + totalLimit < totalCount,
+          hasMore,
           totalPages: Math.ceil(totalCount / parseInt(limit)),
         },
       },
@@ -1445,8 +1456,14 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
     }
 
     // 計算分頁
-    const skip = (parseInt(page) - 1) * parseInt(limit)
     const totalLimit = parseInt(limit)
+    const skipBase = (parseInt(page) - 1) * totalLimit
+    const skip = Math.max(skipBase - excludeIds.length, 0)
+
+    // 添加調試資訊
+    console.log('=== getSocialCollaborativeFilteringRecommendationsController 調試資訊 ===')
+    console.log('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
+    console.log('排除ID數量:', excludeIds.length)
 
     const options = {
       limit: totalLimit,
@@ -1465,12 +1482,17 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       options,
     )
 
-    // 計算總數（用於分頁資訊）
+    console.log('實際返回的迷因數量:', recommendations.length)
+
+    // 計算總數（用於分頁資訊，不包含排除ID）
     const totalCount = await Meme.countDocuments({
       status: 'public',
       ...(tagArray.length > 0 && { tags_cache: { $in: tagArray } }),
       ...(excludeIds.length > 0 && { _id: mongoose.trusted({ $nin: excludeIds }) }),
     })
+
+    // 判斷是否有更多內容
+    const hasMore = excludeIds.length + skip + recommendations.length < totalCount
 
     res.json({
       success: true,
@@ -1505,7 +1527,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
           limit: parseInt(limit),
           skip,
           total: totalCount,
-          hasMore: skip + totalLimit < totalCount,
+          hasMore,
           totalPages: Math.ceil(totalCount / parseInt(limit)),
         },
       },
