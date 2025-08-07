@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import Follow from '../models/Follow.js'
 import User from '../models/User.js'
 import { executeTransaction } from '../utils/transaction.js'
+import { createNewFollowerNotification } from '../utils/notificationService.js'
 
 // 追隨用戶
 export const followUser = async (req, res) => {
@@ -72,6 +73,11 @@ export const followUser = async (req, res) => {
       await User.findByIdAndUpdate(followingId, { $inc: { follower_count: 1 } }, { session })
 
       return { action: 'followed' }
+    })
+
+    // 創建新追蹤者通知（在事務外執行，避免阻塞主要流程）
+    createNewFollowerNotification(followingId, follower_id).catch(error => {
+      console.error('發送追蹤通知失敗:', error)
     })
 
     res.status(StatusCodes.CREATED).json({
@@ -229,6 +235,13 @@ export const toggleFollow = async (req, res) => {
         return { action: 'followed' }
       }
     })
+
+    // 如果是新追隨，創建通知（在事務外執行）
+    if (result.action === 'followed') {
+      createNewFollowerNotification(followingId, follower_id).catch(error => {
+        console.error('發送追蹤通知失敗:', error)
+      })
+    }
 
     res.json({
       success: true,

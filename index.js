@@ -22,6 +22,7 @@ import { loginLimiter, registerLimiter, forgotPasswordLimiter } from './middlewa
 import errorHandler, { notFound } from './middleware/errorHandler.js'
 import maintenanceScheduler from './utils/maintenance.js'
 import analyticsMonitor from './utils/analyticsMonitor.js'
+import { startNotificationScheduler, stopNotificationScheduler } from './utils/notificationScheduler.js'
 import './config/passport.js'
 const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' })
 
@@ -335,6 +336,14 @@ const startServer = async () => {
       logger.warn('分析監控啟動失敗，將繼續運行:', monitorError.message)
     }
 
+    // 啟動通知調度器
+    try {
+      startNotificationScheduler()
+      logger.info('已啟動通知調度器')
+    } catch (schedulerError) {
+      logger.warn('通知調度器啟動失敗，將繼續運行:', schedulerError.message)
+    }
+
     // 列印所有註冊的路徑（調試用）
     printAllRoutes(app)
 
@@ -353,6 +362,7 @@ process.on('SIGTERM', async () => {
   logger.info('收到 SIGTERM 信號，正在關閉伺服器...')
 
   try {
+    stopNotificationScheduler()
     await redisCache.disconnect()
     process.exit(0)
   } catch (error) {
@@ -365,6 +375,7 @@ process.on('SIGINT', async () => {
   logger.info('收到 SIGINT 信號，正在關閉伺服器...')
 
   try {
+    stopNotificationScheduler()
     await redisCache.disconnect()
     process.exit(0)
   } catch (error) {

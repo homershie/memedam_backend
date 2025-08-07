@@ -4,6 +4,7 @@ import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { executeTransaction } from '../utils/transaction.js'
+import { createNewLikeNotification } from '../utils/notificationService.js'
 
 // 建立讚
 export const createLike = async (req, res) => {
@@ -35,6 +36,11 @@ export const createLike = async (req, res) => {
       )
 
       return like
+    })
+
+    // 創建按讚通知（在事務外執行）
+    createNewLikeNotification(meme_id, req.user._id).catch(error => {
+      console.error('發送按讚通知失敗:', error)
     })
 
     res.status(201).json({ success: true, data: result, error: null })
@@ -119,6 +125,13 @@ export const toggleLike = async (req, res) => {
         return { action: 'added' }
       }
     })
+
+    // 如果是新增讚，創建通知（在事務外執行）
+    if (result.action === 'added') {
+      createNewLikeNotification(meme_id, user_id).catch(error => {
+        console.error('發送按讚通知失敗:', error)
+      })
+    }
 
     return res.json({ success: true, ...result })
   } catch {

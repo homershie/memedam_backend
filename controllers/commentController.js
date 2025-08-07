@@ -3,6 +3,7 @@ import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
+import { createNewCommentNotification, createMentionNotifications } from '../utils/notificationService.js'
 
 // 建立留言
 export const validateCreateComment = [
@@ -35,6 +36,16 @@ export const createComment = async (req, res) => {
       await User.findByIdAndUpdate(req.user._id, { $inc: { comment_count: 1 } }, { session })
 
       return comment
+    })
+
+    // 創建留言通知（在事務外執行）
+    createNewCommentNotification(meme_id, req.user._id, content).catch(error => {
+      console.error('發送留言通知失敗:', error)
+    })
+
+    // 檢查並創建提及通知（在事務外執行）
+    createMentionNotifications(content, req.user._id, meme_id, 'comment').catch(error => {
+      console.error('發送提及通知失敗:', error)
     })
 
     res.status(201).json({ success: true, data: result, error: null })
