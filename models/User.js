@@ -364,6 +364,16 @@ const UserSchema = new mongoose.Schema(
         message: '分享數必須是非負整數',
       },
     },
+    // 通知設定
+    notificationSettings: {
+      browser: { type: Boolean, default: false },
+      newFollower: { type: Boolean, default: true },
+      newComment: { type: Boolean, default: true },
+      newLike: { type: Boolean, default: true },
+      newMention: { type: Boolean, default: true },
+      trendingContent: { type: Boolean, default: false },
+      weeklyDigest: { type: Boolean, default: true },
+    },
   },
   {
     timestamps: true,

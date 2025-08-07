@@ -1,6 +1,8 @@
 import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import mongoose from 'mongoose'
+import bcrypt from 'bcrypt'
+import validator from 'validator'
 
 // 建立新使用者
 export const createUser = async (req, res) => {
@@ -463,5 +465,261 @@ export const getActiveUsers = async (req, res) => {
       success: false,
       message: '伺服器錯誤',
     })
+  }
+}
+
+// 密碼變更 API
+export const changePassword = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await User.startSession()
+  session.startTransaction()
+
+  try {
+    const { currentPassword, newPassword } = req.body
+    const userId = req.user._id
+
+    // 驗證輸入
+    if (!currentPassword || !newPassword) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請提供目前密碼和新密碼',
+      })
+    }
+
+    // 驗證新密碼長度
+    if (newPassword.length < 8 || newPassword.length > 20) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '新密碼長度必須在8到20個字元之間',
+      })
+    }
+
+    // 取得用戶資料
+    const user = await User.findById(userId).session(session)
+    if (!user) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到使用者',
+      })
+    }
+
+    // 驗證目前密碼
+    const isPasswordValid = bcrypt.compareSync(currentPassword, user.password)
+    if (!isPasswordValid) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: '目前密碼不正確',
+      })
+    }
+
+    // 檢查新密碼是否與目前密碼相同
+    if (bcrypt.compareSync(newPassword, user.password)) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '新密碼不能與目前密碼相同',
+      })
+    }
+
+    // 更新密碼
+    user.password = newPassword
+    await user.save({ session })
+
+    // 清除所有登入 token（強制重新登入）
+    user.tokens = []
+    await user.save({ session })
+
+    // 提交事務
+    await session.commitTransaction()
+
+    res.json({
+      success: true,
+      message: '密碼已成功變更，請重新登入',
+    })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    console.error('changePassword 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+    })
+  } finally {
+    // 結束 session
+    session.endSession()
+  }
+}
+
+// 電子信箱變更 API
+export const changeEmail = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await User.startSession()
+  session.startTransaction()
+
+  try {
+    const { newEmail, currentPassword } = req.body
+    const userId = req.user._id
+
+    // 驗證輸入
+    if (!newEmail || !currentPassword) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請提供新電子信箱和目前密碼',
+      })
+    }
+
+    // 驗證電子信箱格式
+    if (!validator.isEmail(newEmail)) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請輸入有效的電子信箱地址',
+      })
+    }
+
+    // 取得用戶資料
+    const user = await User.findById(userId).session(session)
+    if (!user) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到使用者',
+      })
+    }
+
+    // 驗證目前密碼
+    const isPasswordValid = bcrypt.compareSync(currentPassword, user.password)
+    if (!isPasswordValid) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: '目前密碼不正確',
+      })
+    }
+
+    // 檢查新電子信箱是否與目前相同
+    if (user.email.toLowerCase() === newEmail.toLowerCase()) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '新電子信箱不能與目前電子信箱相同',
+      })
+    }
+
+    // 檢查新電子信箱是否已被其他用戶使用
+    const existingUser = await User.findOne({ email: newEmail.toLowerCase() }).session(session)
+    if (existingUser) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.CONFLICT).json({
+        success: false,
+        message: '此電子信箱已被其他使用者註冊',
+      })
+    }
+
+    // 更新電子信箱
+    user.email = newEmail.toLowerCase()
+    user.email_verified = false // 重置驗證狀態
+    await user.save({ session })
+
+    // 提交事務
+    await session.commitTransaction()
+
+    res.json({
+      success: true,
+      message: '電子信箱已成功變更，請重新驗證',
+    })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    console.error('changeEmail 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+    })
+  } finally {
+    // 結束 session
+    session.endSession()
+  }
+}
+
+// 社群帳號解除綁定 API
+export const unbindSocialAccount = async (req, res) => {
+  // 使用 session 來確保原子性操作
+  const session = await User.startSession()
+  session.startTransaction()
+
+  try {
+    const userId = req.user._id
+    const { provider } = req.params
+
+    // 支援的 provider
+    const validProviders = ['google', 'facebook', 'discord', 'twitter']
+    if (!validProviders.includes(provider)) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '不支援的社群平台',
+      })
+    }
+
+    // 取得用戶資料
+    const user = await User.findById(userId).session(session)
+    if (!user) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到使用者',
+      })
+    }
+
+    // 檢查是否已綁定該社群帳號
+    const socialIdField = `${provider}_id`
+    if (!user[socialIdField]) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `尚未綁定${provider}帳號`,
+      })
+    }
+
+    // 檢查是否為主要登入方式
+    if (user.login_method === provider) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `無法解除綁定主要登入方式，請先設定其他登入方式`,
+      })
+    }
+
+    // 解除綁定
+    user[socialIdField] = undefined
+    await user.save({ session })
+
+    // 提交事務
+    await session.commitTransaction()
+
+    res.json({
+      success: true,
+      message: `成功解除綁定${provider}帳號`,
+    })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+
+    console.error('unbindSocialAccount 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+    })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }

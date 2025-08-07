@@ -10,6 +10,9 @@ import {
   updateMe, // 新增
   deleteMe, // 新增
   getActiveUsers, // 新增 getActiveUsers
+  changePassword, // 新增密碼變更
+  changeEmail, // 新增電子信箱變更
+  unbindSocialAccount, // 新增社群帳號解除綁定
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -499,6 +502,119 @@ router.delete('/:id', token, isManager, deleteUser)
  *         description: 未授權
  *       409:
  *         description: 帳號已綁定
+ * /api/users/unbind/{provider}:
+ *   delete:
+ *     summary: 解除綁定社群帳號
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: provider
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [google, facebook, discord, twitter]
+ *         description: 社群平台提供商
+ *     responses:
+ *       200:
+ *         description: 社群帳號解除綁定成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤或尚未綁定該社群帳號
+ *       401:
+ *         description: 未授權
+ *       409:
+ *         description: 無法解除綁定主要登入方式
+ * /api/users/change-password:
+ *   post:
+ *     summary: 變更密碼
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 description: 目前密碼
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 8
+ *                 maxLength: 20
+ *                 description: 新密碼
+ *     responses:
+ *       200:
+ *         description: 密碼變更成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤或新密碼與目前密碼相同
+ *       401:
+ *         description: 目前密碼不正確
+ * /api/users/change-email:
+ *   post:
+ *     summary: 變更電子信箱
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newEmail
+ *               - currentPassword
+ *             properties:
+ *               newEmail:
+ *                 type: string
+ *                 format: email
+ *                 description: 新電子信箱
+ *               currentPassword:
+ *                 type: string
+ *                 description: 目前密碼
+ *     responses:
+ *       200:
+ *         description: 電子信箱變更成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤或新電子信箱與目前相同
+ *       401:
+ *         description: 目前密碼不正確
+ *       409:
+ *         description: 此電子信箱已被其他使用者註冊
  * /api/users/auth/google:
  *   get:
  *     summary: Google OAuth 登入
@@ -622,6 +738,15 @@ router.post('/refresh', token, refresh)
 
 // 綁定社群帳號
 router.post('/bind/:provider', token, bindSocialAccount)
+
+// 解除綁定社群帳號
+router.delete('/unbind/:provider', token, unbindSocialAccount)
+
+// 密碼變更
+router.post('/change-password', token, changePassword)
+
+// 電子信箱變更
+router.post('/change-email', token, changeEmail)
 
 // 觸發 Google OAuth
 router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }))
