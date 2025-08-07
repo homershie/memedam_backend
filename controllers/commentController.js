@@ -5,6 +5,18 @@ import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
 import { createNewCommentNotification, createMentionNotifications } from '../utils/notificationService.js'
 
+// 從內容中提取被提及的用戶名
+const extractMentionedUsers = (content) => {
+  const mentionRegex = /@(\w+)/g
+  const mentions = content.match(mentionRegex)
+  
+  if (!mentions || mentions.length === 0) return []
+  
+  // 移除 @ 符號並去重
+  const usernames = mentions.map(mention => mention.substring(1))
+  return [...new Set(usernames)] // 去重
+}
+
 // 建立留言
 export const validateCreateComment = [
   body('content').isLength({ min: 1, max: 500 }).withMessage('留言內容必填，且長度需在 1~500 字'),
@@ -18,6 +30,9 @@ export const createComment = async (req, res) => {
   try {
     const { content, meme_id, parent_id } = req.body // 僅允許這三個欄位
 
+    // 提取被提及的用戶名
+    const mentioned_users = extractMentionedUsers(content)
+
     // 使用事務處理
     const result = await executeTransaction(async (session) => {
       // 檢查迷因是否存在
@@ -26,7 +41,13 @@ export const createComment = async (req, res) => {
         throw new Error('迷因不存在')
       }
 
-      const comment = new Comment({ content, meme_id, parent_id, user_id: req.user?._id })
+      const comment = new Comment({ 
+        content, 
+        meme_id, 
+        parent_id, 
+        user_id: req.user?._id,
+        mentioned_users // 保存提及的用戶名
+      })
       await comment.save({ session })
 
       // 更新迷因的留言數

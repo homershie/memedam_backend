@@ -723,3 +723,52 @@ export const unbindSocialAccount = async (req, res) => {
     session.endSession()
   }
 }
+
+// 用戶搜索 API
+export const searchUsers = async (req, res) => {
+  try {
+    const { q, limit = 10 } = req.query
+    
+    // 驗證搜索參數
+    if (!q || q.trim().length === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請提供搜索關鍵字',
+      })
+    }
+    
+    // 驗證 limit 參數
+    const limitNum = parseInt(limit, 10)
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 50) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: 'limit 參數必須是 1-50 之間的數字',
+      })
+    }
+    
+    const searchQuery = q.trim()
+    
+    // 搜索用戶（按用戶名和顯示名稱搜索）
+    const users = await User.find({
+      $or: [
+        { username: { $regex: searchQuery, $options: 'i' } },
+        { display_name: { $regex: searchQuery, $options: 'i' } }
+      ]
+    })
+    .select('username display_name avatar bio follower_count meme_count')
+    .limit(limitNum)
+    .sort({ follower_count: -1, meme_count: -1 }) // 按追蹤者數量和迷因數量排序
+    
+    res.json({
+      success: true,
+      data: users,
+      count: users.length
+    })
+  } catch (error) {
+    console.error('searchUsers 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+    })
+  }
+}
