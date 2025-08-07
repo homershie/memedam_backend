@@ -28,6 +28,7 @@ import {
   getCollaborativeFilteringStats,
   updateCollaborativeFilteringConfig,
 } from '../utils/collaborativeFilteringScheduler.js'
+import { manualTriggers } from '../utils/notificationScheduler.js'
 import { token, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -1116,6 +1117,131 @@ router.put('/collaborative-filtering-config', token, isAdmin, async (req, res) =
       success: true,
       data: result,
       message: '協同過濾推薦配置已更新',
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /api/admin/notifications/hot-content:
+ *   post:
+ *     summary: 手動觸發熱門內容通知
+ *     tags: [管理員]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 熱門內容通知發送成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.post('/notifications/hot-content', token, isAdmin, async (req, res) => {
+  try {
+    await manualTriggers.sendHotContentNotifications()
+    res.json({
+      success: true,
+      data: { message: '熱門內容通知已發送' },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /api/admin/notifications/weekly-summary:
+ *   post:
+ *     summary: 手動觸發週報摘要通知
+ *     tags: [管理員]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 週報摘要通知發送成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.post('/notifications/weekly-summary', token, isAdmin, async (req, res) => {
+  try {
+    await manualTriggers.sendWeeklySummaryNotifications()
+    res.json({
+      success: true,
+      data: { message: '週報摘要通知已發送' },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /api/admin/notifications/cleanup:
+ *   post:
+ *     summary: 手動清理舊通知
+ *     tags: [管理員]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: 清理多少天前的通知
+ *     responses:
+ *       200:
+ *         description: 舊通知清理成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.post('/notifications/cleanup', token, isAdmin, async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30
+    await manualTriggers.cleanupOldNotificationsTask()
+    res.json({
+      success: true,
+      data: { message: `已清理 ${days} 天前的舊通知` },
+      error: null,
     })
   } catch (error) {
     res.status(500).json({
