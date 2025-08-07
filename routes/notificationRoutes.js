@@ -8,6 +8,7 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   deleteNotifications,
+  getUnreadCount,
 } from '../controllers/notificationController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
 
@@ -20,37 +21,57 @@ const router = express.Router()
  *     Notification:
  *       type: object
  *       required:
- *         - type
- *         - recipient
+ *         - user_id
  *         - title
- *         - message
+ *         - type
+ *         - content
  *       properties:
  *         _id:
  *           type: string
  *           description: 通知唯一ID
+ *         user_id:
+ *           type: string
+ *           description: 接收者ID
+ *         title:
+ *           type: string
+ *           description: 通知標題
+ *         sender_id:
+ *           type: string
+ *           description: 發送者ID（可選）
  *         type:
  *           type: string
  *           enum: [like, comment, follow, mention, system, announcement]
  *           description: 通知類型
- *         recipient:
+ *         status:
  *           type: string
- *           description: 接收者ID
- *         sender:
- *           type: string
- *           description: 發送者ID（可選）
- *         title:
- *           type: string
- *           description: 通知標題
- *         message:
+ *           enum: [unread, read, deleted]
+ *           default: unread
+ *           description: 通知狀態
+ *         content:
  *           type: string
  *           description: 通知內容
- *         data:
- *           type: object
- *           description: 額外數據（如迷因ID、留言ID等）
- *         isRead:
+ *         url:
+ *           type: string
+ *           description: 點擊跳轉連結
+ *         action_text:
+ *           type: string
+ *           default: 查看
+ *           description: 操作按鈕文字
+ *         priority:
+ *           type: integer
+ *           default: 0
+ *           description: 通知重要性（0-10）
+ *         is_read:
  *           type: boolean
  *           default: false
  *           description: 是否已讀
+ *         expire_at:
+ *           type: string
+ *           format: date-time
+ *           description: 過期時間
+ *         meta:
+ *           type: object
+ *           description: 額外數據
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -62,28 +83,37 @@ const router = express.Router()
  *     CreateNotificationRequest:
  *       type: object
  *       required:
- *         - type
- *         - recipient
+ *         - user_id
  *         - title
- *         - message
+ *         - type
+ *         - content
  *       properties:
+ *         user_id:
+ *           type: string
+ *           description: 接收者ID
+ *         title:
+ *           type: string
+ *           description: 通知標題
+ *         sender_id:
+ *           type: string
+ *           description: 發送者ID（可選）
  *         type:
  *           type: string
  *           enum: [like, comment, follow, mention, system, announcement]
  *           description: 通知類型
- *         recipient:
- *           type: string
- *           description: 接收者ID
- *         sender:
- *           type: string
- *           description: 發送者ID（可選）
- *         title:
- *           type: string
- *           description: 通知標題
- *         message:
+ *         content:
  *           type: string
  *           description: 通知內容
- *         data:
+ *         url:
+ *           type: string
+ *           description: 點擊跳轉連結
+ *         action_text:
+ *           type: string
+ *           description: 操作按鈕文字
+ *         priority:
+ *           type: integer
+ *           description: 通知重要性（0-10）
+ *         meta:
  *           type: object
  *           description: 額外數據
  *     UpdateNotificationRequest:
@@ -92,10 +122,26 @@ const router = express.Router()
  *         title:
  *           type: string
  *           description: 通知標題
- *         message:
+ *         content:
  *           type: string
  *           description: 通知內容
- *         data:
+ *         url:
+ *           type: string
+ *           description: 點擊跳轉連結
+ *         action_text:
+ *           type: string
+ *           description: 操作按鈕文字
+ *         priority:
+ *           type: integer
+ *           description: 通知重要性（0-10）
+ *         status:
+ *           type: string
+ *           enum: [unread, read, deleted]
+ *           description: 通知狀態
+ *         is_read:
+ *           type: boolean
+ *           description: 是否已讀
+ *         meta:
  *           type: object
  *           description: 額外數據
  */
@@ -261,6 +307,29 @@ const router = express.Router()
 
 /**
  * @swagger
+ * /api/notifications/unread/count:
+ *   get:
+ *     summary: 取得未讀通知數量
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功取得未讀通知數量
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 unreadCount:
+ *                   type: integer
+ *                   description: 未讀通知數量
+ *       401:
+ *         description: 未授權
+ */
+
+/**
+ * @swagger
  * /api/notifications/{id}/read:
  *   patch:
  *     summary: 標記單一通知為已讀
@@ -394,6 +463,9 @@ router.get('/', token, isUser, getNotifications)
 router.patch('/read/all', token, isUser, markAllNotificationsRead)
 // 批次刪除通知
 router.delete('/batch', token, isUser, deleteNotifications)
+
+// 取得未讀通知數量（必須在 /:id 之前）
+router.get('/unread/count', token, isUser, getUnreadCount)
 
 // 標記單一通知為已讀（必須在 /:id 之前）
 router.patch('/:id/read', token, isUser, markNotificationRead)

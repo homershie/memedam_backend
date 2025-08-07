@@ -14,6 +14,19 @@ const NotificationSchema = new mongoose.Schema(
         message: '用戶ID必須是有效的ObjectId',
       },
     },
+    // 通知標題（用於顯示）
+    title: {
+      type: String,
+      required: [true, '通知標題為必填'],
+      trim: true,
+      maxlength: [100, '通知標題長度不能超過100字'],
+    },
+    // 發送者ID（用於顯示誰發送的通知）
+    sender_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+    },
     // 通知重要性（數字越大越重要，預設0）
     priority: {
       type: Number,
@@ -55,6 +68,13 @@ const NotificationSchema = new mongoose.Schema(
           !v || validator.isURL(v, { protocols: ['http', 'https'], require_protocol: true }),
         message: '連結必須是有效的URL',
       },
+    },
+    // 操作按鈕文字
+    action_text: {
+      type: String,
+      default: '查看',
+      trim: true,
+      maxlength: [20, '操作按鈕文字不能超過20字'],
     },
     // 是否已讀
     is_read: {

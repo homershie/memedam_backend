@@ -49,7 +49,7 @@ export const getNotifications = async (req, res) => {
     const filter = { user_id: req.user._id } // 強制只查自己的
     if (req.query.status) filter.status = req.query.status
     if (req.query.type) filter.type = req.query.type
-    if (req.query.read !== undefined) filter.read = req.query.read === 'true' // 已讀/未讀過濾
+    if (req.query.read !== undefined) filter.is_read = req.query.read === 'true' // 已讀/未讀過濾
     // 分頁支援
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 50
@@ -59,10 +59,19 @@ export const getNotifications = async (req, res) => {
       .skip(skip)
       .limit(limit)
     const total = await Notification.countDocuments(filter)
+
+    // 取得未讀計數
+    const unreadCount = await Notification.countDocuments({
+      user_id: req.user._id,
+      is_read: false,
+      status: { $ne: 'deleted' },
+    })
+
     res.json({
       success: true,
       data: notifications,
       error: null,
+      unreadCount, // 加入未讀計數
       pagination: {
         page,
         limit,
@@ -186,7 +195,7 @@ export const markNotificationRead = async (req, res) => {
       return res.status(403).json({ success: false, data: null, error: '無權限操作此通知' })
     }
 
-    notification.read = true
+    notification.is_read = true
     await notification.save({ session })
 
     // 提交事務
@@ -211,8 +220,8 @@ export const markAllNotificationsRead = async (req, res) => {
 
   try {
     const result = await Notification.updateMany(
-      { user_id: req.user._id, read: false },
-      { $set: { read: true } },
+      { user_id: req.user._id, is_read: false },
+      { $set: { is_read: true } },
       { session },
     )
 
@@ -260,5 +269,19 @@ export const deleteNotifications = async (req, res) => {
   } finally {
     // 結束 session
     session.endSession()
+  }
+}
+
+// 取得未讀通知計數
+export const getUnreadCount = async (req, res) => {
+  try {
+    const count = await Notification.countDocuments({
+      user_id: req.user._id,
+      is_read: false,
+      status: { $ne: 'deleted' },
+    })
+    res.json({ success: true, data: { count }, error: null })
+  } catch (error) {
+    res.status(500).json({ success: false, data: null, error: error.message })
   }
 }
