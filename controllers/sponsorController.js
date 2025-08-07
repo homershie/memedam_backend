@@ -54,7 +54,7 @@ export const getSponsors = async (req, res) => {
     if (req.query.status) filter.status = req.query.status
     if (req.query.q) {
       const keyword = req.query.q.trim()
-      filter.message = { $regex: keyword, $options: 'i' }
+      filter.message = new RegExp(keyword, 'i')
     }
     if (req.query.min_amount)
       filter.amount = { ...filter.amount, $gte: Number(req.query.min_amount) }

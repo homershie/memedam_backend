@@ -23,7 +23,7 @@ const testNotificationSystem = async () => {
     await connectDB()
     
     // 清理測試數據
-    await Notification.deleteMany({ title: { $regex: '^測試' } })
+    await Notification.deleteMany({ title: new RegExp('^測試') })
     
     // 創建測試用戶
     const testUser1 = await User.findOne({ username: /test.*user.*1/i }) || 

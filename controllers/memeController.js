@@ -1054,8 +1054,8 @@ export const getSearchSuggestions = async (req, res) => {
             $match: {
               status: 'public',
               $or: [
-                { title: { $regex: searchTerm, $options: 'i' } },
-                { content: { $regex: searchTerm, $options: 'i' } },
+                { title: new RegExp(searchTerm, 'i') },
+                { content: new RegExp(searchTerm, 'i') },
               ],
             },
           },
@@ -1085,7 +1085,7 @@ export const getSearchSuggestions = async (req, res) => {
     if (type === 'all' || type === 'tags') {
       promises.push(
         Tag.find({
-          name: { $regex: searchTerm, $options: 'i' },
+          name: new RegExp(searchTerm, 'i'),
         })
           .limit(limitNum)
           .select('name -_id')
@@ -1114,8 +1114,8 @@ export const getSearchSuggestions = async (req, res) => {
       promises.push(
         User.find({
           $or: [
-            { username: { $regex: searchTerm, $options: 'i' } },
-            { display_name: { $regex: searchTerm, $options: 'i' } },
+            { username: new RegExp(searchTerm, 'i') },
+            { display_name: new RegExp(searchTerm, 'i') },
           ],
         })
           .limit(limitNum)

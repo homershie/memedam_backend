@@ -75,10 +75,8 @@ export const getAnnouncements = async (req, res) => {
     // 關鍵字搜尋（標題或內容）
     if (req.query.q) {
       const keyword = req.query.q.trim()
-      filter.$or = [
-        { title: { $regex: keyword, $options: 'i' } },
-        { content: { $regex: keyword, $options: 'i' } },
-      ]
+      const keywordRegex = new RegExp(keyword, 'i')
+      filter.$or = [{ title: keywordRegex }, { content: keywordRegex }]
     }
     // 分頁
     const page = parseInt(req.query.page) || 1
