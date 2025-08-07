@@ -118,6 +118,20 @@ const CommentSchema = new mongoose.Schema(
         message: 'Meta欄位必須是物件',
       },
     },
+    // 被提及的用戶名列表
+    mentioned_users: [{
+      type: String,
+      trim: true,
+      maxlength: [50, '用戶名長度不能超過50字元'],
+      validate: {
+        validator: function(v) {
+          if (!v) return true
+          // 驗證用戶名格式（只允許字母、數字、下劃線）
+          return /^[a-zA-Z0-9_]+$/.test(v)
+        },
+        message: '用戶名只能包含字母、數字和下劃線'
+      }
+    }],
   },
   {
     collection: 'comments',

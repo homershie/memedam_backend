@@ -13,6 +13,7 @@ import {
   changePassword, // 新增密碼變更
   changeEmail, // 新增電子信箱變更
   unbindSocialAccount, // 新增社群帳號解除綁定
+  searchUsers, // 新增用戶搜索
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -270,6 +271,82 @@ router.get('/', token, isManager, getUsers)
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/active', getActiveUsers)
+
+/**
+ * @swagger
+ * /api/users/search:
+ *   get:
+ *     summary: 搜索用戶
+ *     tags: [Users]
+ *     description: 根據用戶名和顯示名稱搜索用戶
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 搜索關鍵字
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           minimum: 1
+ *           maximum: 50
+ *         description: 返回結果數量限制 (1-50)
+ *     responses:
+ *       200:
+ *         description: 成功獲取搜索結果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         description: 用戶ID
+ *                       username:
+ *                         type: string
+ *                         description: 用戶名
+ *                       display_name:
+ *                         type: string
+ *                         description: 顯示名稱
+ *                       avatar:
+ *                         type: string
+ *                         description: 頭像URL
+ *                       bio:
+ *                         type: string
+ *                         description: 個人簡介
+ *                       follower_count:
+ *                         type: integer
+ *                         description: 追蹤者數量
+ *                       meme_count:
+ *                         type: integer
+ *                         description: 迷因數量
+ *                 count:
+ *                   type: integer
+ *                   description: 返回的用戶數量
+ *       400:
+ *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/search', searchUsers)
 
 /**
  * @swagger
