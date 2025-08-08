@@ -22,7 +22,10 @@ import { loginLimiter, registerLimiter, forgotPasswordLimiter } from './middlewa
 import errorHandler, { notFound } from './middleware/errorHandler.js'
 import maintenanceScheduler from './utils/maintenance.js'
 import analyticsMonitor from './utils/analyticsMonitor.js'
-import { startNotificationScheduler, stopNotificationScheduler } from './utils/notificationScheduler.js'
+import {
+  startNotificationScheduler,
+  stopNotificationScheduler,
+} from './utils/notificationScheduler.js'
 import './config/passport.js'
 const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' })
 

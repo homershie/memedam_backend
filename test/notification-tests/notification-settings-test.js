@@ -90,7 +90,7 @@ const testNotificationSettings = async () => {
 if (import.meta.url === `file://${process.argv[1]}`) {
   // 連接數據庫
   mongoose
-    .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/memedex')
+    .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/memedam')
     .then(() => {
       console.log('已連接到數據庫')
       return testNotificationSettings()

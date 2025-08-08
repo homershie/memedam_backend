@@ -1,8 +1,8 @@
-# memedex_backend
+# memedam_backend
 
 ## 📋 專案概述
 
-迷因典後端系統是一個完整的迷因分享平台，提供用戶註冊、迷因管理、社交互動、推薦系統等全方位功能。系統採用 Node.js + Express + MongoDB 架構，整合了多種推薦演算法和社交功能。
+迷因達姆後端系統是一個完整的迷因分享平台，提供用戶註冊、迷因管理、社交互動、推薦系統等全方位功能。系統採用 Node.js + Express + MongoDB 架構，整合了多種推薦演算法和社交功能。
 
 ### 🎯 核心特色
 
@@ -30,6 +30,62 @@
 - **推薦演算法**: 5 種演算法整合
 - **社交功能**: 完整的追隨和影響力系統
 - **監控系統**: 完整的效能監控和 A/B 測試
+
+## 🔧 環境配置
+
+### 環境變數設定
+
+創建 `.env` 檔案並設定以下環境變數：
+
+```bash
+# 資料庫配置
+MONGO_URI=mongodb://localhost:27017/memedam
+REDIS_URL=redis://localhost:6379
+
+# 應用配置
+PORT=4000
+NODE_ENV=development
+
+# JWT 配置
+JWT_SECRET=your_jwt_secret_here
+JWT_EXPIRES_IN=7d
+
+# 雲端存儲配置
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+
+# 社交登入配置
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+FACEBOOK_APP_ID=your_facebook_app_id
+FACEBOOK_APP_SECRET=your_facebook_app_secret
+DISCORD_CLIENT_ID=your_discord_client_id
+DISCORD_CLIENT_SECRET=your_discord_client_secret
+
+# 前端URL配置（重要！）
+# 開發環境：http://localhost:5173
+# 生產環境：https://memedam.com
+FRONTEND_URL=http://localhost:5173
+
+# 其他配置
+CORS_ORIGIN=http://localhost:5173
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=100
+```
+
+### 前端URL配置說明
+
+通知服務會根據 `FRONTEND_URL` 環境變數來生成正確的跳轉連結：
+
+- **開發環境**: `http://localhost:5173`
+- **測試環境**: `http://localhost:5173`
+- **生產環境**: `https://memedam.com`
+
+如果不設定 `FRONTEND_URL`，系統會根據 `NODE_ENV` 自動判斷：
+
+- `development` 或 `test`: 使用 `http://localhost:5173`
+- `production`: 使用 `https://memedam.com`
 
 ## 📊 API 路由功能對照表
 
@@ -1110,7 +1166,7 @@ curl -H "Authorization: Bearer <token>" \
 # 設定環境變數
 NODE_ENV=production
 REDIS_URL=redis://localhost:6379
-MONGO_URI=mongodb://localhost:27017/memedex
+MONGO_URI=mongodb://localhost:27017/memedam
 
 # 啟動應用
 npm start
@@ -1192,7 +1248,7 @@ npm run stress:recommendations
 
 _最後更新：2025年1月_  
 _版本：v2.0.0_  
-\_維護團隊：迷因典可以ㄍㄨㄥ
+\_維護團隊：迷因達姆開發團隊
 
 ## 版本控制說明
 

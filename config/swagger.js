@@ -9,7 +9,7 @@ const options = {
       description: '迷因典後端API的完整文檔，包含所有端點的詳細說明',
       contact: {
         name: '迷因典開發團隊',
-        email: 'support@memedex.com',
+        email: 'support@memedam.com',
       },
       license: {
         name: 'MIT',
@@ -22,7 +22,7 @@ const options = {
         description: '開發環境',
       },
       {
-        url: 'https://api.memedex.com',
+        url: 'https://api.memedam.com',
         description: '生產環境',
       },
     ],

@@ -1,6 +1,6 @@
-# MemeDex 文檔目錄
+# MemeDam 文檔目錄
 
-本目錄包含 MemeDex 後端的各種文檔，已按功能分類整理。
+本目錄包含 MemeDam 後端的各種文檔，已按功能分類整理。
 
 ## 📁 目錄結構
 
@@ -8,7 +8,7 @@
 
 API 相關的文檔和規範：
 
-- `MemeDex-API.json` - MemeDex API 規範檔案
+- `MemeDam-API.json` - MemeDam API 規範檔案
 - `api-docs.json` - API 文檔 JSON 檔案
 - `swagger-api-documentation.md` - Swagger API 文檔
 - `swagger-implementation-summary.md` - Swagger 實作摘要

@@ -7,7 +7,7 @@ import Notification from '../../models/Notification.js'
 // 連接資料庫
 const connectDB = async () => {
   try {
-    await mongoose.connect('mongodb://localhost:27017/memedex')
+    await mongoose.connect('mongodb://localhost:27017/memedam')
     console.log('資料庫連接成功')
   } catch (error) {
     console.error('資料庫連接失敗:', error)

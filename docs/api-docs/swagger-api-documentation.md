@@ -13,8 +13,8 @@
 
 ### 生產環境
 
-- **Swagger UI**: https://api.memedex.com/api-docs
-- **API文檔JSON**: https://api.memedex.com/api-docs.json
+- **Swagger UI**: https://api.memedam.com/api-docs
+- **API文檔JSON**: https://api.memedam.com/api-docs.json
 
 ## 功能特色
 
@@ -129,7 +129,7 @@ const response = await fetch('/api/memes', {
 // React Native示例
 const getMemes = async () => {
   try {
-    const response = await fetch('https://api.memedex.com/api/memes')
+    const response = await fetch('https://api.memedam.com/api/memes')
     const data = await response.json()
     return data.memes
   } catch (error) {
@@ -146,7 +146,7 @@ import requests
 
 def get_user_profile(user_id, token):
     headers = {'Authorization': f'Bearer {token}'}
-    response = requests.get(f'https://api.memedex.com/api/users/{user_id}', headers=headers)
+    response = requests.get(f'https://api.memedam.com/api/users/{user_id}', headers=headers)
     return response.json()
 ```
 
@@ -243,8 +243,8 @@ def get_user_profile(user_id, token):
 
 如有任何問題或建議，請聯絡開發團隊：
 
-- Email: support@memedex.com
-- GitHub: https://github.com/memedex/backend
+- Email: support@memedam.com
+- GitHub: https://github.com/memedam/backend
 - 文檔更新: 提交Pull Request
 
 ---

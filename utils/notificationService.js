@@ -13,6 +13,25 @@ export const NOTIFICATION_TYPES = {
 }
 
 /**
+ * 獲取前端URL，支持環境配置
+ * @returns {String} 前端URL
+ */
+const getFrontendUrl = () => {
+  // 優先使用環境變數
+  if (process.env.FRONTEND_URL) {
+    return process.env.FRONTEND_URL
+  }
+
+  // 根據環境判斷
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+    return 'http://localhost:5173'
+  }
+
+  // 生產環境默認使用 memedam.com
+  return 'https://memedam.com'
+}
+
+/**
  * 檢查用戶是否允許接收特定類型的通知
  * @param {String} userId - 用戶ID
  * @param {String} notificationType - 通知類型
@@ -108,6 +127,7 @@ export const createNewFollowerNotification = async (followedUserId, followerUser
     if (!follower) return
 
     const followerName = follower.display_name || follower.username
+    const frontendUrl = getFrontendUrl()
 
     await createNotification({
       user_id: followedUserId,
@@ -115,7 +135,7 @@ export const createNewFollowerNotification = async (followedUserId, followerUser
       type: NOTIFICATION_TYPES.NEW_FOLLOWER,
       title: '新追蹤者',
       content: `${followerName} 開始追蹤您了`,
-      url: `https://memedex.com/users/${follower.username}`,
+      url: `${frontendUrl}/users/${follower.username}`,
       meta: {
         follower_id: followerUserId,
         follower_username: follower.username,
@@ -152,6 +172,7 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
     const commenterName = commenter.display_name || commenter.username
     const truncatedContent =
       commentContent.length > 50 ? commentContent.substring(0, 50) + '...' : commentContent
+    const frontendUrl = getFrontendUrl()
 
     await createNotification({
       user_id: meme.author_id._id,
@@ -159,7 +180,7 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
       type: NOTIFICATION_TYPES.NEW_COMMENT,
       title: '新留言',
       content: `${commenterName} 對您的迷因留言：${truncatedContent}`,
-      url: `https://memedex.com/meme/details/${memeId}`,
+      url: `${frontendUrl}/meme/details/${memeId}`,
       meta: {
         meme_id: memeId,
         comment_user_id: commentUserId,
@@ -206,6 +227,7 @@ export const createNewLikeNotification = async (memeId, likerUserId) => {
 
     const likerName = liker.display_name || liker.username
     const memeTitle = meme.title || '您的迷因'
+    const frontendUrl = getFrontendUrl()
 
     console.log(
       `準備發送通知給用戶: ${meme.author_id._id}, 內容: ${likerName} 按讚了您的迷因「${memeTitle}」`,
@@ -217,7 +239,7 @@ export const createNewLikeNotification = async (memeId, likerUserId) => {
       type: NOTIFICATION_TYPES.NEW_LIKE,
       title: '新按讚',
       content: `${likerName} 按讚了您的迷因「${memeTitle}」`,
-      url: `https://memedex.com/meme/details/${memeId}`,
+      url: `${frontendUrl}/meme/details/${memeId}`,
       meta: {
         meme_id: memeId,
         liker_user_id: likerUserId,
@@ -261,6 +283,7 @@ export const createMentionNotifications = async (
     if (!mentioner) return
 
     const mentionerName = mentioner.display_name || mentioner.username
+    const frontendUrl = getFrontendUrl()
 
     // 處理每個提及的用戶
     for (const mention of mentions) {
@@ -274,7 +297,7 @@ export const createMentionNotifications = async (
       if (mentionedUser._id.toString() === mentionerUserId.toString()) continue
 
       let notificationContent = `${mentionerName} 在${contextType === 'comment' ? '留言' : '內容'}中提及了您`
-      let url = memeId ? `https://memedex.com/meme/details/${memeId}` : 'https://memedex.com/'
+      let url = memeId ? `${frontendUrl}/meme/details/${memeId}` : `${frontendUrl}/`
 
       await createNotification({
         user_id: mentionedUser._id,

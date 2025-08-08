@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文檔詳細說明迷因典後端系統的效能優化實現，包括 Redis 快取、資料庫索引優化和非同步處理。
+本文檔詳細說明迷因達姆後端系統的效能優化實現，包括 Redis 快取、資料庫索引優化和非同步處理。
 
 ## 1. Redis 快取系統
 
@@ -297,7 +297,7 @@ REDIS_DB=0
 ### 6.2 資料庫配置
 
 ```env
-MONGO_URI=mongodb://localhost:27017/memedex
+MONGO_URI=mongodb://localhost:27017/memedam
 ```
 
 ### 6.3 效能配置

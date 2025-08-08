@@ -184,7 +184,7 @@ http://localhost:4000/api-docs
 
 ```bash
 # 部署後訪問
-https://api.memedex.com/api-docs
+https://api.memedam.com/api-docs
 ```
 
 ### 3. API文檔JSON
