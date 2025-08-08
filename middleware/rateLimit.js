@@ -48,5 +48,36 @@ const forgotPasswordLimiter = rateLimit({
   legacyHeaders: false,
 })
 
-export { apiLimiter, loginLimiter, registerLimiter, forgotPasswordLimiter }
+// 驗證 email 限流：每個 IP 每 5 分鐘最多 1 次
+const verificationEmailLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 分鐘
+  max: 1, // 限制每個 IP 1 次驗證 email 請求
+  message: {
+    success: false,
+    error: '發送驗證 email 過於頻繁，請稍後再試。',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// 重新發送驗證 email 限流：每個 IP 每 60 秒最多 1 次
+const resendVerificationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 60 秒
+  max: 1, // 限制每個 IP 1 次重新發送請求
+  message: {
+    success: false,
+    error: '重新發送驗證 email 過於頻繁，請稍後再試。',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+export {
+  apiLimiter,
+  loginLimiter,
+  registerLimiter,
+  forgotPasswordLimiter,
+  verificationEmailLimiter,
+  resendVerificationLimiter,
+}
 export default apiLimiter

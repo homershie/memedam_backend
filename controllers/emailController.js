@@ -1,6 +1,6 @@
 import EmailService from '../utils/emailService.js'
 import { StatusCodes } from 'http-status-codes'
-import logger from '../utils/logger.js'
+import { logger } from '../utils/logger.js'
 
 /**
  * Email Controller

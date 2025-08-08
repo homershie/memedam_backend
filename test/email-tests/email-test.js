@@ -126,4 +126,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   runTests().catch(console.error)
 }
 
+// 直接執行測試
+runTests().catch(console.error)
+
 export { testEmailService, testSendGridBasic, runTests }

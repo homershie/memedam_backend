@@ -149,7 +149,16 @@ const UserSchema = new mongoose.Schema(
       maxlength: [200, '封禁原因最多200個字元'],
       trim: true,
     },
-    email_verified: { type: Boolean, default: false },
+    email_verified: {
+      type: Boolean,
+      default: false,
+      validate: {
+        validator(value) {
+          return typeof value === 'boolean'
+        },
+        message: 'email_verified 必須是布林值',
+      },
+    },
     login_method: {
       type: String,
       default: 'local',
