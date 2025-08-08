@@ -253,7 +253,7 @@ class EmailService {
               ${resetUrl}
             </p>
             <div class="divider"></div>
-            <p class="muted">此連結將於 24 小時後失效，並僅能使用一次。若非你本人操作，請忽略本信，你的帳號不會被更動。</p>
+            <p class="muted">此連結將於 1 小時後失效，並僅能使用一次。若非你本人操作，請忽略本信，你的帳號不會被更動。</p>
             <p class="muted">需要協助？請聯絡：<a href="mailto:support@memedam.com" style="color:inherit;">support@memedam.com</a></p>
           </td></tr>
           <tr><td class="footer">

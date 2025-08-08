@@ -1,4 +1,5 @@
 import User from '../models/User.js'
+import VerificationToken from '../models/VerificationToken.js'
 import { StatusCodes } from 'http-status-codes'
 import mongoose from 'mongoose'
 import bcrypt from 'bcrypt'
@@ -7,6 +8,9 @@ import {
   manualSendDeletionReminders,
   manualDeleteUnverifiedUsers,
 } from '../utils/userCleanupScheduler.js'
+import { logger } from '../utils/logger.js'
+import EmailService from '../utils/emailService.js'
+import VerificationController from './verificationController.js'
 
 // 建立新使用者
 export const createUser = async (req, res) => {
@@ -18,6 +22,26 @@ export const createUser = async (req, res) => {
     const user = await User.create([req.body], { session })
     const createdUser = user[0]
 
+    // 產生驗證 token 並發送驗證 email
+    let verificationToken = null
+    try {
+      verificationToken = await VerificationController.generateVerificationToken(
+        createdUser._id,
+        'email_verification',
+        24, // 24 小時過期
+      )
+
+      // 發送驗證 email
+      await EmailService.sendVerificationEmail(
+        createdUser.email,
+        verificationToken,
+        createdUser.username,
+      )
+    } catch (emailError) {
+      logger.error('發送驗證 email 失敗:', emailError)
+      // 即使 email 發送失敗，仍然創建用戶，但記錄錯誤
+    }
+
     // 回傳完整用戶資料（包含 avatarUrl），但移除敏感資訊
     const userObj = createdUser.toJSON()
     delete userObj.password
@@ -26,7 +50,13 @@ export const createUser = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
-    res.status(StatusCodes.CREATED).json({ success: true, user: userObj })
+    // 回傳成功訊息，包含 email 驗證提示
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      user: userObj,
+      message: '註冊成功！請檢查您的信箱並點擊驗證連結來完成註冊。',
+      emailSent: !!verificationToken,
+    })
   } catch (error) {
     // 回滾事務
     await session.abortTransaction()
@@ -879,5 +909,176 @@ export const getUnverifiedUsersStats = async (req, res) => {
       success: false,
       message: '獲取未驗證用戶統計資訊失敗',
     })
+  }
+}
+
+// 忘記密碼 API
+export const forgotPassword = async (req, res) => {
+  const session = await User.startSession()
+  session.startTransaction()
+
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請提供 email 地址',
+      })
+    }
+
+    // 驗證 email 格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請提供有效的 email 地址',
+      })
+    }
+
+    // 查找用戶
+    const user = await User.findOne({ email: email.toLowerCase() }).session(session)
+    if (!user) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到此 email 對應的用戶',
+      })
+    }
+
+    // 檢查是否有未過期的密碼重設 token
+    const existingToken = await VerificationToken.findOne({
+      userId: user._id,
+      type: 'password_reset',
+      used: false,
+      expiresAt: { $gt: new Date() },
+    }).session(session)
+
+    if (existingToken) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.TOO_MANY_REQUESTS).json({
+        success: false,
+        message: '密碼重設 email 已發送，請檢查您的信箱或稍後再試',
+      })
+    }
+
+    // 產生密碼重設 token（1 小時過期）
+    const resetToken = await VerificationController.generateVerificationToken(
+      user._id,
+      'password_reset',
+      1, // 1 小時過期
+    )
+
+    // 發送密碼重設 email
+    await EmailService.sendPasswordResetEmail(email, resetToken, user.username)
+
+    // 提交事務
+    await session.commitTransaction()
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: '密碼重設 email 已發送',
+      data: {
+        email,
+        sentAt: new Date().toISOString(),
+      },
+    })
+  } catch (error) {
+    await session.abortTransaction()
+    logger.error('忘記密碼處理失敗:', error)
+
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '處理忘記密碼請求時發生錯誤',
+      error: error.message,
+    })
+  } finally {
+    session.endSession()
+  }
+}
+
+// 重設密碼 API
+export const resetPassword = async (req, res) => {
+  const session = await User.startSession()
+  session.startTransaction()
+
+  try {
+    const { token, newPassword } = req.body
+
+    if (!token || !newPassword) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請提供 token 和新密碼',
+      })
+    }
+
+    // 驗證新密碼長度
+    if (newPassword.length < 8 || newPassword.length > 20) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '新密碼長度必須在8到20個字元之間',
+      })
+    }
+
+    // 查找並驗證 token
+    const verificationToken = await VerificationToken.findOne({
+      token,
+      type: 'password_reset',
+      used: false,
+      expiresAt: { $gt: new Date() },
+    }).session(session)
+
+    if (!verificationToken) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '無效或已過期的重設連結',
+      })
+    }
+
+    // 查找用戶
+    const user = await User.findById(verificationToken.userId).session(session)
+    if (!user) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到對應的用戶',
+      })
+    }
+
+    // 更新密碼
+    user.password = newPassword
+    await user.save({ session })
+
+    // 標記 token 為已使用
+    verificationToken.used = true
+    await verificationToken.save({ session })
+
+    // 清除所有登入 token（強制重新登入）
+    user.tokens = []
+    await user.save({ session })
+
+    // 提交事務
+    await session.commitTransaction()
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: '密碼重設成功，請使用新密碼登入',
+    })
+  } catch (error) {
+    await session.abortTransaction()
+    logger.error('重設密碼失敗:', error)
+
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '重設密碼時發生錯誤',
+      error: error.message,
+    })
+  } finally {
+    session.endSession()
   }
 }

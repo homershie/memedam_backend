@@ -17,6 +17,8 @@ import {
   sendDeletionReminders, // 新增刪除提醒任務
   deleteUnverifiedUsers, // 新增刪除未驗證用戶任務
   getUnverifiedUsersStats, // 新增未驗證用戶統計
+  forgotPassword, // 新增忘記密碼
+  resetPassword, // 新增重設密碼
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -614,6 +616,90 @@ router.delete('/:id', token, isManager, deleteUser)
  *         description: 未授權
  *       409:
  *         description: 無法解除綁定主要登入方式
+ * /api/users/forgot-password:
+ *   post:
+ *     summary: 忘記密碼
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: 用戶的 email 地址
+ *     responses:
+ *       200:
+ *         description: 密碼重設 email 發送成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     email:
+ *                       type: string
+ *                     sentAt:
+ *                       type: string
+ *       400:
+ *         description: 請求參數錯誤
+ *       404:
+ *         description: 找不到用戶
+ *       429:
+ *         description: 請求頻率過高
+ *       500:
+ *         description: 伺服器錯誤
+ * /api/users/reset-password:
+ *   post:
+ *     summary: 重設密碼
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - newPassword
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: 密碼重設 token
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 8
+ *                 maxLength: 20
+ *                 description: 新密碼
+ *     responses:
+ *       200:
+ *         description: 密碼重設成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤或無效的 token
+ *       404:
+ *         description: 找不到用戶
+ *       500:
+ *         description: 伺服器錯誤
  * /api/users/change-password:
  *   post:
  *     summary: 變更密碼
@@ -821,6 +907,12 @@ router.post('/bind/:provider', token, bindSocialAccount)
 
 // 解除綁定社群帳號
 router.delete('/unbind/:provider', token, unbindSocialAccount)
+
+// 忘記密碼
+router.post('/forgot-password', forgotPassword)
+
+// 重設密碼
+router.post('/reset-password', resetPassword)
 
 // 密碼變更
 router.post('/change-password', token, changePassword)
