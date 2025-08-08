@@ -489,10 +489,8 @@ router.get('/me', token, isUser, getMe)
 router.put('/me', token, isUser, singleUpload('avatar'), updateMe)
 router.delete('/me', token, isUser, deleteMe)
 
-// 基本 CRUD 操作（必須在最後）
-router.get('/:id', getUser)
-router.put('/:id', token, isManager, singleUpload('avatar'), updateUser)
-router.delete('/:id', token, isManager, deleteUser)
+// OAuth 綁定相關路由（必須在 /:id 之前）
+router.get('/bind-status', token, getBindStatus)
 
 /**
  * @swagger
@@ -1007,9 +1005,6 @@ router.get(
 
 // ========== OAuth 綁定專用端點 ==========
 
-// 獲取綁定狀態
-router.get('/bind-status', token, getBindStatus)
-
 // 初始化 OAuth 綁定流程
 router.get('/bind-auth/:provider', token, initBindAuth)
 
@@ -1175,5 +1170,10 @@ router.get(
 router.post('/admin/send-deletion-reminders', token, sendDeletionReminders)
 router.post('/admin/delete-unverified-users', token, deleteUnverifiedUsers)
 router.get('/admin/unverified-stats', token, getUnverifiedUsersStats)
+
+// 基本 CRUD 操作（必須在最後）
+router.get('/:id', getUser)
+router.put('/:id', token, isManager, singleUpload('avatar'), updateUser)
+router.delete('/:id', token, isManager, deleteUser)
 
 export default router

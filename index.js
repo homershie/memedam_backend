@@ -422,3 +422,6 @@ process.on('SIGINT', async () => {
 })
 
 startServer()
+
+// 導出 app 實例供測試使用
+export { app }

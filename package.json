@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "node test/api-tests/simple-api-test.js",
+    "test:oauth-bind": "node test/api-tests/oauth-bind-test.js",
     "test:real": "node test/api-tests/real-api-test.js",
     "test:email": "node test/email-tests/simple-email-test.js",
     "test:email:full": "node test/email-tests/email-test.js"
