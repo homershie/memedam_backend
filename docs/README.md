@@ -63,6 +63,8 @@ API 相關的文檔和規範：
 
 - `transaction-summary.md` - 交易摘要文檔
 - `consistency-check.md` - 一致性檢查文檔
+- `email-setup.md` - Email 服務設定指南
+- `ObjectId-CastError-Fix-Summary.md` - ObjectId CastError 修復總結
 
 ## 📋 文檔分類說明
 
@@ -92,7 +94,7 @@ API 相關的文檔和規範：
 
 ### 系統整合文檔
 
-包含系統一致性檢查、交易處理等核心系統文檔。
+包含系統一致性檢查、交易處理、Email 服務設定、資料庫錯誤修復等核心系統文檔。
 
 ## 🎯 使用指南
 

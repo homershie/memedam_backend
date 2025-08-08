@@ -123,6 +123,7 @@ import recommendationRoutes from './routes/recommendationRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import dislikeRoutes from './routes/dislikeRoutes.js'
 import analyticsRoutes from './routes/analyticsRoutes.js'
+import emailRoutes from './routes/emailRoutes.js'
 
 app.use('/api/users', userRoutes)
 app.use('/api/memes', memeRoutes)
@@ -146,6 +147,7 @@ app.use('/api/recommendations', recommendationRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/dislikes', dislikeRoutes)
 app.use('/api/analytics', analyticsRoutes)
+app.use('/api/email', emailRoutes)
 
 // 健康檢查端點
 app.get('/health', async (req, res) => {

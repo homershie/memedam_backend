@@ -1,0 +1,237 @@
+import EmailService from '../utils/emailService.js'
+import { StatusCodes } from 'http-status-codes'
+import logger from '../utils/logger.js'
+
+/**
+ * Email Controller
+ */
+class EmailController {
+  /**
+   * 發送測試 email
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async sendTestEmail(req, res) {
+    try {
+      const { email } = req.body
+
+      if (!email) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請提供 email 地址',
+        })
+      }
+
+      // 驗證 email 格式
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請提供有效的 email 地址',
+        })
+      }
+
+      // 發送測試 email
+      await EmailService.sendTestEmail(email)
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: '測試 email 已發送',
+        data: {
+          email,
+          sentAt: new Date().toISOString(),
+        },
+      })
+    } catch (error) {
+      logger.error('發送測試 email 失敗:', error)
+
+      // 處理 SendGrid 錯誤
+      if (error.response) {
+        const { body } = error.response
+        logger.error('SendGrid 錯誤:', body)
+
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '發送 email 失敗',
+          error: {
+            code: body?.errors?.[0]?.message || 'SENDGRID_ERROR',
+            details: body?.errors || [],
+          },
+        })
+      }
+
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: '發送 email 時發生錯誤',
+        error: error.message,
+      })
+    }
+  }
+
+  /**
+   * 發送驗證 email
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async sendVerificationEmail(req, res) {
+    try {
+      const { email, username, verificationToken } = req.body
+
+      if (!email || !username || !verificationToken) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請提供 email、username 和 verificationToken',
+        })
+      }
+
+      // 驗證 email 格式
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請提供有效的 email 地址',
+        })
+      }
+
+      // 發送驗證 email
+      await EmailService.sendVerificationEmail(email, verificationToken, username)
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: '驗證 email 已發送',
+        data: {
+          email,
+          username,
+          sentAt: new Date().toISOString(),
+        },
+      })
+    } catch (error) {
+      logger.error('發送驗證 email 失敗:', error)
+
+      if (error.response) {
+        const { body } = error.response
+        logger.error('SendGrid 錯誤:', body)
+
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '發送驗證 email 失敗',
+          error: {
+            code: body?.errors?.[0]?.message || 'SENDGRID_ERROR',
+            details: body?.errors || [],
+          },
+        })
+      }
+
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: '發送驗證 email 時發生錯誤',
+        error: error.message,
+      })
+    }
+  }
+
+  /**
+   * 發送密碼重設 email
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async sendPasswordResetEmail(req, res) {
+    try {
+      const { email, username, resetToken } = req.body
+
+      if (!email || !username || !resetToken) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請提供 email、username 和 resetToken',
+        })
+      }
+
+      // 驗證 email 格式
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請提供有效的 email 地址',
+        })
+      }
+
+      // 發送密碼重設 email
+      await EmailService.sendPasswordResetEmail(email, resetToken, username)
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: '密碼重設 email 已發送',
+        data: {
+          email,
+          username,
+          sentAt: new Date().toISOString(),
+        },
+      })
+    } catch (error) {
+      logger.error('發送密碼重設 email 失敗:', error)
+
+      if (error.response) {
+        const { body } = error.response
+        logger.error('SendGrid 錯誤:', body)
+
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '發送密碼重設 email 失敗',
+          error: {
+            code: body?.errors?.[0]?.message || 'SENDGRID_ERROR',
+            details: body?.errors || [],
+          },
+        })
+      }
+
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: '發送密碼重設 email 時發生錯誤',
+        error: error.message,
+      })
+    }
+  }
+
+  /**
+   * 檢查 SendGrid 設定狀態
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async checkEmailStatus(req, res) {
+    try {
+      const hasApiKey = !!process.env.SENDGRID_API_KEY
+      const hasFromEmail = !!process.env.SENDGRID_FROM_EMAIL
+      const hasFrontendUrl = !!process.env.FRONTEND_URL
+
+      const status = {
+        sendgridConfigured: hasApiKey,
+        fromEmailConfigured: hasFromEmail,
+        frontendUrlConfigured: hasFrontendUrl,
+        timestamp: new Date().toISOString(),
+      }
+
+      if (!hasApiKey) {
+        return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+          success: false,
+          message: 'SendGrid API Key 未設定',
+          status,
+        })
+      }
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: 'Email 服務狀態檢查完成',
+        status,
+      })
+    } catch (error) {
+      logger.error('檢查 email 狀態失敗:', error)
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: '檢查 email 狀態時發生錯誤',
+        error: error.message,
+      })
+    }
+  }
+}
+
+export default EmailController
