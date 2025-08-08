@@ -87,12 +87,11 @@ MemeDam 團隊
       table { border-collapse:collapse; }
       .container { width:100%; background:#f6f7f9; padding:24px 0; }
       .card { max-width:560px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; }
-      .logo {display:inline-block;margin-right:8px}
       .header { padding:24px 32px; font-family:Arial, Helvetica, sans-serif; background:#111827; color:#fff; }
-      .brand { display:inline-block;font-size:20px; font-weight:700; letter-spacing:.3px; color:white}
+      .brand { font-size:20px; font-weight:700; letter-spacing:.3px; color:white}
       .content { padding:28px 32px; font-family:Arial, Helvetica, sans-serif; color:#111827; line-height:1.6; }
       .button { display:inline-block; padding:12px 20px; border-radius:10px; text-decoration:none; 
-                font-weight:700; background:#ff3399; color:#111827; }
+                font-weight:700; background:#ff3399; color:white; }
       .muted { color:#6b7280; font-size:12px; }
       .divider { height:1px; background:#e5e7eb; margin:24px 0; }
       .warning { background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:16px; margin:16px 0; }
@@ -104,7 +103,7 @@ MemeDam 團隊
         .content, .footer { color:#d1d5db; }
         .muted { color:#9ca3af; }
         .header { background:#0b0c0f; }
-        .button { background:#ff3399; color:#0b0c0f; }
+        .button { background:#ff3399; color:white; }
         .divider { background:#1f2937; }
         .warning { background:#1f2937; border-color:#374151; }
       }
@@ -115,15 +114,7 @@ MemeDam 團隊
       <tr><td>
         <table class="card" role="presentation" width="100%">
           <tr><td class="header">
-            <div class="logo">                      
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8.80988 47.7037L0.607422 39.1417V0.296326L8.80988 8.85837V47.7037Z" fill="white"/>
-                <path d="M21.6994 47.7037L13.4969 39.1417V8.85837L21.6994 0.296326V47.7037Z" fill="white"/>
-                <path d="M33.4172 39.1417L25.2147 47.7037V0.296326L33.4172 8.85837V39.1417Z" fill="white"/>
-                <path d="M47.4786 39.1417L39.2761 47.7037V8.85837L47.4786 0.296326V39.1417Z" fill="white"/>
-              </svg>
-            </div>
-            <div class="brand">⚠️ 重要提醒</div>
+            <div class="brand">迷因典<br>MemeDam</div>
           </td></tr>
           <tr><td class="content">
             <p>嗨 ${user.username}，</p>
@@ -211,9 +202,8 @@ MemeDam 團隊
       table { border-collapse:collapse; }
       .container { width:100%; background:#f6f7f9; padding:24px 0; }
       .card { max-width:560px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; }
-      .logo {display:inline-block;margin-right:8px}
-      .header { padding:24px 32px; font-family:Arial, Helvetica, sans-serif; background:#6b7280; color:#fff; }
-      .brand { display:inline-block;font-size:20px; font-weight:700; letter-spacing:.3px; }
+      .header { padding:24px 32px; font-family:Arial, Helvetica, sans-serif; background:#111827; color:#fff; }
+      .brand { font-size:20px; font-weight:700; letter-spacing:.3px; color:white }
       .content { padding:28px 32px; font-family:Arial, Helvetica, sans-serif; color:#111827; line-height:1.6; }
       .muted { color:#6b7280; font-size:12px; }
       .divider { height:1px; background:#e5e7eb; margin:24px 0; }
@@ -224,7 +214,7 @@ MemeDam 團隊
         .card { background:#111827; }
         .content, .footer { color:#d1d5db; }
         .muted { color:#9ca3af; }
-        .header { background:#6b7280; }
+        .header { background:#111827; }
         .divider { background:#1f2937; }
         .info { background:#1f2937; border-color:#374151; }
       }
@@ -235,15 +225,7 @@ MemeDam 團隊
       <tr><td>
         <table class="card" role="presentation" width="100%">
           <tr><td class="header">
-            <div class="logo">                      
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8.80988 47.7037L0.607422 39.1417V0.296326L8.80988 8.85837V47.7037Z" fill="white"/>
-                <path d="M21.6994 47.7037L13.4969 39.1417V8.85837L21.6994 0.296326V47.7037Z" fill="white"/>
-                <path d="M33.4172 39.1417L25.2147 47.7037V0.296326L33.4172 8.85837V39.1417Z" fill="white"/>
-                <path d="M47.4786 39.1417L39.2761 47.7037V8.85837L47.4786 0.296326V39.1417Z" fill="white"/>
-              </svg>
-            </div>
-            <div class="brand">📧 帳號刪除通知</div>
+            <div class="brand">迷因典</br>MemeDam</div>
           </td></tr>
           <tr><td class="content">
             <p>嗨 ${user.username}，</p>
