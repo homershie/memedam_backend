@@ -26,6 +26,10 @@ import {
   startNotificationScheduler,
   stopNotificationScheduler,
 } from './utils/notificationScheduler.js'
+import {
+  startUserCleanupScheduler,
+  stopUserCleanupScheduler,
+} from './utils/userCleanupScheduler.js'
 import './config/passport.js'
 const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' })
 
@@ -351,6 +355,14 @@ const startServer = async () => {
       logger.warn('通知調度器啟動失敗，將繼續運行:', schedulerError.message)
     }
 
+    // 啟動用戶清理調度器
+    try {
+      startUserCleanupScheduler()
+      logger.info('已啟動用戶清理調度器')
+    } catch (cleanupError) {
+      logger.warn('用戶清理調度器啟動失敗，將繼續運行:', cleanupError.message)
+    }
+
     // 列印所有註冊的路徑（調試用）
     printAllRoutes(app)
 
@@ -370,6 +382,7 @@ process.on('SIGTERM', async () => {
 
   try {
     stopNotificationScheduler()
+    stopUserCleanupScheduler()
     await redisCache.disconnect()
     process.exit(0)
   } catch (error) {
@@ -383,6 +396,7 @@ process.on('SIGINT', async () => {
 
   try {
     stopNotificationScheduler()
+    stopUserCleanupScheduler()
     await redisCache.disconnect()
     process.exit(0)
   } catch (error) {

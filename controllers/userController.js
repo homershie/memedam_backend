@@ -3,6 +3,10 @@ import { StatusCodes } from 'http-status-codes'
 import mongoose from 'mongoose'
 import bcrypt from 'bcrypt'
 import validator from 'validator'
+import {
+  manualSendDeletionReminders,
+  manualDeleteUnverifiedUsers,
+} from '../utils/userCleanupScheduler.js'
 
 // 建立新使用者
 export const createUser = async (req, res) => {
@@ -767,6 +771,113 @@ export const searchUsers = async (req, res) => {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '伺服器錯誤',
+    })
+  }
+}
+
+// 手動執行刪除提醒任務（管理員專用）
+export const sendDeletionReminders = async (req, res) => {
+  try {
+    // 檢查用戶權限
+    if (req.user.role !== 'admin') {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: '只有管理員可以執行此操作',
+      })
+    }
+
+    await manualSendDeletionReminders()
+
+    res.json({
+      success: true,
+      message: '刪除提醒任務已執行完成',
+    })
+  } catch (error) {
+    console.error('sendDeletionReminders 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '執行刪除提醒任務失敗',
+    })
+  }
+}
+
+// 手動執行刪除未驗證用戶任務（管理員專用）
+export const deleteUnverifiedUsers = async (req, res) => {
+  try {
+    // 檢查用戶權限
+    if (req.user.role !== 'admin') {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: '只有管理員可以執行此操作',
+      })
+    }
+
+    await manualDeleteUnverifiedUsers()
+
+    res.json({
+      success: true,
+      message: '刪除未驗證用戶任務已執行完成',
+    })
+  } catch (error) {
+    console.error('deleteUnverifiedUsers 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '執行刪除未驗證用戶任務失敗',
+    })
+  }
+}
+
+// 獲取未驗證用戶統計資訊（管理員專用）
+export const getUnverifiedUsersStats = async (req, res) => {
+  try {
+    // 檢查用戶權限
+    if (req.user.role !== 'admin') {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: '只有管理員可以查看此資訊',
+      })
+    }
+
+    const elevenMonthsAgo = new Date()
+    elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11)
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
+    // 獲取需要提醒的用戶數量
+    const usersNeedingReminder = await User.countDocuments({
+      email_verified: false,
+      createdAt: { $lte: elevenMonthsAgo },
+      status: { $ne: 'deleted' },
+    })
+
+    // 獲取需要刪除的用戶數量
+    const usersToDelete = await User.countDocuments({
+      email_verified: false,
+      createdAt: { $lte: oneYearAgo },
+      status: { $ne: 'deleted' },
+    })
+
+    // 獲取所有未驗證用戶數量
+    const totalUnverified = await User.countDocuments({
+      email_verified: false,
+      status: { $ne: 'deleted' },
+    })
+
+    res.json({
+      success: true,
+      data: {
+        totalUnverified,
+        usersNeedingReminder,
+        usersToDelete,
+        nextReminderDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 明天凌晨2點
+        nextDeletionDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 明天凌晨3點
+      },
+    })
+  } catch (error) {
+    console.error('getUnverifiedUsersStats 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '獲取未驗證用戶統計資訊失敗',
     })
   }
 }

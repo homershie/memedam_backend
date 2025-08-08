@@ -14,6 +14,9 @@ import {
   changeEmail, // 新增電子信箱變更
   unbindSocialAccount, // 新增社群帳號解除綁定
   searchUsers, // 新增用戶搜索
+  sendDeletionReminders, // 新增刪除提醒任務
+  deleteUnverifiedUsers, // 新增刪除未驗證用戶任務
+  getUnverifiedUsersStats, // 新增未驗證用戶統計
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -906,5 +909,100 @@ router.get(
     }
   },
 )
+
+// 管理員專用路由 - 用戶清理相關
+/**
+ * @swagger
+ * /api/users/admin/send-deletion-reminders:
+ *   post:
+ *     summary: 手動執行刪除提醒任務 (管理員專用)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     description: 發送提醒 email 給註冊超過11個月但未驗證的用戶
+ *     responses:
+ *       200:
+ *         description: 刪除提醒任務執行成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ * /api/users/admin/delete-unverified-users:
+ *   post:
+ *     summary: 手動執行刪除未驗證用戶任務 (管理員專用)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     description: 刪除註冊超過一年但未驗證的用戶
+ *     responses:
+ *       200:
+ *         description: 刪除未驗證用戶任務執行成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ * /api/users/admin/unverified-stats:
+ *   get:
+ *     summary: 獲取未驗證用戶統計資訊 (管理員專用)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     description: 獲取未驗證用戶的統計資訊，包括需要提醒和刪除的用戶數量
+ *     responses:
+ *       200:
+ *         description: 成功獲取統計資訊
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalUnverified:
+ *                       type: integer
+ *                       description: 總未驗證用戶數量
+ *                     usersNeedingReminder:
+ *                       type: integer
+ *                       description: 需要發送提醒的用戶數量
+ *                     usersToDelete:
+ *                       type: integer
+ *                       description: 需要刪除的用戶數量
+ *                     nextReminderDate:
+ *                       type: string
+ *                       format: date-time
+ *                       description: 下次提醒執行時間
+ *                     nextDeletionDate:
+ *                       type: string
+ *                       format: date-time
+ *                       description: 下次刪除執行時間
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ */
+router.post('/admin/send-deletion-reminders', token, sendDeletionReminders)
+router.post('/admin/delete-unverified-users', token, deleteUnverifiedUsers)
+router.get('/admin/unverified-stats', token, getUnverifiedUsersStats)
 
 export default router
