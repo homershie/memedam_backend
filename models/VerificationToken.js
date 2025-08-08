@@ -24,7 +24,6 @@ const VerificationTokenSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
-      index: { expireAfterSeconds: 0 }, // MongoDB TTL 索引，自動刪除過期文檔
     },
     createdAt: {
       type: Date,

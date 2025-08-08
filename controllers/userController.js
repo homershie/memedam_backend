@@ -11,6 +11,7 @@ import {
 import { logger } from '../utils/logger.js'
 import EmailService from '../utils/emailService.js'
 import VerificationController from './verificationController.js'
+import { deleteCloudinaryImage } from '../utils/deleteImg.js'
 
 // 建立新使用者
 export const createUser = async (req, res) => {
@@ -156,6 +157,18 @@ export const updateUser = async (req, res) => {
   session.startTransaction()
 
   try {
+    // 檢查是否要更新頭像
+    const isUpdatingAvatar = req.body.avatar !== undefined
+    let oldAvatarUrl = null
+
+    // 如果要更新頭像，先取得舊的頭像 URL
+    if (isUpdatingAvatar) {
+      const currentUser = await User.findById(req.params.id).session(session)
+      if (currentUser && currentUser.avatar) {
+        oldAvatarUrl = currentUser.avatar
+      }
+    }
+
     const user = await User.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
@@ -169,6 +182,17 @@ export const updateUser = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 如果更新了頭像且有舊的頭像 URL，刪除舊的 Cloudinary 圖片
+    if (isUpdatingAvatar && oldAvatarUrl && oldAvatarUrl !== user.avatar) {
+      try {
+        await deleteCloudinaryImage(oldAvatarUrl)
+        console.log('成功刪除舊頭像:', oldAvatarUrl)
+      } catch (deleteError) {
+        console.error('刪除舊頭像失敗:', deleteError)
+        // 不影響主要操作，只記錄錯誤
+      }
+    }
 
     res.json({ success: true, user })
   } catch (error) {
@@ -239,6 +263,17 @@ export const deleteUser = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 如果用戶有頭像，刪除 Cloudinary 圖片
+    if (user.avatar) {
+      try {
+        await deleteCloudinaryImage(user.avatar)
+        console.log('成功刪除用戶頭像:', user.avatar)
+      } catch (deleteError) {
+        console.error('刪除用戶頭像失敗:', deleteError)
+        // 不影響主要操作，只記錄錯誤
+      }
+    }
 
     res.json({ success: true, message: '使用者已刪除' })
   } catch {
@@ -353,6 +388,18 @@ export const updateMe = async (req, res) => {
   session.startTransaction()
 
   try {
+    // 檢查是否要更新頭像
+    const isUpdatingAvatar = req.body.avatar !== undefined
+    let oldAvatarUrl = null
+
+    // 如果要更新頭像，先取得舊的頭像 URL
+    if (isUpdatingAvatar) {
+      const currentUser = await User.findById(req.user._id).session(session)
+      if (currentUser && currentUser.avatar) {
+        oldAvatarUrl = currentUser.avatar
+      }
+    }
+
     const user = await User.findByIdAndUpdate(req.user._id, req.body, {
       new: true,
       runValidators: true,
@@ -366,6 +413,17 @@ export const updateMe = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 如果更新了頭像且有舊的頭像 URL，刪除舊的 Cloudinary 圖片
+    if (isUpdatingAvatar && oldAvatarUrl && oldAvatarUrl !== user.avatar) {
+      try {
+        await deleteCloudinaryImage(oldAvatarUrl)
+        console.log('成功刪除舊頭像:', oldAvatarUrl)
+      } catch (deleteError) {
+        console.error('刪除舊頭像失敗:', deleteError)
+        // 不影響主要操作，只記錄錯誤
+      }
+    }
 
     res.json({ success: true, user })
   } catch (error) {
@@ -436,6 +494,17 @@ export const deleteMe = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 如果用戶有頭像，刪除 Cloudinary 圖片
+    if (user.avatar) {
+      try {
+        await deleteCloudinaryImage(user.avatar)
+        console.log('成功刪除用戶頭像:', user.avatar)
+      } catch (deleteError) {
+        console.error('刪除用戶頭像失敗:', deleteError)
+        // 不影響主要操作，只記錄錯誤
+      }
+    }
 
     res.json({ success: true, message: '使用者已刪除' })
   } catch {

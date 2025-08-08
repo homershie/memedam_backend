@@ -274,44 +274,44 @@ app.use(errorHandler)
 const PORT = process.env.PORT || 4000
 
 // 調試函數：列印所有註冊的路徑
-const printAllRoutes = (app) => {
-  logger.info('=== 註冊的路徑列表 ===')
+// const printAllRoutes = (app) => {
+//   logger.info('=== 註冊的路徑列表 ===')
 
-  try {
-    const printRoutes = (stack, prefix = '') => {
-      if (!stack || !Array.isArray(stack)) {
-        return
-      }
+//   try {
+//     const printRoutes = (stack, prefix = '') => {
+//       if (!stack || !Array.isArray(stack)) {
+//         return
+//       }
 
-      stack.forEach((layer) => {
-        if (layer.route) {
-          // 這是一個路由層
-          const methods = Object.keys(layer.route.methods)
-          const path = prefix + layer.route.path
-          logger.info(`${methods.join(',').toUpperCase()} ${path}`)
-        } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
-          // 這是一個路由器層
-          const regexp = layer.regexp && layer.regexp.source ? layer.regexp.source : ''
-          const cleaned = regexp.replace('^\\/', '').replace('\\/?(?=\\/|$)', '')
-          const newPrefix = prefix + cleaned
-          printRoutes(layer.handle.stack, newPrefix)
-        }
-      })
-    }
+//       stack.forEach((layer) => {
+//         if (layer.route) {
+//           // 這是一個路由層
+//           const methods = Object.keys(layer.route.methods)
+//           const path = prefix + layer.route.path
+//           logger.info(`${methods.join(',').toUpperCase()} ${path}`)
+//         } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
+//           // 這是一個路由器層
+//           const regexp = layer.regexp && layer.regexp.source ? layer.regexp.source : ''
+//           const cleaned = regexp.replace('^\\/', '').replace('\\/?(?=\\/|$)', '')
+//           const newPrefix = prefix + cleaned
+//           printRoutes(layer.handle.stack, newPrefix)
+//         }
+//       })
+//     }
 
-    const routerStack = (app._router && app._router.stack) || (app.router && app.router.stack)
+//     const routerStack = (app._router && app._router.stack) || (app.router && app.router.stack)
 
-    if (routerStack) {
-      printRoutes(routerStack)
-    } else {
-      logger.info('無法取得路由資訊')
-    }
-  } catch (error) {
-    logger.error('列印路由時發生錯誤:', error)
-  }
+//     if (routerStack) {
+//       printRoutes(routerStack)
+//     } else {
+//       logger.info('無法取得路由資訊')
+//     }
+//   } catch (error) {
+//     logger.error('列印路由時發生錯誤:', error)
+//   }
 
-  logger.info('=== 路徑列表結束 ===')
-}
+//   logger.info('=== 路徑列表結束 ===')
+// }
 
 const startServer = async () => {
   try {
@@ -364,7 +364,7 @@ const startServer = async () => {
     }
 
     // 列印所有註冊的路徑（調試用）
-    printAllRoutes(app)
+    // printAllRoutes(app) // 已停用路徑列表顯示
 
     app.listen(PORT, () => {
       logger.info(`伺服器運行在端口 ${PORT}`)
