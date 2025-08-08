@@ -120,7 +120,7 @@ class VerificationController {
       }
 
       // 產生新的驗證 token
-      const verificationToken = await this.generateVerificationToken(
+      const verificationToken = await VerificationController.generateVerificationToken(
         user._id,
         'email_verification',
         24, // 24 小時過期
@@ -300,7 +300,7 @@ class VerificationController {
       }
 
       // 產生新的驗證 token
-      const verificationToken = await this.generateVerificationToken(
+      const verificationToken = await VerificationController.generateVerificationToken(
         user._id,
         'email_verification',
         24, // 24 小時過期

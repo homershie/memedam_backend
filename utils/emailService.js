@@ -74,16 +74,16 @@ class EmailService {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
       /* 基本 reset 與行動端排版 */
-      body { margin:0; padding:0; background:#f6f7f9; -webkit-text-size-adjust:100%; }
+      body { margin:0; padding:0; background:#f6f7f9; -webkit-text-size-adjust:100%; padding:24px 0; }
       table { border-collapse:collapse; }
-      .container { width:100%; background:#f6f7f9; padding:24px 0; }
+      .container { width:100%;}
       .card { max-width:560px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; }
       .logo {display:inline-block;margin-right:8px}
       .header { padding:24px 32px; font-family:Arial, Helvetica, sans-serif; background:#111827; color:#fff; }
       .brand { display:inline-block;font-size:20px; font-weight:700; letter-spacing:.3px; color:white}
       .content { padding:28px 32px; font-family:Arial, Helvetica, sans-serif; color:#111827; line-height:1.6; }
       .button { display:inline-block; padding:12px 20px; border-radius:10px; text-decoration:none; 
-                font-weight:700; background:#ff3399; color:#111827; }
+                font-weight:700; background:#ff3399; color:white !important; }
       .muted { color:#6b7280; font-size:12px; }
       .divider { height:1px; background:#e5e7eb; margin:24px 0; }
       .footer { padding:18px 32px 28px; font-family:Arial, Helvetica, sans-serif; color:#6b7280; font-size:12px; }
@@ -94,7 +94,7 @@ class EmailService {
         .content, .footer { color:#d1d5db; }
         .muted { color:#9ca3af; }
         .header { background:#0b0c0f; }
-        .button { background:#ff3399; color:#0b0c0f; }
+        .button { background:#ff3399; color:white !important; }
         .divider { background:#1f2937; }
       }
     </style>
