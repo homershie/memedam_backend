@@ -21,7 +21,10 @@ export const NOTIFICATION_TYPES = {
 const checkNotificationPermission = async (userId, notificationType) => {
   try {
     const user = await User.findById(userId, 'notificationSettings')
-    if (!user) return false
+    if (!user) {
+      console.log(`用戶 ${userId} 不存在，跳過通知發送`)
+      return false
+    }
 
     const settings = user.notificationSettings || {}
 
@@ -43,7 +46,8 @@ const checkNotificationPermission = async (userId, notificationType) => {
     }
   } catch (error) {
     console.error('檢查通知權限失敗:', error)
-    return false // 出錯時不發送通知
+    // 出錯時預設允許發送通知，避免因為權限檢查失敗而丟失重要通知
+    return true
   }
 }
 
@@ -111,7 +115,7 @@ export const createNewFollowerNotification = async (followedUserId, followerUser
       type: NOTIFICATION_TYPES.NEW_FOLLOWER,
       title: '新追蹤者',
       content: `${followerName} 開始追蹤您了`,
-      url: `/profile/${follower.username}`,
+      url: `https://memedex.com/users/${follower.username}`,
       meta: {
         follower_id: followerUserId,
         follower_username: follower.username,
@@ -155,7 +159,7 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
       type: NOTIFICATION_TYPES.NEW_COMMENT,
       title: '新留言',
       content: `${commenterName} 對您的迷因留言：${truncatedContent}`,
-      url: `/meme/${memeId}`,
+      url: `https://memedex.com/meme/details/${memeId}`,
       meta: {
         meme_id: memeId,
         comment_user_id: commentUserId,
@@ -175,38 +179,60 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
  */
 export const createNewLikeNotification = async (memeId, likerUserId) => {
   try {
+    console.log(`開始創建按讚通知: memeId=${memeId}, likerUserId=${likerUserId}`)
+
     // 獲取迷因信息和作者
     const meme = await Meme.findById(memeId, 'author_id title').populate(
       'author_id',
       'username display_name',
     )
-    if (!meme || !meme.author_id) return
+    if (!meme || !meme.author_id) {
+      console.log(`迷因不存在或無作者: memeId=${memeId}`)
+      return
+    }
 
     // 不給自己發送通知
-    if (meme.author_id._id.toString() === likerUserId.toString()) return
+    if (meme.author_id._id.toString() === likerUserId.toString()) {
+      console.log(`跳過自己給自己的通知: authorId=${meme.author_id._id}, likerId=${likerUserId}`)
+      return
+    }
 
     // 獲取按讚者信息
     const liker = await User.findById(likerUserId, 'username display_name')
-    if (!liker) return
+    if (!liker) {
+      console.log(`按讚者不存在: likerUserId=${likerUserId}`)
+      return
+    }
 
     const likerName = liker.display_name || liker.username
     const memeTitle = meme.title || '您的迷因'
 
-    await createNotification({
+    console.log(
+      `準備發送通知給用戶: ${meme.author_id._id}, 內容: ${likerName} 按讚了您的迷因「${memeTitle}」`,
+    )
+
+    const notification = await createNotification({
       user_id: meme.author_id._id,
       sender_id: likerUserId,
       type: NOTIFICATION_TYPES.NEW_LIKE,
       title: '新按讚',
       content: `${likerName} 按讚了您的迷因「${memeTitle}」`,
-      url: `/meme/${memeId}`,
+      url: `https://memedex.com/meme/details/${memeId}`,
       meta: {
         meme_id: memeId,
         liker_user_id: likerUserId,
       },
       priority: 2,
     })
+
+    if (notification) {
+      console.log(`按讚通知創建成功: notificationId=${notification._id}`)
+    } else {
+      console.log(`按讚通知創建失敗: 可能是權限問題`)
+    }
   } catch (error) {
     console.error('創建新按讚通知失敗:', error)
+    // 不要拋出錯誤，避免影響按讚操作
   }
 }
 
@@ -248,7 +274,7 @@ export const createMentionNotifications = async (
       if (mentionedUser._id.toString() === mentionerUserId.toString()) continue
 
       let notificationContent = `${mentionerName} 在${contextType === 'comment' ? '留言' : '內容'}中提及了您`
-      let url = memeId ? `/meme/${memeId}` : '/'
+      let url = memeId ? `https://memedex.com/meme/details/${memeId}` : 'https://memedex.com/'
 
       await createNotification({
         user_id: mentionedUser._id,

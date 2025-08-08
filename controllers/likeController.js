@@ -39,9 +39,14 @@ export const createLike = async (req, res) => {
     })
 
     // 創建按讚通知（在事務外執行）
-    createNewLikeNotification(meme_id, req.user._id).catch(error => {
-      console.error('發送按讚通知失敗:', error)
-    })
+    createNewLikeNotification(meme_id, req.user._id)
+      .then(() => {
+        console.log(`按讚通知創建完成: memeId=${meme_id}, userId=${req.user._id}`)
+      })
+      .catch((error) => {
+        console.error('發送按讚通知失敗:', error)
+        // 不影響按讚操作的成功回應
+      })
 
     res.status(201).json({ success: true, data: result, error: null })
   } catch (err) {
@@ -128,9 +133,14 @@ export const toggleLike = async (req, res) => {
 
     // 如果是新增讚，創建通知（在事務外執行）
     if (result.action === 'added') {
-      createNewLikeNotification(meme_id, user_id).catch(error => {
-        console.error('發送按讚通知失敗:', error)
-      })
+      createNewLikeNotification(meme_id, user_id)
+        .then(() => {
+          console.log(`切換按讚通知創建完成: memeId=${meme_id}, userId=${user_id}`)
+        })
+        .catch((error) => {
+          console.error('發送切換按讚通知失敗:', error)
+          // 不影響按讚操作的成功回應
+        })
     }
 
     return res.json({ success: true, ...result })
