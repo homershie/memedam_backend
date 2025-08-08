@@ -4,6 +4,7 @@ import { StatusCodes } from 'http-status-codes'
 import crypto from 'crypto'
 import { logger } from '../utils/logger.js'
 import EmailService from '../utils/emailService.js'
+import mongoose from 'mongoose'
 
 /**
  * 驗證控制器
@@ -102,12 +103,12 @@ class VerificationController {
         })
       }
 
-      // 檢查是否有未過期的驗證 token
+      // 檢查是否有未過期的驗證 token - 使用 mongoose.trusted 避免日期 CastError
       const existingToken = await VerificationToken.findOne({
         userId: user._id,
         type: 'email_verification',
         used: false,
-        expiresAt: { $gt: new Date() },
+        expiresAt: mongoose.trusted({ $gt: new Date() }),
       }).session(session)
 
       if (existingToken) {
@@ -173,12 +174,12 @@ class VerificationController {
         })
       }
 
-      // 查找並驗證 token
+      // 查找並驗證 token - 使用 mongoose.trusted 避免日期 CastError
       const verificationToken = await VerificationToken.findOne({
         token,
         type: 'email_verification',
         used: false,
-        expiresAt: { $gt: new Date() },
+        expiresAt: mongoose.trusted({ $gt: new Date() }),
       }).session(session)
 
       if (!verificationToken) {
@@ -282,12 +283,12 @@ class VerificationController {
         })
       }
 
-      // 檢查是否有未過期的驗證 token
+      // 檢查是否有未過期的驗證 token - 使用 mongoose.trusted 避免日期 CastError
       const existingToken = await VerificationToken.findOne({
         userId: user._id,
         type: 'email_verification',
         used: false,
-        expiresAt: { $gt: new Date() },
+        expiresAt: mongoose.trusted({ $gt: new Date() }),
       }).session(session)
 
       if (existingToken) {

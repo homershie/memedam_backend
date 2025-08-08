@@ -1,4 +1,13 @@
 import mongoose from 'mongoose'
+import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+// 載入環境變數
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+dotenv.config({ path: path.join(__dirname, '../../.env') })
+
 import User from '../../models/User.js'
 import VerificationToken from '../../models/VerificationToken.js'
 import VerificationController from '../../controllers/verificationController.js'
@@ -48,13 +57,13 @@ async function testVerificationSystem() {
       logger.error('Token 儲存失敗')
     }
 
-    // 3. 測試 token 驗證
+    // 3. 測試 token 驗證 - 使用 mongoose.trusted 避免日期 CastError
     logger.info('3. 測試 token 驗證')
     const validToken = await VerificationToken.findOne({
       token,
       type: 'email_verification',
       used: false,
-      expiresAt: { $gt: new Date() },
+      expiresAt: mongoose.trusted({ $gt: new Date() }),
     })
 
     if (validToken) {
@@ -90,13 +99,13 @@ async function testVerificationSystem() {
     await expiredToken.save()
     logger.info('過期 token 已創建')
 
-    // 6. 測試 rate limit 邏輯
+    // 6. 測試 rate limit 邏輯 - 使用 mongoose.trusted 避免日期 CastError
     logger.info('6. 測試 rate limit 邏輯')
     const existingToken = await VerificationToken.findOne({
       userId: user._id,
       type: 'email_verification',
       used: false,
-      expiresAt: { $gt: new Date() },
+      expiresAt: mongoose.trusted({ $gt: new Date() }),
     })
 
     if (existingToken) {
@@ -111,23 +120,26 @@ async function testVerificationSystem() {
   }
 }
 
-// 如果直接執行此檔案
-if (import.meta.url === `file://${process.argv[1]}`) {
-  // 連接到資料庫
-  mongoose
-    .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/memedam')
-    .then(() => {
-      logger.info('資料庫連接成功')
-      return testVerificationSystem()
-    })
-    .then(() => {
-      logger.info('測試完成')
-      process.exit(0)
-    })
-    .catch((error) => {
-      logger.error('測試失敗:', error)
-      process.exit(1)
-    })
+// 連接到資料庫並執行測試
+async function runTest() {
+  try {
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/memedam'
+    logger.info(`連接到資料庫: ${mongoUri}`)
+
+    await mongoose.connect(mongoUri)
+    logger.info('資料庫連接成功')
+
+    await testVerificationSystem()
+
+    logger.info('測試完成')
+    process.exit(0)
+  } catch (error) {
+    logger.error('測試失敗:', error)
+    process.exit(1)
+  } finally {
+    await mongoose.disconnect()
+  }
 }
 
-export { testVerificationSystem }
+// 直接執行測試
+runTest()

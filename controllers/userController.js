@@ -948,12 +948,12 @@ export const forgotPassword = async (req, res) => {
       })
     }
 
-    // 檢查是否有未過期的密碼重設 token
+    // 檢查是否有未過期的密碼重設 token - 使用 mongoose.trusted 避免日期 CastError
     const existingToken = await VerificationToken.findOne({
       userId: user._id,
       type: 'password_reset',
       used: false,
-      expiresAt: { $gt: new Date() },
+      expiresAt: mongoose.trusted({ $gt: new Date() }),
     }).session(session)
 
     if (existingToken) {
@@ -1024,12 +1024,12 @@ export const resetPassword = async (req, res) => {
       })
     }
 
-    // 查找並驗證 token
+    // 查找並驗證 token - 使用 mongoose.trusted 避免日期 CastError
     const verificationToken = await VerificationToken.findOne({
       token,
       type: 'password_reset',
       used: false,
-      expiresAt: { $gt: new Date() },
+      expiresAt: mongoose.trusted({ $gt: new Date() }),
     }).session(session)
 
     if (!verificationToken) {
