@@ -766,7 +766,7 @@ router.get('/bind-status', token, getBindStatus)
  *                 description: 目前密碼
  *     responses:
  *       200:
- *         description: 電子信箱變更成功
+ *         description: 電子信箱變更成功，驗證信已發送
  *         content:
  *           application/json:
  *             schema:
@@ -776,6 +776,10 @@ router.get('/bind-status', token, getBindStatus)
  *                   type: boolean
  *                 message:
  *                   type: string
+ *                   description: 成功訊息，包含驗證信發送提示
+ *                 emailSent:
+ *                   type: boolean
+ *                   description: 驗證信是否成功發送
  *       400:
  *         description: 請求參數錯誤或新電子信箱與目前相同
  *       401:
@@ -1009,7 +1013,7 @@ router.get(
 router.get('/bind-auth/:provider', token, initBindAuth)
 
 // OAuth 授權初始化（重定向到社群平台）
-router.get('/bind-auth/:provider/init', token, (req, res) => {
+router.get('/bind-auth/:provider/init', (req, res) => {
   const { provider } = req.params
   const { state } = req.query
 

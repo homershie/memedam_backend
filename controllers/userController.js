@@ -733,15 +733,38 @@ export const changeEmail = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
+    // 在事務提交後發送驗證 email（避免在事務中發送 email）
+    let verificationToken = null
+    try {
+      verificationToken = await VerificationController.generateVerificationToken(
+        user._id,
+        'email_verification',
+        24, // 24 小時過期
+      )
+
+      // 發送驗證 email
+      await EmailService.sendVerificationEmail(
+        newEmail.toLowerCase(),
+        verificationToken,
+        user.username,
+      )
+
+      logger.info(`電子信箱變更驗證 email 已發送給用戶 ${user._id} 到 ${newEmail}`)
+    } catch (emailError) {
+      logger.error('發送電子信箱變更驗證 email 失敗:', emailError)
+      // 即使 email 發送失敗，仍然回傳成功，但記錄錯誤
+    }
+
     res.json({
       success: true,
-      message: '電子信箱已成功變更，請重新驗證',
+      message: '電子信箱已成功變更，驗證信已發送到您的新信箱，請檢查並點擊驗證連結來完成驗證。',
+      emailSent: !!verificationToken,
     })
   } catch (error) {
     // 回滾事務
     await session.abortTransaction()
 
-    console.error('changeEmail 錯誤:', error)
+    logger.error('changeEmail 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '伺服器錯誤',
@@ -1154,7 +1177,6 @@ export const resetPassword = async (req, res) => {
 
 // OAuth 綁定相關函數
 import crypto from 'crypto'
-import passport from 'passport'
 
 // 生成 state 參數用於防止 CSRF 攻擊
 const generateState = () => {
@@ -1197,23 +1219,6 @@ export const initBindAuth = async (req, res) => {
     req.session.oauthState = state
     req.session.bindUserId = userId.toString()
     req.session.bindProvider = provider
-
-    // 根據不同的 provider 設定不同的 scope
-    let scope = []
-    switch (provider) {
-      case 'google':
-        scope = ['profile', 'email']
-        break
-      case 'facebook':
-        scope = ['email']
-        break
-      case 'discord':
-        scope = ['identify', 'email']
-        break
-      case 'twitter':
-        scope = ['tweet.read', 'users.read']
-        break
-    }
 
     // 重定向到 OAuth 授權頁面
     const authUrl = `/api/users/bind-auth/${provider}/init?state=${state}`
