@@ -19,6 +19,9 @@ import {
   getUnverifiedUsersStats, // 新增未驗證用戶統計
   forgotPassword, // 新增忘記密碼
   resetPassword, // 新增重設密碼
+  initBindAuth, // 新增 OAuth 綁定初始化
+  handleBindAuthCallback, // 新增 OAuth 綁定回調處理
+  getBindStatus, // 新增獲取綁定狀態
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -1000,6 +1003,82 @@ router.get(
       res.redirect('/login?error=server_error')
     }
   },
+)
+
+// ========== OAuth 綁定專用端點 ==========
+
+// 獲取綁定狀態
+router.get('/bind-status', token, getBindStatus)
+
+// 初始化 OAuth 綁定流程
+router.get('/bind-auth/:provider', token, initBindAuth)
+
+// OAuth 授權初始化（重定向到社群平台）
+router.get('/bind-auth/:provider/init', token, (req, res) => {
+  const { provider } = req.params
+  const { state } = req.query
+
+  // 根據不同的 provider 設定不同的 scope
+  let scope = []
+  switch (provider) {
+    case 'google':
+      scope = ['profile', 'email']
+      break
+    case 'facebook':
+      scope = ['email']
+      break
+    case 'discord':
+      scope = ['identify', 'email']
+      break
+    case 'twitter':
+      scope = ['tweet.read', 'users.read']
+      break
+  }
+
+  // 重定向到對應的 OAuth 策略
+  const strategyName = `${provider}-bind`
+  passport.authenticate(strategyName, {
+    scope,
+    state,
+  })(req, res)
+})
+
+// Google OAuth 綁定
+router.get(
+  '/bind-auth/google/callback',
+  passport.authenticate('google-bind', {
+    scope: ['profile', 'email'],
+    state: (req) => req.query.state,
+  }),
+  handleBindAuthCallback,
+)
+
+// Facebook OAuth 綁定
+router.get(
+  '/bind-auth/facebook/callback',
+  passport.authenticate('facebook-bind', {
+    scope: ['email'],
+    state: (req) => req.query.state,
+  }),
+  handleBindAuthCallback,
+)
+
+// Discord OAuth 綁定
+router.get(
+  '/bind-auth/discord/callback',
+  passport.authenticate('discord-bind', {
+    state: (req) => req.query.state,
+  }),
+  handleBindAuthCallback,
+)
+
+// Twitter OAuth 綁定
+router.get(
+  '/bind-auth/twitter/callback',
+  passport.authenticate('twitter-oauth2-bind', {
+    state: (req) => req.query.state,
+  }),
+  handleBindAuthCallback,
 )
 
 // 管理員專用路由 - 用戶清理相關

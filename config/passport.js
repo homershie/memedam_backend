@@ -152,9 +152,10 @@ const initializeJWTStrategy = () => {
 
 // 延遲初始化 OAuth 策略
 const initializeOAuthStrategies = () => {
-  // Google
+  // Google - 登入用
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     passport.use(
+      'google',
       new GoogleStrategy(
         {
           clientID: process.env.GOOGLE_CLIENT_ID,
@@ -187,11 +188,33 @@ const initializeOAuthStrategies = () => {
         },
       ),
     )
+
+    // Google - 綁定用
+    passport.use(
+      'google-bind',
+      new GoogleStrategy(
+        {
+          clientID: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          callbackURL: process.env.GOOGLE_BIND_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI,
+          passReqToCallback: true,
+        },
+        async (req, accessToken, refreshToken, profile, done) => {
+          try {
+            // 綁定流程中，我們只需要 profile 資訊
+            return done(null, { profile, provider: 'google' })
+          } catch (err) {
+            return done(err, null)
+          }
+        },
+      ),
+    )
   }
 
-  // Facebook
+  // Facebook - 登入用
   if (process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET) {
     passport.use(
+      'facebook',
       new FacebookStrategy(
         {
           clientID: process.env.FACEBOOK_CLIENT_ID,
@@ -224,11 +247,32 @@ const initializeOAuthStrategies = () => {
         },
       ),
     )
+
+    // Facebook - 綁定用
+    passport.use(
+      'facebook-bind',
+      new FacebookStrategy(
+        {
+          clientID: process.env.FACEBOOK_CLIENT_ID,
+          clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+          callbackURL: process.env.FACEBOOK_BIND_REDIRECT_URI || process.env.FACEBOOK_REDIRECT_URI,
+          passReqToCallback: true,
+        },
+        async (req, accessToken, refreshToken, profile, done) => {
+          try {
+            return done(null, { profile, provider: 'facebook' })
+          } catch (err) {
+            return done(err, null)
+          }
+        },
+      ),
+    )
   }
 
-  // Discord
+  // Discord - 登入用
   if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
     passport.use(
+      'discord',
       new DiscordStrategy(
         {
           clientID: process.env.DISCORD_CLIENT_ID,
@@ -261,9 +305,29 @@ const initializeOAuthStrategies = () => {
         },
       ),
     )
+
+    // Discord - 綁定用
+    passport.use(
+      'discord-bind',
+      new DiscordStrategy(
+        {
+          clientID: process.env.DISCORD_CLIENT_ID,
+          clientSecret: process.env.DISCORD_CLIENT_SECRET,
+          callbackURL: process.env.DISCORD_BIND_REDIRECT_URI || process.env.DISCORD_REDIRECT_URI,
+          passReqToCallback: true,
+        },
+        async (req, accessToken, refreshToken, profile, done) => {
+          try {
+            return done(null, { profile, provider: 'discord' })
+          } catch (err) {
+            return done(err, null)
+          }
+        },
+      ),
+    )
   }
 
-  // Twitter
+  // Twitter - 登入用
   if (process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET) {
     passport.use(
       'twitter-oauth2',
@@ -293,6 +357,26 @@ const initializeOAuthStrategies = () => {
               }
               return done(null, user)
             }
+          } catch (err) {
+            return done(err, null)
+          }
+        },
+      ),
+    )
+
+    // Twitter - 綁定用
+    passport.use(
+      'twitter-oauth2-bind',
+      new TwitterStrategy(
+        {
+          clientID: process.env.TWITTER_CLIENT_ID,
+          clientSecret: process.env.TWITTER_CLIENT_SECRET,
+          callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
+          passReqToCallback: true,
+        },
+        async (req, accessToken, refreshToken, profile, done) => {
+          try {
+            return done(null, { profile, provider: 'twitter' })
           } catch (err) {
             return done(err, null)
           }

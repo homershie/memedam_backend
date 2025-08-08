@@ -129,6 +129,15 @@ RATE_LIMIT_MAX=100
 | GET  | `/users/auth/discord`  | Discord OAuth  |
 | GET  | `/users/auth/twitter`  | Twitter OAuth  |
 
+#### OAuth 社群帳號綁定
+
+| 方法 | 端點                                  | 功能                  |
+| ---- | ------------------------------------- | --------------------- |
+| GET  | `/users/bind-status`                  | 獲取綁定狀態          |
+| GET  | `/users/bind-auth/:provider`          | 初始化 OAuth 綁定流程 |
+| GET  | `/users/bind-auth/:provider/init`     | OAuth 授權初始化      |
+| GET  | `/users/bind-auth/:provider/callback` | OAuth 綁定回調        |
+
 ---
 
 ### 🎭 迷因管理 (`/memes`)

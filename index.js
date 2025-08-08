@@ -12,6 +12,7 @@ import morgan from 'morgan'
 import passport from 'passport'
 import mongoose from 'mongoose'
 import fs from 'fs'
+import session from 'express-session'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
 import swaggerSpecs from './config/swagger.js'
@@ -40,8 +41,23 @@ app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
+// Session 配置
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your-session-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 小時
+    },
+  }),
+)
+
 // Passport 初始化
 app.use(passport.initialize())
+app.use(passport.session())
 
 // 日誌中間件
 app.use(morgan('combined', { stream: accessLogStream }))

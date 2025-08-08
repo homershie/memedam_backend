@@ -1151,3 +1151,243 @@ export const resetPassword = async (req, res) => {
     session.endSession()
   }
 }
+
+// OAuth 綁定相關函數
+import crypto from 'crypto'
+import passport from 'passport'
+
+// 生成 state 參數用於防止 CSRF 攻擊
+const generateState = () => {
+  return crypto.randomBytes(32).toString('hex')
+}
+
+// 驗證 state 參數
+const validateState = (state, session) => {
+  return session && session.oauthState === state
+}
+
+// 初始化 OAuth 綁定流程
+export const initBindAuth = async (req, res) => {
+  try {
+    const { provider } = req.params
+    const userId = req.user._id
+
+    // 支援的 provider
+    const validProviders = ['google', 'facebook', 'discord', 'twitter']
+    if (!validProviders.includes(provider)) {
+      return res.status(400).json({ success: false, message: '不支援的社群平台' })
+    }
+
+    // 檢查用戶是否已經綁定了該平台
+    const user = await User.findById(userId)
+    if (user[`${provider}_id`]) {
+      return res.status(409).json({
+        success: false,
+        message: `您已經綁定了 ${provider} 帳號`,
+      })
+    }
+
+    // 生成 state 參數
+    const state = generateState()
+
+    // 將 state 和用戶 ID 存儲到 session 中
+    if (!req.session) {
+      req.session = {}
+    }
+    req.session.oauthState = state
+    req.session.bindUserId = userId.toString()
+    req.session.bindProvider = provider
+
+    // 根據不同的 provider 設定不同的 scope
+    let scope = []
+    switch (provider) {
+      case 'google':
+        scope = ['profile', 'email']
+        break
+      case 'facebook':
+        scope = ['email']
+        break
+      case 'discord':
+        scope = ['identify', 'email']
+        break
+      case 'twitter':
+        scope = ['tweet.read', 'users.read']
+        break
+    }
+
+    // 重定向到 OAuth 授權頁面
+    const authUrl = `/api/users/bind-auth/${provider}/init?state=${state}`
+    res.json({
+      success: true,
+      authUrl,
+      state,
+      message: `正在初始化 ${provider} 綁定流程`,
+    })
+  } catch (error) {
+    console.error('初始化 OAuth 綁定錯誤:', error)
+    res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+}
+
+// 處理 OAuth 綁定回調
+export const handleBindAuthCallback = async (req, res) => {
+  try {
+    const { provider } = req.params
+    const { state } = req.query
+
+    // 驗證 state 參數
+    if (!validateState(state, req.session)) {
+      return res.status(400).json({
+        success: false,
+        message: '無效的 state 參數',
+      })
+    }
+
+    // 從 session 中獲取綁定資訊
+    const bindUserId = req.session.bindUserId
+    const bindProvider = req.session.bindProvider
+
+    if (!bindUserId || bindProvider !== provider) {
+      return res.status(400).json({
+        success: false,
+        message: '綁定資訊無效',
+      })
+    }
+
+    // 使用 session 來確保原子性操作
+    const session = await User.startSession()
+    session.startTransaction()
+
+    try {
+      // 獲取用戶資訊
+      const user = await User.findById(bindUserId).session(session)
+      if (!user) {
+        await session.abortTransaction()
+        return res.status(404).json({ success: false, message: '找不到使用者' })
+      }
+
+      // 從 OAuth 回調中獲取社群帳號 ID
+      // 綁定策略會返回 { profile, provider } 格式
+      let socialId = null
+      if (req.user && req.user.profile) {
+        // 綁定策略的結果
+        socialId = req.user.profile.id
+      } else if (req.user && req.user[`${provider}_id`]) {
+        // 登入策略的結果
+        socialId = req.user[`${provider}_id`]
+      } else {
+        socialId = req.query.social_id
+      }
+
+      if (!socialId) {
+        await session.abortTransaction()
+        return res.status(400).json({
+          success: false,
+          message: '無法獲取社群帳號資訊',
+        })
+      }
+
+      // 檢查該社群 ID 是否已被其他帳號綁定
+      const query = {}
+      query[`${provider}_id`] = socialId
+      const existing = await User.findOne(query).session(session)
+      if (existing && existing._id.toString() !== bindUserId) {
+        await session.abortTransaction()
+        return res.status(409).json({
+          success: false,
+          message: '此社群帳號已被其他用戶綁定',
+        })
+      }
+
+      // 綁定社群帳號
+      user[`${provider}_id`] = socialId
+      await user.save({ session })
+
+      // 清理 session
+      delete req.session.oauthState
+      delete req.session.bindUserId
+      delete req.session.bindProvider
+
+      // 提交事務
+      await session.commitTransaction()
+
+      res.json({
+        success: true,
+        message: `成功綁定 ${provider} 帳號`,
+        user: {
+          _id: user._id,
+          username: user.username,
+          email: user.email,
+          [`${provider}_id`]: socialId,
+        },
+      })
+    } catch (error) {
+      // 回滾事務
+      await session.abortTransaction()
+      throw error
+    } finally {
+      // 結束 session
+      session.endSession()
+    }
+  } catch (error) {
+    console.error('OAuth 綁定回調錯誤:', error)
+
+    // 處理重複鍵錯誤
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0]
+      let message = ''
+
+      switch (field) {
+        case 'google_id':
+          message = '此 Google 帳號已被其他使用者綁定'
+          break
+        case 'facebook_id':
+          message = '此 Facebook 帳號已被其他使用者綁定'
+          break
+        case 'discord_id':
+          message = '此 Discord 帳號已被其他使用者綁定'
+          break
+        case 'twitter_id':
+          message = '此 Twitter 帳號已被其他使用者綁定'
+          break
+        default:
+          message = '此社群帳號已被其他使用者綁定'
+      }
+
+      return res.status(409).json({
+        success: false,
+        message,
+      })
+    }
+
+    res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+}
+
+// 獲取綁定狀態
+export const getBindStatus = async (req, res) => {
+  try {
+    const userId = req.user._id
+    const user = await User.findById(userId).select('google_id facebook_id discord_id twitter_id')
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: '找不到使用者' })
+    }
+
+    const bindStatus = {
+      google: !!user.google_id,
+      facebook: !!user.facebook_id,
+      discord: !!user.discord_id,
+      twitter: !!user.twitter_id,
+    }
+
+    res.json({
+      success: true,
+      bindStatus,
+      message: '成功獲取綁定狀態',
+    })
+  } catch (error) {
+    console.error('獲取綁定狀態錯誤:', error)
+    res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+}
