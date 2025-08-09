@@ -439,20 +439,28 @@ const PORT = process.env.PORT || 4000
 
 const startServer = async () => {
   try {
-    // 連線資料庫（暫時跳過以便測試API）
-    try {
-      await connectDB()
-      // 設定 Mongoose 配置
-      mongoose.set('sanitizeFilter', true)
-    } catch (dbError) {
-      logger.warn('資料庫連線失敗，將繼續運行但資料庫功能將受限:', dbError.message)
+    // 連線資料庫（可以透過 SKIP_DB 跳過）
+    if (!process.env.SKIP_DB) {
+      try {
+        await connectDB()
+        // 設定 Mongoose 配置
+        mongoose.set('sanitizeFilter', true)
+      } catch (dbError) {
+        logger.warn('資料庫連線失敗，將繼續運行但資料庫功能將受限:', dbError.message)
+      }
+    } else {
+      logger.info('跳過資料庫連線 (SKIP_DB=true)')
     }
 
-    // 連線 Redis（可選）
-    try {
-      await redisCache.connect()
-    } catch (error) {
-      logger.warn('Redis 連線失敗，將繼續運行但快取功能可能受限:', error.message)
+    // 連線 Redis（可以透過 SKIP_REDIS 跳過）
+    if (!process.env.SKIP_REDIS) {
+      try {
+        await redisCache.connect()
+      } catch (error) {
+        logger.warn('Redis 連線失敗，將繼續運行但快取功能可能受限:', error.message)
+      }
+    } else {
+      logger.info('跳過 Redis 連線 (SKIP_REDIS=true)')
     }
 
     // 配置 Session store（在 Redis 連接後）
