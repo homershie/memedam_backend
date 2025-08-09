@@ -4,6 +4,7 @@ import Follow from '../models/Follow.js'
 import User from '../models/User.js'
 import { executeTransaction } from '../utils/transaction.js'
 import { createNewFollowerNotification } from '../utils/notificationService.js'
+import { logger } from '../utils/logger.js'
 
 // 追隨用戶
 export const followUser = async (req, res) => {
@@ -77,7 +78,7 @@ export const followUser = async (req, res) => {
 
     // 創建新追蹤者通知（在事務外執行，避免阻塞主要流程）
     createNewFollowerNotification(followingId, follower_id).catch(error => {
-      console.error('發送追蹤通知失敗:', error)
+      logger.error({ error, followedId: followingId, followerId: follower_id }, '發送追蹤通知失敗')
     })
 
     res.status(StatusCodes.CREATED).json({
@@ -86,7 +87,7 @@ export const followUser = async (req, res) => {
       ...result,
     })
   } catch (error) {
-    console.error('追隨用戶錯誤:', error)
+    logger.error({ error, followedId: followed_id, followerId: req.user._id }, '追隨用戶錯誤')
 
     if (error.message === '已經追隨過這個用戶') {
       return res.status(StatusCodes.CONFLICT).json({
@@ -150,7 +151,7 @@ export const unfollowUser = async (req, res) => {
       ...result,
     })
   } catch (error) {
-    console.error('取消追隨錯誤:', error)
+    logger.error({ error, followedId: followed_id, followerId: req.user._id }, '取消追隨錯誤')
 
     if (error.message === '尚未追隨這個用戶') {
       return res.status(StatusCodes.NOT_FOUND).json({

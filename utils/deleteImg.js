@@ -1,32 +1,33 @@
 import { v2 as cloudinary } from 'cloudinary'
+import { logger } from './logger.js'
 
 export const deleteCloudinaryImage = async (imageUrl) => {
     
   if (!imageUrl) {
-    console.log('沒有提供圖片 URL')
+    logger.info('沒有提供圖片 URL')
     return
   }
 
-  console.log('準備刪除的圖片 URL:', imageUrl)
+  logger.info({ imageUrl }, '準備刪除的圖片 URL')
 
   try {
     const publicId = extractPublicIdFromUrl(imageUrl)
-    console.log('提取的 public_id:', publicId)
+    logger.info({ publicId }, '提取的 public_id')
 
     if (publicId) {
       const result = await cloudinary.uploader.destroy(publicId)
-      console.log('Cloudinary 刪除結果:', result)
+      logger.info({ result }, 'Cloudinary 刪除結果')
 
       if (result.result === 'ok') {
-        console.log(`成功刪除 Cloudinary 檔案: ${publicId}`)
+        logger.info({ publicId }, '成功刪除 Cloudinary 檔案')
       } else {
-        console.log(`刪除失敗，結果: ${result.result}`)
+        logger.warn({ publicId, result: result.result }, '刪除失敗')
       }
     } else {
-      console.log('無法提取 public_id，跳過刪除')
+      logger.warn({ imageUrl }, '無法提取 public_id，跳過刪除')
     }
   } catch (error) {
-    console.error('刪除 Cloudinary 檔案失敗:', error)
+    logger.error({ error, imageUrl }, '刪除 Cloudinary 檔案失敗')
     throw error
   }
 }
