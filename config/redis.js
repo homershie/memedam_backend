@@ -260,6 +260,24 @@ class RedisCache {
       }
     }
   }
+
+  /**
+   * Redis ping 檢查
+   * @returns {string|false} 如果成功返回 'PONG'，失敗返回 false
+   */
+  async ping() {
+    if (!this.isEnabled || !this.isConnected || !this.client) {
+      return false
+    }
+
+    try {
+      const result = await this.client.ping()
+      return result
+    } catch (error) {
+      logger.error('Redis ping 失敗:', error)
+      return false
+    }
+  }
 }
 
 // 創建單例實例
