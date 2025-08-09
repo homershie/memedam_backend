@@ -149,7 +149,7 @@ app.use('/api/verification/resend', resendVerificationLimiter) // 重新發送�
 // 根路徑歡迎頁面
 app.get('/', (req, res) => {
   res.json({
-    message: '歡迎使用迷因達姆 API',
+    message: '歡迎使用迷因典 API',
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
@@ -167,7 +167,7 @@ app.use(
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpecs, {
     customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: '迷因達姆 API 文檔',
+    customSiteTitle: '迷因典 API 文檔',
     customfavIcon: '/favicon.ico',
     swaggerOptions: {
       docExpansion: 'none',
