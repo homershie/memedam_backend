@@ -12,6 +12,7 @@
 - **智能搜尋**: Fuse.js 模糊搜尋、標籤篩選
 - **資料一致性**: MongoDB 事務處理、自動統計維護
 - **效能優化**: Redis 快取、資料庫索引優化、非同步處理
+- **安全防護**: 完整的限流保護、安全中間件、防暴力攻擊
 
 ### 🏗️ 技術架構
 
@@ -19,17 +20,20 @@
 - **資料庫**: MongoDB + Mongoose
 - **快取系統**: Redis
 - **檔案上傳**: Cloudinary
-- **認證系統**: JWT + Passport.js
+- **認證系統**: JWT + Passport.js (OAuth 社群登入)
 - **搜尋引擎**: Fuse.js
 - **推薦演算法**: 自研混合推薦系統
+- **安全保護**: Helmet + HPP + Rate Limiting
+- **監控系統**: 結構化日誌 + 效能監控
 
 ### 📊 系統統計
 
-- **API 端點**: 100+ 個 RESTful API
-- **資料模型**: 15+ 個 Mongoose 模型
+- **API 端點**: 120+ 個 RESTful API
+- **資料模型**: 18 個 Mongoose 模型
 - **推薦演算法**: 5 種演算法整合
 - **社交功能**: 完整的追隨和影響力系統
 - **監控系統**: 完整的效能監控和 A/B 測試
+- **安全防護**: 多層級限流和安全保護
 
 ## 🔧 環境配置
 
@@ -62,6 +66,12 @@ FACEBOOK_APP_ID=your_facebook_app_id
 FACEBOOK_APP_SECRET=your_facebook_app_secret
 DISCORD_CLIENT_ID=your_discord_client_id
 DISCORD_CLIENT_SECRET=your_discord_client_secret
+TWITTER_CLIENT_ID=your_twitter_client_id
+TWITTER_CLIENT_SECRET=your_twitter_client_secret
+
+# 電子郵件服務 (SendGrid)
+SENDGRID_API_KEY=your_sendgrid_api_key
+FROM_EMAIL=noreply@memedam.com
 
 # 前端URL配置（重要！）
 # 開發環境：http://localhost:5173
@@ -75,8 +85,6 @@ API_BASE_URL=http://localhost:4000
 
 # 其他配置
 CORS_ORIGIN=http://localhost:5173
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX=100
 ```
 
 ### 前端URL配置說明
@@ -125,7 +133,7 @@ RATE_LIMIT_MAX=100
 | POST | `/users/refresh`        | 刷新 Token   | 🔑   |
 | POST | `/users/bind/:provider` | 綁定社群帳號 | 🔑   |
 
-#### OAuth 社群登入
+#### OAuth 社群登入 (完整實作)
 
 | 方法 | 端點                   | 功能           |
 | ---- | ---------------------- | -------------- |
@@ -134,7 +142,7 @@ RATE_LIMIT_MAX=100
 | GET  | `/users/auth/discord`  | Discord OAuth  |
 | GET  | `/users/auth/twitter`  | Twitter OAuth  |
 
-#### OAuth 社群帳號綁定
+#### OAuth 社群帳號綁定 (完整實作)
 
 | 方法 | 端點                                  | 功能                  |
 | ---- | ------------------------------------- | --------------------- |
@@ -341,6 +349,74 @@ RATE_LIMIT_MAX=100
 | POST | `/admin/check-all-user-counts`     | 檢查所有用戶統計 | 👑   |
 | POST | `/admin/run-full-check`            | 手動完整檢查     | 👑   |
 | GET  | `/admin/maintenance-status`        | 維護任務狀態     | 👑   |
+
+---
+
+### 📊 推薦系統 API
+
+| 路徑                                          | 方法 | 功能描述                     | 權限 |
+| --------------------------------------------- | ---- | ---------------------------- | ---- |
+| `/api/recommendations/mixed`                  | GET  | 混合推薦（支援動態權重調整） | 🔑   |
+| `/api/recommendations/hot`                    | GET  | 熱門推薦                     | 🔓   |
+| `/api/recommendations/latest`                 | GET  | 最新推薦                     | 🔓   |
+| `/api/recommendations/trending`               | GET  | 大家都在看的熱門內容         | 🔓   |
+| `/api/recommendations/content-based`          | GET  | 內容基礎推薦                 | 🔑   |
+| `/api/recommendations/collaborative-filtering`| GET  | 協同過濾推薦                 | 🔑   |
+| `/api/recommendations/social-collaborative-filtering` | GET | 社交協同過濾推薦        | 🔑   |
+| `/api/recommendations/infinite-scroll`        | GET  | 無限捲動推薦                 | 🔓   |
+| `/api/recommendations/social-score/:memeId`   | GET  | 社交層分數計算               | 🔑   |
+| `/api/recommendations/algorithm-stats`        | GET  | 推薦演算法統計               | 🔑   |
+| `/api/recommendations/adjust-strategy`        | POST | 動態調整推薦策略             | 🔑   |
+| `/api/recommendations/social-influence-stats` | GET  | 用戶社交影響力統計           | 🔑   |
+
+---
+
+### 📊 分析監控 API
+
+| 路徑                                     | 方法 | 功能描述              | 權限 |
+| ---------------------------------------- | ---- | --------------------- | ---- |
+| `/api/analytics/track-recommendation`    | POST | 記錄推薦展示事件      | 🔑   |
+| `/api/analytics/update-interaction`      | PUT  | 更新用戶互動事件      | 🔑   |
+| `/api/analytics/algorithm-stats`         | GET  | 取得演算法統計        | 🛡️   |
+| `/api/analytics/user-effectiveness`      | GET  | 取得用戶推薦效果分析  | 🔑   |
+| `/api/analytics/dashboard`               | GET  | 取得推薦效果儀表板    | 🛡️   |
+| `/api/analytics/ab-tests`                | POST | 建立 A/B 測試         | 🛡️   |
+| `/api/analytics/ab-tests`                | GET  | 取得 A/B 測試列表     | 🛡️   |
+| `/api/analytics/ab-tests/:testId`        | GET  | 取得 A/B 測試詳細資訊 | 🛡️   |
+| `/api/analytics/ab-tests/:testId/status` | PUT  | 更新 A/B 測試狀態     | 🛡️   |
+
+---
+
+### 📊 瀏覽統計 API
+
+| 路徑                        | 方法   | 功能描述         | 權限 |
+| --------------------------- | ------ | ---------------- | ---- |
+| `/api/views/:meme_id`       | POST   | 記錄瀏覽         | 🔓   |
+| `/api/views/stats/:meme_id` | GET    | 取得迷因瀏覽統計 | 🔓   |
+| `/api/views/history`        | GET    | 取得用戶瀏覽歷史 | 🔑   |
+| `/api/views/popular`        | GET    | 取得熱門迷因     | 🔓   |
+| `/api/views/cleanup`        | DELETE | 清理過期瀏覽記錄 | 👑   |
+
+---
+
+### 🔍 搜尋 API
+
+| 路徑                            | 方法 | 功能描述                 | 權限 |
+| ------------------------------- | ---- | ------------------------ | ---- |
+| `/api/memes`                    | GET  | 基本搜尋（支援 Fuse.js） | 🔓   |
+| `/api/memes/by-tags`            | GET  | 進階標籤篩選搜尋         | 🔓   |
+| `/api/memes/search-suggestions` | GET  | 搜尋建議                 | 🔓   |
+
+---
+
+### 📊 效能監控 API
+
+| 路徑               | 方法   | 功能描述 | 權限 |
+| ------------------ | ------ | -------- | ---- |
+| `/health`          | GET    | 健康檢查 | 🔓   |
+| `/api/performance` | GET    | 效能監控 | 🛡️   |
+| `/api/cache/stats` | GET    | 快取統計 | 🛡️   |
+| `/api/cache/clear` | DELETE | 清除快取 | 🛡️   |
 
 ---
 
@@ -569,6 +645,38 @@ db.views.createIndex({ meme_id: 1, user_id: 1, ip: 1 })
 db.follows.createIndex({ follower_id: 1, following_id: 1 })
 ```
 
+### 安全保護系統
+
+#### Rate Limiting (已完整實作)
+
+```javascript
+// 全域 API 限流
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 分鐘
+  max: (req, res) => (req.user ? 1000 : 200), // 登入用戶更高限制
+})
+
+// 登入限流：每 15 分鐘 5 次
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+})
+
+// 註冊限流：每小時 3 次
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+})
+```
+
+#### 安全中間件
+
+- **Helmet**: HTTP 安全標頭保護
+- **HPP**: HTTP 參數污染防護
+- **Compression**: Gzip 壓縮
+- **CORS**: 跨域資源共享控制
+- **Mongo Sanitize**: NoSQL 注入防護
+
 ### 非同步處理優化
 
 #### 任務隊列管理
@@ -752,307 +860,33 @@ GET /views/popular?page=1&limit=20&period=all
 - `week` - 本週
 - `month` - 本月
 
-## 📋 API 設計注意事項
+## 📋 定期維護系統
 
-以下為本專案 CRUD API 目前設計時需注意的重點與最佳化建議：
+### 自動化任務排程
 
-1. **錯誤處理與回應格式**
-   - 建議統一回應格式，例如 `{ success, data, error }`，方便前端統一處理。
+#### 已實作的維護任務
 
-2. **驗證與權限控管**
-   - 目前 API 尚未加上登入驗證與權限控管，建議針對敏感操作加上 JWT 驗證與權限檢查。
+- **每日凌晨1點**: 檢查迷因統計計數
+- **每日凌晨1點**: 檢查用戶統計計數
+- **每週日凌晨4點**: 進行完整數據檢查
+- **推薦系統更新**: 定期更新協同過濾和內容基礎推薦
+- **熱門分數計算**: 定期更新迷因熱門分數
 
-3. **資料驗證與異常處理**
-   - Model 層有基本 schema 驗證，controller 層可加強進階驗證與更友善的錯誤訊息。
+#### 任務管理 API
 
-### 👥 追隨系統 API
-
-| 路徑                          | 方法 | 功能描述                 | 權限 |
-| ----------------------------- | ---- | ------------------------ | ---- |
-| `/follows/toggle`             | POST | 切換追隨狀態（推薦使用） | 🔑   |
-| `/follows/follow`             | POST | 追隨用戶                 | 🔑   |
-| `/follows/unfollow`           | POST | 取消追隨用戶             | 🔑   |
-| `/follows/status/:user_id`    | GET  | 檢查追隨狀態             | 🔑   |
-| `/follows/following/:user_id` | GET  | 追隨列表（我追隨的人）   | 🔓   |
-| `/follows/followers/:user_id` | GET  | 粉絲列表（追隨我的人）   | 🔓   |
-| `/follows/stats/:user_id`     | GET  | 用戶統計資訊             | 🔓   |
-
-## 📚 追隨功能 API 文檔
-
-### 基本追隨操作
-
-#### POST /follows/toggle
-
-切換追隨狀態（推薦使用此API）
-
-```json
-{
-  "user_id": "用戶ID",
-  "platform_detail": "web" // 可選
-}
-```
-
-#### POST /follows/follow
-
-追隨用戶
-
-```json
-{
-  "user_id": "用戶ID",
-  "platform_detail": "web" // 可選
-}
-```
-
-#### POST /follows/unfollow
-
-取消追隨用戶
-
-```json
-{
-  "user_id": "用戶ID"
-}
-```
-
-### 查詢功能
-
-#### GET /follows/status/:user_id
-
-檢查是否追隨某個用戶
-
-```json
-{
-  "success": true,
-  "data": {
-    "is_following": true,
-    "followed_at": "2024-01-01T00:00:00.000Z"
-  }
-}
-```
-
-#### GET /follows/following/:user_id?page=1&limit=20
-
-獲取用戶的追隨列表（我追隨的人）
-
-#### GET /follows/followers/:user_id?page=1&limit=20
-
-獲取用戶的粉絲列表（追隨我的人）
-
-#### GET /follows/stats/:user_id
-
-獲取用戶統計資訊
-
-```json
-{
-  "success": true,
-  "data": {
-    "follower_count": 150,
-    "following_count": 89,
-    "meme_count": 42,
-    "collection_count": 78,
-    "total_likes_received": 1250,
-    "comment_count": 156,
-    "share_count": 23
-  }
-}
-```
-
-### 權限說明
-
-- 追隨/取消追隨操作需要登入驗證
-- 查詢列表和統計資訊為公開API
-- 檢查追隨狀態需要登入驗證
-
-### 資料維護工具
-
-新增用戶統計計數檢查功能：
-
-```javascript
-import { checkAndFixUserCounts } from './utils/checkCounts.js'
-
-// 檢查所有用戶的統計計數
-await checkAndFixUserCounts()
-
-// 檢查特定用戶
-await checkAndFixUserCounts('用戶ID')
-```
-
-## 用戶統計功能完整指南
-
-### 統計字段說明
-
-#### User Model 新增字段
-
-- `follower_count` - 粉絲數量（追隨此用戶的人數）
-- `following_count` - 追隨數量（此用戶追隨的人數）
-- `meme_count` - 發布迷因數量
-- `collection_count` - 收藏迷因數量
-- `total_likes_received` - 獲得的總讚數
-- `comment_count` - 發表評論數量
-- `share_count` - 分享內容數量
-
-### 自動統計維護
-
-#### 即時統計更新
-
-系統會在以下操作時自動更新統計：
-
-1. **迷因操作**
-   - 創建迷因：`meme_count +1`
-   - 刪除迷因：`meme_count -1`
-
-2. **追隨操作**
-   - 追隨用戶：追隨者 `following_count +1`，被追隨者 `follower_count +1`
-   - 取消追隨：追隨者 `following_count -1`，被追隨者 `follower_count -1`
-
-3. **收藏操作**
-   - 收藏迷因：`collection_count +1`
-   - 取消收藏：`collection_count -1`
-
-4. **按讚操作**
-   - 按讚迷因：迷因作者 `total_likes_received +1`
-   - 取消讚：迷因作者 `total_likes_received -1`
-   - 註：噓功能會自動移除讚並更新統計
-
-5. **評論操作**
-   - 發表評論：`comment_count +1`
-   - 刪除評論：`comment_count -1`
-
-6. **分享操作**
-   - 創建分享：`share_count +1`
-   - 刪除分享：`share_count -1`
-
-#### 定期維護任務
-
-系統自動排程以下維護任務（僅在生產環境運行）：
-
-- **每日凌晨2點**：檢查迷因統計計數
-- **每日凌晨3點**：檢查用戶統計計數
-- **每週日凌晨4點**：完整數據檢查
-
-### 管理API
-
-#### 用戶統計維護
-
-```bash
-# 檢查特定用戶統計
-POST /admin/check-user-counts/:userId
-
-# 檢查所有用戶統計
-POST /admin/check-all-user-counts
+```http
+# 獲取維護任務狀態
+GET /admin/maintenance-status
 
 # 手動觸發完整檢查
 POST /admin/run-full-check
-
-# 獲取維護任務狀態
-GET /admin/maintenance-status
 ```
-
-#### 統計API響應範例
-
-```json
-{
-  "success": true,
-  "data": {
-    "total": 150,
-    "fixed": 3,
-    "errors": [],
-    "details": [
-      {
-        "user_id": "507f1f77bcf86cd799439011",
-        "username": "testuser",
-        "fixed": true,
-        "changes": {
-          "follower_count": { "from": 10, "to": 12 },
-          "meme_count": { "from": 5, "to": 6 }
-        }
-      }
-    ]
-  },
-  "message": "已完成用戶統計檢查"
-}
-```
-
-### 開發使用指南
-
-#### 手動統計檢查
-
-```javascript
-import { checkAndFixUserCounts } from './utils/checkCounts.js'
-import maintenanceScheduler from './utils/maintenance.js'
-
-// 檢查特定用戶
-const userResult = await checkAndFixUserCounts('用戶ID')
-
-// 檢查所有用戶
-const allUsersResult = await checkAndFixUserCounts()
-
-// 手動觸發完整檢查
-const fullCheckResult = await maintenanceScheduler.runFullCheck()
-```
-
-#### 在開發環境啟用維護任務
-
-```javascript
-// 手動啟動維護任務（開發環境預設關閉）
-maintenanceScheduler.startAllTasks()
-
-// 停止維護任務
-maintenanceScheduler.stopAllTasks()
-
-// 檢查任務狀態
-const status = maintenanceScheduler.getTasksStatus()
-```
-
-### 數據一致性保證
-
-1. **事務處理**：所有統計更新都使用MongoDB事務，確保原子性
-2. **錯誤處理**：統計失敗不會影響主要業務邏輯
-3. **定期檢查**：自動修復可能的數據不一致問題
-4. **日誌記錄**：完整記錄所有維護操作和錯誤
-
-### 性能優化
-
-- 使用 `$inc` 操作符進行計數更新，避免讀取後更新的競態條件
-- 批次處理大量數據檢查
-- 異步處理維護任務，不阻塞主要業務流程
-- 索引優化以提升統計查詢效率
-
-### 監控和報警
-
-建議在生產環境設置：
-
-- 統計差異報警（當檢查發現大量不一致時）
-- 維護任務失敗報警
-- 統計API響應時間監控
-
-4. **關聯查詢與巢狀資源**
-   - 目前查詢多為單表，若需帶出關聯資料（如 user、meme），可於 controller 加上 `.populate()`。
-
-5. **分頁與排序**
-   - 目前查詢皆為全量查詢，建議加上分頁（如 `?page=1&limit=20`）與排序參數，提升效能。
-
-6. **重複資料與唯一性**
-   - Model 已有唯一性驗證，controller 層可加強錯誤處理，避免 race condition。
-
-7. **刪除操作**
-   - 目前皆為硬刪除（直接移除資料），如需軟刪除（標記 is_deleted），controller 需調整。
-
-8. **安全性與防護**
-   - 尚未加上 rate limit、防暴力破解等保護，建議部署時補強。
-
-9. **API 路徑設計**
-   - 路由設計已符合 RESTful 標準，若有巢狀需求可再擴充。
-
-10. **其他細節**
-    - 若有檔案上傳、第三方登入、通知推播、多語系、聚合查詢等需求，controller 需再擴充。
-
-> 本節僅供開發與維護參考，實際需求請依專案進度與業務邏輯調整。
 
 ## 🚀 已實作功能總覽
 
 ### ✅ 核心功能
 
-- **用戶管理**: 註冊、登入、個人資料管理、OAuth 社群登入
+- **用戶管理**: 註冊、登入、個人資料管理、OAuth 社群登入 (Google, Facebook, Discord, Twitter)
 - **迷因管理**: 創建、編輯、刪除、版本控制、協作功能
 - **互動系統**: 按讚、按噓、留言、收藏、分享
 - **社交功能**: 追隨系統、社交影響力計算
@@ -1062,6 +896,7 @@ const status = maintenanceScheduler.getTasksStatus()
 - **公告系統**: 系統公告管理
 - **贊助系統**: 贊助功能
 - **文件上傳**: 圖片上傳到 Cloudinary
+- **電子郵件**: SendGrid 整合，驗證信、密碼重設
 
 ### ✅ 推薦系統
 
@@ -1086,6 +921,13 @@ const status = maintenanceScheduler.getTasksStatus()
 - **非同步處理**: 任務隊列和批量處理
 - **效能監控**: 即時效能監控
 
+### ✅ 安全防護
+
+- **Rate Limiting**: 完整的 API 限流保護
+- **安全中間件**: Helmet, HPP, CORS, Compression
+- **OAuth 安全**: 完整的社群登入安全機制
+- **資料驗證**: 輸入驗證和防注入保護
+
 ### ✅ 資料一致性
 
 - **MongoDB 事務**: 所有互動功能使用事務
@@ -1102,57 +944,74 @@ const status = maintenanceScheduler.getTasksStatus()
 
 ## 🎯 未來擴展計劃
 
-### 使用者功能
+### 使用者功能強化
 
-- **迷因版本**: 實作迷因版本和歷史紀錄
+- **迷因版本控制系統**: 實作完整的迷因版本和歷史紀錄功能
 - **迷因協同編輯**: 模仿維基百科和GitHub形式，可以共同編輯迷因並記錄編輯者
-- **標籤關聯批量創建優化**: 多種格式兼容導致邏輯複雜、批量操作的原子性處理不完善、部分成功/部分失敗的情況處理不當、批量驗證的效率和正確性有待改善
-- **搜尋紀錄功能**: 建立搜尋紀錄模型、增加搜尋紀錄的相關處理
-- **搜尋功能優化**: 目前搜尋雖然使用fuse.js導入模糊搜尋，但實際使用還是搜尋不到想搜尋的目標
-- **檢舉系統實裝**: 目前前端檢舉功能還在等待更新
-- **通知系統實裝**: 目前前端通知功能還在等待更新
-- **公告系統實裝**: 目前前端公告功能還在等待更新
-- **追蹤系統實裝**: 目前前端追蹤功能還在等待更新
+- **標籤關聯批量創建優化**: 改善多種格式兼容性、提升批量操作的原子性處理、完善部分成功/部分失敗的處理機制
+- **搜尋紀錄功能**: 建立搜尋紀錄模型、增加搜尋紀錄的相關處理和分析
+- **搜尋功能優化**: 雖然使用 fuse.js 模糊搜尋，但實際使用體驗仍有改善空間
+- **reCAPTCHA v3 整合**: 登入/註冊加入 reCAPTCHA v3 防濫用機制
 
-### 管理者後台
+### 前端整合功能
 
-- **統計計數**: 檢查並修正所有用戶的統計計數
-- **演算法更新**: 迷因推薦演算法系統定期照數據更新
-- **標籤管理**: 後台可以增減操作標籤
-- **會員管理**: 後台可以操作使用者狀態
-- **檢舉系統實裝**: 目前前端後台檢舉功能還在等待更新
-- **即時監控儀表板**: 完整的系統監控
-- **用戶行為分析**: 深度用戶行為分析
-- **本月活躍作者算法**: 目前只用創作的迷因數量排序，未來可以針對互動統計計算公式
+- **檢舉系統前端實裝**: 目前前端檢舉功能還在等待更新
+- **通知系統前端實裝**: 目前前端通知功能還在等待更新
+- **公告系統前端實裝**: 目前前端公告功能還在等待更新
+- **追蹤系統前端實裝**: 目前前端追蹤功能還在等待更新
+
+### 管理者後台強化
+
+- **統計計數管理**: 後台統計計數檢查和修正功能已實作，可增加更多統計維度
+- **演算法參數調整**: 迷因推薦演算法系統參數可視化調整界面
+- **標籤管理系統**: 後台標籤增減操作和分類管理
+- **會員管理系統**: 後台用戶狀態操作和權限管理
+- **檢舉系統管理**: 完善後台檢舉內容處理流程
+- **即時監控儀表板**: 完整的系統監控可視化界面
+- **用戶行為分析**: 深度用戶行為分析和洞察報告
+- **本月活躍作者算法改進**: 目前只用創作的迷因數量排序，可針對互動統計優化計算公式
 
 ### 機器學習整合
 
 - **神經協同過濾**: 實作深度學習推薦模型
-- **自然語言處理**: 分析迷因內容和標籤
-- **圖神經網路**: 社交圖譜深度分析
-- **預測模型**: 內容傳播潛力預測
+- **自然語言處理**: 分析迷因內容和標籤的語意理解
+- **圖神經網路**: 社交圖譜深度分析和影響力預測
+- **預測模型**: 內容傳播潛力預測和病毒式內容識別
 
 ### 即時推薦系統
 
-- **流式處理架構**: 即時數據處理
+- **流式處理架構**: 即時數據處理和推薦更新
 - **即時用戶偏好更新**: 動態調整推薦策略
-- **即時社交圖譜更新**: 實時社交關係變化
-- **事件驅動架構**: 基於事件的推薦調整
+- **即時社交圖譜更新**: 實時社交關係變化追蹤
+- **事件驅動架構**: 基於事件的推薦調整和優化
 
 ### 效能優化升級
 
-- **CDN 整合**: 靜態資源使用 CDN
-- **微服務架構**: 拆分大型服務
-- **讀寫分離**: 實現資料庫讀寫分離
+- **CDN 整合**: 靜態資源使用 CDN 加速
+- **微服務架構**: 拆分大型服務為更小的微服務
+- **讀寫分離**: 實現資料庫讀寫分離架構
 - **容器化部署**: 使用 Docker 和 Kubernetes
 - **自動擴展**: 根據負載自動擴展服務
 
-### 後端優化
+### 後端系統優化
 
-- **reCAPTCHA v3 整合**: 登入/註冊加 reCAPTCHA v3（防濫用）
-- **強化 Rate Limiting**: 特定敏感端點再套一層更嚴 rate limit（/auth/、/search、/upload）
-- **OpenTelemetry 整合**: 若有多服務要 trace
 - **獨立任務排程**: 任務排程改用獨立 worker/cron（避免多實例重複執行；Render 有「Cron Jobs」可用）
+- **OpenTelemetry 整合**: 分散式追蹤系統整合（適用於多服務架構）
+- **進階 Rate Limiting**: 特定敏感端點加強限流保護（/auth/、/search、/upload）
+- **資料庫分片**: 大量數據時的水平分片策略
+
+### 安全性強化
+
+- **進階威脅防護**: DDoS 防護和進階攻擊檢測
+- **API 安全掃描**: 自動化安全漏洞掃描
+- **資料加密強化**: 敏感資料端到端加密
+- **審計日誌系統**: 完整的操作審計追蹤
+
+### 國際化支援
+
+- **多語系支援**: i18n 國際化框架整合
+- **時區處理**: 全球用戶時區自動處理
+- **地區化內容**: 根據地區提供客製化內容
 
 ## 📚 開發指南
 
@@ -1167,11 +1026,11 @@ npm run dev
 
 # 測試推薦 API
 curl -H "Authorization: Bearer <token>" \
-     "http://localhost:3000/api/recommendations/mixed?limit=10"
+     "http://localhost:4000/api/recommendations/mixed?limit=10"
 
 # 測試社交推薦 API
 curl -H "Authorization: Bearer <token>" \
-     "http://localhost:3000/api/recommendations/social-recommended"
+     "http://localhost:4000/api/recommendations/social-collaborative-filtering"
 ```
 
 ### 生產部署
@@ -1209,27 +1068,30 @@ npm run stress:recommendations
 
 ### 資料保護
 
-- **用戶隱私**: 用戶行為資料僅用於推薦，不應外洩
-- **演算法透明度**: 提供推薦原因說明
+- **用戶隱私**: 用戶行為資料僅用於推薦，嚴格保護個人隱私
+- **演算法透明度**: 提供推薦原因說明，增加系統可信度
 - **社交隱私**: 尊重用戶的社交隱私設定
-- **影響力平衡**: 避免過度依賴高影響力用戶
+- **影響力平衡**: 避免過度依賴高影響力用戶，確保公平性
 
 ### 安全措施
 
-- **JWT 認證**: 安全的用戶認證
-- **權限控制**: 細粒度的權限管理
-- **防刷機制**: 瀏覽統計防刷保護
-- **資料驗證**: 完整的輸入驗證
+- **JWT 認證**: 安全的用戶認證機制
+- **OAuth 整合**: 完整的社群登入安全保護
+- **權限控制**: 細粒度的權限管理系統
+- **防刷機制**: 多層級的防刷和防濫用保護
+- **資料驗證**: 完整的輸入驗證和防注入機制
+- **Rate Limiting**: 完善的 API 限流保護
 
 ## 📊 系統統計
 
 ### 技術指標
 
-- **API 端點**: 100+ 個 RESTful API
-- **資料模型**: 15+ 個 Mongoose 模型
+- **API 端點**: 120+ 個 RESTful API
+- **資料模型**: 18 個 Mongoose 模型
 - **推薦演算法**: 5 種演算法整合
 - **快取層級**: 8 種快取策略
 - **監控指標**: 20+ 個效能指標
+- **安全中間件**: 6 種安全防護機制
 
 ### 功能覆蓋
 
@@ -1239,6 +1101,7 @@ npm run stress:recommendations
 - **推薦系統**: 100% 完整實作
 - **搜尋功能**: 100% 完整實作
 - **監控系統**: 100% 完整實作
+- **安全防護**: 100% 完整實作
 
 ## 🤝 貢獻指南
 
@@ -1249,6 +1112,7 @@ npm run stress:recommendations
 3. **資料結構**: 遵循 API 資料結構規範
 4. **測試覆蓋**: 新功能需要包含測試
 5. **文檔更新**: 新功能需要更新文檔
+6. **安全考量**: 所有新功能需考慮安全性影響
 
 ### 提交流程
 
@@ -1261,8 +1125,8 @@ npm run stress:recommendations
 ---
 
 _最後更新：2025年1月_  
-_版本：v2.0.0_  
-\_維護團隊：迷因典開發團隊
+_版本：v2.1.0_  
+_維護團隊：迷因典開發團隊_
 
 ## 版本控制說明
 
@@ -1285,187 +1149,3 @@ _版本：v2.0.0_
 - 使用第三方套件：如 mongoose-version、mongoose-history 等。
 
 請依實際需求選擇合適的版本控制策略。
-
-## 📋 API 功能對照表
-
-### 🔐 認證權限說明
-
-- 🔓 **公開** - 無需認證
-- 🔑 **用戶** - 需要登入認證 (`token` + `isUser`)
-- 👑 **管理員** - 需要管理員權限 (`token` + `isAdmin`)
-- 🛡️ **經理** - 需要經理權限 (`token` + `isManager`)
-
-### 📊 推薦系統 API
-
-| 路徑                                          | 方法 | 功能描述                     | 權限 |
-| --------------------------------------------- | ---- | ---------------------------- | ---- |
-| `/api/recommendations/mixed`                  | GET  | 混合推薦（支援動態權重調整） | 🔑   |
-| `/api/recommendations/social-recommended`     | GET  | 社交推薦                     | 🔑   |
-| `/api/recommendations/algorithm-stats`        | GET  | 推薦演算法統計               | 🔑   |
-| `/api/recommendations/adjust-strategy`        | POST | 動態調整推薦策略             | 🔑   |
-| `/api/recommendations/social-score/:memeId`   | GET  | 社交層分數計算               | 🔑   |
-| `/api/recommendations/social-influence-stats` | GET  | 用戶社交影響力統計           | 🔑   |
-
-### 📊 分析監控 API
-
-| 路徑                                     | 方法 | 功能描述              | 權限 |
-| ---------------------------------------- | ---- | --------------------- | ---- |
-| `/api/analytics/track-recommendation`    | POST | 記錄推薦展示事件      | 🔑   |
-| `/api/analytics/update-interaction`      | PUT  | 更新用戶互動事件      | 🔑   |
-| `/api/analytics/algorithm-stats`         | GET  | 取得演算法統計        | 🛡️   |
-| `/api/analytics/user-effectiveness`      | GET  | 取得用戶推薦效果分析  | 🔑   |
-| `/api/analytics/dashboard`               | GET  | 取得推薦效果儀表板    | 🛡️   |
-| `/api/analytics/ab-tests`                | POST | 建立 A/B 測試         | 🛡️   |
-| `/api/analytics/ab-tests`                | GET  | 取得 A/B 測試列表     | 🛡️   |
-| `/api/analytics/ab-tests/:testId`        | GET  | 取得 A/B 測試詳細資訊 | 🛡️   |
-| `/api/analytics/ab-tests/:testId/status` | PUT  | 更新 A/B 測試狀態     | 🛡️   |
-
-### 📊 瀏覽統計 API
-
-| 路徑                        | 方法   | 功能描述         | 權限 |
-| --------------------------- | ------ | ---------------- | ---- |
-| `/api/views/:meme_id`       | POST   | 記錄瀏覽         | 🔓   |
-| `/api/views/stats/:meme_id` | GET    | 取得迷因瀏覽統計 | 🔓   |
-| `/api/views/history`        | GET    | 取得用戶瀏覽歷史 | 🔑   |
-| `/api/views/popular`        | GET    | 取得熱門迷因     | 🔓   |
-| `/api/views/cleanup`        | DELETE | 清理過期瀏覽記錄 | 👑   |
-
-### 🔍 搜尋 API
-
-| 路徑                            | 方法 | 功能描述                 | 權限 |
-| ------------------------------- | ---- | ------------------------ | ---- |
-| `/api/memes`                    | GET  | 基本搜尋（支援 Fuse.js） | 🔓   |
-| `/api/memes/by-tags`            | GET  | 進階標籤篩選搜尋         | 🔓   |
-| `/api/memes/search-suggestions` | GET  | 搜尋建議                 | 🔓   |
-
-### 🛠️ 管理後台 API
-
-| 路徑                                   | 方法 | 功能描述         | 權限 |
-| -------------------------------------- | ---- | ---------------- | ---- |
-| `/api/admin/check-counts/:memeId`      | POST | 檢查迷因統計     | 👑   |
-| `/api/admin/check-all-counts`          | POST | 檢查所有迷因統計 | 👑   |
-| `/api/admin/count-statistics`          | GET  | 獲取統計數據     | 👑   |
-| `/api/admin/check-user-counts/:userId` | POST | 檢查用戶統計     | 👑   |
-| `/api/admin/check-all-user-counts`     | POST | 檢查所有用戶統計 | 👑   |
-| `/api/admin/run-full-check`            | POST | 手動完整檢查     | 👑   |
-| `/api/admin/maintenance-status`        | GET  | 維護任務狀態     | 👑   |
-
-### 📊 效能監控 API
-
-| 路徑               | 方法   | 功能描述 | 權限 |
-| ------------------ | ------ | -------- | ---- |
-| `/health`          | GET    | 健康檢查 | 🔓   |
-| `/api/performance` | GET    | 效能監控 | 🛡️   |
-| `/api/cache/stats` | GET    | 快取統計 | 🛡️   |
-| `/api/cache/clear` | DELETE | 清除快取 | 🛡️   |
-
-### 🔄 一致性檢查 API
-
-| 路徑                              | 方法 | 功能描述             | 權限 |
-| --------------------------------- | ---- | -------------------- | ---- |
-| `/api/admin/check-counts/:memeId` | POST | 檢查單一迷因計數     | 👑   |
-| `/api/admin/check-all-counts`     | POST | 批次檢查所有迷因計數 | 👑   |
-| `/api/admin/count-statistics`     | GET  | 取得統計資訊         | 👑   |
-
-### 📋 核心功能 API
-
-| 路徑                                     | 方法   | 功能描述                   | 權限 |
-| ---------------------------------------- | ------ | -------------------------- | ---- |
-| /users                                   | POST   | 建立使用者                 | 🔓   |
-| /users                                   | GET    | 取得所有使用者（管理員）   | 🛡️   |
-| /users/:id                               | GET    | 取得單一使用者（管理員）   | 🛡️   |
-| /users/:id                               | PUT    | 更新使用者（管理員）       | 🛡️   |
-| /users/:id                               | DELETE | 刪除使用者（管理員）       | 🛡️   |
-| /users/me                                | GET    | 取得自己資料               | 🔑   |
-| /users/me                                | PUT    | 更新自己資料               | 🔑   |
-| /users/me                                | DELETE | 刪除自己帳號               | 🔑   |
-| /users/login                             | POST   | 登入                       | 🔓   |
-| /users/logout                            | POST   | 登出                       | 🔑   |
-| /users/refresh                           | POST   | 刷新Token                  | 🔑   |
-| /users/bind/:provider                    | POST   | 綁定社群帳號               | 🔑   |
-| /users/auth/google                       | GET    | Google OAuth 登入          | 🔓   |
-| /users/auth/google/callback              | GET    | Google OAuth 回調          | 🔓   |
-| /users/auth/facebook                     | GET    | Facebook OAuth 登入        | 🔓   |
-| /users/auth/facebook/callback            | GET    | Facebook OAuth 回調        | 🔓   |
-| /users/auth/discord                      | GET    | Discord OAuth 登入         | 🔓   |
-| /users/auth/discord/callback             | GET    | Discord OAuth 回調         | 🔓   |
-| /users/auth/twitter                      | GET    | Twitter OAuth 登入         | 🔓   |
-| /users/auth/twitter/callback             | GET    | Twitter OAuth 回調         | 🔓   |
-| /memes                                   | POST   | 建立迷因                   | 🔑   |
-| /memes                                   | GET    | 取得所有迷因               | 🔓   |
-| /memes/:id                               | GET    | 取得單一迷因               | 🔓   |
-| /memes/:id                               | PUT    | 更新迷因                   | 🔑   |
-| /memes/:id                               | DELETE | 刪除迷因                   | 🔑   |
-| /memes/:id/editors                       | POST   | 新增協作者                 | 🔑   |
-| /memes/:id/editors                       | DELETE | 移除協作者                 | 🔑   |
-| /memes/:id/proposals                     | POST   | 提交迷因編輯提案           | 🔑   |
-| /memes/:id/proposals                     | GET    | 查詢迷因所有提案（需權限） | 🔑   |
-| /memes/:id/proposals/:proposalId/approve | POST   | 審核通過提案               | 🔑   |
-| /memes/:id/proposals/:proposalId/reject  | POST   | 駁回提案                   | 🔑   |
-| /announcements                           | POST   | 建立公告                   | 🔑   |
-| /announcements                           | GET    | 取得所有公告               | 🔓   |
-| /announcements/:id                       | GET    | 取得單一公告               | 🔓   |
-| /announcements/:id                       | PUT    | 更新公告                   | 👑   |
-| /announcements/:id                       | DELETE | 刪除公告                   | 👑   |
-| /collections                             | POST   | 新增收藏                   | 🔑   |
-| /collections                             | DELETE | 取消收藏                   | 🔑   |
-| /collections                             | GET    | 查詢收藏                   | 🔓   |
-| /collections/toggle                      | POST   | 收藏/取消收藏切換          | 🔑   |
-| /comments                                | POST   | 建立留言                   | 🔑   |
-| /comments                                | GET    | 取得所有留言               | 🔓   |
-| /comments/:id                            | GET    | 取得單一留言               | 🔓   |
-| /comments/:id                            | PUT    | 更新留言                   | 🔑   |
-| /comments/:id                            | DELETE | 刪除留言                   | 🔑   |
-| /likes                                   | POST   | 按讚                       | 🔑   |
-| /likes                                   | DELETE | 取消讚                     | 🔑   |
-| /likes                                   | GET    | 查詢讚數                   | 🔓   |
-| /likes/toggle                            | POST   | 按讚/取消讚切換            | 🔑   |
-| /dislikes                                | POST   | 按噓                       | 🔑   |
-| /dislikes                                | DELETE | 取消噓                     | 🔑   |
-| /dislikes                                | GET    | 查詢噓數                   | 🔓   |
-| /dislikes/toggle                         | POST   | 按噓/取消噓切換            | 🔑   |
-| /tags                                    | POST   | 建立標籤                   | 🔑   |
-| /tags                                    | GET    | 取得所有標籤               | 🔓   |
-| /tags/popular                            | GET    | 取得熱門標籤               | 🔓   |
-| /tags/:id                                | GET    | 取得單一標籤               | 🔓   |
-| /tags/:id                                | PUT    | 更新標籤                   | 🔑   |
-| /tags/:id                                | DELETE | 刪除標籤                   | 🔑   |
-| /memetags                                | POST   | 建立迷因標籤關聯           | 🔑   |
-| /memetags/batch                          | POST   | 批量建立迷因標籤關聯       | 🔑   |
-| /memetags                                | GET    | 取得所有迷因標籤關聯       | 🔓   |
-| /memetags/:id                            | GET    | 取得單一迷因標籤關聯       | 🔓   |
-| /memetags/meme/:memeId/tags              | GET    | 取得某迷因所有標籤         | 🔓   |
-| /memetags/tag/:tagId/memes               | GET    | 取得某標籤所有迷因         | 🔓   |
-| /memetags/:id                            | PUT    | 更新迷因標籤關聯           | 🔑   |
-| /memetags/:id                            | DELETE | 刪除迷因標籤關聯           | 🔑   |
-| /memetags/meme/:memeId/tags              | DELETE | 批量刪除迷因所有標籤       | 🔑   |
-| /memeversions                            | POST   | 建立迷因版本               | 🔑   |
-| /memeversions                            | GET    | 取得所有迷因版本           | 🔑   |
-| /memeversions/:id                        | GET    | 取得單一迷因版本           | 🔑   |
-| /memeversions/:id                        | PUT    | 更新迷因版本               | 🔑   |
-| /memeversions/:id                        | DELETE | 刪除迷因版本               | 🔑   |
-| /notifications                           | POST   | 建立通知（管理員）         | 🛡️   |
-| /notifications                           | GET    | 取得所有通知               | 🔑   |
-| /notifications/:id                       | GET    | 取得單一通知               | 🔑   |
-| /notifications/:id                       | PUT    | 更新通知（管理員）         | 🛡️   |
-| /notifications/:id                       | DELETE | 刪除通知（管理員）         | 🛡️   |
-| /notifications/:id/read                  | PATCH  | 標記單一通知為已讀         | 🔑   |
-| /notifications/read/all                  | PATCH  | 批次標記全部通知為已讀     | 🔑   |
-| /notifications/batch                     | DELETE | 批次刪除通知               | 🛡️   |
-| /reports                                 | POST   | 建立舉報                   | 🔑   |
-| /reports                                 | GET    | 取得所有舉報（管理員）     | 🛡️   |
-| /reports/:id                             | GET    | 取得單一舉報（權限）       | 🔑   |
-| /reports/:id                             | PUT    | 編輯舉報（權限）           | 🔑   |
-| /reports/:id                             | DELETE | 刪除舉報（權限）           | 🔑   |
-| /shares                                  | POST   | 建立分享                   | 🔑   |
-| /shares                                  | GET    | 取得所有分享               | 🔑   |
-| /shares/:id                              | GET    | 取得單一分享               | 🔑   |
-| /shares/:id                              | PUT    | 更新分享                   | 🔑   |
-| /shares/:id                              | DELETE | 刪除分享                   | 🔑   |
-| /sponsors                                | POST   | 建立贊助                   | 🔑   |
-| /sponsors                                | GET    | 取得所有贊助（管理員）     | 🛡️   |
-| /sponsors/:id                            | GET    | 取得單一贊助               | 🔑   |
-| /sponsors/:id                            | PUT    | 更新贊助                   | 🔑   |
-| /sponsors/:id                            | DELETE | 刪除贊助（管理員）         | 🛡️   |
-
-> 權限註記：如「管理員」、「需權限」等，詳見原始碼 middleware 設定。
