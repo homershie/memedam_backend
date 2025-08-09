@@ -8,27 +8,50 @@ class RedisCache {
   constructor() {
     this.client = null
     this.isConnected = false
+    this.isEnabled = process.env.REDIS_ENABLED !== 'false' // 預設啟用，除非明確設為 false
   }
 
   /**
    * 初始化 Redis 連線
    */
   async connect() {
+    // 如果明確停用 Redis，直接返回
+    if (!this.isEnabled) {
+      logger.info('Redis 已停用')
+      return
+    }
+
     try {
-      this.client = new Redis({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: process.env.REDIS_PORT || 6379,
-        password: process.env.REDIS_PASSWORD,
-        db: process.env.REDIS_DB || 0,
-        lazyConnect: true,
-        showFriendlyErrorStack: process.env.NODE_ENV === 'development',
-        retryDelayOnFailover: 100,
-        retryDelayOnClusterDown: 300,
-        enableOfflineQueue: true,
-        maxRetriesPerRequest: 3,
-        connectTimeout: 5000, // 縮短連接超時
-        commandTimeout: 5000, // 加入命令超時
-      })
+      // 優先使用 REDIS_URL，如果沒有則使用個別環境變數
+      if (process.env.REDIS_URL) {
+        this.client = new Redis(process.env.REDIS_URL, {
+          lazyConnect: true,
+          showFriendlyErrorStack: process.env.NODE_ENV === 'development',
+          retryDelayOnFailover: 100,
+          retryDelayOnClusterDown: 300,
+          enableOfflineQueue: true,
+          maxRetriesPerRequest: 3,
+          connectTimeout: 5000,
+          commandTimeout: 5000,
+        })
+        logger.info('使用 REDIS_URL 連線')
+      } else {
+        this.client = new Redis({
+          host: process.env.REDIS_HOST || 'localhost',
+          port: process.env.REDIS_PORT || 6379,
+          password: process.env.REDIS_PASSWORD,
+          db: process.env.REDIS_DB || 0,
+          lazyConnect: true,
+          showFriendlyErrorStack: process.env.NODE_ENV === 'development',
+          retryDelayOnFailover: 100,
+          retryDelayOnClusterDown: 300,
+          enableOfflineQueue: true,
+          maxRetriesPerRequest: 3,
+          connectTimeout: 5000,
+          commandTimeout: 5000,
+        })
+        logger.info('使用個別環境變數連線')
+      }
 
       this.client.on('connect', () => {
         this.isConnected = true
@@ -48,9 +71,7 @@ class RedisCache {
       // 使用超時機制避免掛起
       await Promise.race([
         this.client.connect(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Redis連接超時')), 5000)
-        )
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Redis連接超時')), 5000)),
       ])
     } catch (error) {
       logger.error('Redis 連線失敗:', error.message)
@@ -66,7 +87,7 @@ class RedisCache {
    * @param {number} ttl - 過期時間（秒）
    */
   async set(key, value, ttl = 3600) {
-    if (!this.isConnected || !this.client) {
+    if (!this.isEnabled || !this.isConnected || !this.client) {
       return false
     }
 
@@ -86,7 +107,7 @@ class RedisCache {
    * @returns {any} 快取值
    */
   async get(key) {
-    if (!this.isConnected || !this.client) {
+    if (!this.isEnabled || !this.isConnected || !this.client) {
       return null
     }
 
@@ -110,7 +131,7 @@ class RedisCache {
    * @param {string} key - 快取鍵
    */
   async del(key) {
-    if (!this.isConnected || !this.client) {
+    if (!this.isEnabled || !this.isConnected || !this.client) {
       return false
     }
 
@@ -128,7 +149,7 @@ class RedisCache {
    * @param {string} pattern - 快取鍵模式
    */
   async delPattern(pattern) {
-    if (!this.isConnected || !this.client) {
+    if (!this.isEnabled || !this.isConnected || !this.client) {
       return false
     }
 
@@ -149,7 +170,7 @@ class RedisCache {
    * @param {string} key - 快取鍵
    */
   async exists(key) {
-    if (!this.isConnected || !this.client) {
+    if (!this.isEnabled || !this.isConnected || !this.client) {
       return false
     }
 
@@ -204,8 +225,13 @@ class RedisCache {
    * 取得快取統計
    */
   async getStats() {
-    if (!this.isConnected || !this.client) {
-      return null
+    if (!this.isEnabled || !this.isConnected || !this.client) {
+      return {
+        connected: false,
+        enabled: this.isEnabled,
+        keys: 0,
+        info: {},
+      }
     }
 
     try {
@@ -214,6 +240,7 @@ class RedisCache {
 
       return {
         connected: this.isConnected,
+        enabled: this.isEnabled,
         keys,
         info: info.split('\r\n').reduce((acc, line) => {
           const [key, value] = line.split(':')
@@ -225,7 +252,12 @@ class RedisCache {
       }
     } catch (error) {
       logger.error('Redis 取得統計失敗:', error)
-      return null
+      return {
+        connected: false,
+        enabled: this.isEnabled,
+        keys: 0,
+        info: {},
+      }
     }
   }
 }

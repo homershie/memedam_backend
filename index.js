@@ -213,6 +213,21 @@ app.get('/health', async (req, res) => {
   }
 })
 
+// Redis 健康檢查端點（ChatGPT 建議）
+app.get('/healthz/redis', async (req, res) => {
+  try {
+    const pong = await redisCache.ping()
+    if (pong === 'PONG') {
+      res.json({ ok: true, ping: pong })
+    } else {
+      res.status(500).json({ ok: false, error: 'Redis 連線失敗' })
+    }
+  } catch (error) {
+    logger.error('Redis 健康檢查失敗:', error)
+    res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
 // 效能監控端點
 app.get('/api/performance', (req, res) => {
   try {
