@@ -13,9 +13,10 @@ const UserSchema = new mongoose.Schema(
       trim: true,
       validate: {
         validator(value) {
-          return validator.isAlphanumeric(value)
+          // 允許英文字母、數字和常用符號，但不允許空格和特殊控制字符
+          return /^[a-zA-Z0-9._-]+$/.test(value)
         },
-        message: '帳號只能包含英文字母和數字',
+        message: '帳號只能包含英文字母、數字、點號(.)、底線(_)和連字號(-)',
       },
     },
     display_name: {
@@ -35,12 +36,22 @@ const UserSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: [true, '電子郵件必填'],
+      required: function () {
+        // 如果是社群登入用戶（有社群 ID），則email不是必需的
+        return !(this.google_id || this.facebook_id || this.discord_id || this.twitter_id)
+      },
       unique: true,
       trim: true,
       lowercase: true,
       validate: {
         validator(value) {
+          // 如果是社群用戶且沒有email，跳過驗證
+          if (
+            (this.google_id || this.facebook_id || this.discord_id || this.twitter_id) &&
+            !value
+          ) {
+            return true
+          }
           return validator.isEmail(value)
         },
         message: '請輸入有效的電子郵件地址',
@@ -64,7 +75,21 @@ const UserSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, '密碼必填'],
+      required: function () {
+        // 如果是社群登入用戶（有社群 ID），則密碼不是必需的
+        return !(this.google_id || this.facebook_id || this.discord_id || this.twitter_id)
+      },
+      validate: {
+        validator: function (value) {
+          // 如果是社群用戶，跳過密碼驗證
+          if (this.google_id || this.facebook_id || this.discord_id || this.twitter_id) {
+            return true
+          }
+          // 對於本地用戶，密碼是必需的
+          return value && value.length > 0
+        },
+        message: '密碼必填',
+      },
     },
     tokens: {
       type: [String],
@@ -396,10 +421,25 @@ const UserSchema = new mongoose.Schema(
 UserSchema.pre('save', function (next) {
   // this = 現在要保存的資料
   const user = this
+
+  // 檢查是否為社群登入用戶（有社群 ID）
+  const isSocialUser = !!(user.google_id || user.facebook_id || user.discord_id || user.twitter_id)
+
+  // 如果是社群用戶且沒有密碼，生成一個隨機密碼
+  if (isSocialUser && !user.password) {
+    // 為社群用戶生成隨機密碼（12個字元，符合8-20的驗證要求）
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    let randomPassword = ''
+    for (let i = 0; i < 12; i++) {
+      randomPassword += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    user.password = randomPassword
+  }
+
   // 如果密碼欄位有修改，進行加密
   if (user.isModified('password')) {
-    // 使用與 Schema 一致的驗證規則
-    if (user.password.length < 8 || user.password.length > 20) {
+    // 對於社群用戶，跳過密碼長度驗證
+    if (!isSocialUser && (user.password.length < 8 || user.password.length > 20)) {
       // 如果密碼長度不符合規定，拋出 mongoose 的驗證錯誤
       // 用跟 mongoose 的 schema 驗證錯誤一樣的錯誤格式
       // 可以跟其他驗證錯誤一起處理
@@ -418,11 +458,13 @@ UserSchema.pre('save', function (next) {
       user.password = bcrypt.hashSync(user.password, 10)
     }
   }
+
   // 限制有效 token 數量（修正：tokens 是簡單字串陣列）
   if (user.isModified('tokens') && user.tokens && user.tokens.length > 3) {
     // 保留最新的 3 個 token（移除最舊的）
     user.tokens = user.tokens.slice(-3)
   }
+
   // 繼續處理
   next()
 })

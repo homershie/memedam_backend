@@ -172,11 +172,38 @@ const initializeOAuthStrategies = () => {
             } else {
               let user = await User.findOne({ google_id: profile.id })
               if (!user) {
+                // 為社群用戶生成符合要求的 username
+                let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
+
+                // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
+                username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
+                if (username.length < 8) {
+                  // 如果長度不足8個字元，用數字填充
+                  username = username + '0'.repeat(8 - username.length)
+                } else if (username.length > 20) {
+                  // 如果超過20個字元，截斷
+                  username = username.substring(0, 20)
+                }
+
+                // 檢查 username 是否已存在，如果存在則加上隨機數字
+                let finalUsername = username
+                let counter = 1
+                while (await User.findOne({ username: finalUsername })) {
+                  finalUsername = username + counter.toString()
+                  counter++
+                  if (finalUsername.length > 20) {
+                    finalUsername =
+                      username.substring(0, 20 - counter.toString().length) + counter.toString()
+                  }
+                }
+
                 user = new User({
-                  username: profile.emails?.[0]?.value || profile.id,
+                  username: finalUsername,
                   email: profile.emails?.[0]?.value || '',
                   google_id: profile.id,
-                  display_name: profile.displayName,
+                  display_name: profile.displayName || finalUsername,
+                  login_method: 'google',
+                  email_verified: !!profile.emails?.[0]?.verified,
                 })
                 await user.save()
               }
@@ -231,11 +258,38 @@ const initializeOAuthStrategies = () => {
             } else {
               let user = await User.findOne({ facebook_id: profile.id })
               if (!user) {
+                // 為社群用戶生成符合要求的 username
+                let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
+
+                // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
+                username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
+                if (username.length < 8) {
+                  // 如果長度不足8個字元，用數字填充
+                  username = username + '0'.repeat(8 - username.length)
+                } else if (username.length > 20) {
+                  // 如果超過20個字元，截斷
+                  username = username.substring(0, 20)
+                }
+
+                // 檢查 username 是否已存在，如果存在則加上隨機數字
+                let finalUsername = username
+                let counter = 1
+                while (await User.findOne({ username: finalUsername })) {
+                  finalUsername = username + counter.toString()
+                  counter++
+                  if (finalUsername.length > 20) {
+                    finalUsername =
+                      username.substring(0, 20 - counter.toString().length) + counter.toString()
+                  }
+                }
+
                 user = new User({
-                  username: profile.emails?.[0]?.value || profile.id,
+                  username: finalUsername,
                   email: profile.emails?.[0]?.value || '',
                   facebook_id: profile.id,
-                  display_name: profile.displayName,
+                  display_name: profile.displayName || finalUsername,
+                  login_method: 'facebook',
+                  email_verified: !!profile.emails?.[0]?.verified,
                 })
                 await user.save()
               }
@@ -289,11 +343,38 @@ const initializeOAuthStrategies = () => {
             } else {
               let user = await User.findOne({ discord_id: profile.id })
               if (!user) {
+                // 為社群用戶生成符合要求的 username
+                let username = profile.username || profile.id
+
+                // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
+                username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
+                if (username.length < 8) {
+                  // 如果長度不足8個字元，用數字填充
+                  username = username + '0'.repeat(8 - username.length)
+                } else if (username.length > 20) {
+                  // 如果超過20個字元，截斷
+                  username = username.substring(0, 20)
+                }
+
+                // 檢查 username 是否已存在，如果存在則加上隨機數字
+                let finalUsername = username
+                let counter = 1
+                while (await User.findOne({ username: finalUsername })) {
+                  finalUsername = username + counter.toString()
+                  counter++
+                  if (finalUsername.length > 20) {
+                    finalUsername =
+                      username.substring(0, 20 - counter.toString().length) + counter.toString()
+                  }
+                }
+
                 user = new User({
-                  username: profile.emails?.[0]?.value || profile.id,
-                  email: profile.emails?.[0]?.value || '',
+                  username: finalUsername,
+                  email: profile.email || '',
                   discord_id: profile.id,
-                  display_name: profile.displayName,
+                  display_name: profile.displayName || finalUsername,
+                  login_method: 'discord',
+                  email_verified: !!profile.verified,
                 })
                 await user.save()
               }
@@ -347,11 +428,38 @@ const initializeOAuthStrategies = () => {
             } else {
               let user = await User.findOne({ twitter_id: profile.id })
               if (!user) {
+                // 為社群用戶生成符合要求的 username
+                let username = profile.username || profile.id
+
+                // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
+                username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
+                if (username.length < 8) {
+                  // 如果長度不足8個字元，用數字填充
+                  username = username + '0'.repeat(8 - username.length)
+                } else if (username.length > 20) {
+                  // 如果超過20個字元，截斷
+                  username = username.substring(0, 20)
+                }
+
+                // 檢查 username 是否已存在，如果存在則加上隨機數字
+                let finalUsername = username
+                let counter = 1
+                while (await User.findOne({ username: finalUsername })) {
+                  finalUsername = username + counter.toString()
+                  counter++
+                  if (finalUsername.length > 20) {
+                    finalUsername =
+                      username.substring(0, 20 - counter.toString().length) + counter.toString()
+                  }
+                }
+
                 user = new User({
-                  username: profile.username || profile.id,
+                  username: finalUsername,
                   email: profile.emails?.[0]?.value || '',
                   twitter_id: profile.id,
-                  display_name: profile.displayName,
+                  display_name: profile.displayName || finalUsername,
+                  login_method: 'twitter',
+                  email_verified: !!profile.emails?.[0]?.verified,
                 })
                 await user.save()
               }
