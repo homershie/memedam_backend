@@ -18,8 +18,11 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:4000',
-        description: '開發環境',
+        url:
+          process.env.NODE_ENV === 'production'
+            ? 'https://api.memedam.com'
+            : 'http://localhost:4000',
+        description: process.env.NODE_ENV === 'production' ? '生產環境' : '開發環境',
       },
       {
         url: 'https://api.memedam.com',

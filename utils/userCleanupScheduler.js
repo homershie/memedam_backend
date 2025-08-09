@@ -64,7 +64,7 @@ const sendDeletionReminderEmail = async (user) => {
 
 請立即點擊以下連結驗證您的 email，以保留您的帳號：
 
-${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify
+${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:3000')}/verify
 
 如果您需要重新發送驗證 email，請登入您的帳號並在設定中重新發送。
 
@@ -131,12 +131,12 @@ MemeDam 團隊
             
             <p style="text-align:center; margin:24px 0;">
               <!-- Bulletproof button -->
-              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify" class="button" target="_blank" rel="noopener">立即驗證 Email</a>
+              <a href="${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:3000')}/verify" class="button" target="_blank" rel="noopener">立即驗證 Email</a>
             </p>
             
             <p class="muted">若按鈕無法點擊，請複製下方連結到瀏覽器開啟：</p>
             <p class="code" style="word-break:break-all;">
-              ${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify
+              ${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:3000')}/verify
             </p>
             
             <div class="divider"></div>

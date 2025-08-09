@@ -68,6 +68,11 @@ DISCORD_CLIENT_SECRET=your_discord_client_secret
 # 生產環境：https://memedam.com
 FRONTEND_URL=http://localhost:5173
 
+# API基礎URL配置（重要！）
+# 開發環境：http://localhost:4000
+# 生產環境：https://api.memedam.com
+API_BASE_URL=http://localhost:4000
+
 # 其他配置
 CORS_ORIGIN=http://localhost:5173
 RATE_LIMIT_WINDOW_MS=900000

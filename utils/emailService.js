@@ -47,7 +47,7 @@ class EmailService {
    * @returns {Promise<Object>} 發送結果
    */
   static async sendVerificationEmail(to, verificationToken, username) {
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify?token=${verificationToken}`
+    const verificationUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:3000')}/verify?token=${verificationToken}`
 
     const subject = 'MemeDam - 請驗證您的 Email'
     const text = `
@@ -150,7 +150,7 @@ class EmailService {
    * @returns {Promise<Object>} 發送結果
    */
   static async sendPasswordResetEmail(to, resetToken, username) {
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`
+    const resetUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:3000')}/reset-password?token=${resetToken}`
 
     const subject = 'MemeDam - 密碼重設請求'
     const text = `
