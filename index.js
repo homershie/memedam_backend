@@ -42,8 +42,17 @@ app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Session 配置
+const MemoryStore = session.MemoryStore
+const sessionStore = new MemoryStore()
+
+// 在生產環境中顯示警告
+if (process.env.NODE_ENV === 'production') {
+  logger.warn('生產環境使用 MemoryStore，建議配置 Redis session store 以提升效能和可擴展性')
+}
+
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || 'your-session-secret',
     resave: false,
     saveUninitialized: false,
@@ -92,13 +101,28 @@ app.use('/api/users/login', loginLimiter) // 登入特別限流
 app.use('/api/users/register', registerLimiter) // 註冊限流
 app.use('/api/users/forgot-password', forgotPasswordLimiter) // 忘記密碼限流
 
+// 根路徑歡迎頁面
+app.get('/', (req, res) => {
+  res.json({
+    message: '歡迎使用迷因達姆 API',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      docs: '/api-docs',
+      health: '/health',
+      redis: '/healthz/redis',
+    },
+  })
+})
+
 // Swagger API 文檔
 app.use(
   '/api-docs',
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpecs, {
     customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: '迷因典 API 文檔',
+    customSiteTitle: '迷因達姆 API 文檔',
     customfavIcon: '/favicon.ico',
     swaggerOptions: {
       docExpansion: 'none',
