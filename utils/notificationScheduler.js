@@ -272,24 +272,24 @@ const cleanupOldNotificationsTask = async () => {
 export const startNotificationScheduler = () => {
   console.log('啟動通知調度器...')
   
-  // 每天上午10點發送熱門內容通知
-  cron.schedule('0 10 * * *', () => {
+  // 每天上午9點發送熱門內容通知
+  cron.schedule('0 9 * * *', () => {
     console.log('執行熱門內容通知任務')
     sendHotContentNotifications()
   }, {
     timezone: 'Asia/Taipei'
   })
   
-  // 每週一上午9點發送週報摘要
-  cron.schedule('0 9 * * 1', () => {
+  // 每週一上午10點發送週報摘要
+  cron.schedule('0 10 * * 1', () => {
     console.log('執行週報摘要通知任務')
     sendWeeklySummaryNotifications()
   }, {
     timezone: 'Asia/Taipei'
   })
   
-  // 每天凌晨2點清理舊通知
-  cron.schedule('0 2 * * *', () => {
+  // 每天凌晨4點清理舊通知
+  cron.schedule('0 4 * * *', () => {
     console.log('執行清理舊通知任務')
     cleanupOldNotificationsTask()
   }, {
@@ -297,9 +297,9 @@ export const startNotificationScheduler = () => {
   })
   
   console.log('通知調度器已啟動')
-  console.log('- 熱門內容通知：每天上午10點')
-  console.log('- 週報摘要通知：每週一上午9點')
-  console.log('- 清理舊通知：每天凌晨2點')
+  console.log('- 熱門內容通知：每天上午9點')
+  console.log('- 週報摘要通知：每週一上午10點')
+  console.log('- 清理舊通知：每天凌晨4點')
 }
 
 /**

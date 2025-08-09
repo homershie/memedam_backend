@@ -3,6 +3,7 @@
  * 統一管理所有推薦算法的定期更新
  */
 
+import cron from 'node-cron'
 import { logger } from './logger.js'
 import { batchUpdateHotScores } from './hotScoreScheduler.js'
 import { batchUpdateUserPreferences } from './contentBasedScheduler.js'
@@ -45,6 +46,193 @@ const UPDATE_CONFIG = {
     enabled: true,
     maxUsers: 1000,
   },
+}
+
+/**
+ * 調度器任務管理
+ */
+class RecommendationCronScheduler {
+  constructor() {
+    this.tasks = new Map()
+  }
+
+  /**
+   * 啟動所有推薦系統調度任務
+   */
+  startAllTasks() {
+    try {
+      // 每小時更新熱門分數
+      this.scheduleHotScoreUpdate()
+
+      // 每天凌晨5點更新內容基礎推薦
+      this.scheduleContentBasedUpdate()
+
+      // 每天凌晨6點更新協同過濾推薦
+      this.scheduleCollaborativeFilteringUpdate()
+
+      // 每天凌晨7點更新社交協同過濾推薦
+      this.scheduleSocialCollaborativeFilteringUpdate()
+
+      logger.info('✅ 推薦系統調度器已啟動')
+      console.log('✅ 推薦系統調度器已啟動')
+      console.log('- 熱門分數更新：每小時整點')
+      console.log('- 內容基礎推薦更新：每天凌晨5點')
+      console.log('- 協同過濾推薦更新：每天凌晨6點')
+      console.log('- 社交協同過濾推薦更新：每天凌晨7點')
+    } catch (error) {
+      logger.error('推薦系統調度器啟動失敗:', error)
+      console.error('❌ 推薦系統調度器啟動失敗:', error)
+    }
+  }
+
+  /**
+   * 停止所有推薦系統調度任務
+   */
+  stopAllTasks() {
+    try {
+      this.tasks.forEach((task, name) => {
+        task.stop()
+        console.log(`⏹️ 已停止推薦任務: ${name}`)
+      })
+      this.tasks.clear()
+      logger.info('推薦系統調度器已停止')
+      console.log('✅ 推薦系統調度器已停止')
+    } catch (error) {
+      logger.error('停止推薦系統調度器失敗:', error)
+      console.error('❌ 停止推薦系統調度器失敗:', error)
+    }
+  }
+
+  /**
+   * 每小時更新熱門分數
+   */
+  scheduleHotScoreUpdate() {
+    const task = cron.schedule(
+      '0 * * * *', // 每小時整點
+      async () => {
+        try {
+          console.log('🔥 開始每小時熱門分數更新...')
+          await updateHotScores()
+          console.log('✅ 熱門分數更新完成')
+        } catch (error) {
+          console.error('❌ 熱門分數更新失敗:', error)
+          logger.error('Hourly hot score update failed', { error: error.message })
+        }
+      },
+      {
+        timezone: 'Asia/Taipei',
+      },
+    )
+
+    this.tasks.set('hotScoreUpdate', task)
+    console.log('📅 已排程每小時熱門分數更新')
+  }
+
+  /**
+   * 每日內容基礎推薦更新 (凌晨5點)
+   */
+  scheduleContentBasedUpdate() {
+    const task = cron.schedule(
+      '0 5 * * *',
+      async () => {
+        try {
+          console.log('📝 開始每日內容基礎推薦更新...')
+          await updateContentBasedCache()
+          console.log('✅ 內容基礎推薦更新完成')
+        } catch (error) {
+          console.error('❌ 內容基礎推薦更新失敗:', error)
+          logger.error('Daily content-based update failed', { error: error.message })
+        }
+      },
+      {
+        timezone: 'Asia/Taipei',
+      },
+    )
+
+    this.tasks.set('contentBasedUpdate', task)
+    console.log('📅 已排程每日內容基礎推薦更新 (凌晨5點)')
+  }
+
+  /**
+   * 每日協同過濾推薦更新 (凌晨6點)
+   */
+  scheduleCollaborativeFilteringUpdate() {
+    const task = cron.schedule(
+      '0 6 * * *',
+      async () => {
+        try {
+          console.log('👥 開始每日協同過濾推薦更新...')
+          await updateCollaborativeFilteringCacheScheduler()
+          console.log('✅ 協同過濾推薦更新完成')
+        } catch (error) {
+          console.error('❌ 協同過濾推薦更新失敗:', error)
+          logger.error('Daily collaborative filtering update failed', { error: error.message })
+        }
+      },
+      {
+        timezone: 'Asia/Taipei',
+      },
+    )
+
+    this.tasks.set('collaborativeFilteringUpdate', task)
+    console.log('📅 已排程每日協同過濾推薦更新 (凌晨6點)')
+  }
+
+  /**
+   * 每日社交協同過濾推薦更新 (凌晨7點)
+   */
+  scheduleSocialCollaborativeFilteringUpdate() {
+    const task = cron.schedule(
+      '0 7 * * *',
+      async () => {
+        try {
+          console.log('🤝 開始每日社交協同過濾推薦更新...')
+          await updateSocialCollaborativeFilteringCacheScheduler()
+          console.log('✅ 社交協同過濾推薦更新完成')
+        } catch (error) {
+          console.error('❌ 社交協同過濾推薦更新失敗:', error)
+          logger.error('Daily social collaborative filtering update failed', { error: error.message })
+        }
+      },
+      {
+        timezone: 'Asia/Taipei',
+      },
+    )
+
+    this.tasks.set('socialCollaborativeFilteringUpdate', task)
+    console.log('📅 已排程每日社交協同過濾推薦更新 (凌晨7點)')
+  }
+
+  /**
+   * 獲取任務狀態
+   */
+  getTasksStatus() {
+    const status = {}
+    this.tasks.forEach((task, name) => {
+      status[name] = {
+        running: task.running,
+        lastDate: task.lastDate,
+      }
+    })
+    return status
+  }
+}
+
+// 創建全局調度器實例
+const recommendationCronScheduler = new RecommendationCronScheduler()
+
+/**
+ * 啟動推薦系統調度器
+ */
+export const startRecommendationScheduler = () => {
+  recommendationCronScheduler.startAllTasks()
+}
+
+/**
+ * 停止推薦系統調度器
+ */
+export const stopRecommendationScheduler = () => {
+  recommendationCronScheduler.stopAllTasks()
 }
 
 /**
@@ -327,4 +515,6 @@ export default {
   updateAllRecommendationSystems,
   getRecommendationSystemStatus,
   updateRecommendationConfig,
+  startRecommendationScheduler,
+  stopRecommendationScheduler,
 }
