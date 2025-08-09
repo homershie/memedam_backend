@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename)
 import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
+import pinoHttp from 'pino-http'
 import passport from 'passport'
 import mongoose from 'mongoose'
 import fs from 'fs'
@@ -34,7 +35,6 @@ import {
   stopUserCleanupScheduler,
 } from './utils/userCleanupScheduler.js'
 import './config/passport.js'
-const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' })
 
 const app = express()
 
@@ -65,16 +65,13 @@ app.use(metrics)
 
 // Session 配置和 Passport 初始化將在 startServer 中進行
 
-// 日誌中間件
-app.use(morgan('combined', { stream: accessLogStream }))
-app.use(morgan('dev'))
-app.use(
-  morgan('combined', {
-    stream: {
-      write: (message) => logger.info(message.trim()),
-    },
-  }),
-)
+// 結構化 HTTP 請求日誌中間件
+app.use(pinoHttp({ logger }))
+
+// 保留開發環境的 morgan（可選）
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'))
+}
 
 // 效能監控中間件
 app.use((req, res, next) => {
