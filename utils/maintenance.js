@@ -15,10 +15,10 @@ class MaintenanceScheduler {
    */
   startAllTasks() {
     try {
-      // 每日凌晨2點檢查迷因統計計數
+      // 每日凌晨1點檢查迷因統計計數
       this.scheduleMemeCountsCheck()
 
-      // 每日凌晨3點檢查用戶統計計數
+      // 每日凌晨1點檢查用戶統計計數
       this.scheduleUserCountsCheck()
 
       // 每週日凌晨4點進行完整數據檢查
@@ -47,11 +47,11 @@ class MaintenanceScheduler {
   }
 
   /**
-   * 每日迷因統計計數檢查 (凌晨2點)
+   * 每日迷因統計計數檢查 (凌晨1點)
    */
   scheduleMemeCountsCheck() {
     const task = cron.schedule(
-      '0 2 * * *',
+      '0 1 * * *',
       async () => {
         try {
           console.log('🔍 開始每日迷因統計計數檢查...')
@@ -78,15 +78,15 @@ class MaintenanceScheduler {
     )
 
     this.tasks.set('dailyMemeCountsCheck', task)
-    console.log('📅 已排程每日迷因統計檢查 (凌晨2點)')
+    console.log('📅 已排程每日迷因統計檢查 (凌晨1點)')
   }
 
   /**
-   * 每日用戶統計計數檢查 (凌晨3點)
+   * 每日用戶統計計數檢查 (凌晨1點)
    */
   scheduleUserCountsCheck() {
     const task = cron.schedule(
-      '0 3 * * *',
+      '0 1 * * *',
       async () => {
         try {
           console.log('🔍 開始每日用戶統計計數檢查...')
@@ -113,7 +113,7 @@ class MaintenanceScheduler {
     )
 
     this.tasks.set('dailyUserCountsCheck', task)
-    console.log('📅 已排程每日用戶統計檢查 (凌晨3點)')
+    console.log('📅 已排程每日用戶統計檢查 (凌晨1點)')
   }
 
   /**

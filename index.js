@@ -40,6 +40,10 @@ import {
   startUserCleanupScheduler,
   stopUserCleanupScheduler,
 } from './utils/userCleanupScheduler.js'
+import {
+  startRecommendationScheduler,
+  stopRecommendationScheduler,
+} from './utils/recommendationScheduler.js'
 import './config/passport.js'
 
 const app = express()
@@ -527,6 +531,14 @@ const startServer = async () => {
       logger.warn('用戶清理調度器啟動失敗，將繼續運行:', cleanupError.message)
     }
 
+    // 啟動推薦系統調度器
+    try {
+      startRecommendationScheduler()
+      logger.info('已啟動推薦系統調度器')
+    } catch (recommendationError) {
+      logger.warn('推薦系統調度器啟動失敗，將繼續運行:', recommendationError.message)
+    }
+
     // 列印所有註冊的路徑（調試用）
     // printAllRoutes(app) // 已停用路徑列表顯示
 
@@ -547,6 +559,7 @@ process.on('SIGTERM', async () => {
   try {
     stopNotificationScheduler()
     stopUserCleanupScheduler()
+    stopRecommendationScheduler()
     await redisCache.disconnect()
     process.exit(0)
   } catch (error) {
@@ -561,6 +574,7 @@ process.on('SIGINT', async () => {
   try {
     stopNotificationScheduler()
     stopUserCleanupScheduler()
+    stopRecommendationScheduler()
     await redisCache.disconnect()
     process.exit(0)
   } catch (error) {
