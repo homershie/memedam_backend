@@ -1017,29 +1017,81 @@ router.get('/bind-auth/:provider/init', (req, res) => {
   const { provider } = req.params
   const { state } = req.query
 
-  // 根據不同的 provider 設定不同的 scope
-  let scope = []
-  switch (provider) {
-    case 'google':
-      scope = ['profile', 'email']
-      break
-    case 'facebook':
-      scope = ['email']
-      break
-    case 'discord':
-      scope = ['identify', 'email']
-      break
-    case 'twitter':
-      scope = ['tweet.read', 'users.read']
-      break
+  // 驗證必要參數
+  if (!state) {
+    return res.status(400).json({
+      success: false,
+      message: '缺少 state 參數'
+    })
   }
 
-  // 重定向到對應的 OAuth 策略
-  const strategyName = `${provider}-bind`
-  passport.authenticate(strategyName, {
-    scope,
-    state,
-  })(req, res)
+  // 驗證 provider
+  const validProviders = ['google', 'facebook', 'discord', 'twitter']
+  if (!validProviders.includes(provider)) {
+    return res.status(400).json({
+      success: false,
+      message: '不支援的社群平台'
+    })
+  }
+
+  // 檢查環境變數
+  const envVars = {
+    google: { id: 'GOOGLE_CLIENT_ID', secret: 'GOOGLE_CLIENT_SECRET' },
+    facebook: { id: 'FACEBOOK_CLIENT_ID', secret: 'FACEBOOK_CLIENT_SECRET' },
+    discord: { id: 'DISCORD_CLIENT_ID', secret: 'DISCORD_CLIENT_SECRET' },
+    twitter: { id: 'TWITTER_CLIENT_ID', secret: 'TWITTER_CLIENT_SECRET' }
+  }
+
+  const { id: clientIdEnv, secret: clientSecretEnv } = envVars[provider]
+  if (!process.env[clientIdEnv] || !process.env[clientSecretEnv]) {
+    console.error(`${provider} OAuth 環境變數未設定: ${clientIdEnv}, ${clientSecretEnv}`)
+    return res.status(500).json({
+      success: false,
+      message: `${provider} OAuth 配置錯誤`
+    })
+  }
+
+  try {
+    // 根據不同的 provider 設定不同的 scope
+    let scope = []
+    switch (provider) {
+      case 'google':
+        scope = ['profile', 'email']
+        break
+      case 'facebook':
+        scope = ['email']
+        break
+      case 'discord':
+        scope = ['identify', 'email']
+        break
+      case 'twitter':
+        scope = ['tweet.read', 'users.read']
+        break
+    }
+
+    // 重定向到對應的 OAuth 策略
+    const strategyName = `${provider}-bind`
+    passport.authenticate(strategyName, {
+      scope,
+      state,
+    })(req, res, (error) => {
+      if (error) {
+        console.error(`${provider} OAuth 認證錯誤:`, error)
+        return res.status(500).json({
+          success: false,
+          message: 'OAuth 認證失敗',
+          error: error.message
+        })
+      }
+    })
+  } catch (error) {
+    console.error(`${provider} OAuth 初始化錯誤:`, error)
+    return res.status(500).json({
+      success: false,
+      message: 'OAuth 初始化失敗',
+      error: error.message
+    })
+  }
 })
 
 // Google OAuth 綁定
