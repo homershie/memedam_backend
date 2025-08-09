@@ -13,6 +13,7 @@ import passport from 'passport'
 import mongoose from 'mongoose'
 import fs from 'fs'
 import session from 'express-session'
+import RedisStore from 'connect-redis'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
 import swaggerSpecs from './config/swagger.js'
@@ -36,37 +37,15 @@ const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'),
 
 const app = express()
 
+// 在 Render 有反向代理，必加，否則 secure cookie 會失效
+app.set('trust proxy', 1)
+
 // 中間件
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
-// Session 配置
-const MemoryStore = session.MemoryStore
-const sessionStore = new MemoryStore()
-
-// 在生產環境中顯示警告
-if (process.env.NODE_ENV === 'production') {
-  logger.warn('生產環境使用 MemoryStore，建議配置 Redis session store 以提升效能和可擴展性')
-}
-
-app.use(
-  session({
-    store: sessionStore,
-    secret: process.env.SESSION_SECRET || 'your-session-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 小時
-    },
-  }),
-)
-
-// Passport 初始化
-app.use(passport.initialize())
-app.use(passport.session())
+// Session 配置和 Passport 初始化將在 startServer 中進行
 
 // 日誌中間件
 app.use(morgan('combined', { stream: accessLogStream }))
@@ -385,6 +364,50 @@ const startServer = async () => {
     } catch (error) {
       logger.warn('Redis 連線失敗，將繼續運行但快取功能可能受限:', error.message)
     }
+
+    // 配置 Session store（在 Redis 連接後）
+    const isProd = process.env.NODE_ENV === 'production'
+    
+    // 創建 session store 函數
+    const createSessionStore = () => {
+      // 檢查 Redis 是否可用
+      if (redisCache.isEnabled && redisCache.client && redisCache.isConnected) {
+        logger.info('使用 Redis session store')
+        return new RedisStore({
+          client: redisCache.client,
+          prefix: 'sess:',
+          ttl: 60 * 60 * 24 * 7, // 7 天
+        })
+      } else {
+        logger.warn('Redis 不可用，使用 MemoryStore 作為 session store')
+        if (isProd) {
+          logger.warn('生產環境使用 MemoryStore，建議檢查 Redis 配置')
+        }
+        return new session.MemoryStore()
+      }
+    }
+
+    // 配置 session 中間件
+    const sessionStore = createSessionStore()
+    app.use(
+      session({
+        store: sessionStore,
+        secret: process.env.SESSION_SECRET || 'your-session-secret',
+        name: '__Host-memedam.sid', // 主域 cookie 名稱
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: isProd, // 只在 https 傳送
+          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天
+        },
+      }),
+    )
+
+    // Passport 初始化（在 session 配置之後）
+    app.use(passport.initialize())
+    app.use(passport.session())
 
     // 啟動定期維護任務
     if (process.env.NODE_ENV === 'production') {
