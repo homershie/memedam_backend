@@ -31,6 +31,33 @@ import { signToken } from '../utils/jwt.js'
 
 const router = express.Router()
 
+// 取得前端 URL 的輔助函數
+const getFrontendUrl = () => {
+  return process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:5173')
+}
+
+// 生成 OAuth state 參數
+const generateOAuthState = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+}
+
+// 驗證 OAuth state 參數
+const verifyOAuthState = (req, res, next) => {
+  const { state } = req.query
+  const sessionState = req.session.oauthState
+  
+  // 清除 session 中的 state
+  delete req.session.oauthState
+  
+  if (!state || !sessionState || state !== sessionState) {
+    console.error('OAuth state 驗證失敗:', { provided: state, expected: sessionState })
+    const frontendUrl = getFrontendUrl()
+    return res.redirect(`${frontendUrl}/login?error=invalid_state`)
+  }
+  
+  next()
+}
+
 /**
  * @swagger
  * components:
@@ -926,83 +953,161 @@ router.post('/change-password', token, changePassword)
 router.post('/change-email', token, changeEmail)
 
 // 觸發 Google OAuth
-router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }))
+router.get('/auth/google', (req, res, next) => {
+  // 生成並儲存 state 參數
+  const state = generateOAuthState()
+  req.session.oauthState = state
+  
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'],
+    state: state
+  })(req, res, next)
+})
+
 // Google OAuth callback
 router.get(
   '/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  verifyOAuthState,
+  passport.authenticate('google', { failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed` }),
   async (req, res) => {
     try {
       // 登入成功，產生 JWT token
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
+      
+      // 檢查是否已達到 token 數量限制
+      if (req.user.tokens.length >= 3) {
+        req.user.tokens.shift() // 移除最舊的 token
+      }
+      
       req.user.tokens.push(token)
       await req.user.save()
-      // 可以導向前端並帶上 token，或直接回傳 JSON
-      res.redirect(`/?token=${token}`) // 或改為 res.json({ success: true, token, user: req.user })
+      
+      // 重定向到前端並帶上 token
+      const frontendUrl = getFrontendUrl()
+      res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
       console.error('Google OAuth callback 錯誤:', error)
-      res.redirect('/login?error=server_error')
+      const frontendUrl = getFrontendUrl()
+      res.redirect(`${frontendUrl}/login?error=server_error`)
     }
   },
 )
 
 // 觸發 Facebook OAuth
-router.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }))
+router.get('/auth/facebook', (req, res, next) => {
+  // 生成並儲存 state 參數
+  const state = generateOAuthState()
+  req.session.oauthState = state
+  
+  passport.authenticate('facebook', { 
+    scope: ['email'],
+    state: state
+  })(req, res, next)
+})
+
 // Facebook OAuth callback
 router.get(
   '/auth/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: '/login' }),
+  verifyOAuthState,
+  passport.authenticate('facebook', { failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed` }),
   async (req, res) => {
     try {
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
+      
+      // 檢查是否已達到 token 數量限制
+      if (req.user.tokens.length >= 3) {
+        req.user.tokens.shift() // 移除最舊的 token
+      }
+      
       req.user.tokens.push(token)
       await req.user.save()
-      res.redirect(`/?token=${token}`)
+      
+      const frontendUrl = getFrontendUrl()
+      res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
       console.error('Facebook OAuth callback 錯誤:', error)
-      res.redirect('/login?error=server_error')
+      const frontendUrl = getFrontendUrl()
+      res.redirect(`${frontendUrl}/login?error=server_error`)
     }
   },
 )
 
 // 觸發 Discord OAuth
-router.get('/auth/discord', passport.authenticate('discord'))
+router.get('/auth/discord', (req, res, next) => {
+  // 生成並儲存 state 參數
+  const state = generateOAuthState()
+  req.session.oauthState = state
+  
+  passport.authenticate('discord', { 
+    state: state
+  })(req, res, next)
+})
+
 // Discord OAuth callback
 router.get(
   '/auth/discord/callback',
-  passport.authenticate('discord', { failureRedirect: '/login' }),
+  verifyOAuthState,
+  passport.authenticate('discord', { failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed` }),
   async (req, res) => {
     try {
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
+      
+      // 檢查是否已達到 token 數量限制
+      if (req.user.tokens.length >= 3) {
+        req.user.tokens.shift() // 移除最舊的 token
+      }
+      
       req.user.tokens.push(token)
       await req.user.save()
-      res.redirect(`/?token=${token}`)
+      
+      const frontendUrl = getFrontendUrl()
+      res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
       console.error('Discord OAuth callback 錯誤:', error)
-      res.redirect('/login?error=server_error')
+      const frontendUrl = getFrontendUrl()
+      res.redirect(`${frontendUrl}/login?error=server_error`)
     }
   },
 )
 
 // 觸發 Twitter OAuth
-router.get('/auth/twitter', passport.authenticate('twitter-oauth2'))
+router.get('/auth/twitter', (req, res, next) => {
+  // 生成並儲存 state 參數
+  const state = generateOAuthState()
+  req.session.oauthState = state
+  
+  passport.authenticate('twitter-oauth2', { 
+    state: state
+  })(req, res, next)
+})
+
 // Twitter OAuth callback
 router.get(
   '/auth/twitter/callback',
-  passport.authenticate('twitter-oauth2', { failureRedirect: '/login' }),
+  verifyOAuthState,
+  passport.authenticate('twitter-oauth2', { failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed` }),
   async (req, res) => {
     try {
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
+      
+      // 檢查是否已達到 token 數量限制
+      if (req.user.tokens.length >= 3) {
+        req.user.tokens.shift() // 移除最舊的 token
+      }
+      
       req.user.tokens.push(token)
       await req.user.save()
-      res.redirect(`/?token=${token}`)
+      
+      const frontendUrl = getFrontendUrl()
+      res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
       console.error('Twitter OAuth callback 錯誤:', error)
-      res.redirect('/login?error=server_error')
+      const frontendUrl = getFrontendUrl()
+      res.redirect(`${frontendUrl}/login?error=server_error`)
     }
   },
 )
