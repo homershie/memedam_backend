@@ -14,6 +14,7 @@ import mongoose from 'mongoose'
 import fs from 'fs'
 import session from 'express-session'
 import RedisStore from 'connect-redis'
+import promBundle from 'express-prom-bundle'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
 import swaggerSpecs from './config/swagger.js'
@@ -44,6 +45,23 @@ app.set('trust proxy', 1)
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+
+// Prometheus 指標收集中間件
+const metrics = promBundle({
+  includeMethod: true, // 包括 HTTP 方法
+  includePath: true, // 包括請求路徑
+  includeStatusCode: true, // 包括狀態碼
+  promClient: { collectDefaultMetrics: {} }, // 收集默認指標
+  normalizePath: [
+    // 規範化動態路徑，避免標籤過多
+    ['^/api/memes/[0-9a-fA-F]{24}$', '/api/memes/:id'],
+    ['^/api/users/[0-9a-fA-F]{24}$', '/api/users/:id'],
+    ['^/api/comments/[0-9a-fA-F]{24}$', '/api/comments/:id'],
+    ['^/api/collections/[0-9a-fA-F]{24}$', '/api/collections/:id'],
+    ['^/api/tags/[0-9a-fA-F]{24}$', '/api/tags/:id'],
+  ],
+})
+app.use(metrics)
 
 // Session 配置和 Passport 初始化將在 startServer 中進行
 
@@ -188,6 +206,9 @@ app.use('/api/dislikes', dislikeRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/email', emailRoutes)
 app.use('/api/verification', verificationRoutes)
+
+// 健康檢查端點（簡化版，供 Render 等外部監控使用）
+app.get('/healthz', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }))
 
 // 健康檢查端點
 app.get('/health', async (req, res) => {
