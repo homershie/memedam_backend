@@ -8,6 +8,10 @@ const __dirname = path.dirname(__filename)
 
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import hpp from 'hpp'
+import mongoSanitize from 'express-mongo-sanitize'
+import compression from 'compression'
 import morgan from 'morgan'
 import pinoHttp from 'pino-http'
 import passport from 'passport'
@@ -41,8 +45,32 @@ const app = express()
 // 在 Render 有反向代理，必加，否則 secure cookie 會失效
 app.set('trust proxy', 1)
 
-// 中間件
-app.use(cors())
+// 定義允許的來源
+const allowedOrigins = [
+  'https://memedam.com',
+  'https://www.memedam.com',
+  'https://api.memedam.com',
+  'http://localhost:5173',
+]
+
+// 安全性中間件
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // 若有跨網域圖片/資源
+}))
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true) // 允許非瀏覽器/工具
+    return allowedOrigins.includes(origin) ? callback(null, true) : callback(new Error('Not allowed by CORS'))
+  },
+  credentials: true,
+}))
+
+app.use(hpp())
+app.use(mongoSanitize())
+app.use(compression())
+
+// 其他中間件
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
