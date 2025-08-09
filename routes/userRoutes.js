@@ -22,6 +22,8 @@ import {
   initBindAuth, // 新增 OAuth 綁定初始化
   handleBindAuthCallback, // 新增 OAuth 綁定回調處理
   getBindStatus, // 新增獲取綁定狀態
+  validateUsername, // 新增 username 驗證
+  changeUsername, // 新增 username 變更
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -128,6 +130,24 @@ const verifyOAuthState = (req, res, next) => {
  *           type: string
  *           format: date-time
  *           description: 更新時間
+ *         username_changed_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           description: Username 最後變更時間（一個月只能變更一次）
+ *         previous_usernames:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: 之前的 username
+ *               changed_at:
+ *                 type: string
+ *                 format: date-time
+ *                 description: 變更時間
+ *           description: 最近的 username 變更歷史（最多保留10筆）
  *     LoginRequest:
  *       type: object
  *       required:
@@ -845,6 +865,219 @@ router.get('/bind-status', token, getBindStatus)
  *         description: 目前密碼不正確
  *       409:
  *         description: 此電子信箱已被其他使用者註冊
+ * /api/users/validate-username/{username}:
+ *   get:
+ *     summary: 驗證 username 是否可用
+ *     tags: [Users]
+ *     description: 檢查指定的 username 是否可用，包括格式驗證、重複檢查和保留字檢查
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *           minLength: 8
+ *           maxLength: 20
+ *         description: 要驗證的 username（8-20字元，只允許英文字母、數字、點號、底線和連字號）
+ *     responses:
+ *       200:
+ *         description: 驗證結果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   description: 操作是否成功
+ *                 available:
+ *                   type: boolean
+ *                   description: username 是否可用
+ *                 message:
+ *                   type: string
+ *                   description: 詳細訊息
+ *             examples:
+ *               available:
+ *                 summary: Username 可用
+ *                 value:
+ *                   success: true
+ *                   available: true
+ *                   message: "此 username 可以使用"
+ *               unavailable:
+ *                 summary: Username 不可用
+ *                 value:
+ *                   success: true
+ *                   available: false
+ *                   message: "此 username 已被使用"
+ *               format_error:
+ *                 summary: 格式錯誤
+ *                 value:
+ *                   success: false
+ *                   available: false
+ *                   message: "username 只能包含英文字母、數字、點號(.)、底線(_)和連字號(-)"
+ *               length_error:
+ *                 summary: 長度錯誤
+ *                 value:
+ *                   success: false
+ *                   available: false
+ *                   message: "username 長度必須在 8 到 20 個字元之間"
+ *       400:
+ *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ * /api/users/change-username:
+ *   post:
+ *     summary: 變更 username
+ *     tags: [Users]
+ *     description: 變更用戶的 username，包含時間限制和完整驗證
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - currentPassword
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 minLength: 8
+ *                 maxLength: 20
+ *                 description: 新的 username（8-20字元，只允許英文字母、數字、點號、底線和連字號）
+ *                 example: "newusername123"
+ *               currentPassword:
+ *                 type: string
+ *                 description: 目前密碼（用於驗證身份）
+ *                 example: "your_current_password"
+ *     responses:
+ *       200:
+ *         description: Username 變更成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       description: 用戶ID
+ *                     username:
+ *                       type: string
+ *                       description: 新的 username
+ *                     username_changed_at:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Username 變更時間
+ *             example:
+ *               success: true
+ *               message: "username 已成功變更"
+ *               user:
+ *                 _id: "507f1f77bcf86cd799439011"
+ *                 username: "newusername123"
+ *                 username_changed_at: "2024-01-15T10:30:00.000Z"
+ *       400:
+ *         description: 請求參數錯誤或變更限制
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               time_limit:
+ *                 summary: 時間限制
+ *                 value:
+ *                   success: false
+ *                   message: "username 一個月只能變更一次，還需要等待 25 天才能再次變更"
+ *               format_error:
+ *                 summary: 格式錯誤
+ *                 value:
+ *                   success: false
+ *                   message: "username 只能包含英文字母、數字、點號(.)、底線(_)和連字號(-)"
+ *               length_error:
+ *                 summary: 長度錯誤
+ *                 value:
+ *                   success: false
+ *                   message: "username 長度必須在 8 到 20 個字元之間"
+ *               same_username:
+ *                 summary: 相同 username
+ *                 value:
+ *                   success: false
+ *                   message: "新 username 不能與目前 username 相同"
+ *               reserved_username:
+ *                 summary: 保留字
+ *                 value:
+ *                   success: false
+ *                   message: "此 username 為系統保留，無法使用"
+ *       401:
+ *         description: 未授權或密碼錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *             example:
+ *               success: false
+ *               message: "目前密碼不正確"
+ *       409:
+ *         description: Username 已被使用
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *             example:
+ *               success: false
+ *               message: "此 username 已被其他使用者使用"
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
  * /api/users/auth/google:
  *   get:
  *     summary: Google OAuth 登入
@@ -983,6 +1216,12 @@ router.post('/change-password', token, changePassword)
 
 // 電子信箱變更
 router.post('/change-email', token, changeEmail)
+
+// Username 驗證
+router.get('/validate-username/:username', validateUsername)
+
+// Username 變更
+router.post('/change-username', token, changeUsername)
 
 // 觸發 Google OAuth
 router.get('/auth/google', (req, res, next) => {

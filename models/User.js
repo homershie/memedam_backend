@@ -408,6 +408,42 @@ const UserSchema = new mongoose.Schema(
       trendingContent: { type: Boolean, default: false },
       weeklyDigest: { type: Boolean, default: true },
     },
+    // Username 變更相關欄位
+    username_changed_at: {
+      type: Date,
+      default: null,
+      validate: {
+        validator(value) {
+          if (!value) return true
+          return value instanceof Date && !isNaN(value)
+        },
+        message: 'username變更時間必須是有效的日期',
+      },
+    },
+    previous_usernames: [
+      {
+        username: {
+          type: String,
+          trim: true,
+          validate: {
+            validator(value) {
+              return /^[a-zA-Z0-9._-]+$/.test(value)
+            },
+            message: '用戶名只能包含英文字母、數字、點號(.)、底線(_)和連字號(-)',
+          },
+        },
+        changed_at: {
+          type: Date,
+          default: Date.now,
+          validate: {
+            validator(value) {
+              return value instanceof Date && !isNaN(value)
+            },
+            message: '變更時間必須是有效的日期',
+          },
+        },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -463,6 +499,30 @@ UserSchema.pre('save', function (next) {
   if (user.isModified('tokens') && user.tokens && user.tokens.length > 3) {
     // 保留最新的 3 個 token（移除最舊的）
     user.tokens = user.tokens.slice(-3)
+  }
+
+  // 處理 username 變更
+  if (user.isModified('username') && !user.isNew) {
+    // 檢查是否可以變更 username（一個月只能變更一次）
+    if (user.username_changed_at) {
+      const lastChangeTime = new Date(user.username_changed_at)
+      const currentTime = new Date()
+      const timeDiff = currentTime - lastChangeTime
+      const oneMonthInMs = 30 * 24 * 60 * 60 * 1000 // 30天的毫秒數
+
+      if (timeDiff < oneMonthInMs) {
+        const remainingDays = Math.ceil((oneMonthInMs - timeDiff) / (24 * 60 * 60 * 1000))
+        const error = new Error(
+          `username 一個月只能變更一次，還需要等待 ${remainingDays} 天才能再次變更`,
+        )
+        error.name = 'ValidationError'
+        next(error)
+        return
+      }
+    }
+
+    // 更新變更時間
+    user.username_changed_at = new Date()
   }
 
   // 繼續處理
