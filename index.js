@@ -20,7 +20,7 @@ import swaggerSpecs from './config/swagger.js'
 import swaggerUi from 'swagger-ui-express'
 import { performanceMonitor } from './utils/asyncProcessor.js'
 import { logger } from './utils/logger.js'
-import { loginLimiter, registerLimiter, forgotPasswordLimiter } from './middleware/rateLimit.js'
+import { apiLimiter, loginLimiter, registerLimiter, forgotPasswordLimiter, authLimiter, verificationEmailLimiter, resendVerificationLimiter } from './middleware/rateLimit.js'
 import errorHandler, { notFound } from './middleware/errorHandler.js'
 import maintenanceScheduler from './utils/maintenance.js'
 import analyticsMonitor from './utils/analyticsMonitor.js'
@@ -76,9 +76,24 @@ app.use((req, res, next) => {
 })
 
 // 速率限制中間件
+// 全域 API 限流（基於 Redis 的分散式限流）
+app.use('/api', apiLimiter) // 全域 API 限流
+
+// 認證相關敏感路徑限流（更嚴格）
+app.use(['/api/users/login', '/api/auth/login'], authLimiter) // 登入路徑
+app.use(['/api/users/register', '/api/auth/register'], authLimiter) // 註冊路徑
+app.use(['/api/users/forgot-password', '/api/auth/forgot-password'], authLimiter) // 忘記密碼路徑
+
+// 特定路徑的詳細限流（保持原有的更嚴格限制）
 app.use('/api/users/login', loginLimiter) // 登入特別限流
 app.use('/api/users/register', registerLimiter) // 註冊限流
 app.use('/api/users/forgot-password', forgotPasswordLimiter) // 忘記密碼限流
+
+// email 驗證相關限流
+app.use('/api/email/verify', verificationEmailLimiter) // 驗證 email 限流
+app.use('/api/email/resend-verification', resendVerificationLimiter) // 重新發送驗證 email 限流
+app.use('/api/verification/send-email', verificationEmailLimiter) // 發送驗證 email 限流
+app.use('/api/verification/resend', resendVerificationLimiter) // 重新發送驗證限流
 
 // 根路徑歡迎頁面
 app.get('/', (req, res) => {
