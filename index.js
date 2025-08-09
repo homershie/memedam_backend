@@ -1,22 +1,16 @@
 // 預先載入環境變數，確保後續模組可取得設定值
 import './config/loadEnv.js'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import hpp from 'hpp'
-import mongoSanitize from 'express-mongo-sanitize'
+import mongoSanitize from './utils/mongoSanitize.js'
 import compression from 'compression'
 import morgan from 'morgan'
 import pinoHttp from 'pino-http'
 import passport from 'passport'
 import mongoose from 'mongoose'
-import fs from 'fs'
 import session from 'express-session'
 import RedisStore from 'connect-redis'
 import promBundle from 'express-prom-bundle'
@@ -26,7 +20,15 @@ import swaggerSpecs from './config/swagger.js'
 import swaggerUi from 'swagger-ui-express'
 import { performanceMonitor } from './utils/asyncProcessor.js'
 import { logger } from './utils/logger.js'
-import { apiLimiter, loginLimiter, registerLimiter, forgotPasswordLimiter, authLimiter, verificationEmailLimiter, resendVerificationLimiter } from './middleware/rateLimit.js'
+import {
+  apiLimiter,
+  loginLimiter,
+  registerLimiter,
+  forgotPasswordLimiter,
+  authLimiter,
+  verificationEmailLimiter,
+  resendVerificationLimiter,
+} from './middleware/rateLimit.js'
 import errorHandler, { notFound } from './middleware/errorHandler.js'
 import maintenanceScheduler from './utils/maintenance.js'
 import analyticsMonitor from './utils/analyticsMonitor.js'
@@ -54,17 +56,23 @@ const allowedOrigins = [
 ]
 
 // 安全性中間件
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // 若有跨網域圖片/資源
-}))
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // 若有跨網域圖片/資源
+  }),
+)
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true) // 允許非瀏覽器/工具
-    return allowedOrigins.includes(origin) ? callback(null, true) : callback(new Error('Not allowed by CORS'))
-  },
-  credentials: true,
-}))
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true) // 允許非瀏覽器/工具
+      return allowedOrigins.includes(origin)
+        ? callback(null, true)
+        : callback(new Error('Not allowed by CORS'))
+    },
+    credentials: true,
+  }),
+)
 
 app.use(hpp())
 app.use(mongoSanitize())
@@ -428,7 +436,7 @@ const startServer = async () => {
 
     // 配置 Session store（在 Redis 連接後）
     const isProd = process.env.NODE_ENV === 'production'
-    
+
     // 創建 session store 函數
     const createSessionStore = () => {
       // 檢查 Redis 是否可用

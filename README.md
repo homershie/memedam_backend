@@ -1134,13 +1134,6 @@ const status = maintenanceScheduler.getTasksStatus()
 - **即時社交圖譜更新**: 實時社交關係變化
 - **事件驅動架構**: 基於事件的推薦調整
 
-### 進階社交功能
-
-- **影響力預測**: 預測內容的社交傳播潛力
-- **社交推薦解釋**: 提供詳細的推薦原因
-- **跨社交圈推薦**: 促進不同圈層的內容交流
-- **社交趨勢分析**: 分析社交互動趨勢
-
 ### 效能優化升級
 
 - **CDN 整合**: 靜態資源使用 CDN
@@ -1148,6 +1141,13 @@ const status = maintenanceScheduler.getTasksStatus()
 - **讀寫分離**: 實現資料庫讀寫分離
 - **容器化部署**: 使用 Docker 和 Kubernetes
 - **自動擴展**: 根據負載自動擴展服務
+
+### 後端優化
+
+- **reCAPTCHA v3 整合**: 登入/註冊加 reCAPTCHA v3（防濫用）
+- **強化 Rate Limiting**: 特定敏感端點再套一層更嚴 rate limit（/auth/、/search、/upload）
+- **OpenTelemetry 整合**: 若有多服務要 trace
+- **獨立任務排程**: 任務排程改用獨立 worker/cron（避免多實例重複執行；Render 有「Cron Jobs」可用）
 
 ## 📚 開發指南
 
