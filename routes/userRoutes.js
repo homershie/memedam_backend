@@ -33,7 +33,10 @@ const router = express.Router()
 
 // 取得前端 URL 的輔助函數
 const getFrontendUrl = () => {
-  return process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:5173')
+  return (
+    process.env.FRONTEND_URL ||
+    (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:5173')
+  )
 }
 
 // 生成 OAuth state 參數
@@ -44,18 +47,47 @@ const generateOAuthState = () => {
 // 驗證 OAuth state 參數
 const verifyOAuthState = (req, res, next) => {
   const { state } = req.query
+
+  // 確保 session 存在
+  if (!req.session) {
+    console.error('Session not available in verifyOAuthState')
+    const frontendUrl = getFrontendUrl()
+    return res.redirect(`${frontendUrl}/login?error=session_unavailable`)
+  }
+
   const sessionState = req.session.oauthState
-  
+
+  // 開發模式下的調試資訊
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Development mode - OAuth state verification:')
+    console.log('  Provided state:', state)
+    console.log('  Session state:', sessionState)
+    console.log('  Session ID:', req.sessionID)
+  }
+
   // 清除 session 中的 state
   delete req.session.oauthState
-  
+
   if (!state || !sessionState || state !== sessionState) {
     console.error('OAuth state 驗證失敗:', { provided: state, expected: sessionState })
     const frontendUrl = getFrontendUrl()
     return res.redirect(`${frontendUrl}/login?error=invalid_state`)
   }
-  
-  next()
+
+  // 保存 session 的變更
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error in verifyOAuthState:', err)
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(`${frontendUrl}/login?error=session_save_failed`)
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Development mode - OAuth state verified successfully')
+    }
+
+    next()
+  })
 }
 
 /**
@@ -956,33 +988,60 @@ router.post('/change-email', token, changeEmail)
 router.get('/auth/google', (req, res, next) => {
   // 生成並儲存 state 參數
   const state = generateOAuthState()
+
+  // 確保 session 存在
+  if (!req.session) {
+    console.error('Session not available in development mode')
+    return res.status(500).json({ error: 'Session not available' })
+  }
+
   req.session.oauthState = state
-  
-  passport.authenticate('google', { 
-    scope: ['profile', 'email'],
-    state: state
-  })(req, res, next)
+
+  // 開發模式下的調試資訊
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Development mode - OAuth state set:', state)
+    console.log('Session ID:', req.sessionID)
+  }
+
+  // 確保 session 被保存
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error:', err)
+      return res.status(500).json({ error: 'Session save failed' })
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Development mode - Session saved successfully')
+    }
+
+    passport.authenticate('google', {
+      scope: ['profile', 'email'],
+      state: state,
+    })(req, res, next)
+  })
 })
 
 // Google OAuth callback
 router.get(
   '/auth/google/callback',
   verifyOAuthState,
-  passport.authenticate('google', { failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed` }),
+  passport.authenticate('google', {
+    failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
+  }),
   async (req, res) => {
     try {
       // 登入成功，產生 JWT token
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
-      
+
       // 檢查是否已達到 token 數量限制
       if (req.user.tokens.length >= 3) {
         req.user.tokens.shift() // 移除最舊的 token
       }
-      
+
       req.user.tokens.push(token)
       await req.user.save()
-      
+
       // 重定向到前端並帶上 token
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/?token=${token}`)
@@ -998,32 +1057,48 @@ router.get(
 router.get('/auth/facebook', (req, res, next) => {
   // 生成並儲存 state 參數
   const state = generateOAuthState()
+
+  // 確保 session 存在
+  if (!req.session) {
+    return res.status(500).json({ error: 'Session not available' })
+  }
+
   req.session.oauthState = state
-  
-  passport.authenticate('facebook', { 
-    scope: ['email'],
-    state: state
-  })(req, res, next)
+
+  // 確保 session 被保存
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error:', err)
+      return res.status(500).json({ error: 'Session save failed' })
+    }
+
+    passport.authenticate('facebook', {
+      scope: ['email'],
+      state: state,
+    })(req, res, next)
+  })
 })
 
 // Facebook OAuth callback
 router.get(
   '/auth/facebook/callback',
   verifyOAuthState,
-  passport.authenticate('facebook', { failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed` }),
+  passport.authenticate('facebook', {
+    failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
+  }),
   async (req, res) => {
     try {
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
-      
+
       // 檢查是否已達到 token 數量限制
       if (req.user.tokens.length >= 3) {
         req.user.tokens.shift() // 移除最舊的 token
       }
-      
+
       req.user.tokens.push(token)
       await req.user.save()
-      
+
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
@@ -1038,31 +1113,47 @@ router.get(
 router.get('/auth/discord', (req, res, next) => {
   // 生成並儲存 state 參數
   const state = generateOAuthState()
+
+  // 確保 session 存在
+  if (!req.session) {
+    return res.status(500).json({ error: 'Session not available' })
+  }
+
   req.session.oauthState = state
-  
-  passport.authenticate('discord', { 
-    state: state
-  })(req, res, next)
+
+  // 確保 session 被保存
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error:', err)
+      return res.status(500).json({ error: 'Session save failed' })
+    }
+
+    passport.authenticate('discord', {
+      state: state,
+    })(req, res, next)
+  })
 })
 
 // Discord OAuth callback
 router.get(
   '/auth/discord/callback',
   verifyOAuthState,
-  passport.authenticate('discord', { failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed` }),
+  passport.authenticate('discord', {
+    failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
+  }),
   async (req, res) => {
     try {
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
-      
+
       // 檢查是否已達到 token 數量限制
       if (req.user.tokens.length >= 3) {
         req.user.tokens.shift() // 移除最舊的 token
       }
-      
+
       req.user.tokens.push(token)
       await req.user.save()
-      
+
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
@@ -1077,31 +1168,47 @@ router.get(
 router.get('/auth/twitter', (req, res, next) => {
   // 生成並儲存 state 參數
   const state = generateOAuthState()
+
+  // 確保 session 存在
+  if (!req.session) {
+    return res.status(500).json({ error: 'Session not available' })
+  }
+
   req.session.oauthState = state
-  
-  passport.authenticate('twitter-oauth2', { 
-    state: state
-  })(req, res, next)
+
+  // 確保 session 被保存
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error:', err)
+      return res.status(500).json({ error: 'Session save failed' })
+    }
+
+    passport.authenticate('twitter-oauth2', {
+      state: state,
+    })(req, res, next)
+  })
 })
 
 // Twitter OAuth callback
 router.get(
   '/auth/twitter/callback',
   verifyOAuthState,
-  passport.authenticate('twitter-oauth2', { failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed` }),
+  passport.authenticate('twitter-oauth2', {
+    failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
+  }),
   async (req, res) => {
     try {
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
-      
+
       // 檢查是否已達到 token 數量限制
       if (req.user.tokens.length >= 3) {
         req.user.tokens.shift() // 移除最舊的 token
       }
-      
+
       req.user.tokens.push(token)
       await req.user.save()
-      
+
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
@@ -1126,7 +1233,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
   if (!state) {
     return res.status(400).json({
       success: false,
-      message: '缺少 state 參數'
+      message: '缺少 state 參數',
     })
   }
 
@@ -1135,7 +1242,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
   if (!validProviders.includes(provider)) {
     return res.status(400).json({
       success: false,
-      message: '不支援的社群平台'
+      message: '不支援的社群平台',
     })
   }
 
@@ -1144,7 +1251,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     google: { id: 'GOOGLE_CLIENT_ID', secret: 'GOOGLE_CLIENT_SECRET' },
     facebook: { id: 'FACEBOOK_CLIENT_ID', secret: 'FACEBOOK_CLIENT_SECRET' },
     discord: { id: 'DISCORD_CLIENT_ID', secret: 'DISCORD_CLIENT_SECRET' },
-    twitter: { id: 'TWITTER_CLIENT_ID', secret: 'TWITTER_CLIENT_SECRET' }
+    twitter: { id: 'TWITTER_CLIENT_ID', secret: 'TWITTER_CLIENT_SECRET' },
   }
 
   const { id: clientIdEnv, secret: clientSecretEnv } = envVars[provider]
@@ -1152,7 +1259,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     console.error(`${provider} OAuth 環境變數未設定: ${clientIdEnv}, ${clientSecretEnv}`)
     return res.status(500).json({
       success: false,
-      message: `${provider} OAuth 配置錯誤`
+      message: `${provider} OAuth 配置錯誤`,
     })
   }
 
@@ -1185,7 +1292,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
         return res.status(500).json({
           success: false,
           message: 'OAuth 認證失敗',
-          error: error.message
+          error: error.message,
         })
       }
     })
@@ -1194,7 +1301,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'OAuth 初始化失敗',
-      error: error.message
+      error: error.message,
     })
   }
 })
