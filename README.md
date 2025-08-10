@@ -68,8 +68,10 @@ DISCORD_CLIENT_ID=your_discord_client_id
 DISCORD_CLIENT_SECRET=your_discord_client_secret
 TWITTER_CLIENT_ID=your_twitter_client_id
 TWITTER_CLIENT_SECRET=your_twitter_client_secret
-TWITTER_REDIRECT_URI=http://localhost:4000/api/users/auth/twitter/callback
-TWITTER_BIND_REDIRECT_URI=http://localhost:4000/api/users/bind-auth/twitter/callback
+TWITTER_REDIRECT_URI=http://127.0.0.1:4000/api/users/auth/twitter/callback
+TWITTER_BIND_REDIRECT_URI=http://127.0.0.1:4000/api/users/bind-auth/twitter/callback
+
+# 注意：Twitter OAuth 2.0 建議使用 127.0.0.1 而不是 localhost 避免回調問題
 
 # 電子郵件服務 (SendGrid)
 SENDGRID_API_KEY=your_sendgrid_api_key

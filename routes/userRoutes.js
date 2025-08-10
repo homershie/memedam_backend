@@ -1429,7 +1429,7 @@ router.get('/auth/twitter', (req, res, next) => {
     }
 
     passport.authenticate('twitter-oauth2', {
-      scope: ['tweet.read', 'users.read'],
+      scope: ['tweet.read', 'users.read', 'offline.access'],
       state: state,
     })(req, res, next)
   })
@@ -1440,7 +1440,7 @@ router.get(
   '/auth/twitter/callback',
   verifyOAuthState,
   passport.authenticate('twitter-oauth2', {
-    scope: ['tweet.read', 'users.read'],
+    scope: ['tweet.read', 'users.read', 'offline.access'],
     failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
   }),
   async (req, res) => {
