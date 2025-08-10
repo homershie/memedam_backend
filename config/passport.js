@@ -218,7 +218,21 @@ const initializeOAuthStrategies = () => {
                   login_method: 'google',
                   email_verified: !!profile.emails?.[0]?.verified,
                 })
-                await user.save()
+                
+                try {
+                  await user.save()
+                } catch (saveError) {
+                  // 處理 google_id 重複的情況
+                  if (saveError.code === 11000 && saveError.keyPattern?.google_id) {
+                    console.log('Google ID 已存在，查找現有用戶:', profile.id)
+                    user = await User.findOne({ google_id: profile.id })
+                    if (!user) {
+                      throw new Error(`Google ID ${profile.id} 已存在但無法找到對應用戶`)
+                    }
+                  } else {
+                    throw saveError
+                  }
+                }
               }
               return done(null, user)
             }
@@ -317,7 +331,21 @@ const initializeOAuthStrategies = () => {
                   login_method: 'facebook',
                   email_verified: !!profile.emails?.[0]?.verified,
                 })
-                await user.save()
+                
+                try {
+                  await user.save()
+                } catch (saveError) {
+                  // 處理 facebook_id 重複的情況
+                  if (saveError.code === 11000 && saveError.keyPattern?.facebook_id) {
+                    console.log('Facebook ID 已存在，查找現有用戶:', profile.id)
+                    user = await User.findOne({ facebook_id: profile.id })
+                    if (!user) {
+                      throw new Error(`Facebook ID ${profile.id} 已存在但無法找到對應用戶`)
+                    }
+                  } else {
+                    throw saveError
+                  }
+                }
               }
               return done(null, user)
             }
@@ -413,7 +441,24 @@ const initializeOAuthStrategies = () => {
                   login_method: 'discord',
                   email_verified: !!profile.verified,
                 })
-                await user.save()
+                
+                try {
+                  await user.save()
+                } catch (saveError) {
+                  // 處理 discord_id 重複的情況
+                  if (saveError.code === 11000 && saveError.keyPattern?.discord_id) {
+                    console.log('Discord ID 已存在，查找現有用戶:', profile.id)
+                    // 再次查找用戶，可能是併發請求導致的問題
+                    user = await User.findOne({ discord_id: profile.id })
+                    if (!user) {
+                      // 如果還是找不到，說明有其他問題
+                      throw new Error(`Discord ID ${profile.id} 已存在但無法找到對應用戶`)
+                    }
+                  } else {
+                    // 其他錯誤直接拋出
+                    throw saveError
+                  }
+                }
               }
               return done(null, user)
             }
@@ -455,7 +500,7 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
           callbackURL: process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
-          scope: ['tweet.read', 'users.read'],
+          scope: ['tweet.read', 'users.read', 'offline.access'],
           pkce: true,
           userProfileURL: 'https://api.twitter.com/2/users/me',
           includeEmail: true,
@@ -517,7 +562,21 @@ const initializeOAuthStrategies = () => {
                   login_method: 'twitter',
                   email_verified: !!profile.emails?.[0]?.verified,
                 })
-                await user.save()
+                
+                try {
+                  await user.save()
+                } catch (saveError) {
+                  // 處理 twitter_id 重複的情況
+                  if (saveError.code === 11000 && saveError.keyPattern?.twitter_id) {
+                    console.log('Twitter ID 已存在，查找現有用戶:', profile.id)
+                    user = await User.findOne({ twitter_id: profile.id })
+                    if (!user) {
+                      throw new Error(`Twitter ID ${profile.id} 已存在但無法找到對應用戶`)
+                    }
+                  } else {
+                    throw saveError
+                  }
+                }
               }
               return done(null, user)
             }
@@ -537,7 +596,7 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
-          scope: ['tweet.read', 'users.read'],
+          scope: ['tweet.read', 'users.read', 'offline.access'],
           pkce: true,
           userProfileURL: 'https://api.twitter.com/2/users/me',
           includeEmail: true,
