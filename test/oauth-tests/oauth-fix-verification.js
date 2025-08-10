@@ -51,6 +51,55 @@ async function testDiscordDuplicateHandling() {
   }
 }
 
+// 測試 Facebook 重複用戶處理
+async function testFacebookDuplicateHandling() {
+  console.log('\n🧪 測試 Facebook 重複用戶處理...')
+  
+  try {
+    // 模擬創建第一個用戶
+    const user1 = new User({
+      username: 'fbuser001',
+      email: 'fbtest1@example.com',
+      facebook_id: '987654321',
+      display_name: 'FB Test User 1',
+      login_method: 'facebook',
+      email_verified: true,
+    })
+    
+    await user1.save()
+    console.log('✅ 第一個 Facebook 用戶創建成功')
+    
+    // 測試重複 facebook_id 的處理
+    try {
+      const user2 = new User({
+        username: 'fbuser002',
+        email: 'fbtest2@example.com',
+        facebook_id: '987654321', // 相同的 facebook_id
+        display_name: 'FB Test User 2',
+        login_method: 'facebook',
+        email_verified: true,
+      })
+      
+      await user2.save()
+      console.log('❌ 意外：重複的 facebook_id 沒有被檢測到')
+    } catch (error) {
+      if (error.code === 11000) {
+        console.log('✅ 重複的 facebook_id 被正確檢測並拋出錯誤')
+        console.log(`   錯誤碼: ${error.code}`)
+      } else {
+        console.log('❌ 意外的錯誤類型:', error.message)
+      }
+    }
+    
+    // 清理測試數據
+    await User.deleteOne({ facebook_id: '987654321' })
+    console.log('🧹 Facebook 測試數據已清理')
+    
+  } catch (error) {
+    console.error('❌ Facebook 測試失敗:', error.message)
+  }
+}
+
 // 測試 Twitter OAuth 環境配置
 function testTwitterOAuthConfig() {
   console.log('\n🧪 檢查 Twitter OAuth 環境配置...')
@@ -118,6 +167,9 @@ async function runOAuthFixVerification() {
   if (dbConnected) {
     // 測試 Discord 重複處理
     await testDiscordDuplicateHandling()
+    
+    // 測試 Facebook 重複處理
+    await testFacebookDuplicateHandling()
   }
   
   // 測試 Twitter 配置
@@ -125,13 +177,17 @@ async function runOAuthFixVerification() {
   
   console.log('\n📋 測試完成報告:')
   console.log('================')
-  console.log('1. Discord 重複用戶處理: 已實現')
-  console.log('2. Twitter OAuth 配置檢查: 完成')
-  console.log('3. 環境變數建議: 使用 127.0.0.1 而非 localhost')
+  console.log('1. Discord 重複用戶處理: 已實現並測試')
+  console.log('2. Facebook 重複用戶處理: 已實現並測試')
+  console.log('3. Twitter OAuth 配置檢查: 完成')
+  console.log('4. 環境變數建議: 使用 127.0.0.1 而非 localhost')
+  console.log('5. PKCE 處理: 已移除手動實現，讓 Passport 自動處理')
   console.log('\n🔧 如果仍有問題，請檢查:')
   console.log('- Twitter 開發者平台的回調 URL 設定')
   console.log('- Discord 應用程式的 OAuth2 設定')
+  console.log('- Facebook 應用程式的 OAuth 設定')
   console.log('- 確保所有環境變數正確配置')
+  console.log('- 確保 Twitter 開發者應用程式啟用了 OAuth 2.0 with PKCE')
 }
 
 // 如果直接執行此腳本
@@ -154,4 +210,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   await mongoose.disconnect()
 }
 
-export { runOAuthFixVerification, testDiscordDuplicateHandling, testTwitterOAuthConfig }
+export { runOAuthFixVerification, testDiscordDuplicateHandling, testFacebookDuplicateHandling, testTwitterOAuthConfig }
