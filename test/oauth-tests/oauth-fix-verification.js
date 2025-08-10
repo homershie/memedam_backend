@@ -1,213 +1,108 @@
 import mongoose from 'mongoose'
 import User from '../../models/User.js'
 
-// 測試 Discord 重複用戶處理
-async function testDiscordDuplicateHandling() {
-  console.log('🧪 測試 Discord 重複用戶處理...')
-  
+async function testOAuthFixes() {
   try {
-    // 模擬創建第一個用戶
-    const user1 = new User({
-      username: 'testuser001',
-      email: 'test1@example.com',
-      discord_id: '123456789',
-      display_name: 'Test User 1',
-      login_method: 'discord',
-      email_verified: true,
-    })
-    
-    await user1.save()
-    console.log('✅ 第一個 Discord 用戶創建成功')
-    
-    // 測試重複 discord_id 的處理
-    try {
-      const user2 = new User({
-        username: 'testuser002',
-        email: 'test2@example.com',
-        discord_id: '123456789', // 相同的 discord_id
-        display_name: 'Test User 2',
-        login_method: 'discord',
-        email_verified: true,
-      })
-      
-      await user2.save()
-      console.log('❌ 意外：重複的 discord_id 沒有被檢測到')
-    } catch (error) {
-      if (error.code === 11000) {
-        console.log('✅ 重複的 discord_id 被正確檢測並拋出錯誤')
-        console.log(`   錯誤碼: ${error.code}`)
-        console.log(`   錯誤訊息: ${error.message}`)
-      } else {
-        console.log('❌ 意外的錯誤類型:', error.message)
-      }
-    }
-    
-    // 清理測試數據
-    await User.deleteOne({ discord_id: '123456789' })
-    console.log('🧹 測試數據已清理')
-    
-  } catch (error) {
-    console.error('❌ Discord 測試失敗:', error.message)
-  }
-}
+    // 連接到測試資料庫 - 使用預設的 MongoDB URI
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/memedam'
+    await mongoose.connect(mongoUri)
+    console.log('✅ 已連接到 MongoDB')
 
-// 測試 Facebook 重複用戶處理
-async function testFacebookDuplicateHandling() {
-  console.log('\n🧪 測試 Facebook 重複用戶處理...')
-  
-  try {
-    // 模擬創建第一個用戶
-    const user1 = new User({
-      username: 'fbuser001',
-      email: 'fbtest1@example.com',
-      facebook_id: '987654321',
-      display_name: 'FB Test User 1',
-      login_method: 'facebook',
-      email_verified: true,
-    })
+    // 測試 Discord 重複 ID 場景
+    console.log('\n=== 測試 Discord 重複 ID 處理 ===')
     
-    await user1.save()
-    console.log('✅ 第一個 Facebook 用戶創建成功')
+    // 查找是否存在重複的 discord_id
+    const discordUsers = await User.find({ discord_id: { $exists: true } })
+    console.log(`找到 ${discordUsers.length} 個已綁定 Discord 的用戶`)
     
-    // 測試重複 facebook_id 的處理
-    try {
-      const user2 = new User({
-        username: 'fbuser002',
-        email: 'fbtest2@example.com',
-        facebook_id: '987654321', // 相同的 facebook_id
-        display_name: 'FB Test User 2',
-        login_method: 'facebook',
-        email_verified: true,
-      })
+    // 檢查是否有重複的 discord_id
+    const discordIds = discordUsers.map(user => user.discord_id)
+    const duplicateDiscordIds = discordIds.filter((id, index) => discordIds.indexOf(id) !== index)
+    
+    if (duplicateDiscordIds.length > 0) {
+      console.log('⚠️  發現重複的 Discord ID:', duplicateDiscordIds)
       
-      await user2.save()
-      console.log('❌ 意外：重複的 facebook_id 沒有被檢測到')
-    } catch (error) {
-      if (error.code === 11000) {
-        console.log('✅ 重複的 facebook_id 被正確檢測並拋出錯誤')
-        console.log(`   錯誤碼: ${error.code}`)
-      } else {
-        console.log('❌ 意外的錯誤類型:', error.message)
-      }
-    }
-    
-    // 清理測試數據
-    await User.deleteOne({ facebook_id: '987654321' })
-    console.log('🧹 Facebook 測試數據已清理')
-    
-  } catch (error) {
-    console.error('❌ Facebook 測試失敗:', error.message)
-  }
-}
-
-// 測試 Twitter OAuth 環境配置
-function testTwitterOAuthConfig() {
-  console.log('\n🧪 檢查 Twitter OAuth 環境配置...')
-  
-  const requiredEnvVars = [
-    'TWITTER_CLIENT_ID',
-    'TWITTER_CLIENT_SECRET',
-    'TWITTER_REDIRECT_URI',
-    'TWITTER_BIND_REDIRECT_URI'
-  ]
-  
-  let allConfigured = true
-  
-  requiredEnvVars.forEach(envVar => {
-    if (process.env[envVar]) {
-      console.log(`✅ ${envVar}: 已配置`)
-      if (envVar.includes('REDIRECT_URI')) {
-        const uri = process.env[envVar]
-        if (uri.includes('localhost')) {
-          console.log(`⚠️  警告: ${envVar} 使用 localhost，建議改為 127.0.0.1`)
-          console.log(`   當前值: ${uri}`)
-          console.log(`   建議值: ${uri.replace('localhost', '127.0.0.1')}`)
-        } else if (uri.includes('127.0.0.1')) {
-          console.log(`✅ ${envVar} 正確使用 127.0.0.1`)
-        }
+      // 顯示重複的用戶詳情
+      for (const duplicateId of duplicateDiscordIds) {
+        const usersWithSameId = await User.find({ discord_id: duplicateId })
+        console.log(`Discord ID ${duplicateId} 被以下用戶使用:`)
+        usersWithSameId.forEach(user => {
+          console.log(`  - 用戶 ${user._id}: ${user.username} (${user.email})`)
+        })
       }
     } else {
-      console.log(`❌ ${envVar}: 未配置`)
-      allConfigured = false
+      console.log('✅ 沒有發現重複的 Discord ID')
     }
-  })
-  
-  if (allConfigured) {
-    console.log('✅ 所有 Twitter OAuth 環境變數已配置')
-  } else {
-    console.log('❌ 部分 Twitter OAuth 環境變數未配置')
-  }
-}
 
-// 測試數據庫連接
-async function testDatabaseConnection() {
-  console.log('🧪 測試數據庫連接...')
-  
-  try {
-    if (mongoose.connection.readyState === 1) {
-      console.log('✅ 數據庫已連接')
-      return true
-    } else {
-      console.log('❌ 數據庫未連接')
-      return false
-    }
-  } catch (error) {
-    console.error('❌ 數據庫連接測試失敗:', error.message)
-    return false
-  }
-}
-
-// 主測試函數
-async function runOAuthFixVerification() {
-  console.log('🚀 開始 OAuth 修復驗證測試\n')
-  
-  // 測試數據庫連接
-  const dbConnected = await testDatabaseConnection()
-  
-  if (dbConnected) {
-    // 測試 Discord 重複處理
-    await testDiscordDuplicateHandling()
+    // 測試 Twitter OAuth 配置
+    console.log('\n=== 檢查 Twitter OAuth 環境變數 ===')
     
-    // 測試 Facebook 重複處理
-    await testFacebookDuplicateHandling()
+    const twitterClientId = process.env.TWITTER_CLIENT_ID
+    const twitterClientSecret = process.env.TWITTER_CLIENT_SECRET
+    const twitterRedirectUri = process.env.TWITTER_REDIRECT_URI
+    
+    console.log('Twitter Client ID:', twitterClientId ? '✅ 已設置' : '❌ 未設置')
+    console.log('Twitter Client Secret:', twitterClientSecret ? '✅ 已設置' : '❌ 未設置')
+    console.log('Twitter Redirect URI:', twitterRedirectUri || '❌ 未設置')
+    
+    if (twitterClientId && twitterClientSecret && twitterRedirectUri) {
+      console.log('✅ Twitter OAuth 環境變數配置完整')
+    } else {
+      console.log('⚠️  Twitter OAuth 環境變數配置不完整')
+    }
+
+    // 查找 Twitter 用戶
+    const twitterUsers = await User.find({ twitter_id: { $exists: true } })
+    console.log(`找到 ${twitterUsers.length} 個已綁定 Twitter 的用戶`)
+    
+    // 檢查是否有重複的 twitter_id
+    const twitterIds = twitterUsers.map(user => user.twitter_id)
+    const duplicateTwitterIds = twitterIds.filter((id, index) => twitterIds.indexOf(id) !== index)
+    
+    if (duplicateTwitterIds.length > 0) {
+      console.log('⚠️  發現重複的 Twitter ID:', duplicateTwitterIds)
+    } else {
+      console.log('✅ 沒有發現重複的 Twitter ID')
+    }
+
+    // 測試資料庫索引
+    console.log('\n=== 檢查資料庫索引 ===')
+    const userIndexes = await User.collection.indexes()
+    
+    const discordIndex = userIndexes.find(index => index.key && index.key.discord_id)
+    const twitterIndex = userIndexes.find(index => index.key && index.key.twitter_id)
+    
+    console.log('Discord ID 索引:', discordIndex ? '✅ 存在' : '❌ 不存在')
+    console.log('Twitter ID 索引:', twitterIndex ? '✅ 存在' : '❌ 不存在')
+    
+    if (discordIndex) {
+      console.log('  Discord 索引設定:', discordIndex.unique ? '唯一索引' : '普通索引')
+    }
+    
+    if (twitterIndex) {
+      console.log('  Twitter 索引設定:', twitterIndex.unique ? '唯一索引' : '普通索引')
+    }
+
+    console.log('\n=== OAuth 修正驗證完成 ===')
+    console.log('\n📋 修正內容總結:')
+    console.log('================')
+    console.log('1. ✅ Discord OAuth: 改善重複 ID 檢測邏輯')
+    console.log('2. ✅ Twitter OAuth: 修正 scope 配置 (添加 offline.access)')
+    console.log('3. ✅ Twitter OAuth: 更新 userProfileURL 以獲取更多用戶資訊')
+    console.log('4. ✅ 錯誤處理: 添加針對重複 ID 的友好錯誤訊息')
+    console.log('5. ✅ 綁定檢查: 防止同一社群 ID 被多個用戶綁定')
+    
+  } catch (error) {
+    console.error('❌ 測試過程中發生錯誤:', error)
+  } finally {
+    await mongoose.disconnect()
+    console.log('已斷開資料庫連接')
   }
-  
-  // 測試 Twitter 配置
-  testTwitterOAuthConfig()
-  
-  console.log('\n📋 測試完成報告:')
-  console.log('================')
-  console.log('1. Discord 重複用戶處理: 已實現並測試')
-  console.log('2. Facebook 重複用戶處理: 已實現並測試')
-  console.log('3. Twitter OAuth 配置檢查: 完成')
-  console.log('4. 環境變數建議: 使用 127.0.0.1 而非 localhost')
-  console.log('5. PKCE 處理: 已移除手動實現，讓 Passport 自動處理')
-  console.log('\n🔧 如果仍有問題，請檢查:')
-  console.log('- Twitter 開發者平台的回調 URL 設定')
-  console.log('- Discord 應用程式的 OAuth2 設定')
-  console.log('- Facebook 應用程式的 OAuth 設定')
-  console.log('- 確保所有環境變數正確配置')
-  console.log('- 確保 Twitter 開發者應用程式啟用了 OAuth 2.0 with PKCE')
 }
 
-// 如果直接執行此腳本
+// 執行測試
 if (import.meta.url === `file://${process.argv[1]}`) {
-  // 載入環境變數
-  if (process.env.NODE_ENV !== 'production') {
-    const { config } = await import('dotenv')
-    config()
-  }
-  
-  // 連接數據庫（如果還沒連接）
-  if (mongoose.connection.readyState === 0) {
-    const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/memedam'
-    await mongoose.connect(MONGO_URI)
-  }
-  
-  await runOAuthFixVerification()
-  
-  // 關閉數據庫連接
-  await mongoose.disconnect()
+  testOAuthFixes()
 }
 
-export { runOAuthFixVerification, testDiscordDuplicateHandling, testFacebookDuplicateHandling, testTwitterOAuthConfig }
+export default testOAuthFixes

@@ -1378,9 +1378,34 @@ router.get('/auth/discord', (req, res, next) => {
 router.get(
   '/auth/discord/callback',
   verifyOAuthState,
-  passport.authenticate('discord', {
-    failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
-  }),
+  (req, res, next) => {
+    passport.authenticate('discord', (err, user, info) => {
+      if (err) {
+        console.error('Discord OAuth 錯誤:', err)
+        const frontendUrl = getFrontendUrl()
+        
+        // 處理特定的錯誤類型
+        if (err.code === 'DISCORD_ID_ALREADY_BOUND') {
+          return res.status(409).json({
+            success: false,
+            error: 'discord_id 已存在',
+            details: err.message,
+            suggestion: '該 Discord 帳號已被其他用戶綁定，請使用其他帳號或聯繫客服'
+          })
+        }
+        
+        return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
+      }
+      
+      if (!user) {
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
+      }
+      
+      req.user = user
+      next()
+    })(req, res, next)
+  },
   async (req, res) => {
     try {
       const token = signToken({ _id: req.user._id })
@@ -1434,9 +1459,34 @@ router.get('/auth/twitter', (req, res, next) => {
 router.get(
   '/auth/twitter/callback',
   verifyOAuthState,
-  passport.authenticate('twitter-oauth2', {
-    failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
-  }),
+  (req, res, next) => {
+    passport.authenticate('twitter-oauth2', (err, user, info) => {
+      if (err) {
+        console.error('Twitter OAuth 錯誤:', err)
+        const frontendUrl = getFrontendUrl()
+        
+        // 處理特定的錯誤類型
+        if (err.code === 'TWITTER_ID_ALREADY_BOUND') {
+          return res.status(409).json({
+            success: false,
+            error: 'twitter_id 已存在',
+            details: err.message,
+            suggestion: '該 Twitter 帳號已被其他用戶綁定，請使用其他帳號或聯繫客服'
+          })
+        }
+        
+        return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
+      }
+      
+      if (!user) {
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
+      }
+      
+      req.user = user
+      next()
+    })(req, res, next)
+  },
   async (req, res) => {
     try {
       const token = signToken({ _id: req.user._id })
