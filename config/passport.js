@@ -283,20 +283,27 @@ const initializeOAuthStrategies = () => {
               await req.user.save()
               return done(null, req.user)
             } else {
+              // 首先檢查是否已存在該 Facebook ID 的用戶
               let user = await User.findOne({ facebook_id: profile.id })
-              if (!user) {
-                // 檢查 email 是否已被其他用戶使用
-                if (profile.emails?.[0]?.value) {
-                  const existingUserWithEmail = await User.findOne({
-                    email: profile.emails[0].value,
-                  })
-                  if (existingUserWithEmail) {
-                    // 如果 email 已存在，直接返回該用戶（允許綁定 Facebook 帳號）
-                    existingUserWithEmail.facebook_id = profile.id
-                    await existingUserWithEmail.save()
-                    return done(null, existingUserWithEmail)
-                  }
+              if (user) {
+                // 用戶已存在，直接返回
+                console.log('Facebook 用戶已存在，直接登入:', profile.id)
+                return done(null, user)
+              }
+              
+                            // 用戶不存在，需要創建新用戶
+              // 檢查 email 是否已被其他用戶使用
+              if (profile.emails?.[0]?.value) {
+                const existingUserWithEmail = await User.findOne({
+                  email: profile.emails[0].value,
+                })
+                if (existingUserWithEmail) {
+                  // 如果 email 已存在，直接返回該用戶（允許綁定 Facebook 帳號）
+                  existingUserWithEmail.facebook_id = profile.id
+                  await existingUserWithEmail.save()
+                  return done(null, existingUserWithEmail)
                 }
+              }
 
                 // 為社群用戶生成符合要求的 username
                 let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
@@ -323,30 +330,30 @@ const initializeOAuthStrategies = () => {
                   }
                 }
 
-                user = new User({
-                  username: finalUsername,
-                  email: profile.emails?.[0]?.value || '',
-                  facebook_id: profile.id,
-                  display_name: profile.displayName || finalUsername,
-                  login_method: 'facebook',
-                  email_verified: !!profile.emails?.[0]?.verified,
-                })
-                
-                try {
-                  await user.save()
-                } catch (saveError) {
-                  // 處理 facebook_id 重複的情況
-                  if (saveError.code === 11000 && saveError.keyPattern?.facebook_id) {
-                    console.log('Facebook ID 已存在，查找現有用戶:', profile.id)
-                    user = await User.findOne({ facebook_id: profile.id })
-                    if (!user) {
-                      throw new Error(`Facebook ID ${profile.id} 已存在但無法找到對應用戶`)
-                    }
-                  } else {
-                    throw saveError
+              user = new User({
+                username: finalUsername,
+                email: profile.emails?.[0]?.value || '',
+                facebook_id: profile.id,
+                display_name: profile.displayName || finalUsername,
+                login_method: 'facebook',
+                email_verified: !!profile.emails?.[0]?.verified,
+              })
+              
+              try {
+                await user.save()
+              } catch (saveError) {
+                // 處理 facebook_id 重複的情況（併發請求）
+                if (saveError.code === 11000 && saveError.keyPattern?.facebook_id) {
+                  console.log('Facebook ID 重複，查找現有用戶:', profile.id)
+                  user = await User.findOne({ facebook_id: profile.id })
+                  if (!user) {
+                    throw new Error(`Facebook ID ${profile.id} 已存在但無法找到對應用戶`)
                   }
+                } else {
+                  throw saveError
                 }
               }
+              
               return done(null, user)
             }
           } catch (err) {
@@ -500,7 +507,7 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
           callbackURL: process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
-          scope: ['tweet.read', 'users.read', 'offline.access'],
+          scope: ['tweet.read', 'users.read'],
           pkce: true,
           userProfileURL: 'https://api.twitter.com/2/users/me',
           includeEmail: true,
@@ -596,7 +603,7 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
-          scope: ['tweet.read', 'users.read', 'offline.access'],
+          scope: ['tweet.read', 'users.read'],
           pkce: true,
           userProfileURL: 'https://api.twitter.com/2/users/me',
           includeEmail: true,
