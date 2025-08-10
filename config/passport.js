@@ -398,10 +398,27 @@ const initializeOAuthStrategies = () => {
         async (req, accessToken, refreshToken, profile, done) => {
           try {
             if (req.user) {
+              // 綁定流程：檢查該 Discord ID 是否已被其他用戶使用
+              const existingUserWithDiscordId = await User.findOne({ discord_id: profile.id })
+              if (existingUserWithDiscordId && existingUserWithDiscordId._id.toString() !== req.user._id.toString()) {
+                // Discord ID 已被其他用戶使用
+                const error = new Error(`Discord ID ${profile.id} 已被其他用戶綁定`)
+                error.code = 'DISCORD_ID_ALREADY_BOUND'
+                error.statusCode = 409
+                return done(error, null)
+              }
+              
+              // 如果是同一個用戶重複綁定，直接返回
+              if (existingUserWithDiscordId && existingUserWithDiscordId._id.toString() === req.user._id.toString()) {
+                return done(null, req.user)
+              }
+              
+              // 綁定 Discord ID 到當前用戶
               req.user.discord_id = profile.id
               await req.user.save()
               return done(null, req.user)
             } else {
+              // 登入流程
               let user = await User.findOne({ discord_id: profile.id })
               if (!user) {
                 // 檢查 email 是否已被其他用戶使用
@@ -507,9 +524,9 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
           callbackURL: process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
-          scope: ['tweet.read', 'users.read'],
+          scope: ['tweet.read', 'users.read', 'offline.access'],
           pkce: true,
-          userProfileURL: 'https://api.twitter.com/2/users/me',
+          userProfileURL: 'https://api.twitter.com/2/users/me?user.fields=id,username,name,email,verified',
           includeEmail: true,
           authorizationURL: 'https://twitter.com/i/oauth2/authorize',
           tokenURL: 'https://api.twitter.com/2/oauth2/token',
@@ -517,10 +534,27 @@ const initializeOAuthStrategies = () => {
         async (req, accessToken, refreshToken, profile, done) => {
           try {
             if (req.user) {
+              // 綁定流程：檢查該 Twitter ID 是否已被其他用戶使用
+              const existingUserWithTwitterId = await User.findOne({ twitter_id: profile.id })
+              if (existingUserWithTwitterId && existingUserWithTwitterId._id.toString() !== req.user._id.toString()) {
+                // Twitter ID 已被其他用戶使用
+                const error = new Error(`Twitter ID ${profile.id} 已被其他用戶綁定`)
+                error.code = 'TWITTER_ID_ALREADY_BOUND'
+                error.statusCode = 409
+                return done(error, null)
+              }
+              
+              // 如果是同一個用戶重複綁定，直接返回
+              if (existingUserWithTwitterId && existingUserWithTwitterId._id.toString() === req.user._id.toString()) {
+                return done(null, req.user)
+              }
+              
+              // 綁定 Twitter ID 到當前用戶
               req.user.twitter_id = profile.id
               await req.user.save()
               return done(null, req.user)
             } else {
+              // 登入流程
               let user = await User.findOne({ twitter_id: profile.id })
               if (!user) {
                 // 檢查 email 是否已被其他用戶使用
@@ -603,9 +637,9 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
-          scope: ['tweet.read', 'users.read'],
+          scope: ['tweet.read', 'users.read', 'offline.access'],
           pkce: true,
-          userProfileURL: 'https://api.twitter.com/2/users/me',
+          userProfileURL: 'https://api.twitter.com/2/users/me?user.fields=id,username,name,email,verified',
           includeEmail: true,
           authorizationURL: 'https://twitter.com/i/oauth2/authorize',
           tokenURL: 'https://api.twitter.com/2/oauth2/token',
