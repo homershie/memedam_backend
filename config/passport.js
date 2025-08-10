@@ -172,6 +172,19 @@ const initializeOAuthStrategies = () => {
             } else {
               let user = await User.findOne({ google_id: profile.id })
               if (!user) {
+                // 檢查 email 是否已被其他用戶使用
+                if (profile.emails?.[0]?.value) {
+                  const existingUserWithEmail = await User.findOne({
+                    email: profile.emails[0].value,
+                  })
+                  if (existingUserWithEmail) {
+                    // 如果 email 已存在，直接返回該用戶（允許綁定 Google 帳號）
+                    existingUserWithEmail.google_id = profile.id
+                    await existingUserWithEmail.save()
+                    return done(null, existingUserWithEmail)
+                  }
+                }
+
                 // 為社群用戶生成符合要求的 username
                 let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
 
@@ -258,6 +271,19 @@ const initializeOAuthStrategies = () => {
             } else {
               let user = await User.findOne({ facebook_id: profile.id })
               if (!user) {
+                // 檢查 email 是否已被其他用戶使用
+                if (profile.emails?.[0]?.value) {
+                  const existingUserWithEmail = await User.findOne({
+                    email: profile.emails[0].value,
+                  })
+                  if (existingUserWithEmail) {
+                    // 如果 email 已存在，直接返回該用戶（允許綁定 Facebook 帳號）
+                    existingUserWithEmail.facebook_id = profile.id
+                    await existingUserWithEmail.save()
+                    return done(null, existingUserWithEmail)
+                  }
+                }
+
                 // 為社群用戶生成符合要求的 username
                 let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
 
@@ -343,6 +369,17 @@ const initializeOAuthStrategies = () => {
             } else {
               let user = await User.findOne({ discord_id: profile.id })
               if (!user) {
+                // 檢查 email 是否已被其他用戶使用
+                if (profile.email) {
+                  const existingUserWithEmail = await User.findOne({ email: profile.email })
+                  if (existingUserWithEmail) {
+                    // 如果 email 已存在，直接返回該用戶（允許綁定 Discord 帳號）
+                    existingUserWithEmail.discord_id = profile.id
+                    await existingUserWithEmail.save()
+                    return done(null, existingUserWithEmail)
+                  }
+                }
+
                 // 為社群用戶生成符合要求的 username
                 let username = profile.username || profile.id
 
@@ -418,6 +455,12 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
           callbackURL: process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
+          scope: ['tweet.read', 'users.read'],
+          pkce: true,
+          userProfileURL: 'https://api.twitter.com/2/users/me',
+          includeEmail: true,
+          authorizationURL: 'https://twitter.com/i/oauth2/authorize',
+          tokenURL: 'https://api.twitter.com/2/oauth2/token',
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
@@ -428,6 +471,19 @@ const initializeOAuthStrategies = () => {
             } else {
               let user = await User.findOne({ twitter_id: profile.id })
               if (!user) {
+                // 檢查 email 是否已被其他用戶使用
+                if (profile.emails?.[0]?.value) {
+                  const existingUserWithEmail = await User.findOne({
+                    email: profile.emails[0].value,
+                  })
+                  if (existingUserWithEmail) {
+                    // 如果 email 已存在，直接返回該用戶（允許綁定 Twitter 帳號）
+                    existingUserWithEmail.twitter_id = profile.id
+                    await existingUserWithEmail.save()
+                    return done(null, existingUserWithEmail)
+                  }
+                }
+
                 // 為社群用戶生成符合要求的 username
                 let username = profile.username || profile.id
 
@@ -481,6 +537,12 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
+          scope: ['tweet.read', 'users.read'],
+          pkce: true,
+          userProfileURL: 'https://api.twitter.com/2/users/me',
+          includeEmail: true,
+          authorizationURL: 'https://twitter.com/i/oauth2/authorize',
+          tokenURL: 'https://api.twitter.com/2/oauth2/token',
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {

@@ -68,6 +68,8 @@ DISCORD_CLIENT_ID=your_discord_client_id
 DISCORD_CLIENT_SECRET=your_discord_client_secret
 TWITTER_CLIENT_ID=your_twitter_client_id
 TWITTER_CLIENT_SECRET=your_twitter_client_secret
+TWITTER_REDIRECT_URI=http://localhost:4000/api/users/auth/twitter/callback
+TWITTER_BIND_REDIRECT_URI=http://localhost:4000/api/users/bind-auth/twitter/callback
 
 # 電子郵件服務 (SendGrid)
 SENDGRID_API_KEY=your_sendgrid_api_key
@@ -354,20 +356,20 @@ CORS_ORIGIN=http://localhost:5173
 
 ### 📊 推薦系統 API
 
-| 路徑                                          | 方法 | 功能描述                     | 權限 |
-| --------------------------------------------- | ---- | ---------------------------- | ---- |
-| `/api/recommendations/mixed`                  | GET  | 混合推薦（支援動態權重調整） | 🔑   |
-| `/api/recommendations/hot`                    | GET  | 熱門推薦                     | 🔓   |
-| `/api/recommendations/latest`                 | GET  | 最新推薦                     | 🔓   |
-| `/api/recommendations/trending`               | GET  | 大家都在看的熱門內容         | 🔓   |
-| `/api/recommendations/content-based`          | GET  | 內容基礎推薦                 | 🔑   |
-| `/api/recommendations/collaborative-filtering`| GET  | 協同過濾推薦                 | 🔑   |
-| `/api/recommendations/social-collaborative-filtering` | GET | 社交協同過濾推薦        | 🔑   |
-| `/api/recommendations/infinite-scroll`        | GET  | 無限捲動推薦                 | 🔓   |
-| `/api/recommendations/social-score/:memeId`   | GET  | 社交層分數計算               | 🔑   |
-| `/api/recommendations/algorithm-stats`        | GET  | 推薦演算法統計               | 🔑   |
-| `/api/recommendations/adjust-strategy`        | POST | 動態調整推薦策略             | 🔑   |
-| `/api/recommendations/social-influence-stats` | GET  | 用戶社交影響力統計           | 🔑   |
+| 路徑                                                  | 方法 | 功能描述                     | 權限 |
+| ----------------------------------------------------- | ---- | ---------------------------- | ---- |
+| `/api/recommendations/mixed`                          | GET  | 混合推薦（支援動態權重調整） | 🔑   |
+| `/api/recommendations/hot`                            | GET  | 熱門推薦                     | 🔓   |
+| `/api/recommendations/latest`                         | GET  | 最新推薦                     | 🔓   |
+| `/api/recommendations/trending`                       | GET  | 大家都在看的熱門內容         | 🔓   |
+| `/api/recommendations/content-based`                  | GET  | 內容基礎推薦                 | 🔑   |
+| `/api/recommendations/collaborative-filtering`        | GET  | 協同過濾推薦                 | 🔑   |
+| `/api/recommendations/social-collaborative-filtering` | GET  | 社交協同過濾推薦             | 🔑   |
+| `/api/recommendations/infinite-scroll`                | GET  | 無限捲動推薦                 | 🔓   |
+| `/api/recommendations/social-score/:memeId`           | GET  | 社交層分數計算               | 🔑   |
+| `/api/recommendations/algorithm-stats`                | GET  | 推薦演算法統計               | 🔑   |
+| `/api/recommendations/adjust-strategy`                | POST | 動態調整推薦策略             | 🔑   |
+| `/api/recommendations/social-influence-stats`         | GET  | 用戶社交影響力統計           | 🔑   |
 
 ---
 

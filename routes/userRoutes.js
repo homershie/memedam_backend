@@ -30,6 +30,7 @@ import { token, isUser, isManager } from '../middleware/auth.js'
 import { singleUpload } from '../middleware/upload.js'
 import passport from 'passport'
 import { signToken } from '../utils/jwt.js'
+import { generatePKCE } from '../utils/pkce.js'
 
 const router = express.Router()
 
@@ -1368,6 +1369,7 @@ router.get('/auth/discord', (req, res, next) => {
     }
 
     passport.authenticate('discord', {
+      scope: ['identify', 'email'],
       state: state,
     })(req, res, next)
   })
@@ -1408,12 +1410,16 @@ router.get('/auth/twitter', (req, res, next) => {
   // 生成並儲存 state 參數
   const state = generateOAuthState()
 
+  // 生成 PKCE 參數
+  const pkce = generatePKCE()
+
   // 確保 session 存在
   if (!req.session) {
     return res.status(500).json({ error: 'Session not available' })
   }
 
   req.session.oauthState = state
+  req.session.codeVerifier = pkce.code_verifier
 
   // 確保 session 被保存
   req.session.save((err) => {
@@ -1423,6 +1429,7 @@ router.get('/auth/twitter', (req, res, next) => {
     }
 
     passport.authenticate('twitter-oauth2', {
+      scope: ['tweet.read', 'users.read'],
       state: state,
     })(req, res, next)
   })
@@ -1433,6 +1440,7 @@ router.get(
   '/auth/twitter/callback',
   verifyOAuthState,
   passport.authenticate('twitter-oauth2', {
+    scope: ['tweet.read', 'users.read'],
     failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
   }),
   async (req, res) => {
@@ -1515,9 +1523,13 @@ router.get('/bind-auth/:provider/init', (req, res) => {
       case 'discord':
         scope = ['identify', 'email']
         break
-      case 'twitter':
+      case 'twitter': {
         scope = ['tweet.read', 'users.read']
+        // 生成 PKCE 參數
+        const pkce = generatePKCE()
+        req.session.codeVerifier = pkce.code_verifier
         break
+      }
     }
 
     // 重定向到對應的 OAuth 策略
@@ -1569,6 +1581,7 @@ router.get(
 router.get(
   '/bind-auth/discord/callback',
   passport.authenticate('discord-bind', {
+    scope: ['identify', 'email'],
     state: (req) => req.query.state,
   }),
   handleBindAuthCallback,
@@ -1577,7 +1590,16 @@ router.get(
 // Twitter OAuth 綁定
 router.get(
   '/bind-auth/twitter/callback',
+  (req, res, next) => {
+    // 添加 code_verifier 到請求中
+    if (req.session && req.session.codeVerifier) {
+      req.query.code_verifier = req.session.codeVerifier
+      delete req.session.codeVerifier
+    }
+    next()
+  },
   passport.authenticate('twitter-oauth2-bind', {
+    scope: ['tweet.read', 'users.read'],
     state: (req) => req.query.state,
   }),
   handleBindAuthCallback,
