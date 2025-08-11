@@ -12,6 +12,7 @@ import pinoHttp from 'pino-http'
 import passport from 'passport'
 import mongoose from 'mongoose'
 import session from 'express-session'
+import RedisStore from 'connect-redis'
 import promBundle from 'express-prom-bundle'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
@@ -43,6 +44,7 @@ import {
   startRecommendationScheduler,
   stopRecommendationScheduler,
 } from './utils/recommendationScheduler.js'
+
 import './config/passport.js'
 
 const app = express()
@@ -99,26 +101,43 @@ app.use(mongoSanitize())
 app.use(compression())
 
 // 設定基本的 session 中介軟體（在 startServer 之前）
-app.use(
-  session({
-    store: new session.MemoryStore(),
+const configureSession = () => {
+  // 根據環境選擇 session store
+  let sessionStore
+
+  if (process.env.NODE_ENV === 'production' && redisCache.isConnected && redisCache.client) {
+    // 生產環境使用 Redis store
+    sessionStore = new RedisStore({
+      client: redisCache.client,
+      prefix: 'sess:',
+      ttl: 86400 * 7, // 7 天
+    })
+    logger.info('使用 Redis session store')
+  } else {
+    // 開發環境或 Redis 不可用時使用 MemoryStore
+    sessionStore = new session.MemoryStore()
+    logger.info('使用 Memory session store')
+  }
+
+  return session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || 'your-session-secret',
     name: process.env.NODE_ENV === 'production' ? '__Host-memedam.sid' : 'memedam.sid',
-    resave: true,
-    saveUninitialized: true,
+    resave: false, // 改為 false，避免不必要的 session 保存
+    saveUninitialized: false, // 改為 false，只保存有變更的 session
     cookie: {
       httpOnly: true,
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
       secure: process.env.NODE_ENV === 'production',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天
     },
-    // 開發模式下的額外配置
-    ...(process.env.NODE_ENV === 'development' && {
-      proxy: false,
-      rolling: true, // 每次請求都更新 session
-    }),
-  }),
-)
+    // 改善 session 配置
+    rolling: true, // 每次請求都更新 session 過期時間
+    unset: 'destroy', // 刪除 session 時完全移除
+  })
+}
+
+app.use(configureSession())
 
 // Passport 初始化（在 session 配置之後）
 app.use(passport.initialize())

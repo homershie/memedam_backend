@@ -59,19 +59,26 @@ const verifyOAuthState = (req, res, next) => {
 
   const sessionState = req.session.oauthState
 
-  // 開發模式下的調試資訊
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Development mode - OAuth state verification:')
-    console.log('  Provided state:', state)
-    console.log('  Session state:', sessionState)
-    console.log('  Session ID:', req.sessionID)
-  }
+  // 調試資訊（生產環境也記錄，但減少詳細程度）
+  console.log('OAuth state verification:')
+  console.log('  Provided state:', state)
+  console.log('  Session state:', sessionState)
+  console.log('  Session ID:', req.sessionID)
+  console.log('  Session exists:', !!req.session)
 
-  // 清除 session 中的 state
+  // 清除 session 中的 state（無論驗證是否成功）
   delete req.session.oauthState
 
   if (!state || !sessionState || state !== sessionState) {
     console.error('OAuth state 驗證失敗:', { provided: state, expected: sessionState })
+
+    // 在生產環境中，如果 session 存在但 state 不匹配，可能是 session 過期或重啟
+    if (req.session && !sessionState) {
+      console.error(
+        'Session exists but oauthState is undefined - possible session restart or timeout',
+      )
+    }
+
     const frontendUrl = getFrontendUrl()
     return res.redirect(`${frontendUrl}/login?error=invalid_state`)
   }
@@ -84,10 +91,7 @@ const verifyOAuthState = (req, res, next) => {
       return res.redirect(`${frontendUrl}/login?error=session_save_failed`)
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Development mode - OAuth state verified successfully')
-    }
-
+    console.log('OAuth state verified successfully')
     next()
   })
 }
@@ -1355,10 +1359,16 @@ router.get('/auth/discord', (req, res, next) => {
 
   // 確保 session 存在
   if (!req.session) {
+    console.error('Session not available in Discord OAuth')
     return res.status(500).json({ error: 'Session not available' })
   }
 
   req.session.oauthState = state
+
+  // 調試資訊
+  console.log('Discord OAuth initiated:')
+  console.log('  Generated state:', state)
+  console.log('  Session ID:', req.sessionID)
 
   // 確保 session 被保存
   req.session.save((err) => {
@@ -1367,6 +1377,7 @@ router.get('/auth/discord', (req, res, next) => {
       return res.status(500).json({ error: 'Session save failed' })
     }
 
+    console.log('Session saved successfully, proceeding with Discord OAuth')
     passport.authenticate('discord', {
       scope: ['identify', 'email'],
       state: state,
@@ -1379,35 +1390,41 @@ router.get(
   '/auth/discord/callback',
   verifyOAuthState,
   (req, res, next) => {
+    console.log('Discord OAuth callback - state verified, proceeding with authentication')
+
     passport.authenticate('discord', (err, user, info) => {
       if (err) {
         console.error('Discord OAuth 錯誤:', err)
         const frontendUrl = getFrontendUrl()
-        
+
         // 處理特定的錯誤類型
         if (err.code === 'DISCORD_ID_ALREADY_BOUND') {
           return res.status(409).json({
             success: false,
             error: 'discord_id 已存在',
             details: err.message,
-            suggestion: '該 Discord 帳號已被其他用戶綁定，請使用其他帳號或聯繫客服'
+            suggestion: '該 Discord 帳號已被其他用戶綁定，請使用其他帳號或聯繫客服',
           })
         }
-        
+
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
-      
+
       if (!user) {
+        console.error('Discord OAuth - no user returned')
         const frontendUrl = getFrontendUrl()
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
-      
+
+      console.log('Discord OAuth successful, user:', user._id)
       req.user = user
       next()
     })(req, res, next)
   },
   async (req, res) => {
     try {
+      console.log('Processing Discord OAuth callback for user:', req.user._id)
+
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
 
@@ -1419,6 +1436,7 @@ router.get(
       req.user.tokens.push(token)
       await req.user.save()
 
+      console.log('Discord OAuth completed successfully, redirecting to frontend')
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
@@ -1464,25 +1482,25 @@ router.get(
       if (err) {
         console.error('Twitter OAuth 錯誤:', err)
         const frontendUrl = getFrontendUrl()
-        
+
         // 處理特定的錯誤類型
         if (err.code === 'TWITTER_ID_ALREADY_BOUND') {
           return res.status(409).json({
             success: false,
             error: 'twitter_id 已存在',
             details: err.message,
-            suggestion: '該 Twitter 帳號已被其他用戶綁定，請使用其他帳號或聯繫客服'
+            suggestion: '該 Twitter 帳號已被其他用戶綁定，請使用其他帳號或聯繫客服',
           })
         }
-        
+
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
-      
+
       if (!user) {
         const frontendUrl = getFrontendUrl()
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
-      
+
       req.user = user
       next()
     })(req, res, next)
