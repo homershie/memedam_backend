@@ -1,9 +1,10 @@
-// 強制設置 UTF-8 編碼
+// 強制設置 UTF-8 編碼和繁體中文語言環境
 process.stdout.setEncoding('utf8');
 process.stderr.setEncoding('utf8');
-// 設置環境變數確保 UTF-8 編碼
-process.env.LANG = process.env.LANG || 'en_US.UTF-8';
-process.env.LC_ALL = process.env.LC_ALL || 'en_US.UTF-8';
+// 設置繁體中文語言環境確保正確的中文顯示
+process.env.LANG = process.env.LANG || 'zh_TW.UTF-8';
+process.env.LC_ALL = process.env.LC_ALL || 'zh_TW.UTF-8';
+process.env.LC_CTYPE = process.env.LC_CTYPE || 'zh_TW.UTF-8';
 process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || '') + ' --trace-uncaught';
 
 // 預先載入環境變數，確保後續模組可取得設定值

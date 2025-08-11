@@ -225,7 +225,7 @@ MemeDam 團隊
       <tr><td>
         <table class="card" role="presentation" width="100%">
           <tr><td class="header">
-            <div class="brand">迷因典</br>MemeDam</div>
+            <div class="brand">迷因典<br>MemeDam</div>
           </td></tr>
           <tr><td class="content">
             <p>嗨 ${user.username}，</p>
