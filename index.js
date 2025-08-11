@@ -123,8 +123,8 @@ const configureSession = () => {
     store: sessionStore,
     secret: process.env.SESSION_SECRET || 'your-session-secret',
     name: process.env.NODE_ENV === 'production' ? '__Host-memedam.sid' : 'memedam.sid',
-    resave: false, // 改為 false，避免不必要的 session 保存
-    saveUninitialized: false, // 改為 false，只保存有變更的 session
+    resave: true, // 改為 true，確保 session 被保存
+    saveUninitialized: true, // 改為 true，確保未初始化的 session 也被保存
     cookie: {
       httpOnly: true,
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',

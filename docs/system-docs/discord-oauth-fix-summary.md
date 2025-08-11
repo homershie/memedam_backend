@@ -54,8 +54,8 @@ const configureSession = () => {
     store: sessionStore,
     secret: process.env.SESSION_SECRET || 'your-session-secret',
     name: process.env.NODE_ENV === 'production' ? '__Host-memedam.sid' : 'memedam.sid',
-    resave: false, // 改為 false，避免不必要的 session 保存
-    saveUninitialized: false, // 改為 false，只保存有變更的 session
+    resave: true, // 改為 true，確保 session 被保存
+    saveUninitialized: true, // 改為 true，確保未初始化的 session 也被保存
     cookie: {
       httpOnly: true,
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
@@ -254,11 +254,29 @@ DISCORD_REDIRECT_URI=https://api.memedam.com/api/users/auth/discord/callback
 
 ## 測試方法
 
-使用提供的測試腳本：
+### 基本功能測試
 
 ```bash
+npm run test:discord-oauth
+# 或
 node test/oauth-tests/discord-oauth-fix-test.js
 ```
+
+### Session 持久性測試
+
+```bash
+npm run test:discord-oauth-session
+# 或
+node test/oauth-tests/discord-oauth-session-test.js
+```
+
+### 測試結果
+
+- ✅ Discord OAuth 初始化成功
+- ✅ OAuth state 參數存在
+- ✅ Session 持久性正常
+- ✅ Session cookie 正確設置
+- ✅ State 驗證通過（不再出現 `error=invalid_state`）
 
 ## 預期效果
 
@@ -281,4 +299,5 @@ node test/oauth-tests/discord-oauth-fix-test.js
 - `index.js` - Session 配置
 - `routes/userRoutes.js` - OAuth 路由和驗證
 - `config/redis.js` - Redis 配置
-- `test/oauth-tests/discord-oauth-fix-test.js` - 測試腳本
+- `test/oauth-tests/discord-oauth-fix-test.js` - 基本功能測試腳本
+- `test/oauth-tests/discord-oauth-session-test.js` - Session 持久性測試腳本

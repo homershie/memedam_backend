@@ -13,7 +13,8 @@
     "test:real": "node test/api-tests/real-api-test.js",
     "test:email": "node test/email-tests/simple-email-test.js",
     "test:email:full": "node test/email-tests/email-test.js",
-    "test:discord-oauth": "node test/oauth-tests/discord-oauth-fix-test.js"
+    "test:discord-oauth": "node test/oauth-tests/discord-oauth-fix-test.js",
+    "test:discord-oauth-session": "node test/oauth-tests/discord-oauth-session-test.js"
   },
   "keywords": [],
   "author": "homershie",

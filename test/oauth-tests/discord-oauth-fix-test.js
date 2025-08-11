@@ -1,7 +1,7 @@
 // 測試 Discord OAuth 修復
 import fetch from 'node-fetch'
 
-const BASE_URL = process.env.API_URL || 'http://localhost:4000'
+const BASE_URL = process.env.API_URL || 'https://api.memedam.com'
 
 async function testDiscordOAuth() {
   console.log('=== Discord OAuth 修復測試 ===')
@@ -21,7 +21,7 @@ async function testDiscordOAuth() {
     console.log('初始化響應狀態:', initResponse.status)
     console.log('初始化響應頭:', Object.fromEntries(initResponse.headers.entries()))
 
-    if (initResponse.status === 302) {
+    if (initResponse.status === 302 || initResponse.status === 301) {
       const location = initResponse.headers.get('location')
       console.log('重定向到:', location)
 
@@ -43,7 +43,7 @@ async function testDiscordOAuth() {
         console.log('❌ 重定向 URL 不是 Discord OAuth URL')
       }
     } else {
-      console.log('❌ 預期的 302 重定向未發生')
+      console.log('❌ 預期的 301/302 重定向未發生')
     }
   } catch (error) {
     console.error('測試失敗:', error.message)

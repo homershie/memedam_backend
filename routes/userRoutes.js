@@ -1370,7 +1370,7 @@ router.get('/auth/discord', (req, res, next) => {
   console.log('  Generated state:', state)
   console.log('  Session ID:', req.sessionID)
 
-  // 確保 session 被保存
+  // 強制保存 session 並等待完成
   req.session.save((err) => {
     if (err) {
       console.error('Session save error:', err)
@@ -1378,10 +1378,21 @@ router.get('/auth/discord', (req, res, next) => {
     }
 
     console.log('Session saved successfully, proceeding with Discord OAuth')
-    passport.authenticate('discord', {
-      scope: ['identify', 'email'],
-      state: state,
-    })(req, res, next)
+
+    // 再次確認 session 已保存
+    req.session.reload((reloadErr) => {
+      if (reloadErr) {
+        console.error('Session reload error:', reloadErr)
+        return res.status(500).json({ error: 'Session reload failed' })
+      }
+
+      console.log('Session reloaded successfully, oauthState:', req.session.oauthState)
+
+      passport.authenticate('discord', {
+        scope: ['identify', 'email'],
+        state: state,
+      })(req, res, next)
+    })
   })
 })
 
@@ -1392,7 +1403,7 @@ router.get(
   (req, res, next) => {
     console.log('Discord OAuth callback - state verified, proceeding with authentication')
 
-    passport.authenticate('discord', (err, user, info) => {
+    passport.authenticate('discord', (err, user) => {
       if (err) {
         console.error('Discord OAuth 錯誤:', err)
         const frontendUrl = getFrontendUrl()
@@ -1478,7 +1489,7 @@ router.get(
   '/auth/twitter/callback',
   verifyOAuthState,
   (req, res, next) => {
-    passport.authenticate('twitter-oauth2', (err, user, info) => {
+    passport.authenticate('twitter-oauth2', (err, user) => {
       if (err) {
         console.error('Twitter OAuth 錯誤:', err)
         const frontendUrl = getFrontendUrl()
