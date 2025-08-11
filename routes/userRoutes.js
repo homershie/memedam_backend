@@ -1377,6 +1377,10 @@ router.get('/auth/discord', (req, res, next) => {
   console.log('  Generated state:', state)
   console.log('  Session ID:', req.sessionID)
 
+  // 清除 req.user 以確保這被視為登入流程而不是綁定流程
+  req.user = undefined
+  req.session.isBindingFlow = false
+
   // 強制保存 session 並等待完成
   req.session.save((err) => {
     if (err) {
@@ -1476,6 +1480,10 @@ router.get('/auth/twitter', (req, res, next) => {
   }
 
   req.session.oauthState = state
+
+  // 清除 req.user 以確保這被視為登入流程而不是綁定流程
+  req.user = undefined
+  req.session.isBindingFlow = false
 
   // 確保 session 被保存
   req.session.save((err) => {
