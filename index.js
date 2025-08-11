@@ -127,7 +127,7 @@ const configureSession = () => {
     saveUninitialized: true, // 改為 true，確保未初始化的 session 也被保存
     cookie: {
       httpOnly: true,
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天
     },
