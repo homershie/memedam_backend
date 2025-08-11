@@ -393,11 +393,18 @@ const initializeOAuthStrategies = () => {
           clientID: process.env.DISCORD_CLIENT_ID,
           clientSecret: process.env.DISCORD_CLIENT_SECRET,
           callbackURL: process.env.DISCORD_REDIRECT_URI,
+          scope: ['identify', 'email'],
           passReqToCallback: true,
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
-            if (req.user) {
+            console.log('Discord OAuth 策略執行')
+            console.log('Profile:', JSON.stringify(profile, null, 2))
+
+            // 檢查是否為綁定流程：使用 query 參數或特殊標記來區分
+            const isBindingFlow = req.query.bind === 'true' || (req.user && req.session.isBindingFlow)
+            
+            if (isBindingFlow && req.user) {
               // 綁定流程：檢查該 Discord ID 是否已被其他用戶使用
               const existingUserWithDiscordId = await User.findOne({ discord_id: profile.id })
               if (
@@ -529,18 +536,23 @@ const initializeOAuthStrategies = () => {
           consumerKey: process.env.TWITTER_API_KEY,
           consumerSecret: process.env.TWITTER_API_SECRET,
           callbackURL: process.env.TWITTER_REDIRECT_URI,
-          passReqToCallback: true,
           includeEmail: true,
+          passReqToCallback: true,
         },
         async (req, token, tokenSecret, profile, done) => {
           try {
-            console.log('=== Twitter OAuth 1.0a 策略執行 ===')
+            console.log('Twitter OAuth 策略執行')
+            console.log('User Agent:', req.get('User-Agent'))
+            console.log('Session ID:', req.sessionID || req.session.id)
             console.log('Profile ID:', profile.id)
             console.log('Profile username:', profile.username)
             console.log('Profile displayName:', profile.displayName)
             console.log('Profile emails:', profile.emails)
 
-            if (req.user) {
+            // 檢查是否為綁定流程：使用 query 參數或特殊標記來區分
+            const isBindingFlow = req.query.bind === 'true' || (req.user && req.session.isBindingFlow)
+            
+            if (isBindingFlow && req.user) {
               // 綁定流程：檢查該 Twitter ID 是否已被其他用戶使用
               const existingUserWithTwitterId = await User.findOne({ twitter_id: profile.id })
               if (
@@ -635,7 +647,7 @@ const initializeOAuthStrategies = () => {
               return done(null, user)
             }
           } catch (err) {
-            console.error('Twitter OAuth 1.0a 策略錯誤:', err)
+            console.error('Twitter OAuth 策略錯誤:', err)
             return done(err, null)
           }
         },
