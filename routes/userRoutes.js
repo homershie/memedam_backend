@@ -1674,7 +1674,17 @@ router.get(
     scope: ['profile', 'email'],
     state: (req) => req.query.state,
   }),
-  handleBindAuthCallback,
+  async (req, res) => {
+    try {
+      await handleBindAuthCallback(req, res)
+    } catch (error) {
+      console.error('Google OAuth 綁定回調錯誤:', error)
+      const frontendUrl = getFrontendUrl()
+      res.redirect(
+        `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定失敗，請稍後再試')}`,
+      )
+    }
+  },
 )
 
 // Facebook OAuth 綁定
@@ -1684,7 +1694,17 @@ router.get(
     scope: ['email'],
     state: (req) => req.query.state,
   }),
-  handleBindAuthCallback,
+  async (req, res) => {
+    try {
+      await handleBindAuthCallback(req, res)
+    } catch (error) {
+      console.error('Facebook OAuth 綁定回調錯誤:', error)
+      const frontendUrl = getFrontendUrl()
+      res.redirect(
+        `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定失敗，請稍後再試')}`,
+      )
+    }
+  },
 )
 
 // Discord OAuth 綁定
@@ -1694,14 +1714,34 @@ router.get(
     scope: ['identify', 'email'],
     state: (req) => req.query.state,
   }),
-  handleBindAuthCallback,
+  async (req, res) => {
+    try {
+      await handleBindAuthCallback(req, res)
+    } catch (error) {
+      console.error('Discord OAuth 綁定回調錯誤:', error)
+      const frontendUrl = getFrontendUrl()
+      res.redirect(
+        `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定失敗，請稍後再試')}`,
+      )
+    }
+  },
 )
 
 // Twitter OAuth 綁定
 router.get(
   '/bind-auth/twitter/callback',
   passport.authenticate('twitter-bind'),
-  handleBindAuthCallback,
+  async (req, res) => {
+    try {
+      await handleBindAuthCallback(req, res)
+    } catch (error) {
+      console.error('Twitter OAuth 綁定回調錯誤:', error)
+      const frontendUrl = getFrontendUrl()
+      res.redirect(
+        `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定失敗，請稍後再試')}`,
+      )
+    }
+  },
 )
 
 // 管理員專用路由 - 用戶清理相關

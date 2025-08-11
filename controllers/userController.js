@@ -4,6 +4,7 @@ import { StatusCodes } from 'http-status-codes'
 import mongoose from 'mongoose'
 import bcrypt from 'bcrypt'
 import validator from 'validator'
+import crypto from 'crypto'
 import {
   manualSendDeletionReminders,
   manualDeleteUnverifiedUsers,
@@ -1176,7 +1177,20 @@ export const resetPassword = async (req, res) => {
 }
 
 // OAuth 綁定相關函數
-import crypto from 'crypto'
+
+// 獲取前端 URL 的輔助函數
+const getFrontendUrl = () => {
+  let frontendUrl =
+    process.env.FRONTEND_URL ||
+    (process.env.NODE_ENV === 'production' ? 'https://www.memedam.com' : 'http://localhost:5173')
+
+  // 在生產環境強制使用 HTTPS 以避免 Cloudflare 522 錯誤
+  if (process.env.NODE_ENV === 'production' && frontendUrl.startsWith('http://')) {
+    frontendUrl = frontendUrl.replace('http://', 'https://')
+  }
+
+  return frontendUrl
+}
 
 // 生成 state 參數用於防止 CSRF 攻擊
 const generateState = () => {
@@ -1242,10 +1256,10 @@ export const handleBindAuthCallback = async (req, res) => {
 
     // 驗證 state 參數
     if (!validateState(state, req.session)) {
-      return res.status(400).json({
-        success: false,
-        message: '無效的 state 參數',
-      })
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('無效的 state 參數')}`,
+      )
     }
 
     // 從 session 中獲取綁定資訊
@@ -1253,10 +1267,10 @@ export const handleBindAuthCallback = async (req, res) => {
     const bindProvider = req.session.bindProvider
 
     if (!bindUserId || bindProvider !== provider) {
-      return res.status(400).json({
-        success: false,
-        message: '綁定資訊無效',
-      })
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定資訊無效')}`,
+      )
     }
 
     // 使用 session 來確保原子性操作
@@ -1268,7 +1282,10 @@ export const handleBindAuthCallback = async (req, res) => {
       const user = await User.findById(bindUserId).session(session)
       if (!user) {
         await session.abortTransaction()
-        return res.status(404).json({ success: false, message: '找不到使用者' })
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(
+          `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('找不到使用者')}`,
+        )
       }
 
       // 從 OAuth 回調中獲取社群帳號 ID
@@ -1286,10 +1303,10 @@ export const handleBindAuthCallback = async (req, res) => {
 
       if (!socialId) {
         await session.abortTransaction()
-        return res.status(400).json({
-          success: false,
-          message: '無法獲取社群帳號資訊',
-        })
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(
+          `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('無法獲取社群帳號資訊')}`,
+        )
       }
 
       // 檢查該社群 ID 是否已被其他帳號綁定
@@ -1298,10 +1315,10 @@ export const handleBindAuthCallback = async (req, res) => {
       const existing = await User.findOne(query).session(session)
       if (existing && existing._id.toString() !== bindUserId) {
         await session.abortTransaction()
-        return res.status(409).json({
-          success: false,
-          message: '此社群帳號已被其他用戶綁定',
-        })
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(
+          `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('此社群帳號已被其他用戶綁定')}`,
+        )
       }
 
       // 綁定社群帳號
@@ -1316,16 +1333,11 @@ export const handleBindAuthCallback = async (req, res) => {
       // 提交事務
       await session.commitTransaction()
 
-      res.json({
-        success: true,
-        message: `成功綁定 ${provider} 帳號`,
-        user: {
-          _id: user._id,
-          username: user.username,
-          email: user.email,
-          [`${provider}_id`]: socialId,
-        },
-      })
+      // 重定向到前端設定頁面，帶上成功訊息
+      const frontendUrl = getFrontendUrl()
+      res.redirect(
+        `${frontendUrl}/settings?success=true&message=${encodeURIComponent(`成功綁定 ${provider} 帳號`)}`,
+      )
     } catch (error) {
       // 回滾事務
       await session.abortTransaction()
@@ -1359,13 +1371,18 @@ export const handleBindAuthCallback = async (req, res) => {
           message = '此社群帳號已被其他使用者綁定'
       }
 
-      return res.status(409).json({
-        success: false,
-        message,
-      })
+      // 重定向到前端設定頁面，帶上錯誤訊息
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent(message)}`,
+      )
     }
 
-    res.status(500).json({ success: false, message: '伺服器錯誤' })
+    // 重定向到前端設定頁面，帶上錯誤訊息
+    const frontendUrl = getFrontendUrl()
+    res.redirect(
+      `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定失敗，請稍後再試')}`,
+    )
   }
 }
 
