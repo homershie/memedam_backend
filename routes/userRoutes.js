@@ -35,10 +35,16 @@ const router = express.Router()
 
 // 取得前端 URL 的輔助函數
 const getFrontendUrl = () => {
-  return (
-    process.env.FRONTEND_URL ||
+  let frontendUrl = process.env.FRONTEND_URL ||
     (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:5173')
-  )
+  
+  // 在生產環境強制使用 HTTPS 以避免 Cloudflare 522 錯誤
+  if (process.env.NODE_ENV === 'production' && frontendUrl.startsWith('http://')) {
+    frontendUrl = frontendUrl.replace('http://', 'https://')
+    console.warn(`生產環境強制將 HTTP 轉換為 HTTPS: ${frontendUrl}`)
+  }
+  
+  return frontendUrl
 }
 
 // 生成 OAuth state 參數
