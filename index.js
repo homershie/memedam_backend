@@ -2,6 +2,7 @@
 import './config/loadEnv.js'
 
 import express from 'express'
+import crypto from 'crypto'
 import cors from 'cors'
 import helmet from 'helmet'
 import hpp from 'hpp'
@@ -137,8 +138,8 @@ const configureSession = () => {
     // 為 Cloudflare 代理環境添加額外配置
     proxy: true, // 信任代理設定
     genid: () => {
-      return require('crypto').randomBytes(16).toString('hex') // 使用更安全的 session ID 生成
-    }
+      return crypto.randomBytes(16).toString('hex') // 使用更安全的 session ID 生成
+    },
   })
 }
 
