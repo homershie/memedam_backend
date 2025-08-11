@@ -1495,9 +1495,27 @@ router.get(
   '/auth/twitter/callback',
   verifyOAuthState,
   (req, res, next) => {
-    passport.authenticate('twitter-oauth2', (err, user) => {
+    console.log('=== Twitter OAuth 回調開始 ===')
+    console.log('Query 參數:', req.query)
+    console.log('Session ID:', req.session.id)
+    console.log('環境變數檢查:')
+    console.log('  TWITTER_CLIENT_ID:', !!process.env.TWITTER_CLIENT_ID)
+    console.log('  TWITTER_CLIENT_SECRET:', !!process.env.TWITTER_CLIENT_SECRET)
+    console.log('  TWITTER_REDIRECT_URI:', process.env.TWITTER_REDIRECT_URI)
+    
+    passport.authenticate('twitter-oauth2', (err, user, info) => {
+      console.log('=== Twitter OAuth 認證結果 ===')
+      console.log('錯誤:', err)
+      console.log('用戶:', user ? `用戶ID: ${user._id}` : '無用戶')
+      console.log('額外信息:', info)
+      
       if (err) {
-        console.error('Twitter OAuth 錯誤:', err)
+        console.error('Twitter OAuth 錯誤詳情:', {
+          message: err.message,
+          stack: err.stack,
+          code: err.code,
+          statusCode: err.statusCode
+        })
         const frontendUrl = getFrontendUrl()
 
         // 處理特定的錯誤類型
@@ -1514,10 +1532,13 @@ router.get(
       }
 
       if (!user) {
+        console.error('Twitter OAuth - 沒有返回用戶，但也沒有錯誤')
+        console.error('這通常表示認證被拒絕或用戶取消了授權')
         const frontendUrl = getFrontendUrl()
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
 
+      console.log('Twitter OAuth 成功，用戶:', user._id)
       req.user = user
       next()
     })(req, res, next)
