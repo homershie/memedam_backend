@@ -122,18 +122,23 @@ const configureSession = () => {
   return session({
     store: sessionStore,
     secret: process.env.SESSION_SECRET || 'your-session-secret',
-    name: process.env.NODE_ENV === 'production' ? '__Host-memedam.sid' : 'memedam.sid',
-    resave: true, // 改為 true，確保 session 被保存
-    saveUninitialized: true, // 改為 true，確保未初始化的 session 也被保存
+    name: process.env.NODE_ENV === 'production' ? 'memedam.sid' : 'memedam.sid', // 移除 __Host- 前綴避免代理問題
+    resave: false, // 改為 false，避免不必要的 session 保存
+    saveUninitialized: false, // 改為 false，只保存有資料的 session
     cookie: {
       httpOnly: true,
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax', // 改為 lax 以支援 OAuth 跨域流程
       secure: process.env.NODE_ENV === 'production',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天
     },
     // 改善 session 配置
     rolling: true, // 每次請求都更新 session 過期時間
     unset: 'destroy', // 刪除 session 時完全移除
+    // 為 Cloudflare 代理環境添加額外配置
+    proxy: true, // 信任代理設定
+    genid: () => {
+      return require('crypto').randomBytes(16).toString('hex') // 使用更安全的 session ID 生成
+    }
   })
 }
 
