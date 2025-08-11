@@ -7,6 +7,7 @@ import DiscordStrategy from 'passport-discord'
 import TwitterStrategy from 'passport-twitter'
 import bcrypt from 'bcrypt'
 import User from '../models/User.js'
+import { generateUniqueUsername } from '../utils/usernameGenerator.js'
 
 // 定義自己的驗證方法
 // passport.use(驗證方法名稱, 驗證策略(策略設定, 策略執行完畢的 callback))
@@ -185,30 +186,8 @@ const initializeOAuthStrategies = () => {
                   }
                 }
 
-                // 為社群用戶生成符合要求的 username
-                let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
-
-                // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
-                username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
-                if (username.length < 8) {
-                  // 如果長度不足8個字元，用數字填充
-                  username = username + '0'.repeat(8 - username.length)
-                } else if (username.length > 20) {
-                  // 如果超過20個字元，截斷
-                  username = username.substring(0, 20)
-                }
-
-                // 檢查 username 是否已存在，如果存在則加上隨機數字
-                let finalUsername = username
-                let counter = 1
-                while (await User.findOne({ username: finalUsername })) {
-                  finalUsername = username + counter.toString()
-                  counter++
-                  if (finalUsername.length > 20) {
-                    finalUsername =
-                      username.substring(0, 20 - counter.toString().length) + counter.toString()
-                  }
-                }
+                // 使用智能username生成器
+                const finalUsername = await generateUniqueUsername(profile, 'google')
 
                 user = new User({
                   username: finalUsername,
@@ -305,30 +284,8 @@ const initializeOAuthStrategies = () => {
                 }
               }
 
-              // 為社群用戶生成符合要求的 username
-              let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
-
-              // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
-              username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
-              if (username.length < 8) {
-                // 如果長度不足8個字元，用數字填充
-                username = username + '0'.repeat(8 - username.length)
-              } else if (username.length > 20) {
-                // 如果超過20個字元，截斷
-                username = username.substring(0, 20)
-              }
-
-              // 檢查 username 是否已存在，如果存在則加上隨機數字
-              let finalUsername = username
-              let counter = 1
-              while (await User.findOne({ username: finalUsername })) {
-                finalUsername = username + counter.toString()
-                counter++
-                if (finalUsername.length > 20) {
-                  finalUsername =
-                    username.substring(0, 20 - counter.toString().length) + counter.toString()
-                }
-              }
+              // 使用智能username生成器
+              const finalUsername = await generateUniqueUsername(profile, 'facebook')
 
               user = new User({
                 username: finalUsername,
@@ -445,30 +402,8 @@ const initializeOAuthStrategies = () => {
                   }
                 }
 
-                // 為社群用戶生成符合要求的 username
-                let username = profile.username || profile.id
-
-                // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
-                username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
-                if (username.length < 8) {
-                  // 如果長度不足8個字元，用數字填充
-                  username = username + '0'.repeat(8 - username.length)
-                } else if (username.length > 20) {
-                  // 如果超過20個字元，截斷
-                  username = username.substring(0, 20)
-                }
-
-                // 檢查 username 是否已存在，如果存在則加上隨機數字
-                let finalUsername = username
-                let counter = 1
-                while (await User.findOne({ username: finalUsername })) {
-                  finalUsername = username + counter.toString()
-                  counter++
-                  if (finalUsername.length > 20) {
-                    finalUsername =
-                      username.substring(0, 20 - counter.toString().length) + counter.toString()
-                  }
-                }
+                // 使用智能username生成器
+                const finalUsername = await generateUniqueUsername(profile, 'discord')
 
                 user = new User({
                   username: finalUsername,
@@ -595,30 +530,8 @@ const initializeOAuthStrategies = () => {
                   }
                 }
 
-                // 為社群用戶生成符合要求的 username
-                let username = profile.username || profile.id
-
-                // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
-                username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
-                if (username.length < 8) {
-                  // 如果長度不足8個字元，用數字填充
-                  username = username + '0'.repeat(8 - username.length)
-                } else if (username.length > 20) {
-                  // 如果超過20個字元，截斷
-                  username = username.substring(0, 20)
-                }
-
-                // 檢查 username 是否已存在，如果存在則加上隨機數字
-                let finalUsername = username
-                let counter = 1
-                while (await User.findOne({ username: finalUsername })) {
-                  finalUsername = username + counter.toString()
-                  counter++
-                  if (finalUsername.length > 20) {
-                    finalUsername =
-                      username.substring(0, 20 - counter.toString().length) + counter.toString()
-                  }
-                }
+                // 使用智能username生成器
+                const finalUsername = await generateUniqueUsername(profile, 'twitter')
 
                 user = new User({
                   username: finalUsername,
