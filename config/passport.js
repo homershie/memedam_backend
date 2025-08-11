@@ -8,6 +8,7 @@ import TwitterStrategy from 'passport-twitter'
 import bcrypt from 'bcrypt'
 import User from '../models/User.js'
 import { generateUniqueUsername } from '../utils/usernameGenerator.js'
+import { logger } from '../utils/logger.js'
 
 // 定義自己的驗證方法
 // passport.use(驗證方法名稱, 驗證策略(策略設定, 策略執行完畢的 callback))
@@ -56,7 +57,7 @@ const initializeJWTStrategy = () => {
   const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret'
 
   if (!JWT_SECRET) {
-    console.error('錯誤: JWT_SECRET 環境變數未設定')
+    logger.error('錯誤: JWT_SECRET 環境變數未設定')
     return
   }
 
@@ -76,7 +77,7 @@ const initializeJWTStrategy = () => {
       // done = 跟上面一樣
       async (req, payload, done) => {
         try {
-          console.log('=== JWT 策略開始驗證 ===')
+          logger.info('=== JWT 策略開始驗證 ===')
 
           // 從 Authorization header 提取 token
           const authHeader = req.headers.authorization
@@ -86,14 +87,14 @@ const initializeJWTStrategy = () => {
             token = authHeader.substring(7) // 移除 'Bearer ' 前綴
           }
 
-          console.log('提取的 token:', token ? token.substring(0, 50) + '...' : 'null')
+          logger.info('提取的 token:', token ? token.substring(0, 50) + '...' : 'null')
 
           if (!token) {
-            console.log('未提供 token')
+            logger.info('未提供 token')
             return done(null, false, { message: '未提供 token' })
           }
 
-          console.log('JWT payload:', payload)
+          logger.info('JWT payload:', payload)
 
           // 手動檢查過期時間
           // 只有 refresh 和 logout 可以允許過期的 token
@@ -106,19 +107,19 @@ const initializeJWTStrategy = () => {
           // req.path = /abcd
           // req.query = { aaa: '111', bbb: '222' }
           const url = req.baseUrl + req.path
-          console.log('請求 URL:', url)
-          console.log('Token 是否過期:', expired)
+          logger.info('請求 URL:', url)
+          logger.info('Token 是否過期:', expired)
 
           if (expired && url !== '/users/refresh' && url !== '/users/logout') {
             throw new Error('token 已過期')
           }
 
-          console.log('開始查詢用戶，用戶ID:', payload._id)
+          logger.info('開始查詢用戶，用戶ID:', payload._id)
 
           // 先檢查使用者是否存在
           const user = await User.findById(payload._id)
 
-          console.log('查詢結果:', user ? '找到用戶' : '未找到用戶')
+          logger.info('查詢結果:', user ? '找到用戶' : '未找到用戶')
 
           if (!user) {
             throw new Error('使用者不存在')
@@ -126,16 +127,16 @@ const initializeJWTStrategy = () => {
 
           // 檢查 tokens 陣列是否包含當前 token
           if (!user.tokens || !user.tokens.includes(token)) {
-            console.log('Token 不在用戶的 tokens 陣列中')
-            console.log('用戶的 tokens:', user.tokens)
+            logger.info('Token 不在用戶的 tokens 陣列中')
+            logger.info('用戶的 tokens:', user.tokens)
             throw new Error('token 已失效')
           }
 
-          console.log('✅ JWT 驗證成功')
+          logger.info('✅ JWT 驗證成功')
           return done(null, { user, token })
         } catch (error) {
-          console.log('passport.js jwt 錯誤:', error.message)
-          console.log('錯誤類型:', error.constructor.name)
+          logger.info('passport.js jwt 錯誤:', error.message)
+          logger.info('錯誤類型:', error.constructor.name)
           if (error.message === '使用者不存在') {
             return done(null, false, { message: '使用者不存在' })
           } else if (error.message === 'token 已失效') {
@@ -203,7 +204,7 @@ const initializeOAuthStrategies = () => {
                 } catch (saveError) {
                   // 處理 google_id 重複的情況
                   if (saveError.code === 11000 && saveError.keyPattern?.google_id) {
-                    console.log('Google ID 已存在，查找現有用戶:', profile.id)
+                    logger.info('Google ID 已存在，查找現有用戶:', profile.id)
                     user = await User.findOne({ google_id: profile.id })
                     if (!user) {
                       throw new Error(`Google ID ${profile.id} 已存在但無法找到對應用戶`)
@@ -266,7 +267,7 @@ const initializeOAuthStrategies = () => {
               let user = await User.findOne({ facebook_id: profile.id })
               if (user) {
                 // 用戶已存在，直接返回
-                console.log('Facebook 用戶已存在，直接登入:', profile.id)
+                logger.info('Facebook 用戶已存在，直接登入:', profile.id)
                 return done(null, user)
               }
 
@@ -301,7 +302,7 @@ const initializeOAuthStrategies = () => {
               } catch (saveError) {
                 // 處理 facebook_id 重複的情況（併發請求）
                 if (saveError.code === 11000 && saveError.keyPattern?.facebook_id) {
-                  console.log('Facebook ID 重複，查找現有用戶:', profile.id)
+                  logger.info('Facebook ID 重複，查找現有用戶:', profile.id)
                   user = await User.findOne({ facebook_id: profile.id })
                   if (!user) {
                     throw new Error(`Facebook ID ${profile.id} 已存在但無法找到對應用戶`)
@@ -355,8 +356,8 @@ const initializeOAuthStrategies = () => {
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
-            console.log('Discord OAuth 策略執行')
-            console.log('Profile:', JSON.stringify(profile, null, 2))
+            logger.info('Discord OAuth 策略執行')
+            logger.info('Profile:', JSON.stringify(profile, null, 2))
 
             // 檢查是否為綁定流程：使用 query 參數或特殊標記來區分
             const isBindingFlow =
@@ -420,7 +421,7 @@ const initializeOAuthStrategies = () => {
                 } catch (saveError) {
                   // 處理 discord_id 重複的情況
                   if (saveError.code === 11000 && saveError.keyPattern?.discord_id) {
-                    console.log('Discord ID 已存在，查找現有用戶:', profile.id)
+                    logger.info('Discord ID 已存在，查找現有用戶:', profile.id)
                     // 再次查找用戶，可能是併發請求導致的問題
                     user = await User.findOne({ discord_id: profile.id })
                     if (!user) {
@@ -477,13 +478,13 @@ const initializeOAuthStrategies = () => {
         },
         async (req, token, tokenSecret, profile, done) => {
           try {
-            console.log('Twitter OAuth 策略執行')
-            console.log('User Agent:', req.get('User-Agent'))
-            console.log('Session ID:', req.sessionID || req.session.id)
-            console.log('Profile ID:', profile.id)
-            console.log('Profile username:', profile.username)
-            console.log('Profile displayName:', profile.displayName)
-            console.log('Profile emails:', profile.emails)
+            logger.info('Twitter OAuth 策略執行')
+            logger.info('User Agent:', req.get('User-Agent'))
+            logger.info('Session ID:', req.sessionID || req.session.id)
+            logger.info('Profile ID:', profile.id)
+            logger.info('Profile username:', profile.username)
+            logger.info('Profile displayName:', profile.displayName)
+            logger.info('Profile emails:', profile.emails)
 
             // 檢查是否為綁定流程：使用 query 參數或特殊標記來區分
             const isBindingFlow =
@@ -549,7 +550,7 @@ const initializeOAuthStrategies = () => {
                 } catch (saveError) {
                   // 處理 twitter_id 重複的情況
                   if (saveError.code === 11000 && saveError.keyPattern?.twitter_id) {
-                    console.log('Twitter ID 已存在，查找現有用戶:', profile.id)
+                    logger.info('Twitter ID 已存在，查找現有用戶:', profile.id)
                     user = await User.findOne({ twitter_id: profile.id })
                     if (!user) {
                       throw new Error(`Twitter ID ${profile.id} 已存在但無法找到對應用戶`)
@@ -562,7 +563,7 @@ const initializeOAuthStrategies = () => {
               return done(null, user)
             }
           } catch (err) {
-            console.error('Twitter OAuth 策略錯誤:', err)
+            logger.error('Twitter OAuth 策略錯誤:', err)
             return done(err, null)
           }
         },
