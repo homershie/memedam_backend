@@ -522,6 +522,7 @@ const initializeOAuthStrategies = () => {
         {
           clientID: process.env.TWITTER_CLIENT_ID,
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
+          clientType: process.env.TWITTER_CLIENT_TYPE || 'confidential',
           callbackURL: process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
           scope: ['tweet.read', 'users.read', 'offline.access'],
@@ -635,6 +636,7 @@ const initializeOAuthStrategies = () => {
         {
           clientID: process.env.TWITTER_CLIENT_ID,
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
+          clientType: process.env.TWITTER_CLIENT_TYPE || 'confidential',
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
           scope: ['tweet.read', 'users.read', 'offline.access'],

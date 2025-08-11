@@ -158,6 +158,7 @@ passport.authenticate('discord', {
    # 確保以下環境變數已正確設置
    TWITTER_CLIENT_ID=your_twitter_client_id
    TWITTER_CLIENT_SECRET=your_twitter_client_secret
+   TWITTER_CLIENT_TYPE=confidential
    TWITTER_REDIRECT_URI=http://localhost:4000/api/users/auth/twitter/callback
    
    DISCORD_CLIENT_ID=your_discord_client_id
