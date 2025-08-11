@@ -68,6 +68,7 @@ DISCORD_CLIENT_ID=your_discord_client_id
 DISCORD_CLIENT_SECRET=your_discord_client_secret
 TWITTER_CLIENT_ID=your_twitter_client_id
 TWITTER_CLIENT_SECRET=your_twitter_client_secret
+TWITTER_CLIENT_TYPE=confidential # confidential or public, based on Twitter app settings
 TWITTER_REDIRECT_URI=http://127.0.0.1:4000/api/users/auth/twitter/callback
 TWITTER_BIND_REDIRECT_URI=http://127.0.0.1:4000/api/users/bind-auth/twitter/callback
 

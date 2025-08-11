@@ -127,6 +127,7 @@ DISCORD_BIND_REDIRECT_URI=http://localhost:4000/api/users/bind-auth/discord/call
 # Twitter OAuth
 TWITTER_CLIENT_ID=your-twitter-client-id
 TWITTER_CLIENT_SECRET=your-twitter-client-secret
+TWITTER_CLIENT_TYPE=confidential
 TWITTER_REDIRECT_URI=http://localhost:4000/api/users/auth/twitter/callback
 TWITTER_BIND_REDIRECT_URI=http://localhost:4000/api/users/bind-auth/twitter/callback
 ```

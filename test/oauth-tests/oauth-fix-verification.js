@@ -40,12 +40,14 @@ async function testOAuthFixes() {
     const twitterClientId = process.env.TWITTER_CLIENT_ID
     const twitterClientSecret = process.env.TWITTER_CLIENT_SECRET
     const twitterRedirectUri = process.env.TWITTER_REDIRECT_URI
-    
+    const twitterClientType = process.env.TWITTER_CLIENT_TYPE
+
     console.log('Twitter Client ID:', twitterClientId ? '✅ 已設置' : '❌ 未設置')
     console.log('Twitter Client Secret:', twitterClientSecret ? '✅ 已設置' : '❌ 未設置')
     console.log('Twitter Redirect URI:', twitterRedirectUri || '❌ 未設置')
-    
-    if (twitterClientId && twitterClientSecret && twitterRedirectUri) {
+    console.log('Twitter Client Type:', twitterClientType || '❌ 未設置')
+
+    if (twitterClientId && twitterClientSecret && twitterRedirectUri && twitterClientType) {
       console.log('✅ Twitter OAuth 環境變數配置完整')
     } else {
       console.log('⚠️  Twitter OAuth 環境變數配置不完整')
