@@ -4,7 +4,7 @@ import passportJWT from 'passport-jwt'
 import GoogleStrategy from 'passport-google-oauth20'
 import FacebookStrategy from 'passport-facebook'
 import DiscordStrategy from 'passport-discord'
-import TwitterStrategy from '@superfaceai/passport-twitter-oauth2'
+import TwitterStrategy from 'passport-twitter'
 import bcrypt from 'bcrypt'
 import User from '../models/User.js'
 
@@ -218,7 +218,7 @@ const initializeOAuthStrategies = () => {
                   login_method: 'google',
                   email_verified: !!profile.emails?.[0]?.verified,
                 })
-                
+
                 try {
                   await user.save()
                 } catch (saveError) {
@@ -290,8 +290,8 @@ const initializeOAuthStrategies = () => {
                 console.log('Facebook 用戶已存在，直接登入:', profile.id)
                 return done(null, user)
               }
-              
-                            // 用戶不存在，需要創建新用戶
+
+              // 用戶不存在，需要創建新用戶
               // 檢查 email 是否已被其他用戶使用
               if (profile.emails?.[0]?.value) {
                 const existingUserWithEmail = await User.findOne({
@@ -305,30 +305,30 @@ const initializeOAuthStrategies = () => {
                 }
               }
 
-                // 為社群用戶生成符合要求的 username
-                let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
+              // 為社群用戶生成符合要求的 username
+              let username = profile.emails?.[0]?.value?.split('@')[0] || profile.id
 
-                // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
-                username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
-                if (username.length < 8) {
-                  // 如果長度不足8個字元，用數字填充
-                  username = username + '0'.repeat(8 - username.length)
-                } else if (username.length > 20) {
-                  // 如果超過20個字元，截斷
-                  username = username.substring(0, 20)
-                }
+              // 確保 username 符合驗證要求（8-20個字元，允許英文字母、數字、點號、底線和連字號）
+              username = username.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()
+              if (username.length < 8) {
+                // 如果長度不足8個字元，用數字填充
+                username = username + '0'.repeat(8 - username.length)
+              } else if (username.length > 20) {
+                // 如果超過20個字元，截斷
+                username = username.substring(0, 20)
+              }
 
-                // 檢查 username 是否已存在，如果存在則加上隨機數字
-                let finalUsername = username
-                let counter = 1
-                while (await User.findOne({ username: finalUsername })) {
-                  finalUsername = username + counter.toString()
-                  counter++
-                  if (finalUsername.length > 20) {
-                    finalUsername =
-                      username.substring(0, 20 - counter.toString().length) + counter.toString()
-                  }
+              // 檢查 username 是否已存在，如果存在則加上隨機數字
+              let finalUsername = username
+              let counter = 1
+              while (await User.findOne({ username: finalUsername })) {
+                finalUsername = username + counter.toString()
+                counter++
+                if (finalUsername.length > 20) {
+                  finalUsername =
+                    username.substring(0, 20 - counter.toString().length) + counter.toString()
                 }
+              }
 
               user = new User({
                 username: finalUsername,
@@ -338,7 +338,7 @@ const initializeOAuthStrategies = () => {
                 login_method: 'facebook',
                 email_verified: !!profile.emails?.[0]?.verified,
               })
-              
+
               try {
                 await user.save()
               } catch (saveError) {
@@ -353,7 +353,7 @@ const initializeOAuthStrategies = () => {
                   throw saveError
                 }
               }
-              
+
               return done(null, user)
             }
           } catch (err) {
@@ -400,19 +400,25 @@ const initializeOAuthStrategies = () => {
             if (req.user) {
               // 綁定流程：檢查該 Discord ID 是否已被其他用戶使用
               const existingUserWithDiscordId = await User.findOne({ discord_id: profile.id })
-              if (existingUserWithDiscordId && existingUserWithDiscordId._id.toString() !== req.user._id.toString()) {
+              if (
+                existingUserWithDiscordId &&
+                existingUserWithDiscordId._id.toString() !== req.user._id.toString()
+              ) {
                 // Discord ID 已被其他用戶使用
                 const error = new Error(`Discord ID ${profile.id} 已被其他用戶綁定`)
                 error.code = 'DISCORD_ID_ALREADY_BOUND'
                 error.statusCode = 409
                 return done(error, null)
               }
-              
+
               // 如果是同一個用戶重複綁定，直接返回
-              if (existingUserWithDiscordId && existingUserWithDiscordId._id.toString() === req.user._id.toString()) {
+              if (
+                existingUserWithDiscordId &&
+                existingUserWithDiscordId._id.toString() === req.user._id.toString()
+              ) {
                 return done(null, req.user)
               }
-              
+
               // 綁定 Discord ID 到當前用戶
               req.user.discord_id = profile.id
               await req.user.save()
@@ -465,7 +471,7 @@ const initializeOAuthStrategies = () => {
                   login_method: 'discord',
                   email_verified: !!profile.verified,
                 })
-                
+
                 try {
                   await user.save()
                 } catch (saveError) {
@@ -514,42 +520,48 @@ const initializeOAuthStrategies = () => {
     )
   }
 
-  // Twitter - 登入用
-  if (process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET) {
+  // Twitter - 登入用 (OAuth 1.0a)
+  if (process.env.TWITTER_API_KEY && process.env.TWITTER_API_SECRET) {
     passport.use(
-      'twitter-oauth2',
+      'twitter',
       new TwitterStrategy(
         {
-          clientID: process.env.TWITTER_CLIENT_ID,
-          clientSecret: process.env.TWITTER_CLIENT_SECRET,
-          clientType: process.env.TWITTER_CLIENT_TYPE || 'confidential',
+          consumerKey: process.env.TWITTER_API_KEY,
+          consumerSecret: process.env.TWITTER_API_SECRET,
           callbackURL: process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
-          scope: ['tweet.read', 'users.read', 'offline.access'],
-          pkce: true,
-          userProfileURL: 'https://api.twitter.com/2/users/me?user.fields=id,username,name,email,verified',
           includeEmail: true,
-          authorizationURL: 'https://twitter.com/i/oauth2/authorize',
-          tokenURL: 'https://api.twitter.com/2/oauth2/token',
         },
-        async (req, accessToken, refreshToken, profile, done) => {
+        async (req, token, tokenSecret, profile, done) => {
           try {
+            console.log('=== Twitter OAuth 1.0a 策略執行 ===')
+            console.log('Profile ID:', profile.id)
+            console.log('Profile username:', profile.username)
+            console.log('Profile displayName:', profile.displayName)
+            console.log('Profile emails:', profile.emails)
+
             if (req.user) {
               // 綁定流程：檢查該 Twitter ID 是否已被其他用戶使用
               const existingUserWithTwitterId = await User.findOne({ twitter_id: profile.id })
-              if (existingUserWithTwitterId && existingUserWithTwitterId._id.toString() !== req.user._id.toString()) {
+              if (
+                existingUserWithTwitterId &&
+                existingUserWithTwitterId._id.toString() !== req.user._id.toString()
+              ) {
                 // Twitter ID 已被其他用戶使用
                 const error = new Error(`Twitter ID ${profile.id} 已被其他用戶綁定`)
                 error.code = 'TWITTER_ID_ALREADY_BOUND'
                 error.statusCode = 409
                 return done(error, null)
               }
-              
+
               // 如果是同一個用戶重複綁定，直接返回
-              if (existingUserWithTwitterId && existingUserWithTwitterId._id.toString() === req.user._id.toString()) {
+              if (
+                existingUserWithTwitterId &&
+                existingUserWithTwitterId._id.toString() === req.user._id.toString()
+              ) {
                 return done(null, req.user)
               }
-              
+
               // 綁定 Twitter ID 到當前用戶
               req.user.twitter_id = profile.id
               await req.user.save()
@@ -598,13 +610,13 @@ const initializeOAuthStrategies = () => {
 
                 user = new User({
                   username: finalUsername,
-                  email: profile.emails?.[0]?.value || '',
+                  email: profile.emails?.[0]?.value || null,
                   twitter_id: profile.id,
                   display_name: profile.displayName || finalUsername,
                   login_method: 'twitter',
                   email_verified: !!profile.emails?.[0]?.verified,
                 })
-                
+
                 try {
                   await user.save()
                 } catch (saveError) {
@@ -623,30 +635,25 @@ const initializeOAuthStrategies = () => {
               return done(null, user)
             }
           } catch (err) {
+            console.error('Twitter OAuth 1.0a 策略錯誤:', err)
             return done(err, null)
           }
         },
       ),
     )
 
-    // Twitter - 綁定用
+    // Twitter - 綁定用 (OAuth 1.0a)
     passport.use(
-      'twitter-oauth2-bind',
+      'twitter-bind',
       new TwitterStrategy(
         {
-          clientID: process.env.TWITTER_CLIENT_ID,
-          clientSecret: process.env.TWITTER_CLIENT_SECRET,
-          clientType: process.env.TWITTER_CLIENT_TYPE || 'confidential',
+          consumerKey: process.env.TWITTER_API_KEY,
+          consumerSecret: process.env.TWITTER_API_SECRET,
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
-          scope: ['tweet.read', 'users.read', 'offline.access'],
-          pkce: true,
-          userProfileURL: 'https://api.twitter.com/2/users/me?user.fields=id,username,name,email,verified',
           includeEmail: true,
-          authorizationURL: 'https://twitter.com/i/oauth2/authorize',
-          tokenURL: 'https://api.twitter.com/2/oauth2/token',
         },
-        async (req, accessToken, refreshToken, profile, done) => {
+        async (req, token, tokenSecret, profile, done) => {
           try {
             return done(null, { profile, provider: 'twitter' })
           } catch (err) {

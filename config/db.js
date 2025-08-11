@@ -77,7 +77,8 @@ const createModelIndexes = async (model, modelName) => {
     switch (modelName) {
       case 'User':
         await model.collection.createIndex({ username: 1 }, { unique: true })
-        await model.collection.createIndex({ email: 1 }, { unique: true })
+        // Email 索引改為非唯一，允許多個 null 值（用於社群登入用戶）
+        await model.collection.createIndex({ email: 1 }, { unique: false })
         await model.collection.createIndex({ created_at: -1 })
         await model.collection.createIndex({ status: 1 })
         break

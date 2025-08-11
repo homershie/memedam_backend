@@ -35,15 +35,16 @@ const router = express.Router()
 
 // 取得前端 URL 的輔助函數
 const getFrontendUrl = () => {
-  let frontendUrl = process.env.FRONTEND_URL ||
+  let frontendUrl =
+    process.env.FRONTEND_URL ||
     (process.env.NODE_ENV === 'production' ? 'https://memedam.com' : 'http://localhost:5173')
-  
+
   // 在生產環境強制使用 HTTPS 以避免 Cloudflare 522 錯誤
   if (process.env.NODE_ENV === 'production' && frontendUrl.startsWith('http://')) {
     frontendUrl = frontendUrl.replace('http://', 'https://')
     console.warn(`生產環境強制將 HTTP 轉換為 HTTPS: ${frontendUrl}`)
   }
-  
+
   return frontendUrl
 }
 
@@ -1483,21 +1484,50 @@ router.get('/auth/twitter', (req, res, next) => {
       return res.status(500).json({ error: 'Session save failed' })
     }
 
-    // 讓 Passport 策略自動處理 PKCE
-    passport.authenticate('twitter-oauth2', {
-      state: state,
-    })(req, res, next)
+    // Twitter OAuth 1.0a 不需要 state 參數，但我們保留用於安全驗證
+    console.log('=== Twitter OAuth 1.0a 登入開始 ===')
+    console.log('Generated state:', state)
+    console.log('Session ID (before auth):', req.sessionID || req.session.id)
+    console.log('Session 內容 (before auth):', req.session)
+    console.log('Request headers host:', req.get('host'))
+    console.log('Request cookies:', req.headers.cookie)
+    console.log('環境變數檢查:')
+    console.log('  TWITTER_API_KEY:', !!process.env.TWITTER_API_KEY)
+    console.log('  TWITTER_API_SECRET:', !!process.env.TWITTER_API_SECRET)
+    console.log('  TWITTER_REDIRECT_URI:', process.env.TWITTER_REDIRECT_URI)
+
+    passport.authenticate('twitter')(req, res, next)
   })
 })
 
-// Twitter OAuth callback
+// Twitter OAuth callback (OAuth 1.0a 不使用 state 參數)
 router.get(
   '/auth/twitter/callback',
-  verifyOAuthState,
   (req, res, next) => {
-    passport.authenticate('twitter-oauth2', (err, user) => {
+    console.log('=== Twitter OAuth 回調開始 ===')
+    console.log('Query 參數:', req.query)
+    console.log('Session ID:', req.sessionID || req.session.id)
+    console.log('Session 內容:', req.session)
+    console.log('Request headers host:', req.get('host'))
+    console.log('Request cookies:', req.headers.cookie)
+    console.log('環境變數檢查:')
+    console.log('  TWITTER_API_KEY:', !!process.env.TWITTER_API_KEY)
+    console.log('  TWITTER_API_SECRET:', !!process.env.TWITTER_API_SECRET)
+    console.log('  TWITTER_REDIRECT_URI:', process.env.TWITTER_REDIRECT_URI)
+
+    passport.authenticate('twitter', (err, user, info) => {
+      console.log('=== Twitter OAuth 認證結果 ===')
+      console.log('錯誤:', err)
+      console.log('用戶:', user ? `用戶ID: ${user._id}` : '無用戶')
+      console.log('額外信息:', info)
+
       if (err) {
-        console.error('Twitter OAuth 錯誤:', err)
+        console.error('Twitter OAuth 錯誤詳情:', {
+          message: err.message,
+          stack: err.stack,
+          code: err.code,
+          statusCode: err.statusCode,
+        })
         const frontendUrl = getFrontendUrl()
 
         // 處理特定的錯誤類型
@@ -1514,10 +1544,13 @@ router.get(
       }
 
       if (!user) {
+        console.error('Twitter OAuth - 沒有返回用戶，但也沒有錯誤')
+        console.error('這通常表示認證被拒絕或用戶取消了授權')
         const frontendUrl = getFrontendUrl()
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
 
+      console.log('Twitter OAuth 成功，用戶:', user._id)
       req.user = user
       next()
     })(req, res, next)
@@ -1577,7 +1610,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     google: { id: 'GOOGLE_CLIENT_ID', secret: 'GOOGLE_CLIENT_SECRET' },
     facebook: { id: 'FACEBOOK_CLIENT_ID', secret: 'FACEBOOK_CLIENT_SECRET' },
     discord: { id: 'DISCORD_CLIENT_ID', secret: 'DISCORD_CLIENT_SECRET' },
-    twitter: { id: 'TWITTER_CLIENT_ID', secret: 'TWITTER_CLIENT_SECRET' },
+    twitter: { id: 'TWITTER_API_KEY', secret: 'TWITTER_API_SECRET' },
   }
 
   const { id: clientIdEnv, secret: clientSecretEnv } = envVars[provider]
@@ -1603,7 +1636,8 @@ router.get('/bind-auth/:provider/init', (req, res) => {
         scope = ['identify', 'email']
         break
       case 'twitter': {
-        scope = ['tweet.read', 'users.read']
+        // Twitter OAuth 1.0a 不需要額外的 scope
+        scope = []
         break
       }
     }
@@ -1666,9 +1700,7 @@ router.get(
 // Twitter OAuth 綁定
 router.get(
   '/bind-auth/twitter/callback',
-  passport.authenticate('twitter-oauth2-bind', {
-    state: (req) => req.query.state,
-  }),
+  passport.authenticate('twitter-bind'),
   handleBindAuthCallback,
 )
 

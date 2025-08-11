@@ -123,22 +123,25 @@ const configureSession = () => {
   return session({
     store: sessionStore,
     secret: process.env.SESSION_SECRET || 'your-session-secret',
-    name: process.env.NODE_ENV === 'production' ? 'memedam.sid' : 'memedam.sid', // 移除 __Host- 前綴避免代理問題
-    resave: false, // 改為 false，避免不必要的 session 保存
-    saveUninitialized: false, // 改為 false，只保存有資料的 session
+    name: 'memedam.sid',
+    resave: true, // Twitter OAuth 1.0a 需要 resave
+    saveUninitialized: true, // Twitter OAuth 1.0a 需要初始化 session
     cookie: {
       httpOnly: true,
-      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax', // 改為 lax 以支援 OAuth 跨域流程
+      sameSite: 'lax', // 支援 OAuth 跨域流程
       secure: process.env.NODE_ENV === 'production',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天
+      // 明確設定 path，確保 cookie 在所有路徑都可用
+      path: '/',
+      // 本地開發環境不設定 domain，讓瀏覽器自動處理
     },
-    // 改善 session 配置
-    rolling: true, // 每次請求都更新 session 過期時間
-    unset: 'destroy', // 刪除 session 時完全移除
-    // 為 Cloudflare 代理環境添加額外配置
-    proxy: true, // 信任代理設定
+    // Twitter OAuth 1.0a 相容設定
+    rolling: false, // 避免 OAuth 流程中 session 變化
+    unset: 'keep', // 保持 session 資料
+    // 只在生產環境信任代理
+    proxy: process.env.NODE_ENV === 'production',
     genid: () => {
-      return crypto.randomBytes(16).toString('hex') // 使用更安全的 session ID 生成
+      return crypto.randomBytes(16).toString('hex')
     },
   })
 }
