@@ -1,6 +1,12 @@
 import express from 'express'
-import { previewUsername, checkUsernameAvailability, getUsernameSuggestions } from '../controllers/usernameController.js'
-import auth from '../middleware/auth.js'
+import {
+  previewUsername,
+  checkUsernameAvailability,
+  getUsernameSuggestions,
+  validateUsername,
+  changeUsername,
+} from '../controllers/usernameController.js'
+import { token } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -152,6 +158,112 @@ router.get('/check/:username', checkUsernameAvailability)
  *       500:
  *         description: 伺服器錯誤
  */
-router.get('/suggestions', auth, getUsernameSuggestions)
+router.get('/suggestions', token, getUsernameSuggestions)
+
+/**
+ * @swagger
+ * /api/username/validate/{username}:
+ *   get:
+ *     summary: 驗證 username 格式和可用性
+ *     tags: [Username]
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *           minLength: 8
+ *           maxLength: 20
+ *         description: 要驗證的 username
+ *     responses:
+ *       200:
+ *         description: 驗證結果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 available:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               available:
+ *                 value:
+ *                   success: true
+ *                   available: true
+ *                   message: "此 username 可以使用"
+ *               unavailable:
+ *                 value:
+ *                   success: true
+ *                   available: false
+ *                   message: "此 username 已被使用"
+ *       400:
+ *         description: Username格式不正確
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.get('/validate/:username', validateUsername)
+
+/**
+ * @swagger
+ * /api/username/change:
+ *   post:
+ *     summary: 變更用戶的 username
+ *     tags: [Username]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - currentPassword
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 minLength: 8
+ *                 maxLength: 20
+ *                 description: 新的 username
+ *               currentPassword:
+ *                 type: string
+ *                 description: 目前密碼
+ *     responses:
+ *       200:
+ *         description: Username變更成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     username_changed_at:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: 請求參數錯誤或格式不正確
+ *       401:
+ *         description: 密碼不正確
+ *       409:
+ *         description: Username已被使用
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.post('/change', token, changeUsername)
 
 export default router

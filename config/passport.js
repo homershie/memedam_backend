@@ -359,8 +359,9 @@ const initializeOAuthStrategies = () => {
             console.log('Profile:', JSON.stringify(profile, null, 2))
 
             // 檢查是否為綁定流程：使用 query 參數或特殊標記來區分
-            const isBindingFlow = req.query.bind === 'true' || (req.user && req.session.isBindingFlow)
-            
+            const isBindingFlow =
+              req.query.bind === 'true' || (req.user && req.session.isBindingFlow)
+
             if (isBindingFlow && req.user) {
               // 綁定流程：檢查該 Discord ID 是否已被其他用戶使用
               const existingUserWithDiscordId = await User.findOne({ discord_id: profile.id })
@@ -485,8 +486,9 @@ const initializeOAuthStrategies = () => {
             console.log('Profile emails:', profile.emails)
 
             // 檢查是否為綁定流程：使用 query 參數或特殊標記來區分
-            const isBindingFlow = req.query.bind === 'true' || (req.user && req.session.isBindingFlow)
-            
+            const isBindingFlow =
+              req.query.bind === 'true' || (req.user && req.session.isBindingFlow)
+
             if (isBindingFlow && req.user) {
               // 綁定流程：檢查該 Twitter ID 是否已被其他用戶使用
               const existingUserWithTwitterId = await User.findOne({ twitter_id: profile.id })

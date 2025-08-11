@@ -22,8 +22,6 @@ import {
   initBindAuth, // 新增 OAuth 綁定初始化
   handleBindAuthCallback, // 新增 OAuth 綁定回調處理
   getBindStatus, // 新增獲取綁定狀態
-  validateUsername, // 新增 username 驗證
-  changeUsername, // 新增 username 變更
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -1227,12 +1225,6 @@ router.post('/change-password', token, changePassword)
 
 // 電子信箱變更
 router.post('/change-email', token, changeEmail)
-
-// Username 驗證
-router.get('/validate-username/:username', validateUsername)
-
-// Username 變更
-router.post('/change-username', token, changeUsername)
 
 // 觸發 Google OAuth
 router.get('/auth/google', (req, res, next) => {
