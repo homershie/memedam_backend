@@ -526,8 +526,9 @@ const initializeOAuthStrategies = () => {
           passReqToCallback: true,
           scope: ['tweet.read', 'users.read', 'offline.access'],
           pkce: true,
-          userProfileURL: 'https://api.twitter.com/2/users/me?user.fields=id,username,name,email,verified',
-          includeEmail: true,
+          clientType: 'confidential',
+          userProfileURL:
+            'https://api.twitter.com/2/users/me?user.fields=id,username,name,profile_image_url,verified,url',
           authorizationURL: 'https://twitter.com/i/oauth2/authorize',
           tokenURL: 'https://api.twitter.com/2/oauth2/token',
         },
@@ -635,12 +636,15 @@ const initializeOAuthStrategies = () => {
         {
           clientID: process.env.TWITTER_CLIENT_ID,
           clientSecret: process.env.TWITTER_CLIENT_SECRET,
-          callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
+          callbackURL:
+            process.env.TWITTER_BIND_REDIRECT_URI ||
+            process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
           scope: ['tweet.read', 'users.read', 'offline.access'],
           pkce: true,
-          userProfileURL: 'https://api.twitter.com/2/users/me?user.fields=id,username,name,email,verified',
-          includeEmail: true,
+          clientType: 'confidential',
+          userProfileURL:
+            'https://api.twitter.com/2/users/me?user.fields=id,username,name,profile_image_url,verified,url',
           authorizationURL: 'https://twitter.com/i/oauth2/authorize',
           tokenURL: 'https://api.twitter.com/2/oauth2/token',
         },
