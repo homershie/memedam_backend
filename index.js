@@ -8,7 +8,6 @@ import helmet from 'helmet'
 import hpp from 'hpp'
 import mongoSanitize from './utils/mongoSanitize.js'
 import compression from 'compression'
-import morgan from 'morgan'
 import pinoHttp from 'pino-http'
 import passport from 'passport'
 import mongoose from 'mongoose'
@@ -176,12 +175,26 @@ app.use(metrics)
 // Session 配置和 Passport 初始化將在 startServer 中進行
 
 // 結構化 HTTP 請求日誌中間件
-app.use(pinoHttp({ logger }))
+app.use(pinoHttp({ 
+  logger,
+  // 確保正確的編碼和格式
+  autoLogging: true,
+  quietReqLogger: false,
+  serializers: {
+    req: (req) => ({
+      method: req.method,
+      url: req.url,
+      remoteAddress: req.remoteAddress,
+      remotePort: req.remotePort
+    }),
+    res: (res) => ({
+      statusCode: res.statusCode
+    })
+  }
+}))
 
-// 保留開發環境的 morgan（可選）
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'))
-}
+// 移除 morgan 以避免雙重日誌輸出和格式衝突
+// 開發環境也使用 pino 統一日誌格式
 
 // 效能監控中間件
 app.use((req, res, next) => {
