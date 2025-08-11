@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { logger } from '../utils/logger.js';
 import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
@@ -413,9 +414,9 @@ export const updateMeme = async (req, res) => {
         if (originalMeme.image_url && originalMeme.image_url !== newImageUrl) {
           try {
             await deleteCloudinaryImage(originalMeme.image_url)
-            console.log('已刪除舊圖片:', originalMeme.image_url)
+            logger.info('已刪除舊圖片:', originalMeme.image_url)
           } catch (deleteError) {
-            console.error('刪除舊圖片失敗:', deleteError)
+            logger.error('刪除舊圖片失敗:', deleteError)
             // 不中斷更新流程，只記錄錯誤
           }
         }
@@ -428,9 +429,9 @@ export const updateMeme = async (req, res) => {
       if (originalMeme.image_url) {
         try {
           await deleteCloudinaryImage(originalMeme.image_url)
-          console.log('已刪除舊圖片:', originalMeme.image_url)
+          logger.info('已刪除舊圖片:', originalMeme.image_url)
         } catch (deleteError) {
-          console.error('刪除舊圖片失敗:', deleteError)
+          logger.error('刪除舊圖片失敗:', deleteError)
         }
       }
     }
@@ -442,9 +443,9 @@ export const updateMeme = async (req, res) => {
         if (originalMeme.image_url) {
           try {
             await deleteCloudinaryImage(originalMeme.image_url)
-            console.log('類型變更，已刪除舊圖片:', originalMeme.image_url)
+            logger.info('類型變更，已刪除舊圖片:', originalMeme.image_url)
           } catch (deleteError) {
-            console.error('類型變更時刪除舊圖片失敗:', deleteError)
+            logger.error('類型變更時刪除舊圖片失敗:', deleteError)
           }
         }
         // 清空圖片 URL
@@ -545,9 +546,9 @@ export const deleteMeme = async (req, res) => {
     if (meme.image_url) {
       try {
         await deleteCloudinaryImage(meme.image_url)
-        console.log('已刪除迷因圖片:', meme.image_url)
+        logger.info('已刪除迷因圖片:', meme.image_url)
       } catch (deleteError) {
-        console.error('刪除迷因圖片失敗:', deleteError)
+        logger.error('刪除迷因圖片失敗:', deleteError)
         // 不中斷刪除流程，只記錄錯誤
       }
     }
@@ -1513,7 +1514,7 @@ export const getRandomMeme = async (req, res) => {
       error: null,
     })
   } catch (err) {
-    console.error('取得隨機迷因時發生錯誤:', err)
+    logger.error('取得隨機迷因時發生錯誤:', err)
     res.status(500).json({
       success: false,
       error: '取得隨機迷因時發生錯誤',

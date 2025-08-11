@@ -1,4 +1,5 @@
 import User from '../models/User.js'
+import { logger } from '../utils/logger.js';
 import { StatusCodes } from 'http-status-codes'
 import bcrypt from 'bcrypt'
 import { signToken } from '../utils/jwt.js'
@@ -65,7 +66,7 @@ export const login = async (req, res) => {
     // 回滾事務
     await session.abortTransaction()
 
-    console.error('登入錯誤:', error)
+    logger.error('登入錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   } finally {
     // 結束 session

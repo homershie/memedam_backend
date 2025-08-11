@@ -131,7 +131,7 @@ export const getUser = async (req, res) => {
     }
     res.json({ success: true, user })
   } catch (error) {
-    console.error('getUser 錯誤:', error)
+    logger.error('getUser 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '伺服器錯誤',
@@ -187,9 +187,9 @@ export const updateUser = async (req, res) => {
     if (isUpdatingAvatar && oldAvatarUrl && oldAvatarUrl !== user.avatar) {
       try {
         await deleteCloudinaryImage(oldAvatarUrl)
-        console.log('成功刪除舊頭像:', oldAvatarUrl)
+        logger.info('成功刪除舊頭像:', oldAvatarUrl)
       } catch (deleteError) {
-        console.error('刪除舊頭像失敗:', deleteError)
+        logger.error('刪除舊頭像失敗:', deleteError)
         // 不影響主要操作，只記錄錯誤
       }
     }
@@ -268,9 +268,9 @@ export const deleteUser = async (req, res) => {
     if (user.avatar) {
       try {
         await deleteCloudinaryImage(user.avatar)
-        console.log('成功刪除用戶頭像:', user.avatar)
+        logger.info('成功刪除用戶頭像:', user.avatar)
       } catch (deleteError) {
-        console.error('刪除用戶頭像失敗:', deleteError)
+        logger.error('刪除用戶頭像失敗:', deleteError)
         // 不影響主要操作，只記錄錯誤
       }
     }
@@ -331,7 +331,7 @@ export const bindSocialAccount = async (req, res) => {
     // 回滾事務
     await session.abortTransaction()
 
-    console.error('綁定社群帳號錯誤:', error)
+    logger.error('綁定社群帳號錯誤:', error)
 
     // 處理重複鍵錯誤
     if (error.code === 11000) {
@@ -418,9 +418,9 @@ export const updateMe = async (req, res) => {
     if (isUpdatingAvatar && oldAvatarUrl && oldAvatarUrl !== user.avatar) {
       try {
         await deleteCloudinaryImage(oldAvatarUrl)
-        console.log('成功刪除舊頭像:', oldAvatarUrl)
+        logger.info('成功刪除舊頭像:', oldAvatarUrl)
       } catch (deleteError) {
-        console.error('刪除舊頭像失敗:', deleteError)
+        logger.error('刪除舊頭像失敗:', deleteError)
         // 不影響主要操作，只記錄錯誤
       }
     }
@@ -499,9 +499,9 @@ export const deleteMe = async (req, res) => {
     if (user.avatar) {
       try {
         await deleteCloudinaryImage(user.avatar)
-        console.log('成功刪除用戶頭像:', user.avatar)
+        logger.info('成功刪除用戶頭像:', user.avatar)
       } catch (deleteError) {
-        console.error('刪除用戶頭像失敗:', deleteError)
+        logger.error('刪除用戶頭像失敗:', deleteError)
         // 不影響主要操作，只記錄錯誤
       }
     }
@@ -563,7 +563,7 @@ export const getActiveUsers = async (req, res) => {
       count: activeUsers.length,
     })
   } catch (error) {
-    console.error('getActiveUsers 錯誤:', error)
+    logger.error('getActiveUsers 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '伺服器錯誤',
@@ -647,7 +647,7 @@ export const changePassword = async (req, res) => {
     // 回滾事務
     await session.abortTransaction()
 
-    console.error('changePassword 錯誤:', error)
+    logger.error('changePassword 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '伺服器錯誤',
@@ -839,7 +839,7 @@ export const unbindSocialAccount = async (req, res) => {
     // 回滾事務
     await session.abortTransaction()
 
-    console.error('unbindSocialAccount 錯誤:', error)
+    logger.error('unbindSocialAccount 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '伺服器錯誤',
@@ -889,7 +889,7 @@ export const searchUsers = async (req, res) => {
       count: users.length,
     })
   } catch (error) {
-    console.error('searchUsers 錯誤:', error)
+    logger.error('searchUsers 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '伺服器錯誤',
@@ -915,7 +915,7 @@ export const sendDeletionReminders = async (req, res) => {
       message: '刪除提醒任務已執行完成',
     })
   } catch (error) {
-    console.error('sendDeletionReminders 錯誤:', error)
+    logger.error('sendDeletionReminders 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '執行刪除提醒任務失敗',
@@ -941,7 +941,7 @@ export const deleteUnverifiedUsers = async (req, res) => {
       message: '刪除未驗證用戶任務已執行完成',
     })
   } catch (error) {
-    console.error('deleteUnverifiedUsers 錯誤:', error)
+    logger.error('deleteUnverifiedUsers 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '執行刪除未驗證用戶任務失敗',
@@ -996,7 +996,7 @@ export const getUnverifiedUsersStats = async (req, res) => {
       },
     })
   } catch (error) {
-    console.error('getUnverifiedUsersStats 錯誤:', error)
+    logger.error('getUnverifiedUsersStats 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '獲取未驗證用戶統計資訊失敗',
@@ -1229,7 +1229,7 @@ export const initBindAuth = async (req, res) => {
       message: `正在初始化 ${provider} 綁定流程`,
     })
   } catch (error) {
-    console.error('初始化 OAuth 綁定錯誤:', error)
+    logger.error('初始化 OAuth 綁定錯誤:', error)
     res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 }
@@ -1335,7 +1335,7 @@ export const handleBindAuthCallback = async (req, res) => {
       session.endSession()
     }
   } catch (error) {
-    console.error('OAuth 綁定回調錯誤:', error)
+    logger.error('OAuth 綁定回調錯誤:', error)
 
     // 處理重複鍵錯誤
     if (error.code === 11000) {
@@ -1392,7 +1392,7 @@ export const getBindStatus = async (req, res) => {
       message: '成功獲取綁定狀態',
     })
   } catch (error) {
-    console.error('獲取綁定狀態錯誤:', error)
+    logger.error('獲取綁定狀態錯誤:', error)
     res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 }

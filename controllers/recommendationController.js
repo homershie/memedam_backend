@@ -5,6 +5,7 @@
 
 import { StatusCodes } from 'http-status-codes'
 import mongoose from 'mongoose'
+import { logger } from '../utils/logger.js'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import Like from '../models/Like.js'
@@ -110,7 +111,7 @@ export const getHotRecommendations = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -120,7 +121,7 @@ export const getHotRecommendations = async (req, res) => {
               id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
             return objectId
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -267,7 +268,7 @@ export const getLatestRecommendations = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -275,7 +276,7 @@ export const getLatestRecommendations = async (req, res) => {
           try {
             return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -294,10 +295,10 @@ export const getLatestRecommendations = async (req, res) => {
     const skip = Math.max(skipBase - excludeIds.length, 0)
 
     // 添加調試資訊
-    console.log('=== getLatestRecommendations 調試資訊 ===')
-    console.log('查詢條件:', JSON.stringify(filter, null, 2))
-    console.log('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
-    console.log('排除ID數量:', excludeIds.length)
+    logger.info('=== getLatestRecommendations 調試資訊 ===')
+    logger.info('查詢條件:', JSON.stringify(filter, null, 2))
+    logger.info('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
+    logger.info('排除ID數量:', excludeIds.length)
 
     const memes = await Meme.find(filter)
       .sort({ createdAt: -1 })
@@ -305,7 +306,7 @@ export const getLatestRecommendations = async (req, res) => {
       .limit(totalLimit)
       .populate('author_id', 'username display_name avatar')
 
-    console.log('實際返回的迷因數量:', memes.length)
+    logger.info('實際返回的迷因數量:', memes.length)
 
     const recommendations = memes.map((meme) => {
       const memeObj = meme.toObject()
@@ -399,7 +400,7 @@ export const getSimilarRecommendations = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -407,7 +408,7 @@ export const getSimilarRecommendations = async (req, res) => {
           try {
             return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -569,7 +570,7 @@ export const getContentBasedRecommendationsController = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -577,7 +578,7 @@ export const getContentBasedRecommendationsController = async (req, res) => {
           try {
             return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -694,7 +695,7 @@ export const getTagBasedRecommendationsController = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -702,7 +703,7 @@ export const getTagBasedRecommendationsController = async (req, res) => {
           try {
             return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -932,7 +933,7 @@ export const getUserInterestRecommendations = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -940,7 +941,7 @@ export const getUserInterestRecommendations = async (req, res) => {
           try {
             return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -1065,7 +1066,7 @@ export const getMixedRecommendationsController = async (req, res) => {
     // 如果需要清除快取
     if (clear_cache === 'true') {
       await clearMixedRecommendationCache(userId)
-      console.log('已清除混合推薦快取')
+      logger.info('已清除混合推薦快取')
     }
 
     // 解析自定義權重
@@ -1073,7 +1074,7 @@ export const getMixedRecommendationsController = async (req, res) => {
     try {
       customWeights = JSON.parse(custom_weights)
     } catch {
-      console.log('自定義權重解析失敗，使用預設權重')
+      logger.info('自定義權重解析失敗，使用預設權重')
     }
 
     // 解析標籤參數
@@ -1103,7 +1104,7 @@ export const getMixedRecommendationsController = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -1111,7 +1112,7 @@ export const getMixedRecommendationsController = async (req, res) => {
           try {
             return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -1207,7 +1208,7 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
     try {
       customWeights = JSON.parse(custom_weights)
     } catch {
-      console.log('自定義權重解析失敗，使用預設權重')
+      logger.info('自定義權重解析失敗，使用預設權重')
     }
 
     // 解析標籤參數
@@ -1231,7 +1232,7 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -1239,7 +1240,7 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
           try {
             return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -1408,7 +1409,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -1416,7 +1417,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
           try {
             return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -1429,9 +1430,9 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
     const skip = Math.max(skipBase - excludeIds.length, 0)
 
     // 添加調試資訊
-    console.log('=== getCollaborativeFilteringRecommendationsController 調試資訊 ===')
-    console.log('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
-    console.log('排除ID數量:', excludeIds.length)
+    logger.info('=== getCollaborativeFilteringRecommendationsController 調試資訊 ===')
+    logger.info('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
+    logger.info('排除ID數量:', excludeIds.length)
 
     // 取得協同過濾推薦
     const recommendations = await getCollaborativeFilteringRecommendations(userId, {
@@ -1448,7 +1449,7 @@ export const getCollaborativeFilteringRecommendationsController = async (req, re
       excludeIds: excludeIds,
     })
 
-    console.log('實際返回的迷因數量:', recommendations.length)
+    logger.info('實際返回的迷因數量:', recommendations.length)
 
     // 計算總數（用於分頁資訊，不包含排除ID）
     const totalCount = await Meme.countDocuments({
@@ -1658,7 +1659,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -1668,7 +1669,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
               id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
             return objectId
           } catch (error) {
-            console.warn(`轉換ObjectId失敗: ${id}`, error)
+            logger.warn(`轉換ObjectId失敗: ${id}`, error)
             return null
           }
         })
@@ -1681,9 +1682,9 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
     const skip = Math.max(skipBase - excludeIds.length, 0)
 
     // 添加調試資訊
-    console.log('=== getSocialCollaborativeFilteringRecommendationsController 調試資訊 ===')
-    console.log('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
-    console.log('排除ID數量:', excludeIds.length)
+    logger.info('=== getSocialCollaborativeFilteringRecommendationsController 調試資訊 ===')
+    logger.info('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
+    logger.info('排除ID數量:', excludeIds.length)
 
     const options = {
       limit: totalLimit,
@@ -1704,7 +1705,7 @@ export const getSocialCollaborativeFilteringRecommendationsController = async (r
       options,
     )
 
-    console.log('實際返回的迷因數量:', recommendations.length)
+    logger.info('實際返回的迷因數量:', recommendations.length)
 
     // 計算總數（用於分頁資訊，不包含排除ID）
     const totalCount = await Meme.countDocuments({
@@ -1916,7 +1917,7 @@ export const calculateMemeSocialScoreController = async (req, res) => {
       error: null,
     })
   } catch (error) {
-    console.error('計算迷因社交層分數失敗:', error)
+    logger.error('計算迷因社交層分數失敗:', error)
     res.status(500).json({
       success: false,
       data: null,
@@ -1942,7 +1943,7 @@ export const getUserSocialInfluenceStatsController = async (req, res) => {
       error: null,
     })
   } catch (error) {
-    console.error('取得用戶社交影響力統計失敗:', error)
+    logger.error('取得用戶社交影響力統計失敗:', error)
     res.status(500).json({
       success: false,
       data: null,
@@ -1984,7 +1985,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
             .map((id) => id.trim())
             .filter((id) => id)
 
-      console.log('開始處理排除ID:', rawIds)
+      logger.info('開始處理排除ID:', rawIds)
 
       // 只保留有效的 ObjectId 字串並轉換為 ObjectId 物件
       excludeObjectIds = rawIds
@@ -1992,7 +1993,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
           try {
             return mongoose.Types.ObjectId.isValid(id)
           } catch {
-            console.warn(`無效的ObjectId格式: ${id}`)
+            logger.warn(`無效的ObjectId格式: ${id}`)
             return false
           }
         })
@@ -2000,13 +2001,13 @@ export const getTrendingRecommendationsController = async (req, res) => {
           try {
             return new mongoose.Types.ObjectId(id)
           } catch (err) {
-            console.warn(`轉換ObjectId失敗: ${id}`, err)
+            logger.warn(`轉換ObjectId失敗: ${id}`, err)
             return null
           }
         })
         .filter((id) => id !== null)
 
-      console.log('處理後的 excludeObjectIds:', excludeObjectIds)
+      logger.info('處理後的 excludeObjectIds:', excludeObjectIds)
     }
 
     // 計算時間範圍
@@ -2083,10 +2084,10 @@ export const getTrendingRecommendationsController = async (req, res) => {
     const skip = Math.max(skipBase - excludeObjectIds.length, 0)
 
     // 添加調試資訊
-    console.log('=== getTrendingRecommendationsController 調試資訊 ===')
-    console.log('查詢條件:', JSON.stringify(query, null, 2))
-    console.log('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
-    console.log('排除ID數量:', excludeObjectIds.length)
+    logger.info('=== getTrendingRecommendationsController 調試資訊 ===')
+    logger.info('查詢條件:', JSON.stringify(query, null, 2))
+    logger.info('分頁參數 - page:', page, 'limit:', limit, 'skip:', skip, 'totalLimit:', totalLimit)
+    logger.info('排除ID數量:', excludeObjectIds.length)
 
     const memes = await Meme.find(query)
       .populate('author_id', 'username display_name avatar')
@@ -2095,7 +2096,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
       .limit(totalLimit)
       .lean()
 
-    console.log('實際返回的迷因數量:', memes.length)
+    logger.info('實際返回的迷因數量:', memes.length)
 
     // 如果啟用社交信號，計算社交分數
     let enhancedMemes = memes
@@ -2105,7 +2106,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
           try {
             // 確保 meme._id 存在且有效
             if (!meme._id) {
-              console.warn('發現空的 meme ID，跳過社交信號計算')
+              logger.warn('發現空的 meme ID，跳過社交信號計算')
               return {
                 ...meme,
                 social_metrics: {
@@ -2126,7 +2127,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
                   ? meme._id
                   : new mongoose.Types.ObjectId(meme._id)
             } else {
-              console.warn(`無效的 meme ID: ${meme._id}，跳過社交信號計算`)
+              logger.warn(`無效的 meme ID: ${meme._id}，跳過社交信號計算`)
               return {
                 ...meme,
                 social_metrics: {
@@ -2161,7 +2162,7 @@ export const getTrendingRecommendationsController = async (req, res) => {
               },
             }
           } catch (error) {
-            console.error(`計算 meme ${meme._id} 的社交信號時發生錯誤:`, error)
+            logger.error(`計算 meme ${meme._id} 的社交信號時發生錯誤:`, error)
             // 返回默認的社交指標
             return {
               ...meme,
@@ -2224,9 +2225,9 @@ export const getTrendingRecommendationsController = async (req, res) => {
       error: null,
     })
   } catch (error) {
-    console.error('取得大家都在看的內容失敗:', error)
-    console.error('錯誤堆疊:', error.stack)
-    console.error('錯誤訊息:', error.message)
+    logger.error('取得大家都在看的內容失敗:', error)
+    logger.error('錯誤堆疊:', error.stack)
+    logger.error('錯誤訊息:', error.message)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: '取得推薦內容失敗',

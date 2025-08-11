@@ -1,3 +1,11 @@
+// 強制設置 UTF-8 編碼
+process.stdout.setEncoding('utf8');
+process.stderr.setEncoding('utf8');
+// 設置環境變數確保 UTF-8 編碼
+process.env.LANG = process.env.LANG || 'en_US.UTF-8';
+process.env.LC_ALL = process.env.LC_ALL || 'en_US.UTF-8';
+process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || '') + ' --trace-uncaught';
+
 // 預先載入環境變數，確保後續模組可取得設定值
 import './config/loadEnv.js'
 
