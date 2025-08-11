@@ -1,6 +1,11 @@
 import pino from 'pino';
 
-// 強制設置 UTF-8 編碼
+// 強制設置 UTF-8 編碼和語言環境
+process.env.LANG = process.env.LANG || 'zh_TW.UTF-8';
+process.env.LC_ALL = process.env.LC_ALL || 'zh_TW.UTF-8';
+process.env.LC_CTYPE = process.env.LC_CTYPE || 'zh_TW.UTF-8';
+
+// 強制設置標準輸出編碼
 if (process.stdout.setEncoding) {
   process.stdout.setEncoding('utf8');
 }
@@ -16,31 +21,21 @@ const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
   base: undefined, // 移除 pid/hostname 噪音
   timestamp: pino.stdTimeFunctions.isoTime,
-  // 確保正確的編碼設置
   serializers: pino.stdSerializers,
-  // 簡化配置，專注於解決編碼問題
+  // 簡化 transport 配置以避免編碼問題
   transport: isDevelopment ? {
     target: 'pino-pretty',
     options: {
-      // 禁用顏色避免 ANSI 碼問題，但保持可讀性
-      colorize: false,
+      // 最小化配置，避免編碼衝突
+      colorize: true,
       translateTime: 'SYS:standard',
       ignore: 'pid,hostname',
-      // 使用多行格式提高可讀性
-      singleLine: false,
-      hideObject: false,
-      // 確保消息格式簡潔
-      messageFormat: '{msg}',
-      // 同步輸出，確保正確的字符順序
-      sync: true,
-      // 禁用所有可能導致編碼問題的選項
-      colorizeObjects: false,
-      crlf: false,
-      // 添加換行符確保格式正確
-      append: true
+      singleLine: true,
+      // 確保同步輸出
+      sync: true
     }
   } : {
-    // 生產環境使用原生 JSON 格式
+    // 生產環境直接輸出 JSON，不使用 pretty
     target: 'pino/file',
     options: {
       destination: 1, // stdout
