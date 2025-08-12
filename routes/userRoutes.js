@@ -29,6 +29,7 @@ import { token, isUser, isManager } from '../middleware/auth.js'
 import { singleUpload } from '../middleware/upload.js'
 import passport from 'passport'
 import { signToken } from '../utils/jwt.js'
+import { logger } from '../utils/logger.js'
 
 const router = express.Router()
 
@@ -1508,25 +1509,25 @@ router.get('/auth/twitter', (req, res, next) => {
 router.get(
   '/auth/twitter/callback',
   (req, res, next) => {
-    console.log('=== Twitter OAuth 回調開始 ===')
-    console.log('Query 參數:', req.query)
-    console.log('Session ID:', req.sessionID || req.session.id)
-    console.log('Session 內容:', req.session)
-    console.log('Request headers host:', req.get('host'))
-    console.log('Request cookies:', req.headers.cookie)
-    console.log('環境變數檢查:')
-    console.log('  TWITTER_API_KEY:', !!process.env.TWITTER_API_KEY)
-    console.log('  TWITTER_API_SECRET:', !!process.env.TWITTER_API_SECRET)
-    console.log('  TWITTER_REDIRECT_URI:', process.env.TWITTER_REDIRECT_URI)
+    logger.info('=== Twitter OAuth 登入回調開始 ===')
+    logger.info('Query 參數:', req.query)
+    logger.info('Session ID:', req.sessionID || req.session?.id)
+    logger.info('Session 內容:', req.session)
+    logger.info('Request headers host:', req.get('host'))
+    logger.info('Request cookies:', req.headers.cookie)
+    logger.info('環境變數檢查:')
+    logger.info('  TWITTER_API_KEY:', !!process.env.TWITTER_API_KEY)
+    logger.info('  TWITTER_API_SECRET:', !!process.env.TWITTER_API_SECRET)
+    logger.info('  TWITTER_REDIRECT_URI:', process.env.TWITTER_REDIRECT_URI)
 
     passport.authenticate('twitter', (err, user, info) => {
-      console.log('=== Twitter OAuth 認證結果 ===')
-      console.log('錯誤:', err)
-      console.log('用戶:', user ? `用戶ID: ${user._id}` : '無用戶')
-      console.log('額外信息:', info)
+      logger.info('=== Twitter OAuth 認證結果 ===')
+      logger.info('錯誤:', err)
+      logger.info('用戶:', user ? `用戶ID: ${user._id}` : '無用戶')
+      logger.info('額外信息:', info)
 
       if (err) {
-        console.error('Twitter OAuth 錯誤詳情:', {
+        logger.error('Twitter OAuth 錯誤詳情:', {
           message: err.message,
           stack: err.stack,
           code: err.code,
@@ -1548,13 +1549,13 @@ router.get(
       }
 
       if (!user) {
-        console.error('Twitter OAuth - 沒有返回用戶，但也沒有錯誤')
-        console.error('這通常表示認證被拒絕或用戶取消了授權')
+        logger.error('Twitter OAuth - 沒有返回用戶，但也沒有錯誤')
+        logger.error('這通常表示認證被拒絕或用戶取消了授權')
         const frontendUrl = getFrontendUrl()
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
 
-      console.log('Twitter OAuth 成功，用戶:', user._id)
+      logger.info('Twitter OAuth 成功，用戶:', user._id)
       req.user = user
       next()
     })(req, res, next)
@@ -1575,7 +1576,7 @@ router.get(
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
-      console.error('Twitter OAuth callback 錯誤:', error)
+      logger.error('Twitter OAuth callback 錯誤:', error)
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/login?error=server_error`)
     }
@@ -1734,12 +1735,44 @@ router.get(
 // Twitter OAuth 綁定
 router.get(
   '/bind-auth/twitter/callback',
-  passport.authenticate('twitter-bind'),
+  (req, res, next) => {
+    // 添加詳細的 session 檢查
+    logger.info('=== Twitter OAuth 綁定回調開始 ===')
+    logger.info('Session ID:', req.sessionID || req.session?.id)
+    logger.info('Session exists:', !!req.session)
+    logger.info('Query parameters:', req.query)
+    logger.info('User Agent:', req.get('User-Agent'))
+    logger.info('Host:', req.get('Host'))
+    logger.info('Referer:', req.get('Referer'))
+    
+    // 檢查 session 是否存在
+    if (!req.session) {
+      logger.error('❌ Session 不存在於 Twitter OAuth 回調中')
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/settings?error=session_missing&message=${encodeURIComponent('Session 遺失，請重新嘗試綁定')}`
+      )
+    }
+    
+    // 檢查 OAuth tokens
+    logger.info('OAuth token:', req.query.oauth_token)
+    logger.info('OAuth verifier:', req.query.oauth_verifier)
+    
+    next()
+  },
+  passport.authenticate('twitter-bind', {
+    failureRedirect: (req, res) => {
+      logger.error('❌ Twitter OAuth 認證失敗')
+      const frontendUrl = getFrontendUrl()
+      return `${frontendUrl}/settings?error=auth_failed&message=${encodeURIComponent('Twitter 認證失敗')}`
+    }
+  }),
   async (req, res) => {
     try {
+      logger.info('✅ Twitter OAuth 認證成功，開始處理綁定')
       await handleBindAuthCallback(req, res)
     } catch (error) {
-      console.error('Twitter OAuth 綁定回調錯誤:', error)
+      logger.error('❌ Twitter OAuth 綁定回調錯誤:', error)
       const frontendUrl = getFrontendUrl()
       res.redirect(
         `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定失敗，請稍後再試')}`,
