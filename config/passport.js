@@ -580,10 +580,40 @@ const initializeOAuthStrategies = () => {
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
           includeEmail: true,
-          // 確保 session 設定正確
-          sessionKey: 'oauth:twitter',
-          // 強制重新生成 request token
-          forceLogin: false,
+          // 使用獨特的 session key 避免衝突
+          sessionKey: 'oauth:twitter:bind',
+          // 確保會話正確處理
+          requestTokenStore: {
+            get: function(req, token, callback) {
+              const sessionKey = 'oauth:twitter:bind'
+              const sessionStore = req.session[sessionKey] || {}
+              logger.info('獲取 request token:', { token, sessionExists: !!req.session, hasStore: !!sessionStore[token] })
+              callback(null, sessionStore[token])
+            },
+            set: function(req, token, tokenSecret, callback) {
+              const sessionKey = 'oauth:twitter:bind'
+              if (!req.session[sessionKey]) {
+                req.session[sessionKey] = {}
+              }
+              req.session[sessionKey][token] = tokenSecret
+              logger.info('儲存 request token:', { token, sessionExists: !!req.session, sessionId: req.sessionID })
+              // 強制保存會話
+              req.session.save((err) => {
+                if (err) {
+                  logger.error('會話保存失敗:', err)
+                }
+                callback(err)
+              })
+            },
+            destroy: function(req, token, callback) {
+              const sessionKey = 'oauth:twitter:bind'
+              if (req.session[sessionKey]) {
+                delete req.session[sessionKey][token]
+                logger.info('刪除 request token:', { token })
+              }
+              callback()
+            }
+          },
         },
         async (req, token, tokenSecret, profile, done) => {
           try {
@@ -593,8 +623,9 @@ const initializeOAuthStrategies = () => {
             logger.info('Request token 存在:', !!token)
             logger.info('Token secret 存在:', !!tokenSecret)
             logger.info('Profile ID:', profile.id)
+            logger.info('Profile username:', profile.username)
             
-            return done(null, { profile, provider: 'twitter' })
+            return done(null, { profile, provider: 'twitter', token, tokenSecret })
           } catch (err) {
             logger.error('Twitter OAuth 綁定策略錯誤:', err)
             return done(err, null)
@@ -606,12 +637,59 @@ const initializeOAuthStrategies = () => {
 }
 
 passport.serializeUser((user, done) => {
-  done(null, user.id)
+  try {
+    // 如果是 OAuth 綁定流程返回的對象（包含 profile 和 provider）
+    if (user && user.profile && user.provider) {
+      logger.info('序列化 OAuth 綁定用戶:', { 
+        provider: user.provider, 
+        profileId: user.profile.id 
+      })
+      // 序列化整個對象，而不只是 id
+      done(null, user)
+    } 
+    // 如果是正常的用戶對象（有 id 或 _id）
+    else if (user && (user.id || user._id)) {
+      logger.info('序列化正常用戶:', { id: user.id || user._id })
+      done(null, user.id || user._id)
+    }
+    // 無效的用戶對象
+    else {
+      logger.error('無效的用戶對象，無法序列化:', user)
+      done(new Error('Invalid user object for serialization'), null)
+    }
+  } catch (error) {
+    logger.error('用戶序列化錯誤:', error)
+    done(error, null)
+  }
 })
 
-passport.deserializeUser(async (id, done) => {
-  const user = await User.findById(id)
-  done(null, user)
+passport.deserializeUser(async (data, done) => {
+  try {
+    // 如果是 OAuth 綁定對象（包含 profile 和 provider）
+    if (data && typeof data === 'object' && data.profile && data.provider) {
+      logger.info('反序列化 OAuth 綁定用戶:', { 
+        provider: data.provider, 
+        profileId: data.profile.id 
+      })
+      // 直接返回 OAuth 對象
+      done(null, data)
+    }
+    // 如果是用戶 ID，從資料庫查找
+    else if (typeof data === 'string' || (typeof data === 'object' && data.toString)) {
+      const userId = typeof data === 'string' ? data : data.toString()
+      logger.info('反序列化用戶 ID:', userId)
+      const user = await User.findById(userId)
+      done(null, user)
+    }
+    // 無效的資料
+    else {
+      logger.error('無效的反序列化資料:', data)
+      done(null, null)
+    }
+  } catch (error) {
+    logger.error('用戶反序列化錯誤:', error)
+    done(error, null)
+  }
 })
 
 // 立即初始化所有策略
