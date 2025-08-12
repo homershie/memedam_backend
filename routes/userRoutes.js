@@ -22,6 +22,7 @@ import {
   initBindAuth, // 新增 OAuth 綁定初始化
   handleBindAuthCallback, // 新增 OAuth 綁定回調處理
   getBindStatus, // 新增獲取綁定狀態
+  checkPasswordStatus, // 新增檢查密碼狀態
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -579,6 +580,9 @@ router.delete('/me', token, isUser, deleteMe)
 
 // OAuth 綁定相關路由（必須在 /:id 之前）
 router.get('/bind-status', token, getBindStatus)
+
+// 密碼狀態相關路由
+router.get('/password-status', token, isUser, checkPasswordStatus)
 
 /**
  * @swagger

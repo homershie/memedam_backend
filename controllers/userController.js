@@ -1431,3 +1431,24 @@ export const getBindStatus = async (req, res) => {
     res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 }
+
+// 檢查使用者是否已設定密碼
+export const checkPasswordStatus = async (req, res) => {
+  try {
+    const userId = req.user._id
+    const user = await User.findById(userId).select('has_password password')
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: '找不到使用者' })
+    }
+
+    res.json({
+      success: true,
+      hasPassword: user.has_password,
+      message: '成功獲取密碼狀態',
+    })
+  } catch (error) {
+    logger.error('檢查密碼狀態錯誤:', error)
+    res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+}

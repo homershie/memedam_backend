@@ -91,6 +91,16 @@ const UserSchema = new mongoose.Schema(
         message: '密碼必填',
       },
     },
+    has_password: {
+      type: Boolean,
+      default: false,
+      validate: {
+        validator(value) {
+          return typeof value === 'boolean'
+        },
+        message: 'has_password 必須是布林值',
+      },
+    },
     tokens: {
       type: [String],
       validate: {
@@ -492,6 +502,8 @@ UserSchema.pre('save', function (next) {
     } else {
       // 使用 bcrypt 加密
       user.password = bcrypt.hashSync(user.password, 10)
+      // 更新 has_password 欄位
+      user.has_password = true
     }
   }
 
