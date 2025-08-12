@@ -1595,8 +1595,11 @@ router.get('/bind-auth/:provider/init', (req, res) => {
   const { provider } = req.params
   const { state } = req.query
 
+  logger.info('=== OAuth 綁定初始化 ===', { provider, state, sessionExists: !!req.session })
+
   // 驗證必要參數
   if (!state) {
+    logger.error('❌ 缺少 state 參數')
     return res.status(400).json({
       success: false,
       message: '缺少 state 參數',
@@ -1606,10 +1609,53 @@ router.get('/bind-auth/:provider/init', (req, res) => {
   // 驗證 provider
   const validProviders = ['google', 'facebook', 'discord', 'twitter']
   if (!validProviders.includes(provider)) {
+    logger.error('❌ 不支援的社群平台:', provider)
     return res.status(400).json({
       success: false,
       message: '不支援的社群平台',
     })
+  }
+
+  // 驗證會話是否存在
+  if (!req.session) {
+    logger.error('❌ 會話不存在')
+    const frontendUrl = getFrontendUrl()
+    return res.redirect(
+      `${frontendUrl}/settings?error=session_missing&message=${encodeURIComponent('會話已過期，請重新嘗試綁定')}`
+    )
+  }
+
+  // 驗證 state 參數
+  if (!req.session.oauthState || req.session.oauthState !== state) {
+    logger.error('❌ 無效的 state 參數', { 
+      sessionState: req.session.oauthState, 
+      requestState: state 
+    })
+    const frontendUrl = getFrontendUrl()
+    return res.redirect(
+      `${frontendUrl}/settings?error=invalid_state&message=${encodeURIComponent('無效的授權狀態，請重新嘗試綁定')}`
+    )
+  }
+
+  // 驗證綁定用戶 ID 是否存在
+  if (!req.session.bindUserId) {
+    logger.error('❌ 會話中沒有綁定用戶 ID')
+    const frontendUrl = getFrontendUrl()
+    return res.redirect(
+      `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`
+    )
+  }
+
+  // 驗證綁定提供者是否匹配
+  if (req.session.bindProvider !== provider) {
+    logger.error('❌ 綁定提供者不匹配', { 
+      sessionProvider: req.session.bindProvider, 
+      requestProvider: provider 
+    })
+    const frontendUrl = getFrontendUrl()
+    return res.redirect(
+      `${frontendUrl}/settings?error=provider_mismatch&message=${encodeURIComponent('社群平台不匹配，請重新嘗試綁定')}`
+    )
   }
 
   // 檢查環境變數
@@ -1622,14 +1668,23 @@ router.get('/bind-auth/:provider/init', (req, res) => {
 
   const { id: clientIdEnv, secret: clientSecretEnv } = envVars[provider]
   if (!process.env[clientIdEnv] || !process.env[clientSecretEnv]) {
-    console.error(`${provider} OAuth 環境變數未設定: ${clientIdEnv}, ${clientSecretEnv}`)
-    return res.status(500).json({
-      success: false,
-      message: `${provider} OAuth 配置錯誤`,
-    })
+    logger.error(`❌ ${provider} OAuth 環境變數未設定: ${clientIdEnv}, ${clientSecretEnv}`)
+    const frontendUrl = getFrontendUrl()
+    return res.redirect(
+      `${frontendUrl}/settings?error=config_error&message=${encodeURIComponent('OAuth 配置錯誤，請聯繫管理員')}`
+    )
   }
 
   try {
+    // 在會話中設置用戶 ID，供 OAuth 回調使用
+    req.session.userId = req.session.bindUserId
+    
+    logger.info('✅ 會話驗證通過，準備 OAuth 重定向', { 
+      provider, 
+      userId: req.session.bindUserId,
+      sessionId: req.sessionID 
+    })
+
     // 根據不同的 provider 設定不同的 scope
     let scope = []
     switch (provider) {
@@ -1656,21 +1711,19 @@ router.get('/bind-auth/:provider/init', (req, res) => {
       state,
     })(req, res, (error) => {
       if (error) {
-        console.error(`${provider} OAuth 認證錯誤:`, error)
-        return res.status(500).json({
-          success: false,
-          message: 'OAuth 認證失敗',
-          error: error.message,
-        })
+        logger.error(`❌ ${provider} OAuth 認證錯誤:`, error)
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(
+          `${frontendUrl}/settings?error=oauth_error&message=${encodeURIComponent('OAuth 認證失敗')}`
+        )
       }
     })
   } catch (error) {
-    console.error(`${provider} OAuth 初始化錯誤:`, error)
-    return res.status(500).json({
-      success: false,
-      message: 'OAuth 初始化失敗',
-      error: error.message,
-    })
+    logger.error(`❌ ${provider} OAuth 初始化錯誤:`, error)
+    const frontendUrl = getFrontendUrl()
+    return res.redirect(
+      `${frontendUrl}/settings?error=init_failed&message=${encodeURIComponent('OAuth 初始化失敗')}`
+    )
   }
 })
 
@@ -1735,8 +1788,7 @@ router.get(
 )
 
 // Twitter OAuth 綁定
-router.get(
-  '/bind-auth/twitter/callback',
+router.get('/bind-auth/twitter/callback',
   async (req, res, next) => {
     logger.info('=== Twitter OAuth 綁定回調開始 ===')
     logger.info('Session ID:', req.sessionID || req.session?.id)
@@ -1755,18 +1807,19 @@ router.get(
       )
     }
     
-    // 檢查是否有用戶登錄（從 JWT 或其他認證方式）
-    if (!req.session.userId && !req.headers.authorization) {
-      logger.error('❌ 用戶未登錄，無法進行綁定')
+    // 檢查是否有用戶 ID 在會話中
+    if (!req.session.userId) {
+      logger.error('❌ 會話中沒有用戶 ID')
       const frontendUrl = getFrontendUrl()
       return res.redirect(
-        `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('請先登錄後再進行綁定')}`
+        `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`
       )
     }
     
     // 檢查 OAuth tokens
     logger.info('OAuth token:', req.query.oauth_token)
     logger.info('OAuth verifier:', req.query.oauth_verifier)
+    logger.info('Session userId:', req.session.userId)
     
     next()
   },
@@ -1781,19 +1834,8 @@ router.get(
     try {
       logger.info('✅ Twitter OAuth 認證成功，開始處理綁定')
       
-      // 獲取當前用戶 ID
-      let userId = req.session.userId
-      
-      // 如果會話中沒有 userId，嘗試從 JWT 獲取
-      if (!userId && req.headers.authorization) {
-        try {
-          const token = req.headers.authorization.split(' ')[1]
-          const decoded = jwt.verify(token, process.env.JWT_SECRET)
-          userId = decoded.id
-        } catch (error) {
-          logger.error('JWT 驗證失敗:', error)
-        }
-      }
+      // 從會話獲取用戶 ID
+      const userId = req.session.userId
       
       if (!userId) {
         logger.error('❌ 無法獲取用戶 ID')
@@ -1857,6 +1899,10 @@ router.get(
         if (req.session['oauth:twitter:bind']) {
           delete req.session['oauth:twitter:bind']
         }
+        delete req.session.oauthState
+        delete req.session.bindUserId
+        delete req.session.bindProvider
+        delete req.session.userId // 清理臨時設置的 userId
         
         const frontendUrl = getFrontendUrl()
         return res.redirect(
