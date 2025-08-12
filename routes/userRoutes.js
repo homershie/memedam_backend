@@ -1603,7 +1603,7 @@ router.get(
 router.get('/bind-auth/:provider', token, initBindAuth)
 
 // OAuth 授權初始化（重定向到社群平台）
-router.get('/bind-auth/:provider/init', (req, res) => {
+router.get('/bind-auth/:provider/init', async (req, res) => {
   const { provider } = req.params
   const { state } = req.query
 
@@ -1633,7 +1633,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     logger.error('❌ 會話不存在')
     const frontendUrl = getFrontendUrl()
     return res.redirect(
-      `${frontendUrl}/settings?error=session_missing&message=${encodeURIComponent('會話已過期，請重新嘗試綁定')}`
+      `${frontendUrl}/settings?error=session_missing&message=${encodeURIComponent('會話已過期，請重新嘗試綁定')}`,
     )
   }
 
@@ -1643,7 +1643,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     bindUserId: req.session.bindUserId,
     bindProvider: req.session.bindProvider,
     requestState: state,
-    stateMatch: req.session.oauthState === state
+    stateMatch: req.session.oauthState === state,
   })
 
   // 驗證綁定用戶 ID 是否存在
@@ -1651,29 +1651,29 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     logger.error('❌ 會話中沒有綁定用戶 ID')
     const frontendUrl = getFrontendUrl()
     return res.redirect(
-      `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`
+      `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`,
     )
   }
 
   // 驗證綁定提供者是否匹配
   if (req.session.bindProvider !== provider) {
-    logger.error('❌ 綁定提供者不匹配', { 
-      sessionProvider: req.session.bindProvider, 
-      requestProvider: provider 
+    logger.error('❌ 綁定提供者不匹配', {
+      sessionProvider: req.session.bindProvider,
+      requestProvider: provider,
     })
     const frontendUrl = getFrontendUrl()
     return res.redirect(
-      `${frontendUrl}/settings?error=provider_mismatch&message=${encodeURIComponent('社群平台不匹配，請重新嘗試綁定')}`
+      `${frontendUrl}/settings?error=provider_mismatch&message=${encodeURIComponent('社群平台不匹配，請重新嘗試綁定')}`,
     )
   }
 
   // 寬鬆的 state 驗證 - 如果會話中沒有 state 或不匹配，重新生成
   if (!req.session.oauthState || req.session.oauthState !== state) {
-    logger.warn('⚠️ State 不匹配，但繼續處理', { 
-      sessionState: req.session.oauthState, 
-      requestState: state 
+    logger.warn('⚠️ State 不匹配，但繼續處理', {
+      sessionState: req.session.oauthState,
+      requestState: state,
     })
-    
+
     // 如果會話中的其他資訊都正確，我們容忍 state 不匹配
     // 這可能是由於會話同步問題或瀏覽器行為導致的
     if (req.session.bindUserId && req.session.bindProvider === provider) {
@@ -1684,7 +1684,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
       logger.error('❌ 會話資訊不完整，拒絕請求')
       const frontendUrl = getFrontendUrl()
       return res.redirect(
-        `${frontendUrl}/settings?error=invalid_state&message=${encodeURIComponent('授權狀態已過期，請重新嘗試綁定')}`
+        `${frontendUrl}/settings?error=invalid_state&message=${encodeURIComponent('授權狀態已過期，請重新嘗試綁定')}`,
       )
     }
   }
@@ -1702,18 +1702,18 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     logger.error(`❌ ${provider} OAuth 環境變數未設定: ${clientIdEnv}, ${clientSecretEnv}`)
     const frontendUrl = getFrontendUrl()
     return res.redirect(
-      `${frontendUrl}/settings?error=config_error&message=${encodeURIComponent('OAuth 配置錯誤，請聯繫管理員')}`
+      `${frontendUrl}/settings?error=config_error&message=${encodeURIComponent('OAuth 配置錯誤，請聯繫管理員')}`,
     )
   }
 
   try {
     // 在會話中設置用戶 ID，供 OAuth 回調使用
     req.session.userId = req.session.bindUserId
-    
-    logger.info('✅ 會話驗證通過，準備 OAuth 重定向', { 
-      provider, 
+
+    logger.info('✅ 會話驗證通過，準備 OAuth 重定向', {
+      provider,
       userId: req.session.bindUserId,
-      sessionId: req.sessionID 
+      sessionId: req.sessionID,
     })
 
     // 強制保存會話狀態，確保在 OAuth 重定向前保存
@@ -1758,7 +1758,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
         logger.error(`❌ ${provider} OAuth 認證錯誤:`, error)
         const frontendUrl = getFrontendUrl()
         return res.redirect(
-          `${frontendUrl}/settings?error=oauth_error&message=${encodeURIComponent('OAuth 認證失敗')}`
+          `${frontendUrl}/settings?error=oauth_error&message=${encodeURIComponent('OAuth 認證失敗')}`,
         )
       }
     })
@@ -1766,7 +1766,7 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     logger.error(`❌ ${provider} OAuth 初始化錯誤:`, error)
     const frontendUrl = getFrontendUrl()
     return res.redirect(
-      `${frontendUrl}/settings?error=init_failed&message=${encodeURIComponent('OAuth 初始化失敗')}`
+      `${frontendUrl}/settings?error=init_failed&message=${encodeURIComponent('OAuth 初始化失敗')}`,
     )
   }
 })
@@ -1832,7 +1832,8 @@ router.get(
 )
 
 // Twitter OAuth 綁定
-router.get('/bind-auth/twitter/callback',
+router.get(
+  '/bind-auth/twitter/callback',
   async (req, res, next) => {
     logger.info('=== Twitter OAuth 綁定回調開始 ===')
     logger.info('Session ID:', req.sessionID || req.session?.id)
@@ -1841,30 +1842,30 @@ router.get('/bind-auth/twitter/callback',
     logger.info('User Agent:', req.get('User-Agent'))
     logger.info('Host:', req.get('Host'))
     logger.info('Referer:', req.get('Referer'))
-    
+
     // 檢查 session 是否存在
     if (!req.session) {
       logger.error('❌ Session 不存在於 Twitter OAuth 回調中')
       const frontendUrl = getFrontendUrl()
       return res.redirect(
-        `${frontendUrl}/settings?error=session_missing&message=${encodeURIComponent('Session 遺失，請重新嘗試綁定')}`
+        `${frontendUrl}/settings?error=session_missing&message=${encodeURIComponent('Session 遺失，請重新嘗試綁定')}`,
       )
     }
-    
+
     // 檢查是否有用戶 ID 在會話中
     if (!req.session.userId) {
       logger.error('❌ 會話中沒有用戶 ID')
       const frontendUrl = getFrontendUrl()
       return res.redirect(
-        `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`
+        `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`,
       )
     }
-    
+
     // 檢查 OAuth tokens
     logger.info('OAuth token:', req.query.oauth_token)
     logger.info('OAuth verifier:', req.query.oauth_verifier)
     logger.info('Session userId:', req.session.userId)
-    
+
     next()
   },
   passport.authenticate('twitter-bind', {
@@ -1872,41 +1873,41 @@ router.get('/bind-auth/twitter/callback',
       logger.error('❌ Twitter OAuth 認證失敗')
       const frontendUrl = getFrontendUrl()
       return `${frontendUrl}/settings?error=auth_failed&message=${encodeURIComponent('Twitter 認證失敗')}`
-    }
+    },
   }),
   async (req, res) => {
     try {
       logger.info('✅ Twitter OAuth 認證成功，開始處理綁定')
-      
+
       // 從會話獲取用戶 ID
       const userId = req.session.userId
-      
+
       if (!userId) {
         logger.error('❌ 無法獲取用戶 ID')
         const frontendUrl = getFrontendUrl()
         return res.redirect(
-          `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄')}`
+          `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄')}`,
         )
       }
-      
+
       // 從 OAuth 結果獲取 Twitter 資訊
       if (!req.user || !req.user.profile) {
         logger.error('❌ 無法獲取 Twitter 用戶資訊')
         const frontendUrl = getFrontendUrl()
         return res.redirect(
-          `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('無法獲取 Twitter 用戶資訊')}`
+          `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('無法獲取 Twitter 用戶資訊')}`,
         )
       }
-      
+
       const twitterId = req.user.profile.id
       const twitterUsername = req.user.profile.username
-      
+
       logger.info('準備綁定 Twitter 帳號:', { userId, twitterId, twitterUsername })
-      
+
       // 使用資料庫事務確保原子性
       const session = await User.startSession()
       session.startTransaction()
-      
+
       try {
         // 獲取當前用戶
         const user = await User.findById(userId).session(session)
@@ -1914,31 +1915,31 @@ router.get('/bind-auth/twitter/callback',
           await session.abortTransaction()
           const frontendUrl = getFrontendUrl()
           return res.redirect(
-            `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('找不到使用者')}`
+            `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('找不到使用者')}`,
           )
         }
-        
+
         // 檢查該 Twitter ID 是否已被其他帳號綁定
         const existingUser = await User.findOne({ twitter_id: twitterId }).session(session)
         if (existingUser && existingUser._id.toString() !== userId) {
           await session.abortTransaction()
           const frontendUrl = getFrontendUrl()
           return res.redirect(
-            `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('此 Twitter 帳號已被其他用戶綁定')}`
+            `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('此 Twitter 帳號已被其他用戶綁定')}`,
           )
         }
-        
+
         // 執行綁定
         user.twitter_id = twitterId
         if (twitterUsername) {
           user.twitter_username = twitterUsername
         }
-        
+
         await user.save({ session })
         await session.commitTransaction()
-        
+
         logger.info('✅ Twitter 帳號綁定成功:', { userId, twitterId })
-        
+
         // 清理會話中的 OAuth 相關資料
         if (req.session['oauth:twitter:bind']) {
           delete req.session['oauth:twitter:bind']
@@ -1947,23 +1948,21 @@ router.get('/bind-auth/twitter/callback',
         delete req.session.bindUserId
         delete req.session.bindProvider
         delete req.session.userId // 清理臨時設置的 userId
-        
+
         const frontendUrl = getFrontendUrl()
         return res.redirect(
-          `${frontendUrl}/settings?success=bind_success&message=${encodeURIComponent('Twitter 帳號綁定成功')}`
+          `${frontendUrl}/settings?success=bind_success&message=${encodeURIComponent('Twitter 帳號綁定成功')}`,
         )
-        
       } catch (dbError) {
         await session.abortTransaction()
         logger.error('❌ 資料庫操作失敗:', dbError)
         const frontendUrl = getFrontendUrl()
         return res.redirect(
-          `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定過程中發生錯誤，請稍後再試')}`
+          `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定過程中發生錯誤，請稍後再試')}`,
         )
       } finally {
         await session.endSession()
       }
-      
     } catch (error) {
       logger.error('❌ Twitter OAuth 綁定回調錯誤:', error)
       const frontendUrl = getFrontendUrl()
