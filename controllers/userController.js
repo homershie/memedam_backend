@@ -582,12 +582,12 @@ export const changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body
     const userId = req.user._id
 
-    // 驗證輸入
-    if (!currentPassword || !newPassword) {
+    // 驗證新密碼
+    if (!newPassword) {
       await session.abortTransaction()
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: '請提供目前密碼和新密碼',
+        message: '請提供新密碼',
       })
     }
 
@@ -610,23 +610,37 @@ export const changePassword = async (req, res) => {
       })
     }
 
-    // 驗證目前密碼
-    const isPasswordValid = bcrypt.compareSync(currentPassword, user.password)
-    if (!isPasswordValid) {
-      await session.abortTransaction()
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        success: false,
-        message: '目前密碼不正確',
-      })
-    }
+    // 檢查用戶是否已有密碼（社群登入用戶可能沒有密碼）
+    const hasExistingPassword = user.password && user.password.trim() !== ''
 
-    // 檢查新密碼是否與目前密碼相同
-    if (bcrypt.compareSync(newPassword, user.password)) {
-      await session.abortTransaction()
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: '新密碼不能與目前密碼相同',
-      })
+    // 如果用戶已有密碼，則需要驗證目前密碼
+    if (hasExistingPassword) {
+      if (!currentPassword) {
+        await session.abortTransaction()
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請提供目前密碼',
+        })
+      }
+
+      // 驗證目前密碼
+      const isPasswordValid = bcrypt.compareSync(currentPassword, user.password)
+      if (!isPasswordValid) {
+        await session.abortTransaction()
+        return res.status(StatusCodes.UNAUTHORIZED).json({
+          success: false,
+          message: '目前密碼不正確',
+        })
+      }
+
+      // 檢查新密碼是否與目前密碼相同
+      if (bcrypt.compareSync(newPassword, user.password)) {
+        await session.abortTransaction()
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '新密碼不能與目前密碼相同',
+        })
+      }
     }
 
     // 更新密碼
@@ -640,9 +654,13 @@ export const changePassword = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
+    const message = hasExistingPassword
+      ? '密碼已成功變更，請重新登入'
+      : '密碼已成功設定，請重新登入'
+
     res.json({
       success: true,
-      message: '密碼已成功變更，請重新登入',
+      message,
     })
   } catch (error) {
     // 回滾事務
