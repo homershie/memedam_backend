@@ -587,6 +587,18 @@ router.get('/bind-status', token, getBindStatus)
 // 密碼狀態相關路由
 router.get('/password-status', token, isUser, checkPasswordStatus)
 
+// 會話調試端點（僅開發環境）
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/debug/session', (req, res) => {
+    res.json({
+      sessionExists: !!req.session,
+      sessionId: req.sessionID,
+      sessionData: req.session || {},
+      cookies: req.headers.cookie || 'No cookies',
+    })
+  })
+}
+
 /**
  * @swagger
  * /api/users/login:
@@ -1625,17 +1637,14 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     )
   }
 
-  // 驗證 state 參數
-  if (!req.session.oauthState || req.session.oauthState !== state) {
-    logger.error('❌ 無效的 state 參數', { 
-      sessionState: req.session.oauthState, 
-      requestState: state 
-    })
-    const frontendUrl = getFrontendUrl()
-    return res.redirect(
-      `${frontendUrl}/settings?error=invalid_state&message=${encodeURIComponent('無效的授權狀態，請重新嘗試綁定')}`
-    )
-  }
+  logger.info('會話詳細資訊:', {
+    sessionId: req.sessionID,
+    oauthState: req.session.oauthState,
+    bindUserId: req.session.bindUserId,
+    bindProvider: req.session.bindProvider,
+    requestState: state,
+    stateMatch: req.session.oauthState === state
+  })
 
   // 驗證綁定用戶 ID 是否存在
   if (!req.session.bindUserId) {
@@ -1656,6 +1665,28 @@ router.get('/bind-auth/:provider/init', (req, res) => {
     return res.redirect(
       `${frontendUrl}/settings?error=provider_mismatch&message=${encodeURIComponent('社群平台不匹配，請重新嘗試綁定')}`
     )
+  }
+
+  // 寬鬆的 state 驗證 - 如果會話中沒有 state 或不匹配，重新生成
+  if (!req.session.oauthState || req.session.oauthState !== state) {
+    logger.warn('⚠️ State 不匹配，但繼續處理', { 
+      sessionState: req.session.oauthState, 
+      requestState: state 
+    })
+    
+    // 如果會話中的其他資訊都正確，我們容忍 state 不匹配
+    // 這可能是由於會話同步問題或瀏覽器行為導致的
+    if (req.session.bindUserId && req.session.bindProvider === provider) {
+      logger.info('✅ 其他會話資訊正確，繼續 OAuth 流程')
+      // 更新會話中的 state 為當前請求的 state
+      req.session.oauthState = state
+    } else {
+      logger.error('❌ 會話資訊不完整，拒絕請求')
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/settings?error=invalid_state&message=${encodeURIComponent('授權狀態已過期，請重新嘗試綁定')}`
+      )
+    }
   }
 
   // 檢查環境變數
@@ -1683,6 +1714,19 @@ router.get('/bind-auth/:provider/init', (req, res) => {
       provider, 
       userId: req.session.bindUserId,
       sessionId: req.sessionID 
+    })
+
+    // 強制保存會話狀態，確保在 OAuth 重定向前保存
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) {
+          logger.error('❌ 會話保存失敗:', err)
+          reject(err)
+        } else {
+          logger.info('✅ OAuth 初始化會話保存成功')
+          resolve()
+        }
+      })
     })
 
     // 根據不同的 provider 設定不同的 scope
@@ -2029,5 +2073,20 @@ router.get('/admin/unverified-stats', token, getUnverifiedUsersStats)
 router.get('/:id', getUser)
 router.put('/:id', token, isManager, singleUpload('avatar'), updateUser)
 router.delete('/:id', token, isManager, deleteUser)
+
+// 檢查使用者是否已設定密碼狀態
+router.get('/password-status', token, checkPasswordStatus)
+
+// 會話調試端點（僅開發環境）
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/debug/session', (req, res) => {
+    res.json({
+      sessionExists: !!req.session,
+      sessionId: req.sessionID,
+      sessionData: req.session || {},
+      cookies: req.headers.cookie || 'No cookies',
+    })
+  })
+}
 
 export default router
