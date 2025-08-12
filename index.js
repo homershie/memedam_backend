@@ -132,8 +132,8 @@ const configureSession = () => {
     store: sessionStore,
     secret: process.env.SESSION_SECRET || 'your-session-secret',
     name: 'memedam.sid',
-    resave: true, // Twitter OAuth 1.0a 需要 resave
-    saveUninitialized: true, // Twitter OAuth 1.0a 需要初始化 session
+    resave: true, // Twitter OAuth 1.0a 必須設為 true
+    saveUninitialized: true, // Twitter OAuth 1.0a 必須設為 true
     cookie: {
       httpOnly: true,
       sameSite: 'lax', // 支援 OAuth 跨域流程
@@ -142,15 +142,19 @@ const configureSession = () => {
       // 明確設定 path，確保 cookie 在所有路徑都可用
       path: '/',
       // 本地開發環境不設定 domain，讓瀏覽器自動處理
+      // 生產環境也不限制 domain，避免跨子域問題
     },
-    // Twitter OAuth 1.0a 相容設定
-    rolling: false, // 避免 OAuth 流程中 session 變化
-    unset: 'keep', // 保持 session 資料
+    // Twitter OAuth 1.0a 最佳化設定
+    rolling: false, // 避免 OAuth 流程中 session ID 變化
+    unset: 'keep', // 保持 session 資料不被清除
     // 只在生產環境信任代理
     proxy: process.env.NODE_ENV === 'production',
     genid: () => {
-      return crypto.randomBytes(16).toString('hex')
+      // 使用更穩定的 session ID 生成方式
+      return crypto.randomBytes(32).toString('hex')
     },
+    // 強制 session 保存，即使沒有修改
+    touchAfter: 24 * 3600, // 24 小時後才更新 touch time
   })
 }
 

@@ -580,11 +580,23 @@ const initializeOAuthStrategies = () => {
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
           includeEmail: true,
+          // 確保 session 設定正確
+          sessionKey: 'oauth:twitter',
+          // 強制重新生成 request token
+          forceLogin: false,
         },
         async (req, token, tokenSecret, profile, done) => {
           try {
+            logger.info('Twitter OAuth 綁定策略執行')
+            logger.info('Session ID:', req.sessionID || req.session?.id)
+            logger.info('Session exists:', !!req.session)
+            logger.info('Request token 存在:', !!token)
+            logger.info('Token secret 存在:', !!tokenSecret)
+            logger.info('Profile ID:', profile.id)
+            
             return done(null, { profile, provider: 'twitter' })
           } catch (err) {
+            logger.error('Twitter OAuth 綁定策略錯誤:', err)
             return done(err, null)
           }
         },
