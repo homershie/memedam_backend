@@ -584,19 +584,27 @@ const initializeOAuthStrategies = () => {
           sessionKey: 'oauth:twitter:bind',
           // 確保會話正確處理
           requestTokenStore: {
-            get: function(req, token, callback) {
+            get: function (req, token, callback) {
               const sessionKey = 'oauth:twitter:bind'
               const sessionStore = req.session[sessionKey] || {}
-              logger.info('獲取 request token:', { token, sessionExists: !!req.session, hasStore: !!sessionStore[token] })
+              logger.info('獲取 request token:', {
+                token,
+                sessionExists: !!req.session,
+                hasStore: !!sessionStore[token],
+              })
               callback(null, sessionStore[token])
             },
-            set: function(req, token, tokenSecret, callback) {
+            set: function (req, token, tokenSecret, callback) {
               const sessionKey = 'oauth:twitter:bind'
               if (!req.session[sessionKey]) {
                 req.session[sessionKey] = {}
               }
               req.session[sessionKey][token] = tokenSecret
-              logger.info('儲存 request token:', { token, sessionExists: !!req.session, sessionId: req.sessionID })
+              logger.info('儲存 request token:', {
+                token,
+                sessionExists: !!req.session,
+                sessionId: req.sessionID,
+              })
               // 強制保存會話
               req.session.save((err) => {
                 if (err) {
@@ -605,14 +613,14 @@ const initializeOAuthStrategies = () => {
                 callback(err)
               })
             },
-            destroy: function(req, token, callback) {
+            destroy: function (req, token, callback) {
               const sessionKey = 'oauth:twitter:bind'
               if (req.session[sessionKey]) {
                 delete req.session[sessionKey][token]
                 logger.info('刪除 request token:', { token })
               }
               callback()
-            }
+            },
           },
         },
         async (req, token, tokenSecret, profile, done) => {
@@ -624,7 +632,33 @@ const initializeOAuthStrategies = () => {
             logger.info('Token secret 存在:', !!tokenSecret)
             logger.info('Profile ID:', profile.id)
             logger.info('Profile username:', profile.username)
-            
+
+            // 檢查會話中的用戶 ID
+            let userId = req.session.userId || req.session.bindUserId
+
+            // 如果沒有找到用戶 ID，嘗試從 Twitter OAuth session 中恢復
+            if (!userId && req.session['oauth:twitter:bind']) {
+              userId = req.session['oauth:twitter:bind'].bindUserId
+              if (userId) {
+                // 恢復到主要會話中
+                req.session.userId = userId
+                req.session.bindUserId = userId
+                logger.info('✅ 從 Twitter OAuth session 恢復用戶 ID:', userId)
+              }
+            }
+
+            if (!userId) {
+              logger.error('❌ Twitter OAuth 綁定策略中沒有找到用戶 ID')
+              logger.info('Session 內容:', {
+                userId: req.session.userId,
+                bindUserId: req.session.bindUserId,
+                oauthTwitterBind: req.session['oauth:twitter:bind'],
+              })
+              return done(new Error('User ID not found in session'), null)
+            }
+
+            logger.info('✅ Twitter OAuth 綁定策略找到用戶 ID:', userId)
+
             return done(null, { profile, provider: 'twitter', token, tokenSecret })
           } catch (err) {
             logger.error('Twitter OAuth 綁定策略錯誤:', err)
@@ -640,13 +674,13 @@ passport.serializeUser((user, done) => {
   try {
     // 如果是 OAuth 綁定流程返回的對象（包含 profile 和 provider）
     if (user && user.profile && user.provider) {
-      logger.info('序列化 OAuth 綁定用戶:', { 
-        provider: user.provider, 
-        profileId: user.profile.id 
+      logger.info('序列化 OAuth 綁定用戶:', {
+        provider: user.provider,
+        profileId: user.profile.id,
       })
       // 序列化整個對象，而不只是 id
       done(null, user)
-    } 
+    }
     // 如果是正常的用戶對象（有 id 或 _id）
     else if (user && (user.id || user._id)) {
       logger.info('序列化正常用戶:', { id: user.id || user._id })
@@ -667,9 +701,9 @@ passport.deserializeUser(async (data, done) => {
   try {
     // 如果是 OAuth 綁定對象（包含 profile 和 provider）
     if (data && typeof data === 'object' && data.profile && data.provider) {
-      logger.info('反序列化 OAuth 綁定用戶:', { 
-        provider: data.provider, 
-        profileId: data.profile.id 
+      logger.info('反序列化 OAuth 綁定用戶:', {
+        provider: data.provider,
+        profileId: data.profile.id,
       })
       // 直接返回 OAuth 對象
       done(null, data)

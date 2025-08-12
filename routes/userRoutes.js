@@ -31,7 +31,6 @@ import passport from 'passport'
 import { signToken } from '../utils/jwt.js'
 import { logger } from '../utils/logger.js'
 import User from '../models/User.js' // 新增 User 模型導入
-import jwt from 'jsonwebtoken' // 新增 jwt 導入
 
 const router = express.Router()
 
@@ -1603,7 +1602,7 @@ router.get(
 router.get('/bind-auth/:provider', token, initBindAuth)
 
 // OAuth 授權初始化（重定向到社群平台）
-router.get('/bind-auth/:provider/init', async (req, res) => {
+router.get('/bind-auth/:provider/init', token, async (req, res) => {
   const { provider } = req.params
   const { state } = req.query
 
@@ -1653,6 +1652,40 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
     return res.redirect(
       `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`,
     )
+  }
+
+  // 為 Twitter OAuth 1.0a 特殊處理
+  if (provider === 'twitter') {
+    // 確保 Twitter OAuth session 存在
+    if (!req.session['oauth:twitter:bind']) {
+      req.session['oauth:twitter:bind'] = {}
+    }
+
+    // 設置綁定標記
+    req.session.isBindingFlow = true
+    req.session.bindProvider = provider
+
+    // 在 Twitter OAuth session 中保存用戶 ID
+    req.session['oauth:twitter:bind'].bindUserId = req.session.bindUserId
+    req.session['oauth:twitter:bind'].bindProvider = provider
+
+    logger.info('✅ Twitter OAuth session 設置完成', {
+      bindUserId: req.session['oauth:twitter:bind'].bindUserId,
+      bindProvider: req.session['oauth:twitter:bind'].bindProvider,
+    })
+
+    // 強制保存會話
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) {
+          logger.error('❌ Twitter 會話保存失敗:', err)
+          reject(err)
+        } else {
+          logger.info('✅ Twitter 會話保存成功')
+          resolve()
+        }
+      })
+    })
   }
 
   // 驗證綁定提供者是否匹配
@@ -1709,6 +1742,23 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
   try {
     // 在會話中設置用戶 ID，供 OAuth 回調使用
     req.session.userId = req.session.bindUserId
+
+    // 為 Twitter OAuth 1.0a 特殊處理
+    if (provider === 'twitter') {
+      // 確保 Twitter OAuth session 存在
+      if (!req.session['oauth:twitter:bind']) {
+        req.session['oauth:twitter:bind'] = {}
+      }
+
+      // 在 Twitter OAuth session 中保存用戶 ID
+      req.session['oauth:twitter:bind'].bindUserId = req.session.bindUserId
+      req.session['oauth:twitter:bind'].bindProvider = provider
+
+      logger.info('✅ Twitter OAuth session 設置完成', {
+        bindUserId: req.session['oauth:twitter:bind'].bindUserId,
+        bindProvider: req.session['oauth:twitter:bind'].bindProvider,
+      })
+    }
 
     logger.info('✅ 會話驗證通過，準備 OAuth 重定向', {
       provider,
@@ -1852,13 +1902,31 @@ router.get(
       )
     }
 
-    // 檢查是否有用戶 ID 在會話中
-    if (!req.session.userId) {
+    // 檢查是否有用戶 ID 在會話中（優先檢查 bindUserId，然後是 userId）
+    const userId = req.session.bindUserId || req.session.userId
+    if (!userId) {
       logger.error('❌ 會話中沒有用戶 ID')
-      const frontendUrl = getFrontendUrl()
-      return res.redirect(
-        `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`,
-      )
+      logger.info('Session 內容:', {
+        bindUserId: req.session.bindUserId,
+        userId: req.session.userId,
+        isBindingFlow: req.session.isBindingFlow,
+        oauthTwitterBind: req.session['oauth:twitter:bind'],
+      })
+
+      // 嘗試從 Twitter OAuth session 中恢復用戶 ID
+      if (req.session['oauth:twitter:bind'] && req.session['oauth:twitter:bind'].bindUserId) {
+        req.session.userId = req.session['oauth:twitter:bind'].bindUserId
+        req.session.bindUserId = req.session['oauth:twitter:bind'].bindUserId
+        logger.info('✅ 從 Twitter OAuth session 恢復用戶 ID:', req.session.userId)
+      } else {
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(
+          `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`,
+        )
+      }
+    } else {
+      // 確保會話中有正確的用戶 ID
+      req.session.userId = userId
     }
 
     // 檢查 OAuth tokens

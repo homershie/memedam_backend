@@ -1,11 +1,11 @@
 // 強制設置 UTF-8 編碼和繁體中文語言環境
-process.stdout.setEncoding('utf8');
-process.stderr.setEncoding('utf8');
+process.stdout.setEncoding('utf8')
+process.stderr.setEncoding('utf8')
 // 設置繁體中文語言環境確保正確的中文顯示
-process.env.LANG = process.env.LANG || 'zh_TW.UTF-8';
-process.env.LC_ALL = process.env.LC_ALL || 'zh_TW.UTF-8';
-process.env.LC_CTYPE = process.env.LC_CTYPE || 'zh_TW.UTF-8';
-process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || '') + ' --trace-uncaught';
+process.env.LANG = process.env.LANG || 'zh_TW.UTF-8'
+process.env.LC_ALL = process.env.LC_ALL || 'zh_TW.UTF-8'
+process.env.LC_CTYPE = process.env.LC_CTYPE || 'zh_TW.UTF-8'
+process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || '') + ' --trace-uncaught'
 
 // 預先載入環境變數，確保後續模組可取得設定值
 import './config/loadEnv.js'
@@ -193,23 +193,25 @@ app.use(metrics)
 // Session 配置和 Passport 初始化將在 startServer 中進行
 
 // 結構化 HTTP 請求日誌中間件
-app.use(pinoHttp({ 
-  logger,
-  // 確保正確的編碼和格式
-  autoLogging: true,
-  quietReqLogger: false,
-  serializers: {
-    req: (req) => ({
-      method: req.method,
-      url: req.url,
-      remoteAddress: req.remoteAddress,
-      remotePort: req.remotePort
-    }),
-    res: (res) => ({
-      statusCode: res.statusCode
-    })
-  }
-}))
+app.use(
+  pinoHttp({
+    logger,
+    // 確保正確的編碼和格式
+    autoLogging: true,
+    quietReqLogger: false,
+    serializers: {
+      req: (req) => ({
+        method: req.method,
+        url: req.url,
+        remoteAddress: req.remoteAddress,
+        remotePort: req.remotePort,
+      }),
+      res: (res) => ({
+        statusCode: res.statusCode,
+      }),
+    },
+  }),
+)
 
 // 移除 morgan 以避免雙重日誌輸出和格式衝突
 // 開發環境也使用 pino 統一日誌格式
