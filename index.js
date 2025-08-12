@@ -75,17 +75,22 @@ const allowedOrigins = [
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // 若有跨網域圖片/資源
+    crossOriginOpenerPolicy: { policy: 'unsafe-none' }, // 允許 OAuth 彈窗
+    crossOriginEmbedderPolicy: false, // 暫時禁用以避免 ORB 問題
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'", 'https:', 'wss:'],
-        fontSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"], // OAuth 可能需要 inline scripts
+        imgSrc: ["'self'", 'data:', 'https:', 'blob:'], // 支援更多圖片來源
+        connectSrc: ["'self'", 'https:', 'wss:', '*.twitter.com', '*.x.com'], // 支援 Twitter API
+        fontSrc: ["'self'", 'data:'],
         objectSrc: ["'none'"],
         mediaSrc: ["'self'"],
-        frameSrc: ["'none'"],
+        frameSrc: ["'self'", '*.twitter.com', '*.x.com'], // 支援 Twitter OAuth 框架
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'", '*.twitter.com', '*.x.com'], // 支援 Twitter OAuth 表單提交
       },
     },
   }),
