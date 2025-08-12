@@ -6,17 +6,17 @@ const UserSchema = new mongoose.Schema(
   {
     username: {
       type: String,
-      required: [true, '帳號必填'],
+      required: [true, '使用者名稱必填'],
       unique: true,
-      minlength: [8, '帳號至少8個字元'],
-      maxlength: [20, '帳號最多20個字元'],
+      minlength: [8, '使用者名稱至少8個字元'],
+      maxlength: [20, '使用者名稱最多20個字元'],
       trim: true,
       validate: {
         validator(value) {
-          // 允許英文字母、數字和常用符號，但不允許空格和特殊控制字符
-          return /^[a-zA-Z0-9._-]+$/.test(value)
+          // 只允許小寫英文字母、數字和常用符號，但不允許空格和特殊控制字符
+          return /^[a-z0-9._-]+$/.test(value)
         },
-        message: '帳號只能包含英文字母、數字、點號(.)、底線(_)和連字號(-)',
+        message: '使用者名稱只能包含小寫英文字母、數字、點號(.)、底線(_)和連字號(-)',
       },
     },
     display_name: {
@@ -427,9 +427,9 @@ const UserSchema = new mongoose.Schema(
           trim: true,
           validate: {
             validator(value) {
-              return /^[a-zA-Z0-9._-]+$/.test(value)
+              return /^[a-z0-9._-]+$/.test(value)
             },
-            message: '用戶名只能包含英文字母、數字、點號(.)、底線(_)和連字號(-)',
+            message: '用戶名只能包含小寫英文字母、數字、點號(.)、底線(_)和連字號(-)',
           },
         },
         changed_at: {
