@@ -1252,6 +1252,26 @@ export const initBindAuth = async (req, res) => {
     req.session.bindUserId = userId.toString()
     req.session.bindProvider = provider
 
+    logger.info('設置 OAuth 會話狀態:', {
+      state,
+      userId: userId.toString(),
+      provider,
+      sessionId: req.sessionID
+    })
+
+    // 強制保存會話以確保狀態持久化
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) {
+          logger.error('會話保存失敗:', err)
+          reject(err)
+        } else {
+          logger.info('✅ 會話保存成功')
+          resolve()
+        }
+      })
+    })
+
     // 重定向到 OAuth 授權頁面
     const authUrl = `/api/users/bind-auth/${provider}/init?state=${state}`
     res.json({

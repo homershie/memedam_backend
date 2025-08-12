@@ -143,7 +143,7 @@ const configureSession = () => {
       httpOnly: true,
       sameSite: 'lax', // 支援 OAuth 跨域流程
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天
+      maxAge: 1000 * 60 * 60 * 2, // 縮短為 2 小時，OAuth 流程通常很快
       // 明確設定 path，確保 cookie 在所有路徑都可用
       path: '/',
       // 本地開發環境不設定 domain，讓瀏覽器自動處理
@@ -159,7 +159,7 @@ const configureSession = () => {
       return crypto.randomBytes(32).toString('hex')
     },
     // 強制 session 保存，即使沒有修改
-    touchAfter: 24 * 3600, // 24 小時後才更新 touch time
+    touchAfter: 0, // 每次請求都更新，確保 OAuth 流程中狀態同步
   })
 }
 
