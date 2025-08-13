@@ -1783,7 +1783,7 @@ router.get('/bind-auth/:provider/init', token, async (req, res) => {
     let scope = []
     switch (provider) {
       case 'google':
-        scope = ['profile', 'email']
+        scope = ['openid', 'email', 'profile'] // 最小化 scopes，符合 Google OAuth 2.0 政策
         break
       case 'facebook':
         scope = ['email']
@@ -1825,7 +1825,7 @@ router.get('/bind-auth/:provider/init', token, async (req, res) => {
 router.get(
   '/bind-auth/google/callback',
   passport.authenticate('google-bind', {
-    scope: ['profile', 'email'],
+    scope: ['openid', 'email', 'profile'], // 最小化 scopes，符合 Google OAuth 2.0 政策
     state: (req) => req.query.state,
   }),
   async (req, res) => {

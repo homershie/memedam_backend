@@ -164,6 +164,7 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
           callbackURL: process.env.GOOGLE_REDIRECT_URI,
           passReqToCallback: true,
+          scope: ['openid', 'email', 'profile'], // 最小化 scopes，符合 Google OAuth 2.0 政策
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
@@ -232,6 +233,7 @@ const initializeOAuthStrategies = () => {
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
           callbackURL: process.env.GOOGLE_BIND_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI,
           passReqToCallback: true,
+          scope: ['openid', 'email', 'profile'], // 最小化 scopes，符合 Google OAuth 2.0 政策
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
