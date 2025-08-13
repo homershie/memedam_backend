@@ -165,6 +165,8 @@ const initializeOAuthStrategies = () => {
           callbackURL: process.env.GOOGLE_REDIRECT_URI,
           passReqToCallback: true,
           scope: ['openid', 'email', 'profile'], // 最小化 scopes，符合 Google OAuth 2.0 政策
+          accessType: 'offline', // 確保能獲得 refresh token
+          prompt: 'consent', // 強制顯示同意畫面，確保能獲得 refresh token
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
@@ -234,6 +236,8 @@ const initializeOAuthStrategies = () => {
           callbackURL: process.env.GOOGLE_BIND_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI,
           passReqToCallback: true,
           scope: ['openid', 'email', 'profile'], // 最小化 scopes，符合 Google OAuth 2.0 政策
+          accessType: 'offline', // 確保能獲得 refresh token
+          prompt: 'consent', // 強制顯示同意畫面，確保能獲得 refresh token
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
