@@ -20,7 +20,7 @@ const getRedisStore = (prefix = 'rl:') => {
 // 全域 API 限流：每 15 分鐘，已登入用戶 1000 次，未登入 200 次
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 分鐘
-  max: (req, res) => (req.user ? 1000 : 200), // 根據登入狀態設定不同限制
+  max: (req) => (req.user ? 1000 : 200), // 根據登入狀態設定不同限制
   message: {
     success: false,
     error: '請求太多次，請稍後再試。',

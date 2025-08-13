@@ -6,7 +6,6 @@ import Meme from '../../models/Meme.js'
 import Notification from '../../models/Notification.js'
 import Like from '../../models/Like.js'
 import Comment from '../../models/Comment.js'
-import jwt from 'jsonwebtoken'
 
 // 測試用戶數據
 const TEST_USERS = {
@@ -24,13 +23,8 @@ const TEST_USERS = {
   },
 }
 
-// 模擬JWT token
-const generateToken = (userId) => {
-  return jwt.sign({ _id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' })
-}
-
 // 模擬API請求
-const simulateApiRequest = async (method, endpoint, data = null, token = null) => {
+const simulateApiRequest = async (method, endpoint, data = null) => {
   // 這裡我們直接調用控制器函數，而不是真正的HTTP請求
   console.log(`模擬 ${method} 請求到 ${endpoint}`)
   if (data) {
@@ -50,8 +44,7 @@ const testLikeApi = async (testUser, meme) => {
       meme_id: meme._id.toString(),
     }
 
-    const token = generateToken(testUser._id)
-    const result = await simulateApiRequest('POST', '/api/likes', likeData, token)
+    await simulateApiRequest('POST', '/api/likes', likeData)
 
     // 檢查是否創建了按讚記錄
     const likeRecord = await Like.findOne({
@@ -96,8 +89,7 @@ const testCommentApi = async (testUser, meme) => {
       meme_id: meme._id.toString(),
     }
 
-    const token = generateToken(testUser._id)
-    const result = await simulateApiRequest('POST', '/api/comments', commentData, token)
+    await simulateApiRequest('POST', '/api/comments', commentData)
 
     // 檢查是否創建了留言記錄
     const commentRecord = await Comment.findOne({
@@ -143,8 +135,7 @@ const testMentionApi = async (testUser, meme) => {
       meme_id: meme._id.toString(),
     }
 
-    const token = generateToken(testUser._id)
-    const result = await simulateApiRequest('POST', '/api/comments', commentData, token)
+    await simulateApiRequest('POST', '/api/comments', commentData)
 
     // 檢查是否創建了留言記錄
     const commentRecord = await Comment.findOne({

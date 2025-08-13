@@ -130,7 +130,13 @@ const configureSession = () => {
   } else {
     // 開發環境或 Redis 不可用時使用 MemoryStore
     sessionStore = new session.MemoryStore()
-    logger.info('使用 Memory session store')
+    logger.info('使用 Memory session store (開發環境)')
+    logger.info('開發環境 session 配置:', {
+      NODE_ENV: process.env.NODE_ENV,
+      SESSION_SECRET: process.env.SESSION_SECRET ? '已設置' : '未設置',
+      cookieSecure: process.env.NODE_ENV === 'production',
+      cookieMaxAge: '2小時',
+    })
   }
 
   return session({

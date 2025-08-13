@@ -1,4 +1,3 @@
-import mongoose from 'mongoose'
 import User from '../../models/User.js'
 import { logger } from '../../utils/logger.js'
 
@@ -71,7 +70,7 @@ const checkEmailExistence = async () => {
     // 7. 嘗試創建一個測試用戶（會失敗，但可以看到錯誤）
     logger.info('嘗試創建測試用戶...')
     try {
-      const testUser = await User.create({
+      await User.create({
         username: 'testuser_debug',
         email: targetEmail,
         password: 'testpassword123',

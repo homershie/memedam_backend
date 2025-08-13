@@ -21,7 +21,7 @@ async function testDateCastErrorFix() {
     // 測試 1: 使用 mongoose.trusted 的查詢
     logger.info('測試 1: 使用 mongoose.trusted 的查詢')
     try {
-      const trustedQuery = await VerificationToken.findOne({
+      await VerificationToken.findOne({
         expiresAt: mongoose.trusted({ $gt: new Date() }),
       })
       logger.info('✅ mongoose.trusted 查詢成功')
@@ -32,7 +32,7 @@ async function testDateCastErrorFix() {
     // 測試 2: 測試原始查詢（應該會失敗）
     logger.info('測試 2: 原始查詢（預期會失敗）')
     try {
-      const originalQuery = await VerificationToken.findOne({
+      await VerificationToken.findOne({
         expiresAt: { $gt: new Date() },
       })
       logger.info('⚠️ 原始查詢沒有失敗（可能是環境問題）')

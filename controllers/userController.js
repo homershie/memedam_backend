@@ -1256,7 +1256,7 @@ export const initBindAuth = async (req, res) => {
       state,
       userId: userId.toString(),
       provider,
-      sessionId: req.sessionID
+      sessionId: req.sessionID,
     })
 
     // 強制保存會話以確保狀態持久化
@@ -1292,19 +1292,50 @@ export const handleBindAuthCallback = async (req, res) => {
     const { provider } = req.params
     const { state } = req.query
 
+    logger.info('=== OAuth 綁定回調處理開始 ===', {
+      provider,
+      state: state ? state.substring(0, 10) + '...' : null,
+      sessionExists: !!req.session,
+      sessionId: req.sessionID,
+    })
+
     // 驗證 state 參數
-    if (!validateState(state, req.session)) {
+    if (!state) {
+      logger.error('❌ 缺少 state 參數')
       const frontendUrl = getFrontendUrl()
       return res.redirect(
         `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('無效的 state 參數')}`,
       )
     }
 
-    // 從 session 中獲取綁定資訊
-    const bindUserId = req.session.bindUserId
-    const bindProvider = req.session.bindProvider
+    // 從臨時存儲中獲取綁定資訊
+    const { getBindState, removeBindState } = await import('../utils/oauthTempStore.js')
+    const storedBindState = getBindState(state)
+
+    if (!storedBindState) {
+      logger.error('❌ 找不到綁定狀態或已過期:', state)
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定狀態無效或已過期')}`,
+      )
+    }
+
+    const bindUserId = storedBindState.userId
+    const bindProvider = storedBindState.provider
+
+    logger.info('✅ 成功獲取綁定狀態:', {
+      userId: bindUserId,
+      provider: bindProvider,
+      expectedProvider: provider,
+    })
 
     if (!bindUserId || bindProvider !== provider) {
+      logger.error('❌ 綁定資訊無效:', {
+        bindUserId,
+        bindProvider,
+        expectedProvider: provider,
+      })
+      removeBindState(state)
       const frontendUrl = getFrontendUrl()
       return res.redirect(
         `${frontendUrl}/settings?error=bind_failed&message=${encodeURIComponent('綁定資訊無效')}`,
@@ -1363,13 +1394,17 @@ export const handleBindAuthCallback = async (req, res) => {
       user[`${provider}_id`] = socialId
       await user.save({ session })
 
-      // 清理 session
-      delete req.session.oauthState
-      delete req.session.bindUserId
-      delete req.session.bindProvider
+      // 清理臨時存儲
+      removeBindState(state)
 
       // 提交事務
       await session.commitTransaction()
+
+      logger.info('✅ OAuth 綁定成功:', {
+        userId: bindUserId,
+        provider,
+        socialId,
+      })
 
       // 重定向到前端設定頁面，帶上成功訊息
       const frontendUrl = getFrontendUrl()
@@ -1386,6 +1421,16 @@ export const handleBindAuthCallback = async (req, res) => {
     }
   } catch (error) {
     logger.error('OAuth 綁定回調錯誤:', error)
+
+    // 清理臨時存儲（如果存在）
+    if (state) {
+      try {
+        const { removeBindState } = await import('../utils/oauthTempStore.js')
+        removeBindState(state)
+      } catch (cleanupError) {
+        logger.error('清理臨時存儲失敗:', cleanupError)
+      }
+    }
 
     // 處理重複鍵錯誤
     if (error.code === 11000) {

@@ -8,6 +8,7 @@ import { logger } from '../utils/logger.js'
 
 // 追隨用戶
 export const followUser = async (req, res) => {
+  let followingId
   try {
     const { user_id: following_id } = req.body
     const follower_id = req.user._id
@@ -24,7 +25,7 @@ export const followUser = async (req, res) => {
       })
     }
 
-    const followingId = new mongoose.Types.ObjectId(following_id)
+    followingId = new mongoose.Types.ObjectId(following_id)
 
     // 檢查是否嘗試追隨自己
     if (follower_id.equals(followingId)) {
@@ -77,7 +78,7 @@ export const followUser = async (req, res) => {
     })
 
     // 創建新追蹤者通知（在事務外執行，避免阻塞主要流程）
-    createNewFollowerNotification(followingId, follower_id).catch(error => {
+    createNewFollowerNotification(followingId, follower_id).catch((error) => {
       logger.error({ error, followedId: followingId, followerId: follower_id }, '發送追蹤通知失敗')
     })
 
@@ -87,7 +88,7 @@ export const followUser = async (req, res) => {
       ...result,
     })
   } catch (error) {
-    logger.error({ error, followedId: followed_id, followerId: req.user._id }, '追隨用戶錯誤')
+    logger.error({ error, followedId: followingId, followerId: req.user._id }, '追隨用戶錯誤')
 
     if (error.message === '已經追隨過這個用戶') {
       return res.status(StatusCodes.CONFLICT).json({
@@ -105,6 +106,7 @@ export const followUser = async (req, res) => {
 
 // 取消追隨用戶
 export const unfollowUser = async (req, res) => {
+  let followingId
   try {
     const { user_id: following_id } = req.body
     const follower_id = req.user._id
@@ -121,7 +123,7 @@ export const unfollowUser = async (req, res) => {
       })
     }
 
-    const followingId = new mongoose.Types.ObjectId(following_id)
+    followingId = new mongoose.Types.ObjectId(following_id)
 
     // 使用事務處理
     const result = await executeTransaction(async (session) => {
@@ -151,7 +153,7 @@ export const unfollowUser = async (req, res) => {
       ...result,
     })
   } catch (error) {
-    logger.error({ error, followedId: followed_id, followerId: req.user._id }, '取消追隨錯誤')
+    logger.error({ error, followedId: followingId, followerId: req.user._id }, '取消追隨錯誤')
 
     if (error.message === '尚未追隨這個用戶') {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -239,7 +241,7 @@ export const toggleFollow = async (req, res) => {
 
     // 如果是新追隨，創建通知（在事務外執行）
     if (result.action === 'followed') {
-      createNewFollowerNotification(followingId, follower_id).catch(error => {
+      createNewFollowerNotification(followingId, follower_id).catch((error) => {
         console.error('發送追蹤通知失敗:', error)
       })
     }

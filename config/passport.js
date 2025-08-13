@@ -241,9 +241,71 @@ const initializeOAuthStrategies = () => {
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
-            // 綁定流程中，我們只需要 profile 資訊
-            return done(null, { profile, provider: 'google' })
+            const oauthState = req.query.state || req.session?.oauthState
+
+            if (!oauthState) {
+              logger.error('❌ Google 綁定回調缺少 state 參數')
+              return done(new Error('缺少 state 參數'), false)
+            }
+
+            // 從臨時緩存中獲取綁定用戶 ID
+            const { getBindState, removeBindState } = await import('../utils/oauthTempStore.js')
+            const storedBindState = getBindState(oauthState)
+
+            if (!storedBindState) {
+              logger.error('❌ Google 綁定狀態無效或已過期:', oauthState)
+              return done(new Error('綁定狀態無效或已過期，請重新嘗試'), false)
+            }
+
+            const bindUserId = storedBindState.userId
+
+            // 清理臨時緩存中的狀態
+            removeBindState(oauthState)
+            logger.info('✅ 成功從臨時緩存中獲取綁定狀態並清理:', {
+              oauthState: oauthState.substring(0, 10) + '...',
+              bindUserId,
+            })
+
+            if (!bindUserId) {
+              logger.error('❌ Google 綁定回調中沒有綁定用戶 ID')
+              return done(new Error('用戶認證失效，請重新登錄後綁定'), false)
+            }
+
+            // 查找用戶並執行綁定
+            const user = await User.findById(bindUserId)
+            if (!user) {
+              logger.error('❌ 綁定用戶不存在:', bindUserId)
+              return done(new Error('綁定用戶不存在'), false)
+            }
+
+            // 檢查是否已綁定
+            if (user.google_id) {
+              logger.warn('⚠️ Google 帳號已綁定:', { userId: user._id, googleId: user.google_id })
+              return done(null, user, { message: '此 Google 帳號已綁定到您的帳戶' })
+            }
+
+            // 檢查該 Google ID 是否已被其他用戶綁定
+            const existingUserWithGoogleId = await User.findOne({ google_id: profile.id })
+            if (
+              existingUserWithGoogleId &&
+              existingUserWithGoogleId._id.toString() !== bindUserId
+            ) {
+              logger.error('❌ Google ID 已被其他用戶綁定:', {
+                googleId: profile.id,
+                existingUserId: existingUserWithGoogleId._id,
+                bindUserId,
+              })
+              return done(new Error('此 Google 帳號已被其他用戶綁定'), false)
+            }
+
+            // 綁定 Google 帳號
+            user.google_id = profile.id
+            await user.save()
+
+            logger.info('✅ Google 帳號綁定成功:', { userId: user._id, googleId: profile.id })
+            return done(null, user, { message: 'Google 帳號綁定成功' })
           } catch (err) {
+            logger.error('❌ Google 綁定失敗:', err)
             return done(err, null)
           }
         },
@@ -339,8 +401,70 @@ const initializeOAuthStrategies = () => {
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
-            return done(null, { profile, provider: 'facebook' })
+            const oauthState = req.query.state || req.session?.oauthState
+
+            if (!oauthState) {
+              logger.error('❌ Facebook 綁定回調缺少 state 參數')
+              return done(new Error('缺少 state 參數'), false)
+            }
+
+            const { getBindState, removeBindState } = await import('../utils/oauthTempStore.js')
+            const storedBindState = getBindState(oauthState)
+
+            if (!storedBindState) {
+              logger.error('❌ Facebook 綁定狀態無效或已過期:', oauthState)
+              return done(new Error('綁定狀態無效或已過期，請重新嘗試'), false)
+            }
+
+            const bindUserId = storedBindState.userId
+            const bindProvider = storedBindState.provider
+
+            // 清理臨時緩存中的狀態
+            removeBindState(oauthState)
+            logger.info('✅ 成功從臨時緩存中獲取綁定狀態並清理:', {
+              oauthState: oauthState.substring(0, 10) + '...',
+              bindUserId,
+            })
+
+            if (!bindUserId || bindProvider !== 'facebook') {
+              logger.error('❌ Facebook 綁定回調中綁定資訊無效')
+              return done(new Error('用戶認證失效，請重新登錄後綁定'), false)
+            }
+
+            const user = await User.findById(bindUserId)
+            if (!user) {
+              logger.error('❌ 綁定用戶不存在:', bindUserId)
+              return done(new Error('綁定用戶不存在'), false)
+            }
+
+            if (user.facebook_id) {
+              logger.warn('⚠️ Facebook 帳號已綁定:', {
+                userId: user._id,
+                facebookId: user.facebook_id,
+              })
+              return done(null, user, { message: '此 Facebook 帳號已綁定到您的帳戶' })
+            }
+
+            const existingUserWithFacebookId = await User.findOne({ facebook_id: profile.id })
+            if (
+              existingUserWithFacebookId &&
+              existingUserWithFacebookId._id.toString() !== bindUserId
+            ) {
+              logger.error('❌ Facebook ID 已被其他用戶綁定:', {
+                facebookId: profile.id,
+                existingUserId: existingUserWithFacebookId._id,
+                bindUserId,
+              })
+              return done(new Error('此 Facebook 帳號已被其他用戶綁定'), false)
+            }
+
+            user.facebook_id = profile.id
+            await user.save()
+
+            logger.info('✅ Facebook 帳號綁定成功:', { userId: user._id, facebookId: profile.id })
+            return done(null, user, { message: 'Facebook 帳號綁定成功' })
           } catch (err) {
+            logger.error('❌ Facebook 綁定失敗:', err)
             return done(err, null)
           }
         },
@@ -461,8 +585,66 @@ const initializeOAuthStrategies = () => {
         },
         async (req, accessToken, refreshToken, profile, done) => {
           try {
-            return done(null, { profile, provider: 'discord' })
+            const oauthState = req.query.state || req.session?.oauthState
+            if (!oauthState) {
+              logger.error('❌ Discord 綁定回調缺少 state 參數')
+              return done(new Error('缺少 state 參數'), false)
+            }
+
+            const { getBindState, removeBindState } = await import('../utils/oauthTempStore.js')
+            const storedBindState = getBindState(oauthState)
+            if (!storedBindState) {
+              logger.error('❌ Discord 綁定狀態無效或已過期:', oauthState)
+              return done(new Error('綁定狀態無效或已過期，請重新嘗試'), false)
+            }
+
+            const bindUserId = storedBindState.userId
+            const bindProvider = storedBindState.provider
+            removeBindState(oauthState)
+            logger.info('✅ 成功從臨時緩存中獲取綁定狀態並清理:', {
+              oauthState: oauthState.substring(0, 10) + '...',
+              bindUserId,
+            })
+
+            if (!bindUserId || bindProvider !== 'discord') {
+              logger.error('❌ Discord 綁定回調中綁定資訊無效')
+              return done(new Error('用戶認證失效，請重新登錄後綁定'), false)
+            }
+
+            const user = await User.findById(bindUserId)
+            if (!user) {
+              logger.error('❌ 綁定用戶不存在:', bindUserId)
+              return done(new Error('綁定用戶不存在'), false)
+            }
+
+            if (user.discord_id) {
+              logger.warn('⚠️ Discord 帳號已綁定:', {
+                userId: user._id,
+                discordId: user.discord_id,
+              })
+              return done(null, user, { message: '此 Discord 帳號已綁定到您的帳戶' })
+            }
+
+            const existingUserWithDiscordId = await User.findOne({ discord_id: profile.id })
+            if (
+              existingUserWithDiscordId &&
+              existingUserWithDiscordId._id.toString() !== bindUserId
+            ) {
+              logger.error('❌ Discord ID 已被其他用戶綁定:', {
+                discordId: profile.id,
+                existingUserId: existingUserWithDiscordId._id,
+                bindUserId,
+              })
+              return done(new Error('此 Discord 帳號已被其他用戶綁定'), false)
+            }
+
+            user.discord_id = profile.id
+            await user.save()
+
+            logger.info('✅ Discord 帳號綁定成功:', { userId: user._id, discordId: profile.id })
+            return done(null, user, { message: 'Discord 帳號綁定成功' })
           } catch (err) {
+            logger.error('❌ Discord 綁定失敗:', err)
             return done(err, null)
           }
         },
@@ -586,46 +768,56 @@ const initializeOAuthStrategies = () => {
           callbackURL: process.env.TWITTER_BIND_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI,
           passReqToCallback: true,
           includeEmail: true,
-          // 使用獨特的 session key 避免衝突
+          // 使用獨特的 session key 避免衝突（保留，但不依賴其記錄 token）
           sessionKey: 'oauth:twitter:bind',
           // 確保會話正確處理
           requestTokenStore: {
-            get: function (req, token, callback) {
-              const sessionKey = 'oauth:twitter:bind'
-              const sessionStore = req.session[sessionKey] || {}
-              logger.info('獲取 request token:', {
-                token,
-                sessionExists: !!req.session,
-                hasStore: !!sessionStore[token],
-              })
-              callback(null, sessionStore[token])
-            },
-            set: function (req, token, tokenSecret, callback) {
-              const sessionKey = 'oauth:twitter:bind'
-              if (!req.session[sessionKey]) {
-                req.session[sessionKey] = {}
-              }
-              req.session[sessionKey][token] = tokenSecret
-              logger.info('儲存 request token:', {
-                token,
-                sessionExists: !!req.session,
-                sessionId: req.sessionID,
-              })
-              // 強制保存會話
-              req.session.save((err) => {
-                if (err) {
-                  logger.error('會話保存失敗:', err)
+            get: async function (req, token, callback) {
+              try {
+                const { getTwitterRequestToken } = await import('../utils/oauthTempStore.js')
+                const data = getTwitterRequestToken(token)
+                logger.info('獲取 request token (tempStore):', {
+                  token: token?.substring?.(0, 6) + '...',
+                  exists: !!data,
+                })
+                if (data && data.userId) {
+                  // 在回調早期階段把 userId 暫存到 req 供 verify callback 使用
+                  req.tempBindUserId = data.userId
                 }
-                callback(err)
-              })
-            },
-            destroy: function (req, token, callback) {
-              const sessionKey = 'oauth:twitter:bind'
-              if (req.session[sessionKey]) {
-                delete req.session[sessionKey][token]
-                logger.info('刪除 request token:', { token })
+                callback(null, data ? data.tokenSecret : undefined)
+              } catch (e) {
+                logger.error('讀取 request token 失敗 (tempStore):', e)
+                callback(e)
               }
-              callback()
+            },
+            set: async function (req, token, tokenSecret, callback) {
+              try {
+                const { storeTwitterRequestToken } = await import('../utils/oauthTempStore.js')
+                const ok = storeTwitterRequestToken(
+                  token,
+                  tokenSecret,
+                  req.session?.bindUserId || req.session?.userId,
+                )
+                logger.info('儲存 request token (tempStore):', {
+                  token: token?.substring?.(0, 6) + '...',
+                  ok,
+                })
+                callback(null)
+              } catch (e) {
+                logger.error('儲存 request token 失敗 (tempStore):', e)
+                callback(e)
+              }
+            },
+            destroy: async function (req, token, callback) {
+              try {
+                const { removeTwitterRequestToken } = await import('../utils/oauthTempStore.js')
+                removeTwitterRequestToken(token)
+                logger.info('刪除 request token (tempStore):', token?.substring?.(0, 6) + '...')
+                callback()
+              } catch (e) {
+                logger.error('刪除 request token 失敗 (tempStore):', e)
+                callback(e)
+              }
             },
           },
         },
@@ -640,32 +832,121 @@ const initializeOAuthStrategies = () => {
             logger.info('Profile username:', profile.username)
 
             // 檢查會話中的用戶 ID
-            let userId = req.session.userId || req.session.bindUserId
+            let userId = req.session?.userId || req.session?.bindUserId
 
-            // 如果沒有找到用戶 ID，嘗試從 Twitter OAuth session 中恢復
-            if (!userId && req.session['oauth:twitter:bind']) {
-              userId = req.session['oauth:twitter:bind'].bindUserId
-              if (userId) {
-                // 恢復到主要會話中
-                req.session.userId = userId
-                req.session.bindUserId = userId
-                logger.info('✅ 從 Twitter OAuth session 恢復用戶 ID:', userId)
+            // 先嘗試從 callbackURL 夾帶的 state 取得 userId
+            if (!userId) {
+              const callbackState = req.query.s || req.query.state
+              if (callbackState) {
+                try {
+                  const { getBindState } = await import('../utils/oauthTempStore.js')
+                  const st = getBindState(callbackState)
+                  if (st && st.userId) {
+                    userId = st.userId
+                    if (req.session) {
+                      req.session.userId = userId
+                      req.session.bindUserId = userId
+                    }
+                    logger.info('✅ 從 callback state 取得用戶 ID 並寫回 session:', userId)
+                  }
+                } catch (e) {
+                  logger.warn('讀取 callback state 失敗（Twitter）：', e)
+                }
+              }
+            }
+
+            // 若 session 沒有，從臨時儲存讀取 request token 對應的 userId
+            if (!userId) {
+              try {
+                const { getTwitterRequestToken, removeTwitterRequestToken } = await import(
+                  '../utils/oauthTempStore.js'
+                )
+                const data = getTwitterRequestToken(token)
+                if (data && data.userId) {
+                  userId = data.userId
+                  // 將 userId 寫回 session 以供後續路由使用
+                  if (req.session) {
+                    req.session.userId = userId
+                    req.session.bindUserId = userId
+                  }
+                  // 回收 request token
+                  removeTwitterRequestToken(token)
+                  logger.info('✅ 從臨時儲存取得 Twitter userId 並寫回 session:', userId)
+                }
+              } catch (e) {
+                logger.warn('讀取 Twitter request token 以取得 userId 失敗:', e)
+              }
+            }
+
+            if (!userId) {
+              // 從 requestTokenStore.get 暫存的 req.tempBindUserId 讀取
+              if (req.tempBindUserId) {
+                userId = req.tempBindUserId
+                if (req.session) {
+                  req.session.userId = userId
+                  req.session.bindUserId = userId
+                }
+                logger.info('✅ 從 req.tempBindUserId 還原用戶 ID:', userId)
               }
             }
 
             if (!userId) {
               logger.error('❌ Twitter OAuth 綁定策略中沒有找到用戶 ID')
               logger.info('Session 內容:', {
-                userId: req.session.userId,
-                bindUserId: req.session.bindUserId,
-                oauthTwitterBind: req.session['oauth:twitter:bind'],
+                userId: req.session?.userId,
+                bindUserId: req.session?.bindUserId,
+                oauthTwitterBind: req.session?.['oauth:twitter:bind'],
               })
               return done(new Error('User ID not found in session'), null)
             }
 
-            logger.info('✅ Twitter OAuth 綁定策略找到用戶 ID:', userId)
+            logger.info('✅ Twitter OAuth 綁定策略找到用戶 ID，準備綁定:', userId)
 
-            return done(null, { profile, provider: 'twitter', token, tokenSecret })
+            // 執行實際綁定
+            const twitterId = profile.id
+            const twitterUsername = profile.username
+
+            const user = await User.findById(userId)
+            if (!user) {
+              logger.error('❌ 綁定用戶不存在:', userId)
+              return done(new Error('綁定用戶不存在'), null)
+            }
+
+            // 若當前用戶已綁定，直接返回成功訊息
+            if (user.twitter_id && user.twitter_id === twitterId) {
+              logger.info('ℹ️ Twitter 已綁定於該用戶，跳過重複綁定:', { userId, twitterId })
+              return done(null, user, { message: 'Twitter 帳號已綁定' })
+            }
+
+            // 檢查是否被他人綁定
+            const existing = await User.findOne({ twitter_id: twitterId })
+            if (existing && existing._id.toString() !== userId) {
+              logger.error('❌ Twitter ID 已被其他用戶綁定:', {
+                twitterId,
+                existingUserId: existing._id,
+              })
+              return done(new Error('此 Twitter 帳號已被其他用戶綁定'), null)
+            }
+
+            user.twitter_id = twitterId
+            if (twitterUsername) {
+              user.twitter_username = twitterUsername
+            }
+            await user.save()
+
+            // 如果用到了 callback state，清理臨時綁定狀態
+            const callbackState = req.query?.s || req.query?.state
+            if (callbackState) {
+              try {
+                const { removeBindState } = await import('../utils/oauthTempStore.js')
+                removeBindState(callbackState)
+              } catch (e) {
+                logger.warn('移除 Twitter 綁定狀態失敗（忽略）：', e)
+              }
+            }
+
+            logger.info('✅ Twitter 帳號綁定成功:', { userId, twitterId })
+            return done(null, user, { message: 'Twitter 帳號綁定成功' })
           } catch (err) {
             logger.error('Twitter OAuth 綁定策略錯誤:', err)
             return done(err, null)

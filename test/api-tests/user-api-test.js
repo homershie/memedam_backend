@@ -10,7 +10,6 @@ const testUser = {
 }
 
 let authToken = null
-let userId = null
 
 // 輔助函數：登入並取得 token
 async function login() {

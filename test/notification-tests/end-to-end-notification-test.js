@@ -6,7 +6,7 @@ import Meme from '../../models/Meme.js'
 import Notification from '../../models/Notification.js'
 import Like from '../../models/Like.js'
 import Comment from '../../models/Comment.js'
-import { createLike, toggleLike } from '../../controllers/likeController.js'
+import { createLike } from '../../controllers/likeController.js'
 import { createComment } from '../../controllers/commentController.js'
 
 // 測試用戶數據

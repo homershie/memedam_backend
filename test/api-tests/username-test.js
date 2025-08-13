@@ -8,7 +8,6 @@ import User from '../../models/User.js'
 import bcrypt from 'bcrypt'
 
 describe('Username 功能測試', () => {
-  let testUser
   let authToken
 
   beforeAll(async () => {
@@ -17,7 +16,7 @@ describe('Username 功能測試', () => {
 
     // 創建測試用戶
     const hashedPassword = bcrypt.hashSync('password123', 10)
-    testUser = await User.create({
+    await User.create({
       username: 'testuser123',
       email: 'test@example.com',
       password: hashedPassword,
