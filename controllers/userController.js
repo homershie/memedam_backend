@@ -1215,10 +1215,7 @@ const generateState = () => {
   return crypto.randomBytes(32).toString('hex')
 }
 
-// 驗證 state 參數
-const validateState = (state, session) => {
-  return session && session.oauthState === state
-}
+// 已不需要 validateState，移除以避免未使用變數的 linter 警告
 
 // 初始化 OAuth 綁定流程
 export const initBindAuth = async (req, res) => {
@@ -1423,10 +1420,10 @@ export const handleBindAuthCallback = async (req, res) => {
     logger.error('OAuth 綁定回調錯誤:', error)
 
     // 清理臨時存儲（如果存在）
-    if (state) {
+    if (req?.query?.state) {
       try {
         const { removeBindState } = await import('../utils/oauthTempStore.js')
-        removeBindState(state)
+        removeBindState(req.query.state)
       } catch (cleanupError) {
         logger.error('清理臨時存儲失敗:', cleanupError)
       }
