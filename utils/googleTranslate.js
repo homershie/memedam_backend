@@ -27,7 +27,7 @@ export async function translateToEnglish(text, sourceLanguage = null) {
 
     // 初始化 Google Auth
     const auth = new GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/cloud-translation']
+      scopes: ['https://www.googleapis.com/auth/cloud-translation'],
     })
 
     // 獲取 access token
@@ -40,10 +40,10 @@ export async function translateToEnglish(text, sourceLanguage = null) {
 
     // 準備翻譯請求
     const translateUrl = `https://translation.googleapis.com/v3/projects/${PROJECT_ID}/locations/${LOCATION}:translateText`
-    
+
     const requestBody = {
       contents: [text],
-      targetLanguageCode: 'en'
+      targetLanguageCode: 'en',
     }
 
     // 如果指定了來源語言，加入請求中
@@ -55,12 +55,12 @@ export async function translateToEnglish(text, sourceLanguage = null) {
     const response = await fetch(translateUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken.token}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${accessToken.token}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
       // 設定 30 秒逾時
-      signal: AbortSignal.timeout(30000)
+      signal: AbortSignal.timeout(30000),
     })
 
     if (!response.ok) {
@@ -69,22 +69,21 @@ export async function translateToEnglish(text, sourceLanguage = null) {
     }
 
     const result = await response.json()
-    
+
     if (!result.translations || !result.translations[0]) {
       throw new Error('翻譯 API 返回了無效的結果')
     }
 
     return result.translations[0].translatedText || text
-
   } catch (error) {
     console.error('Google Translate 錯誤:', error.message)
-    
+
     // 如果是逾時或網路錯誤，返回原文
     if (error.name === 'AbortError' || error.message.includes('fetch')) {
       console.warn('翻譯服務逾時或無法連接，返回原文')
       return text
     }
-    
+
     // 對於其他錯誤，也返回原文以確保系統穩定性
     return text
   }
