@@ -298,12 +298,6 @@ const MemeSchema = new mongoose.Schema(
       type: String,
       default: '',
       maxlength: [20000, '詳細介紹內容不能超過20000字元'],
-      validate: {
-        validator: function (v) {
-          return typeof v === 'string' && v.trim().length > 0
-        },
-        message: '詳細介紹內容不能為空',
-      },
     },
   },
   {

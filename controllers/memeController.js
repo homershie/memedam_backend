@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { logger } from '../utils/logger.js';
+import { logger } from '../utils/logger.js'
 import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
@@ -19,6 +19,86 @@ import {
   calculateQualityScore,
 } from '../utils/hotScore.js'
 
+// 匯出 CSV（管理端）
+export const exportMemesCsv = async (req, res) => {
+  try {
+    const { page = 1, limit = 100 } = req.query
+
+    const pageNum = Math.max(parseInt(page) || 1, 1)
+    const limitNum = Math.min(Math.max(parseInt(limit) || 100, 1), 1000)
+    const skip = (pageNum - 1) * limitNum
+
+    // 僅管理員/助理可匯出全部狀態；一般使用者僅可匯出 public
+    const isPrivilegedUser = Boolean(req.user && ['admin', 'manager'].includes(req.user.role))
+    const filter = {}
+    if (!isPrivilegedUser) {
+      filter.status = 'public'
+    }
+
+    const memesData = await Meme.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .populate('author_id', 'username display_name')
+      .lean()
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return ''
+      const str = String(val)
+      const mustQuote = /[",\n\r]/.test(str)
+      const escaped = str.replace(/"/g, '""')
+      return mustQuote ? `"${escaped}"` : escaped
+    }
+
+    const headers = [
+      '_id',
+      'title',
+      'type',
+      'status',
+      'views',
+      'like_count',
+      'comment_count',
+      'hot_score',
+      'tags',
+      'author_username',
+      'author_display_name',
+      'createdAt',
+    ]
+
+    const rows = memesData.map((meme) => {
+      const tags = Array.isArray(meme.tags_cache) ? meme.tags_cache.join('|') : ''
+      const row = [
+        meme._id,
+        meme.title,
+        meme.type,
+        meme.status,
+        meme.views ?? 0,
+        meme.like_count ?? 0,
+        meme.comment_count ?? 0,
+        meme.hot_score ?? 0,
+        tags,
+        meme.author_id?.username ?? '',
+        meme.author_id?.display_name ?? '',
+        meme.createdAt ? new Date(meme.createdAt).toISOString() : '',
+      ]
+      return row.map(escapeCsv).join(',')
+    })
+
+    const csv = [headers.join(','), ...rows].join('\r\n')
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="memes-${new Date().toISOString().slice(0, 10)}.csv"`,
+    )
+
+    // 前置 BOM 讓 Excel 能正確以 UTF-8 顯示
+    res.status(200).send(`\uFEFF${csv}`)
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
 // 建立迷因
 export const validateCreateMeme = [
   body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
@@ -35,8 +115,8 @@ export const validateUpdateMeme = [
     .withMessage('類型必須是 image、video、audio 或 text'),
   body('status')
     .optional()
-    .isIn(['draft', 'public', 'private', 'deleted'])
-    .withMessage('狀態必須是 draft、public、private 或 deleted'),
+    .isIn(['draft', 'public', 'hidden', 'banned', 'deleted'])
+    .withMessage('狀態必須是 draft、public、hidden、banned 或 deleted'),
 ]
 
 export const createMeme = async (req, res) => {
@@ -154,24 +234,73 @@ export const getMemes = async (req, res) => {
       dateTo,
     } = req.query
 
-    // 如果使用進階搜尋，取得所有符合基本條件的資料
-    if (useAdvancedSearch === 'true') {
+    // 權限：僅 admin/manager 可檢視非 public 項目
+    const isPrivilegedUser = Boolean(req.user && ['admin', 'manager'].includes(req.user.role))
+
+    // 正規化輸入，將『全部』/ 'all' / 空字串 視為未篩選
+    const normalizeAll = (val) => {
+      if (val === undefined || val === null) return ''
+      const v = String(val).trim()
+      if (v === '' || v.toLowerCase() === 'all' || v === '全部') return ''
+      return v
+    }
+
+    const typeVal = normalizeAll(type)
+    const statusVal = normalizeAll(status)
+    const searchVal = normalizeAll(search)
+    const authorVal = normalizeAll(author)
+    const dateFromVal = normalizeAll(dateFrom)
+    const dateToVal = normalizeAll(dateTo)
+
+    const typesArrRaw = types
+      ? Array.isArray(types)
+        ? types
+        : String(types)
+            .split(',')
+            .map((t) => t.trim())
+      : []
+    const typesArr = typesArrRaw.filter((t) => normalizeAll(t) !== '')
+
+    const tagsArrRaw = Array.isArray(tags)
+      ? tags
+      : tags
+        ? String(tags)
+            .split(',')
+            .map((t) => t.trim())
+        : []
+    const tagsArr = tagsArrRaw.filter((t) => normalizeAll(t) !== '')
+
+    // 正規化布林與「是否真的有過濾條件」
+    const useAdvanced = String(useAdvancedSearch).toLowerCase() === 'true'
+    const hasFilters = Boolean(
+      (typesArr && typesArr.length > 0) ||
+        typeVal !== '' ||
+        statusVal !== '' ||
+        searchVal !== '' ||
+        authorVal !== '' ||
+        dateFromVal !== '' ||
+        dateToVal !== '' ||
+        (tagsArr && tagsArr.length > 0),
+    )
+
+    // 僅在「要求進階搜尋且真的有過濾條件」時才走進階路徑，否則走傳統查詢（確保『全部』能顯示所有資料）
+    if (useAdvanced && hasFilters) {
       // 建立基本查詢條件
       const baseFilter = {}
 
-      // 處理類型篩選
-      if (types) {
-        // 支援多個類型篩選
-        const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
-        if (typeArray.length > 0) {
-          baseFilter.type = { $in: typeArray }
-        }
-      } else if (type) {
-        // 向後相容：單一類型篩選
-        baseFilter.type = type
+      // 類型/狀態篩選（多選/單選）
+      if (typesArr.length > 0) {
+        baseFilter.type = { $in: typesArr }
+      } else if (typeVal !== '') {
+        baseFilter.type = typeVal
       }
 
-      if (status) baseFilter.status = status
+      // 狀態：非特權使用者一律限制為 public
+      if (isPrivilegedUser) {
+        if (statusVal !== '') baseFilter.status = statusVal
+      } else {
+        baseFilter.status = 'public'
+      }
 
       // 取得所有符合基本篩選條件的迷因
       const allMemesData = await Meme.find(baseFilter)
@@ -198,17 +327,13 @@ export const getMemes = async (req, res) => {
 
       // 使用進階搜尋過濾器
       const searchParams = {
-        search,
-        type,
-        status,
-        tags: tags
-          ? typeof tags === 'string'
-            ? tags.split(',').map((tag) => tag.trim())
-            : tags
-          : [],
-        author,
-        dateFrom,
-        dateTo,
+        search: searchVal,
+        type: typeVal,
+        status: statusVal,
+        tags: tagsArr,
+        author: authorVal,
+        dateFrom: dateFromVal,
+        dateTo: dateToVal,
       }
 
       const filteredMemes = combineAdvancedSearchFilters(memesWithFlattenedAuthor, searchParams)
@@ -227,17 +352,13 @@ export const getMemes = async (req, res) => {
         memes,
         pagination: searchPagination,
         filters: {
-          search,
-          tags: tags
-            ? typeof tags === 'string'
-              ? tags.split(',').map((tag) => tag.trim())
-              : tags
-            : null,
-          type,
-          status,
-          author,
-          dateFrom,
-          dateTo,
+          search: searchVal || null,
+          tags: tagsArr.length > 0 ? tagsArr : null,
+          type: typeVal || null,
+          status: statusVal || null,
+          author: authorVal || null,
+          dateFrom: dateFromVal || null,
+          dateTo: dateToVal || null,
         },
         scoring,
         searchStats,
@@ -248,39 +369,33 @@ export const getMemes = async (req, res) => {
       const mongoQuery = {}
 
       // 基本篩選條件
-      if (types) {
-        // 支援多個類型篩選
-        const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
-        if (typeArray.length > 0) {
-          mongoQuery.type = { $in: typeArray }
-        }
-      } else if (type) {
-        // 向後相容：單一類型篩選
-        mongoQuery.type = type
+      if (typesArr.length > 0) {
+        mongoQuery.type = { $in: typesArr }
+      } else if (typeVal !== '') {
+        mongoQuery.type = typeVal
       }
 
-      if (status) {
-        mongoQuery.status = status
+      // 狀態：非特權使用者一律限制為 public
+      if (isPrivilegedUser) {
+        if (statusVal !== '') {
+          mongoQuery.status = statusVal
+        }
+      } else {
+        mongoQuery.status = 'public'
       }
 
       // 搜尋和標籤條件
       const orConditions = []
 
       // 搜尋條件：搜尋標題或內容 (使用 RegExp 避免 Mongoose 轉換問題)
-      if (search) {
-        const searchRegex = new RegExp(search, 'i')
+      if (searchVal) {
+        const searchRegex = new RegExp(searchVal, 'i')
         orConditions.push({ title: searchRegex }, { content: searchRegex })
       }
 
       // 標籤條件
-      if (tags) {
-        let tagArray = tags
-        if (typeof tags === 'string') {
-          tagArray = tags.split(',').map((tag) => tag.trim())
-        }
-
-        // 為每個標籤添加條件
-        tagArray.forEach((tag) => {
+      if (tagsArr.length > 0) {
+        tagsArr.forEach((tag) => {
           orConditions.push({ tags_cache: tag })
         })
       }
@@ -332,14 +447,10 @@ export const getMemes = async (req, res) => {
           hasPrev: parseInt(page) > 1,
         },
         filters: {
-          search,
-          tags: tags
-            ? typeof tags === 'string'
-              ? tags.split(',').map((tag) => tag.trim())
-              : tags
-            : null,
-          type,
-          status,
+          search: searchVal || null,
+          tags: tagsArr.length > 0 ? tagsArr : null,
+          type: typeVal || null,
+          status: statusVal || null,
         },
       })
     }

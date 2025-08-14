@@ -5,6 +5,7 @@ import {
   getMemeById,
   updateMeme,
   deleteMeme,
+  exportMemesCsv,
   addEditor,
   removeEditor,
   getMemesByTags,
@@ -23,7 +24,7 @@ import {
   approveProposal,
   rejectProposal,
 } from '../controllers/memeEditProposalController.js'
-import { token, canEditMeme, isUser } from '../middleware/auth.js'
+import { token, canEditMeme, isUser, optionalToken, isManager } from '../middleware/auth.js'
 import { validateCreateMeme } from '../controllers/memeController.js'
 import { arrayUpload } from '../middleware/upload.js'
 
@@ -311,7 +312,11 @@ const router = express.Router()
  *                   description: 使用的搜尋演算法
  */
 router.post('/', token, isUser, arrayUpload('images', 5), validateCreateMeme, createMeme)
-router.get('/', getMemes)
+// 允許帶 Bearer token 辨識管理者（匿名亦可存取）
+router.get('/', optionalToken, getMemes)
+
+// 匯出 CSV（管理端）：GET /api/memes/export
+router.get('/export', token, isManager, exportMemesCsv)
 
 /**
  * @swagger
