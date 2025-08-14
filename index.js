@@ -241,22 +241,33 @@ app.use((req, res, next) => {
 })
 
 // 速率限制中間件
-// 迷因相關 API 寬鬆限流（優先應用，避免被全域限制影響）
-app.use('/api/memes', memeApiLimiter)
-app.use('/api/likes', memeApiLimiter)
-app.use('/api/dislikes', memeApiLimiter)
-app.use('/api/comments', memeApiLimiter)
-app.use('/api/tags', memeApiLimiter)
-app.use('/api/meme-tags', memeApiLimiter)
-app.use('/api/collections', memeApiLimiter)
-app.use('/api/views', memeApiLimiter)
-app.use('/api/shares', memeApiLimiter)
-app.use('/api/notifications', memeApiLimiter)
-app.use('/api/recommendations', memeApiLimiter)
-app.use('/api/analytics', memeApiLimiter)
+// 迷因相關 API 暫時移除速率限制以解決 429 問題
+// app.use('/api/memes', memeApiLimiter)
+// app.use('/api/likes', memeApiLimiter)
+// app.use('/api/dislikes', memeApiLimiter)
+// app.use('/api/comments', memeApiLimiter)
+// app.use('/api/tags', memeApiLimiter)
+// app.use('/api/meme-tags', memeApiLimiter)
+// app.use('/api/collections', memeApiLimiter)
+// app.use('/api/views', memeApiLimiter)
+// app.use('/api/shares', memeApiLimiter)
+// app.use('/api/notifications', memeApiLimiter)
+// app.use('/api/recommendations', memeApiLimiter)
+// app.use('/api/analytics', memeApiLimiter)
 
-// 全域 API 限流（基於 Redis 的分散式限流）
-app.use('/api', apiLimiter) // 全域 API 限流
+// 其他 API 使用標準限制（排除迷因相關路徑）
+app.use('/api/users', apiLimiter)
+app.use('/api/admin', apiLimiter)
+app.use('/api/email', apiLimiter)
+app.use('/api/verification', apiLimiter)
+app.use('/api/username', apiLimiter)
+app.use('/api/upload', apiLimiter)
+app.use('/api/announcements', apiLimiter)
+app.use('/api/sponsors', apiLimiter)
+app.use('/api/reports', apiLimiter)
+app.use('/api/meme-versions', apiLimiter)
+app.use('/api/follows', apiLimiter)
+app.use('/api/test', apiLimiter)
 
 // 認證相關敏感路徑限流（更嚴格）
 app.use(['/api/users/login', '/api/auth/login'], authLimiter) // 登入路徑
