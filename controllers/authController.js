@@ -69,6 +69,20 @@ export const login = async (req, res) => {
     }
 
     user.tokens.push(token)
+    
+    // 更新最後登入時間
+    user.last_login_at = new Date()
+    
+    // 如果有提供 IP 地址，也更新 last_ip
+    if (req.ip) {
+      user.last_ip = req.ip
+    }
+    
+    // 如果有提供 User-Agent，也更新 user_agent
+    if (req.headers['user-agent']) {
+      user.user_agent = req.headers['user-agent']
+    }
+    
     await user.save({ session })
 
     // 提交事務

@@ -1306,6 +1306,20 @@ router.get(
       }
 
       req.user.tokens.push(token)
+
+      // 更新最後登入時間
+      req.user.last_login_at = new Date()
+
+      // 如果有提供 IP 地址，也更新 last_ip
+      if (req.ip) {
+        req.user.last_ip = req.ip
+      }
+
+      // 如果有提供 User-Agent，也更新 user_agent
+      if (req.headers['user-agent']) {
+        req.user.user_agent = req.headers['user-agent']
+      }
+
       await req.user.save()
 
       // 重定向到前端並帶上 token
@@ -1363,6 +1377,20 @@ router.get(
       }
 
       req.user.tokens.push(token)
+
+      // 更新最後登入時間
+      req.user.last_login_at = new Date()
+
+      // 如果有提供 IP 地址，也更新 last_ip
+      if (req.ip) {
+        req.user.last_ip = req.ip
+      }
+
+      // 如果有提供 User-Agent，也更新 user_agent
+      if (req.headers['user-agent']) {
+        req.user.user_agent = req.headers['user-agent']
+      }
+
       await req.user.save()
 
       const frontendUrl = getFrontendUrl()
@@ -1472,6 +1500,20 @@ router.get(
       }
 
       req.user.tokens.push(token)
+
+      // 更新最後登入時間
+      req.user.last_login_at = new Date()
+
+      // 如果有提供 IP 地址，也更新 last_ip
+      if (req.ip) {
+        req.user.last_ip = req.ip
+      }
+
+      // 如果有提供 User-Agent，也更新 user_agent
+      if (req.headers['user-agent']) {
+        req.user.user_agent = req.headers['user-agent']
+      }
+
       await req.user.save()
 
       console.log('Discord OAuth completed successfully, redirecting to frontend')
@@ -1590,6 +1632,20 @@ router.get(
       }
 
       req.user.tokens.push(token)
+
+      // 更新最後登入時間
+      req.user.last_login_at = new Date()
+
+      // 如果有提供 IP 地址，也更新 last_ip
+      if (req.ip) {
+        req.user.last_ip = req.ip
+      }
+
+      // 如果有提供 User-Agent，也更新 user_agent
+      if (req.headers['user-agent']) {
+        req.user.user_agent = req.headers['user-agent']
+      }
+
       await req.user.save()
 
       const frontendUrl = getFrontendUrl()

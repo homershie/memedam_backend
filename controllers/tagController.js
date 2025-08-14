@@ -2,6 +2,8 @@ import Tag from '../models/Tag.js'
 import MemeTag from '../models/MemeTag.js'
 import Meme from '../models/Meme.js'
 import mongoose from 'mongoose'
+import { translateToEnglish } from '../utils/googleTranslate.js'
+import { toSlug, toSlugOrNull } from '../utils/slugify.js'
 
 // 建立標籤
 export const createTag = async (req, res) => {
@@ -23,7 +25,50 @@ export const createTag = async (req, res) => {
       })
     }
 
-    const tag = new Tag(req.body)
+    // 準備標籤資料
+    const tagData = { ...req.body }
+    
+    // 如果沒有提供 slug，自動生成英文 slug
+    if (!tagData.slug) {
+      try {
+        // 翻譯標籤名稱為英文
+        const englishName = await translateToEnglish(tagData.name, tagData.lang)
+        let baseSlug = toSlug(englishName)
+        
+        // 如果翻譯失敗或結果為空，直接使用原名稱生成 slug
+        if (!baseSlug) {
+          baseSlug = toSlug(tagData.name)
+        }
+        
+        if (baseSlug) {
+          // 檢查 slug 唯一性，如果重複則加上數字後綴
+          let finalSlug = baseSlug
+          let counter = 1
+          
+          while (true) {
+            const existingSlugTag = await Tag.findOne({
+              lang: tagData.lang || 'zh',
+              slug: finalSlug
+            }).session(session)
+            
+            if (!existingSlugTag) {
+              break
+            }
+            
+            finalSlug = `${baseSlug}-${counter}`
+            counter++
+          }
+          
+          tagData.slug = finalSlug
+        }
+      } catch (error) {
+        console.warn('自動生成 slug 失敗，使用原名稱:', error.message)
+        // 如果翻譯失敗，嘗試直接從名稱生成 slug
+        tagData.slug = toSlugOrNull(tagData.name)
+      }
+    }
+
+    const tag = new Tag(tagData)
     await tag.save({ session })
 
     // 提交事務
