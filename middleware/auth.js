@@ -104,6 +104,18 @@ export const blockBannedUser = (req, res, next) => {
   next()
 }
 
+// 阻擋已刪除或停權用戶（用於需要身份的互動端點）
+export const blockInactiveUser = (req, res, next) => {
+  if (req.user && (req.user.status === 'deleted' || req.user.status === 'suspended')) {
+    return res.status(StatusCodes.FORBIDDEN).json({
+      success: false,
+      message:
+        req.user.status === 'deleted' ? '帳號已刪除，無法進行此操作' : '帳號已停權，無法進行此操作',
+    })
+  }
+  next()
+}
+
 // 付費會員（vip、manager、admin）
 export const isVip = (req, res, next) => {
   if (!req.user || !['vip', 'manager', 'admin'].includes(req.user.role)) {

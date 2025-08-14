@@ -1,5 +1,5 @@
 import User from '../models/User.js'
-import { logger } from '../utils/logger.js';
+import { logger } from '../utils/logger.js'
 import { StatusCodes } from 'http-status-codes'
 import bcrypt from 'bcrypt'
 import { signToken } from '../utils/jwt.js'
@@ -23,6 +23,30 @@ export const login = async (req, res) => {
       return res
         .status(StatusCodes.UNAUTHORIZED)
         .json({ success: false, message: '帳號、信箱或密碼錯誤' })
+    }
+
+    // 帳號狀態檢查
+    if (user.status === 'banned') {
+      await session.abortTransaction()
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: '帳號已被封禁，無法登入',
+        reason: user.ban_reason || undefined,
+      })
+    }
+    if (user.status === 'deleted') {
+      await session.abortTransaction()
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: '帳號已刪除或停用，無法登入',
+      })
+    }
+    if (user.status === 'suspended') {
+      await session.abortTransaction()
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: '帳號已暫時停權，無法登入',
+      })
     }
 
     // 密碼比對

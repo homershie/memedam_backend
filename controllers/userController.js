@@ -144,10 +144,206 @@ export const getUser = async (req, res) => {
 // 取得所有使用者（可加分頁）
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password -tokens')
-    res.json({ success: true, users })
-  } catch {
+    const { page = 1, limit = 10, status, role, search } = req.query
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1)
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100)
+
+    const query = {}
+    if (status) query.status = status
+    if (role) query.role = role
+    if (search && String(search).trim().length > 0) {
+      const keyword = String(search).trim()
+      const regex = new RegExp(keyword, 'i')
+      query.$or = [{ username: regex }, { email: regex }, { display_name: regex }]
+    }
+
+    const [users, total] = await Promise.all([
+      User.find(query)
+        .select('-password -tokens')
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum),
+      User.countDocuments(query),
+    ])
+
+    res.json({
+      success: true,
+      users,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+      },
+    })
+  } catch (error) {
+    logger.error('getUsers 錯誤:', error)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
+  }
+}
+
+// 封禁用戶（管理員）
+export const banUserById = async (req, res) => {
+  const session = await User.startSession()
+  session.startTransaction()
+
+  try {
+    const { id } = req.params
+    const { reason = '' } = req.body || {}
+
+    const user = await User.findById(id).session(session)
+    if (!user) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: '找不到使用者' })
+    }
+
+    user.status = 'banned'
+    user.ban_reason = String(reason).slice(0, 200)
+    user.deactivate_at = new Date()
+    await user.save({ session })
+
+    await session.commitTransaction()
+    const userObj = user.toJSON()
+    delete userObj.tokens
+    delete userObj.password
+    res.json({ success: true, user: userObj, message: '用戶已封禁' })
+  } catch (error) {
+    await session.abortTransaction()
+    logger.error('banUserById 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
+  } finally {
+    session.endSession()
+  }
+}
+
+// 解除封禁（管理員）
+export const unbanUserById = async (req, res) => {
+  const session = await User.startSession()
+  session.startTransaction()
+
+  try {
+    const { id } = req.params
+    const user = await User.findById(id).session(session)
+    if (!user) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: '找不到使用者' })
+    }
+
+    user.status = 'active'
+    user.ban_reason = ''
+    await user.save({ session })
+
+    await session.commitTransaction()
+    const userObj = user.toJSON()
+    delete userObj.tokens
+    delete userObj.password
+    res.json({ success: true, user: userObj, message: '用戶已解除封禁' })
+  } catch (error) {
+    await session.abortTransaction()
+    logger.error('unbanUserById 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
+  } finally {
+    session.endSession()
+  }
+}
+
+// 批次軟刪除（管理員）
+export const batchSoftDeleteUsers = async (req, res) => {
+  const session = await User.startSession()
+  session.startTransaction()
+
+  try {
+    const { ids } = req.body || {}
+    if (!Array.isArray(ids) || ids.length === 0) {
+      await session.abortTransaction()
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: '請提供要刪除的用戶ID陣列' })
+    }
+
+    const result = await User.updateMany(
+      { _id: { $in: ids } },
+      { $set: { status: 'deleted', deactivate_at: new Date() } },
+      { session },
+    )
+
+    await session.commitTransaction()
+    res.json({ success: true, modifiedCount: result.modifiedCount })
+  } catch (error) {
+    await session.abortTransaction()
+    logger.error('batchSoftDeleteUsers 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
+  } finally {
+    session.endSession()
+  }
+}
+
+// 匯出 CSV（管理員）
+export const exportUsersCsv = async (req, res) => {
+  try {
+    const { status, role, search, page, limit } = req.query
+
+    // 與列表相同的查詢條件（但匯出預設不分頁，如有 page/limit 則套用）
+    const query = {}
+    if (status) query.status = status
+    if (role) query.role = role
+    if (search && String(search).trim().length > 0) {
+      const keyword = String(search).trim()
+      const regex = new RegExp(keyword, 'i')
+      query.$or = [{ username: regex }, { email: regex }, { display_name: regex }]
+    }
+
+    let dataQuery = User.find(query).sort({ createdAt: -1 })
+    if (page || limit) {
+      const pageNum = Math.max(parseInt(page, 10) || 1, 1)
+      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 1000, 1), 5000)
+      dataQuery = dataQuery.skip((pageNum - 1) * limitNum).limit(limitNum)
+    }
+
+    const users = await dataQuery.select(
+      'username email role status createdAt last_login_at meme_count total_likes_received',
+    )
+
+    // 產生 CSV
+    const header = [
+      'id',
+      'username',
+      'email',
+      'role',
+      'status',
+      'createdAt',
+      'lastLogin',
+      'memeCount',
+      'totalLikesReceived',
+    ]
+    const rows = users.map((u) => [
+      u._id,
+      u.username,
+      u.email || '',
+      u.role,
+      u.status,
+      u.createdAt ? new Date(u.createdAt).toISOString() : '',
+      u.last_login_at ? new Date(u.last_login_at).toISOString() : '',
+      typeof u.meme_count === 'number' ? u.meme_count : 0,
+      typeof u.total_likes_received === 'number' ? u.total_likes_received : 0,
+    ])
+
+    const csv = [header, ...rows]
+      .map((r) =>
+        r
+          .map((v) => String(v).replace(/"/g, '""'))
+          .map((v) => `"${v}"`)
+          .join(','),
+      )
+      .join('\n')
+
+    const filename = `users-${new Date().toISOString().slice(0, 10)}.csv`
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.status(StatusCodes.OK).send(csv)
+  } catch (error) {
+    logger.error('exportUsersCsv 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '匯出失敗' })
   }
 }
 

@@ -22,6 +22,10 @@ import {
   initBindAuth, // 新增 OAuth 綁定初始化
   getBindStatus, // 新增獲取綁定狀態
   checkPasswordStatus, // 新增檢查密碼狀態
+  banUserById, // 新增封禁
+  unbanUserById, // 新增解除封禁
+  batchSoftDeleteUsers, // 新增批次軟刪除
+  exportUsersCsv, // 新增匯出 CSV
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -296,6 +300,9 @@ const verifyOAuthState = (req, res, next) => {
  */
 router.post('/', createUser)
 router.get('/', token, isManager, getUsers)
+
+// 匯出 CSV（需放在動態路由前）
+router.get('/export', token, isManager, exportUsersCsv)
 
 /**
  * @swagger
@@ -2060,6 +2067,11 @@ router.get('/admin/unverified-stats', token, getUnverifiedUsersStats)
 router.get('/:id', getUser)
 router.put('/:id', token, isManager, singleUpload('avatar'), updateUser)
 router.delete('/:id', token, isManager, deleteUser)
+
+// 管理端：封禁/解封/批次軟刪除（放在最後通用路由下方，避免與 /:id 衝突）
+router.put('/:id/ban', token, isManager, banUserById)
+router.put('/:id/unban', token, isManager, unbanUserById)
+router.delete('/batch-delete', token, isManager, batchSoftDeleteUsers)
 
 // 檢查使用者是否已設定密碼狀態
 router.get('/password-status', token, checkPasswordStatus)
