@@ -93,6 +93,17 @@ export const isUser = (req, res, next) => {
   next()
 }
 
+// 封鎖被封禁使用者的互動能力
+export const blockBannedUser = (req, res, next) => {
+  if (req.user && req.user.status === 'banned') {
+    return res.status(StatusCodes.FORBIDDEN).json({
+      success: false,
+      message: '帳號已被封禁，暫停互動功能',
+    })
+  }
+  next()
+}
+
 // 付費會員（vip、manager、admin）
 export const isVip = (req, res, next) => {
   if (!req.user || !['vip', 'manager', 'admin'].includes(req.user.role)) {

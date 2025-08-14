@@ -6,7 +6,7 @@ import {
   updateMemeVersion,
   deleteMemeVersion,
 } from '../controllers/memeVersionController.js'
-import { token, isUser } from '../middleware/auth.js'
+import { token, isUser, blockBannedUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -266,14 +266,14 @@ const router = express.Router()
  */
 
 // 建立迷因版本
-router.post('/', token, isUser, createMemeVersion)
+router.post('/', token, isUser, blockBannedUser, createMemeVersion)
 // 取得所有迷因版本
-router.get('/', token, isUser, getMemeVersions)
+router.get('/', token, isUser, blockBannedUser, getMemeVersions)
 // 取得單一迷因版本
-router.get('/:id', token, isUser, getMemeVersionById)
+router.get('/:id', token, isUser, blockBannedUser, getMemeVersionById)
 // 更新迷因版本
-router.put('/:id', token, isUser, updateMemeVersion)
+router.put('/:id', token, isUser, blockBannedUser, updateMemeVersion)
 // 刪除迷因版本
-router.delete('/:id', token, isUser, deleteMemeVersion)
+router.delete('/:id', token, isUser, blockBannedUser, deleteMemeVersion)
 
 export default router

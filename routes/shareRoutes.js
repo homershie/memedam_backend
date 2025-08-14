@@ -6,7 +6,7 @@ import {
   updateShare,
   deleteShare,
 } from '../controllers/shareController.js'
-import { token, isUser } from '../middleware/auth.js'
+import { token, isUser, blockBannedUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -244,14 +244,14 @@ const router = express.Router()
  */
 
 // 建立分享
-router.post('/', token, isUser, createShare)
+router.post('/', token, isUser, blockBannedUser, createShare)
 // 取得所有分享
-router.get('/', token, isUser, getShares)
+router.get('/', token, isUser, blockBannedUser, getShares)
 // 取得單一分享
-router.get('/:id', token, isUser, getShareById)
+router.get('/:id', token, isUser, blockBannedUser, getShareById)
 // 更新分享
-router.put('/:id', token, isUser, updateShare)
+router.put('/:id', token, isUser, blockBannedUser, updateShare)
 // 刪除分享
-router.delete('/:id', token, isUser, deleteShare)
+router.delete('/:id', token, isUser, blockBannedUser, deleteShare)
 
 export default router

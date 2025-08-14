@@ -8,7 +8,7 @@ import {
   checkFollowStatus,
   getUserStats,
 } from '../controllers/followController.js'
-import { token, isUser } from '../middleware/auth.js'
+import { token, isUser, blockBannedUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -307,16 +307,16 @@ const router = express.Router()
  */
 
 // 追隨用戶
-router.post('/follow', token, isUser, followUser)
+router.post('/follow', token, isUser, blockBannedUser, followUser)
 
 // 取消追隨用戶
-router.post('/unfollow', token, isUser, unfollowUser)
+router.post('/unfollow', token, isUser, blockBannedUser, unfollowUser)
 
 // 切換追隨狀態（推薦使用此API）
-router.post('/toggle', token, isUser, toggleFollow)
+router.post('/toggle', token, isUser, blockBannedUser, toggleFollow)
 
 // 檢查是否追隨某個用戶
-router.get('/status/:user_id', token, isUser, checkFollowStatus)
+router.get('/status/:user_id', token, isUser, blockBannedUser, checkFollowStatus)
 
 // 獲取指定用戶的追隨列表（我追隨的人）
 router.get('/following/:user_id', getFollowing)

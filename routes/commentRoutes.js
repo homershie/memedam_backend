@@ -7,7 +7,7 @@ import {
   deleteComment,
   validateCreateComment,
 } from '../controllers/commentController.js'
-import { token, isUser, canEditComment } from '../middleware/auth.js'
+import { token, isUser, blockBannedUser, canEditComment } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -252,14 +252,14 @@ const router = express.Router()
  */
 
 // 建立留言
-router.post('/', token, isUser, validateCreateComment, createComment)
+router.post('/', token, isUser, blockBannedUser, validateCreateComment, createComment)
 // 取得所有留言
 router.get('/', getComments)
 // 取得單一留言
 router.get('/:id', getCommentById)
 // 更新留言
-router.put('/:id', token, canEditComment, updateComment)
+router.put('/:id', token, blockBannedUser, canEditComment, updateComment)
 // 刪除留言
-router.delete('/:id', token, canEditComment, deleteComment)
+router.delete('/:id', token, blockBannedUser, canEditComment, deleteComment)
 
 export default router

@@ -24,7 +24,14 @@ import {
   approveProposal,
   rejectProposal,
 } from '../controllers/memeEditProposalController.js'
-import { token, canEditMeme, isUser, optionalToken, isManager } from '../middleware/auth.js'
+import {
+  token,
+  canEditMeme,
+  isUser,
+  optionalToken,
+  isManager,
+  blockBannedUser,
+} from '../middleware/auth.js'
 import { validateCreateMeme } from '../controllers/memeController.js'
 import { arrayUpload } from '../middleware/upload.js'
 
@@ -311,12 +318,20 @@ const router = express.Router()
  *                   type: string
  *                   description: 使用的搜尋演算法
  */
-router.post('/', token, isUser, arrayUpload('images', 5), validateCreateMeme, createMeme)
+router.post(
+  '/',
+  token,
+  isUser,
+  blockBannedUser,
+  arrayUpload('images', 5),
+  validateCreateMeme,
+  createMeme,
+)
 // 允許帶 Bearer token 辨識管理者（匿名亦可存取）
 router.get('/', optionalToken, getMemes)
 
 // 匯出 CSV（管理端）：GET /api/memes/export
-router.get('/export', token, isManager, exportMemesCsv)
+router.get('/export', token, blockBannedUser, isManager, exportMemesCsv)
 
 /**
  * @swagger
@@ -855,8 +870,8 @@ router.get('/:id/score-analysis', getMemeScoreAnalysis)
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/:id/editors', token, addEditor)
-router.delete('/:id/editors', token, removeEditor)
+router.post('/:id/editors', token, blockBannedUser, addEditor)
+router.delete('/:id/editors', token, blockBannedUser, removeEditor)
 
 /**
  * @swagger
@@ -962,8 +977,8 @@ router.delete('/:id/editors', token, removeEditor)
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/:id/proposals', token, proposeEdit)
-router.get('/:id/proposals', token, canEditMeme, listProposals)
+router.post('/:id/proposals', token, blockBannedUser, proposeEdit)
+router.get('/:id/proposals', token, blockBannedUser, canEditMeme, listProposals)
 
 /**
  * @swagger
@@ -1015,7 +1030,13 @@ router.get('/:id/proposals', token, canEditMeme, listProposals)
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/:id/proposals/:proposalId/approve', token, canEditMeme, approveProposal)
+router.post(
+  '/:id/proposals/:proposalId/approve',
+  token,
+  blockBannedUser,
+  canEditMeme,
+  approveProposal,
+)
 
 /**
  * @swagger
@@ -1077,7 +1098,13 @@ router.post('/:id/proposals/:proposalId/approve', token, canEditMeme, approvePro
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/:id/proposals/:proposalId/reject', token, canEditMeme, rejectProposal)
+router.post(
+  '/:id/proposals/:proposalId/reject',
+  token,
+  blockBannedUser,
+  canEditMeme,
+  rejectProposal,
+)
 
 /**
  * @swagger
@@ -1119,11 +1146,19 @@ router.post('/:id/proposals/:proposalId/reject', token, canEditMeme, rejectPropo
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.put('/:id/hot-score', token, updateMemeHotScore)
+router.put('/:id/hot-score', token, blockBannedUser, updateMemeHotScore)
 
 // 基本 CRUD 操作（必須在最後）
 router.get('/:id', getMemeById)
-router.put('/:id', token, canEditMeme, arrayUpload('images', 5), validateUpdateMeme, updateMeme)
-router.delete('/:id', token, canEditMeme, deleteMeme)
+router.put(
+  '/:id',
+  token,
+  blockBannedUser,
+  canEditMeme,
+  arrayUpload('images', 5),
+  validateUpdateMeme,
+  updateMeme,
+)
+router.delete('/:id', token, blockBannedUser, canEditMeme, deleteMeme)
 
 export default router

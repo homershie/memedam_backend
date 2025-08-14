@@ -6,7 +6,7 @@ import {
   toggleCollection,
   validateCreateCollection,
 } from '../controllers/collectionController.js'
-import { token, isUser } from '../middleware/auth.js'
+import { token, isUser, blockBannedUser } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -190,12 +190,12 @@ const router = express.Router()
  */
 
 // 收藏
-router.post('/', token, isUser, validateCreateCollection, createCollection)
+router.post('/', token, isUser, blockBannedUser, validateCreateCollection, createCollection)
 // 取消收藏
-router.delete('/', token, isUser, deleteCollection) // 用 query string 或 body 傳 meme_id
+router.delete('/', token, isUser, blockBannedUser, deleteCollection) // 用 query string 或 body 傳 meme_id
 // 查詢收藏
 router.get('/', getCollections)
 // 切換收藏/取消收藏
-router.post('/toggle', token, isUser, toggleCollection)
+router.post('/toggle', token, isUser, blockBannedUser, toggleCollection)
 
 export default router
