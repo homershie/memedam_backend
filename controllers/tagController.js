@@ -58,34 +58,51 @@ export const createTag = async (req, res) => {
 // 取得所有標籤（可加分頁、條件查詢）
 export const getTags = async (req, res) => {
   try {
+    const {
+      page = 1,
+      limit = 50,
+      lang,
+      search, // 關鍵字搜尋（對 name）
+      sort = 'name',
+      order = 'asc',
+    } = req.query
+
+    const pageNum = Math.max(parseInt(page) || 1, 1)
+    const limitNum = Math.min(Math.max(parseInt(limit) || 50, 1), 1000)
+    const skip = (pageNum - 1) * limitNum
+
     const filter = {}
-    if (req.query.lang) filter.lang = req.query.lang
-    if (req.query.name) filter.name = new RegExp(req.query.name, 'i') // 模糊搜尋
-
-    // 如果有分頁參數，回傳完整格式；否則回傳簡單陣列格式
-    if (req.query.page || req.query.limit) {
-      // 添加分頁支援
-      const page = parseInt(req.query.page) || 1
-      const limit = parseInt(req.query.limit) || 50
-      const skip = (page - 1) * limit
-
-      const tags = await Tag.find(filter).sort({ name: 1 }).skip(skip).limit(limit)
-      const total = await Tag.countDocuments(filter)
-
-      res.json({
-        tags,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-      })
-    } else {
-      // 簡單格式，直接回傳標籤陣列（適用於前端下拉選單等用途）
-      const tags = await Tag.find(filter).sort({ name: 1 }).limit(200) // 限制200個避免過多
-      res.json(tags)
+    if (lang) filter.lang = lang
+    if (search && String(search).trim() !== '') {
+      filter.name = new RegExp(String(search).trim(), 'i')
     }
+
+    const sortField = ['name', 'createdAt', 'updatedAt'].includes(String(sort))
+      ? String(sort)
+      : 'name'
+    const sortDir = String(order).toLowerCase() === 'desc' ? -1 : 1
+    const sortObj = { [sortField]: sortDir }
+
+    const tags = await Tag.find(filter).sort(sortObj).skip(skip).limit(limitNum)
+    const total = await Tag.countDocuments(filter)
+    const totalPages = Math.ceil(total / limitNum)
+
+    res.json({
+      tags,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
+      filters: {
+        lang: lang || null,
+        search: search || null,
+      },
+      sort: { field: sortField, order: sortDir === -1 ? 'desc' : 'asc' },
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
