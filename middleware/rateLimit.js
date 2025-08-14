@@ -17,7 +17,21 @@ const getRedisStore = (prefix = 'rl:') => {
   return undefined // 使用預設的 MemoryStore
 }
 
+// 迷因相關 API 寬鬆限流：每 15 分鐘，已登入用戶 5000 次，未登入 1000 次
+const memeApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 分鐘
+  max: (req) => (req.user ? 5000 : 1000), // 迷因相關 API 更寬鬆的限制
+  message: {
+    success: false,
+    error: '迷因相關請求太多次，請稍後再試。',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: getRedisStore('rl:meme:'),
+})
+
 // 全域 API 限流：每 15 分鐘，已登入用戶 1000 次，未登入 200 次
+// 但排除迷因相關路徑
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 分鐘
   max: (req) => (req.user ? 1000 : 200), // 根據登入狀態設定不同限制
@@ -28,6 +42,24 @@ const apiLimiter = rateLimit({
   standardHeaders: true, // 回傳 RateLimit-* headers
   legacyHeaders: false, // 不回傳 X-RateLimit-* headers
   store: getRedisStore('rl:api:'),
+  skip: (req) => {
+    // 跳過迷因相關路徑，讓它們使用更寬鬆的限制
+    const memePaths = [
+      '/api/memes',
+      '/api/likes',
+      '/api/dislikes',
+      '/api/comments',
+      '/api/tags',
+      '/api/meme-tags',
+      '/api/collections',
+      '/api/views',
+      '/api/shares',
+      '/api/notifications',
+      '/api/recommendations',
+      '/api/analytics',
+    ]
+    return memePaths.some((path) => req.path.startsWith(path))
+  },
 })
 
 // 登入特別限流：每個 IP 每 15 分鐘最多 5 次登入嘗試
@@ -110,6 +142,7 @@ const authLimiter = rateLimit({
 
 export {
   apiLimiter,
+  memeApiLimiter,
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,

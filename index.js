@@ -31,6 +31,7 @@ import { performanceMonitor } from './utils/asyncProcessor.js'
 import { logger } from './utils/logger.js'
 import {
   apiLimiter,
+  memeApiLimiter,
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,
@@ -240,6 +241,20 @@ app.use((req, res, next) => {
 })
 
 // 速率限制中間件
+// 迷因相關 API 寬鬆限流（優先應用，避免被全域限制影響）
+app.use('/api/memes', memeApiLimiter)
+app.use('/api/likes', memeApiLimiter)
+app.use('/api/dislikes', memeApiLimiter)
+app.use('/api/comments', memeApiLimiter)
+app.use('/api/tags', memeApiLimiter)
+app.use('/api/meme-tags', memeApiLimiter)
+app.use('/api/collections', memeApiLimiter)
+app.use('/api/views', memeApiLimiter)
+app.use('/api/shares', memeApiLimiter)
+app.use('/api/notifications', memeApiLimiter)
+app.use('/api/recommendations', memeApiLimiter)
+app.use('/api/analytics', memeApiLimiter)
+
 // 全域 API 限流（基於 Redis 的分散式限流）
 app.use('/api', apiLimiter) // 全域 API 限流
 
