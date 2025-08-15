@@ -299,6 +299,38 @@ const MemeSchema = new mongoose.Schema(
       default: '',
       maxlength: [20000, '詳細介紹內容不能超過20000字元'],
     },
+    // 側邊欄模板系統
+    sidebar_template: {
+      type: String,
+      default: 'default',
+      enum: {
+        values: ['default', 'custom', 'wiki', 'minimal'],
+        message: '側邊欄模板必須是 default、custom、wiki 或 minimal',
+      },
+      // 側邊欄模板類型
+    },
+    sidebar_data: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+      validate: {
+        validator: function (v) {
+          return typeof v === 'object' && v !== null
+        },
+        message: '側邊欄資料必須是物件',
+      },
+      // 側邊欄自定義資料（JSON格式）
+    },
+    sidebar_schema: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+      validate: {
+        validator: function (v) {
+          return typeof v === 'object' && v !== null
+        },
+        message: '側邊欄結構定義必須是物件',
+      },
+      // 側邊欄結構定義（用於驗證和編輯器）
+    },
   },
   {
     collection: 'memes',

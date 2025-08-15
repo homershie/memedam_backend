@@ -354,6 +354,7 @@ import analyticsRoutes from './routes/analyticsRoutes.js'
 import emailRoutes from './routes/emailRoutes.js'
 import verificationRoutes from './routes/verificationRoutes.js'
 import usernameRoutes from './routes/usernameRoutes.js'
+import sidebarRoutes from './routes/sidebarRoutes.js'
 
 app.use('/api/users', userRoutes)
 app.use('/api/memes', memeRoutes)
@@ -380,6 +381,7 @@ app.use('/api/analytics', analyticsRoutes)
 app.use('/api/email', emailRoutes)
 app.use('/api/verification', verificationRoutes)
 app.use('/api/username', usernameRoutes)
+app.use('/api/sidebar', sidebarRoutes)
 
 // 健康檢查端點（簡化版，供 Render 等外部監控使用）
 app.get('/healthz', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }))
