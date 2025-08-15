@@ -333,10 +333,8 @@ const deleteResult = await Tag.deleteMany({
 **修復後 (正確)：**
 
 ````javascript
-// mergeTags 函數中 - 確保 ID 正確轉換為 ObjectId（最終解決方案）
-const validSecondaryIds = secondaryIds
-  .filter(id => mongoose.Types.ObjectId.isValid(id))
-  .map(id => new mongoose.Types.ObjectId(id))
+// mergeTags 函數中 - 驗證並直接使用字串 ID 讓 Mongoose 自動轉換
+const validSecondaryIds = secondaryIds.filter(id => mongoose.Types.ObjectId.isValid(id))
 
 if (validSecondaryIds.length !== secondaryIds.length) {
   await session.abortTransaction()
@@ -349,26 +347,24 @@ const secondaryTags = await Tag.find(
   { session }
 )
 
-// mergeTags 函數中的刪除操作 - 使用已驗證的 ObjectId
+// mergeTags 函數中的刪除操作 - 使用字串 ID 讓 Mongoose 自動轉換
 await Tag.deleteMany({ _id: { $in: validSecondaryIds } }, { session })
 
-// batchDeleteTags 函數中 - 確保 ID 正確轉換為 ObjectId
-const validIds = ids
-  .filter(id => mongoose.Types.ObjectId.isValid(id))
-  .map(id => new mongoose.Types.ObjectId(id))
+// batchDeleteTags 函數中 - 驗證並直接使用字串 ID
+const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id))
 
 if (validIds.length !== ids.length) {
   await session.abortTransaction()
   return res.status(400).json({ error: '部分標籤 ID 格式無效' })
 }
 
-// 使用已驗證的 ObjectId 進行聚合查詢
+// 使用字串 ID 進行聚合查詢，讓 Mongoose 自動轉換
 const usageCounts = await MemeTag.aggregate([
   { $match: { tag_id: { $in: validIds } } },
   { $group: { _id: '$tag_id', count: { $sum: 1 } } },
 ]).session(session)
 
-// 使用已驗證的 ObjectId 進行刪除
+// 使用字串 ID 進行刪除
 const deleteResult = await Tag.deleteMany({ _id: { $in: validIds } }, { session })
 
 // rebuildTagsMetadata 函數中的聚合查詢 - 將 ObjectId 轉換為字串
@@ -379,10 +375,10 @@ const usageAgg = await MemeTag.aggregate([
 
 #### 關鍵修復點
 
-1. **明確的 ObjectId 轉換**（最終解決方案）：
+1. **讓 Mongoose 自動處理 ObjectId 轉換**：
    - 使用 `mongoose.Types.ObjectId.isValid(id)` 驗證 ID 有效性
-   - 使用 `new mongoose.Types.ObjectId(id)` 明確轉換為 ObjectId
-   - 確保所有 ID 在查詢前都是正確的 ObjectId 類型
+   - 直接在查詢中傳入字串 ID，由 Mongoose 自動轉換
+   - 避免手動建立 `ObjectId` 實例以降低錯誤風險
 
 2. **嚴格的錯誤處理**：
    - 在查詢前驗證所有 ID 的有效性
