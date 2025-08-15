@@ -333,43 +333,38 @@ const deleteResult = await Tag.deleteMany({
 **修復後 (正確)：**
 
 ````javascript
-// mergeTags 函數中 - 確保 ID 正確轉換為 ObjectId（最終解決方案）
-const validSecondaryIds = secondaryIds
-  .filter(id => mongoose.Types.ObjectId.isValid(id))
-  .map(id => new mongoose.Types.ObjectId(id))
+// mergeTags 函數中 - 驗證並轉換為 ObjectId
+const validSecondaryIds = secondaryIds.filter(id => mongoose.Types.ObjectId.isValid(id))
 
 if (validSecondaryIds.length !== secondaryIds.length) {
   await session.abortTransaction()
   return res.status(400).json({ error: '部分次要標籤 ID 格式無效' })
 }
 
-const secondaryTags = await Tag.find(
-  { _id: { $in: validSecondaryIds } },
-  null,
-  { session }
-)
+const secondaryObjectIds = validSecondaryIds.map(id => new mongoose.Types.ObjectId(id))
+const secondaryTags = await Tag.find({ _id: { $in: secondaryObjectIds } }).session(session)
 
-// mergeTags 函數中的刪除操作 - 使用已驗證的 ObjectId
-await Tag.deleteMany({ _id: { $in: validSecondaryIds } }, { session })
+// mergeTags 函數中的刪除操作 - 使用已轉換的 ObjectId
+await Tag.deleteMany({ _id: { $in: secondaryObjectIds } }).session(session)
 
-// batchDeleteTags 函數中 - 確保 ID 正確轉換為 ObjectId
-const validIds = ids
-  .filter(id => mongoose.Types.ObjectId.isValid(id))
-  .map(id => new mongoose.Types.ObjectId(id))
+// batchDeleteTags 函數中 - 驗證並轉換為 ObjectId
+const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id))
 
 if (validIds.length !== ids.length) {
   await session.abortTransaction()
   return res.status(400).json({ error: '部分標籤 ID 格式無效' })
 }
 
-// 使用已驗證的 ObjectId 進行聚合查詢
+const objectIds = validIds.map(id => new mongoose.Types.ObjectId(id))
+
+// 使用 ObjectId 進行聚合查詢
 const usageCounts = await MemeTag.aggregate([
-  { $match: { tag_id: { $in: validIds } } },
+  { $match: { tag_id: { $in: objectIds } } },
   { $group: { _id: '$tag_id', count: { $sum: 1 } } },
 ]).session(session)
 
-// 使用已驗證的 ObjectId 進行刪除
-const deleteResult = await Tag.deleteMany({ _id: { $in: validIds } }, { session })
+// 使用 ObjectId 進行刪除
+const deleteResult = await Tag.deleteMany({ _id: { $in: objectIds } }).session(session)
 
 // rebuildTagsMetadata 函數中的聚合查詢 - 將 ObjectId 轉換為字串
 const usageAgg = await MemeTag.aggregate([
@@ -379,10 +374,10 @@ const usageAgg = await MemeTag.aggregate([
 
 #### 關鍵修復點
 
-1. **明確的 ObjectId 轉換**（最終解決方案）：
-   - 使用 `mongoose.Types.ObjectId.isValid(id)` 驗證 ID 有效性
-   - 使用 `new mongoose.Types.ObjectId(id)` 明確轉換為 ObjectId
-   - 確保所有 ID 在查詢前都是正確的 ObjectId 類型
+1. **明確轉換字串為 ObjectId**：
+   - 先使用 `mongoose.Types.ObjectId.isValid(id)` 驗證 ID 格式
+   - 將有效的字串轉換為 `new mongoose.Types.ObjectId(id)` 再進行查詢
+   - 避免將整個查詢物件誤傳給 ObjectId 轉換造成 `CastError`
 
 2. **嚴格的錯誤處理**：
    - 在查詢前驗證所有 ID 的有效性

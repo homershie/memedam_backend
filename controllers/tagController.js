@@ -711,17 +711,23 @@ export const mergeTags = async (req, res) => {
       return res.status(404).json({ error: '找不到主要標籤' })
     }
 
-    // 取得次要標籤 - 確保 ID 正確轉換為 ObjectId
-    const validSecondaryIds = secondaryIds
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      .map((id) => new mongoose.Types.ObjectId(id))
+    // 取得次要標籤 - 驗證並轉換為 ObjectId
+    const validSecondaryIds = secondaryIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id),
+    )
 
     if (validSecondaryIds.length !== secondaryIds.length) {
       await session.abortTransaction()
       return res.status(400).json({ error: '部分次要標籤 ID 格式無效' })
     }
 
-    const secondaryTags = await Tag.find({ _id: { $in: validSecondaryIds } }, null, { session })
+    const secondaryObjectIds = validSecondaryIds.map(
+      (id) => new mongoose.Types.ObjectId(id),
+    )
+
+    const secondaryTags = await Tag.find({
+      _id: { $in: secondaryObjectIds },
+    }).session(session)
 
     if (secondaryTags.length !== secondaryIds.length) {
       await session.abortTransaction()
@@ -763,8 +769,8 @@ export const mergeTags = async (req, res) => {
       )
     }
 
-    // 刪除次要標籤 - 使用已驗證的 ObjectId
-    await Tag.deleteMany({ _id: { $in: validSecondaryIds } }, { session })
+    // 刪除次要標籤 - 使用已轉換的 ObjectId
+    await Tag.deleteMany({ _id: { $in: secondaryObjectIds } }).session(session)
 
     // 重新計算主要標籤的使用次數
     const usageCount = await MemeTag.countDocuments({
@@ -812,31 +818,24 @@ export const batchDeleteTags = async (req, res) => {
     return res.status(400).json({ error: '需要提供標籤 ID 陣列' })
   }
 
-  // 驗證 ObjectId 格式
-  for (const id of ids) {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: `無效的標籤 ID 格式: ${id}` })
-    }
-  }
-
   // 使用 session 來確保原子性操作
   const session = await Tag.startSession()
   session.startTransaction()
 
   try {
-    // 確保 ID 正確轉換為 ObjectId
-    const validIds = ids
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      .map((id) => new mongoose.Types.ObjectId(id))
+    // 驗證並轉換 ID 為 ObjectId
+    const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id))
 
     if (validIds.length !== ids.length) {
       await session.abortTransaction()
       return res.status(400).json({ error: '部分標籤 ID 格式無效' })
     }
 
+    const objectIds = validIds.map((id) => new mongoose.Types.ObjectId(id))
+
     // 檢查是否有標籤正在被使用
     const usageCounts = await MemeTag.aggregate([
-      { $match: { tag_id: { $in: validIds } } },
+      { $match: { tag_id: { $in: objectIds } } },
       { $group: { _id: '$tag_id', count: { $sum: 1 } } },
     ]).session(session)
 
@@ -852,8 +851,10 @@ export const batchDeleteTags = async (req, res) => {
       })
     }
 
-    // 刪除標籤 - 使用已驗證的 ObjectId
-    const deleteResult = await Tag.deleteMany({ _id: { $in: validIds } }, { session })
+    // 刪除標籤 - 使用已轉換的 ObjectId
+    const deleteResult = await Tag.deleteMany({ _id: { $in: objectIds } }).session(
+      session,
+    )
 
     // 提交事務
     await session.commitTransaction()
