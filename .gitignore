@@ -3,7 +3,7 @@ node_modules
 /etc
 /secrets
 etc/secrets/
-*.json
+etc/secrets/*.json
 /dist
 /front
 
