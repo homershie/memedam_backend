@@ -108,6 +108,7 @@ export const getTags = async (req, res) => {
       limit = 50,
       lang,
       search, // 關鍵字搜尋（對 name）
+      status, // 狀態篩選
       sort = 'name',
       order = 'asc',
     } = req.query
@@ -118,6 +119,7 @@ export const getTags = async (req, res) => {
 
     const filter = {}
     if (lang) filter.lang = lang
+    if (status) filter.status = status
     if (search && String(search).trim() !== '') {
       filter.name = new RegExp(String(search).trim(), 'i')
     }
@@ -144,6 +146,7 @@ export const getTags = async (req, res) => {
       },
       filters: {
         lang: lang || null,
+        status: status || null,
         search: search || null,
       },
       sort: { field: sortField, order: sortDir === -1 ? 'desc' : 'asc' },
@@ -486,7 +489,7 @@ export const rebuildTagsMetadata = async (req, res) => {
     let usageMap = {}
     if (String(updateUsage) === 'true') {
       const usageAgg = await MemeTag.aggregate([
-        { $match: { tag_id: { $in: tags.map((t) => t._id) } } },
+        { $match: { tag_id: { $in: tags.map((t) => t._id.toString()) } } },
         { $group: { _id: '$tag_id', usageCount: { $sum: 1 } } },
       ])
       usageMap = usageAgg.reduce((acc, x) => {
@@ -511,7 +514,7 @@ export const rebuildTagsMetadata = async (req, res) => {
         let candidate = null
         if (String(translate) === 'true') {
           // 若非 ASCII 或語言非 en，先嘗試翻譯
-          const containsNonAscii = /[^\x00-\x7F]/.test(String(t.name || ''))
+          const containsNonAscii = /[^\x20-\x7E]/.test(String(t.name || ''))
           if (containsNonAscii || tagLang !== 'en') {
             const translated = await translateToEnglish(t.name, tagLang)
             candidate = toSlugOrNull(translated || t.name)
@@ -529,7 +532,6 @@ export const rebuildTagsMetadata = async (req, res) => {
           // 最多嘗試 50 次
           for (let i = 0; i < 50; i++) {
             // 先查詢所有符合條件的標籤，然後在記憶體中過濾
-            // eslint-disable-next-line no-await-in-loop
             const existingTags = await Tag.find({
               lang: tagLang,
               slug: unique,
@@ -565,5 +567,309 @@ export const rebuildTagsMetadata = async (req, res) => {
     return res.json({ processed: tags.length, updated, details: results.slice(0, 50) })
   } catch (error) {
     return res.status(500).json({ error: error.message })
+  }
+}
+
+/**
+ * 匯出標籤數據為 CSV 格式
+ */
+export const exportTags = async (req, res) => {
+  try {
+    const { lang, search, status, format = 'csv' } = req.query
+
+    const filter = {}
+    if (lang) filter.lang = lang
+    if (search && String(search).trim() !== '') {
+      filter.name = new RegExp(String(search).trim(), 'i')
+    }
+    if (status) filter.status = status
+
+    const tags = await Tag.find(filter).sort({ name: 1 }).lean()
+
+    if (format === 'csv') {
+      // 產生 CSV
+      const header = [
+        'id',
+        'name',
+        'slug',
+        'lang',
+        'status',
+        'usageCount',
+        'aliases',
+        'createdAt',
+        'updatedAt',
+      ]
+
+      const rows = tags.map((tag) => [
+        tag._id,
+        tag.name || '',
+        tag.slug || '',
+        tag.lang || 'zh',
+        tag.status || 'active',
+        typeof tag.usageCount === 'number' ? tag.usageCount : 0,
+        Array.isArray(tag.aliases) ? tag.aliases.join('|') : '',
+        tag.createdAt ? new Date(tag.createdAt).toISOString() : '',
+        tag.updatedAt ? new Date(tag.updatedAt).toISOString() : '',
+      ])
+
+      const csv = [header, ...rows]
+        .map((r) =>
+          r
+            .map((v) => String(v).replace(/"/g, '""'))
+            .map((v) => `"${v}"`)
+            .join(','),
+        )
+        .join('\n')
+
+      const filename = `tags-${new Date().toISOString().slice(0, 10)}.csv`
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      // 添加 BOM 以確保 Excel 正確識別 UTF-8 編碼
+      const bom = '\uFEFF'
+      res.status(200).send(bom + csv)
+    } else {
+      // JSON 格式
+      res.json({
+        tags,
+        total: tags.length,
+        exportedAt: new Date(),
+        filters: { lang, search, status },
+      })
+    }
+  } catch (error) {
+    console.error('匯出標籤失敗:', error)
+    res.status(500).json({ error: error.message })
+  }
+}
+
+/**
+ * 切換標籤狀態（active/archived）
+ */
+export const toggleTagStatus = async (req, res) => {
+  // 驗證 ObjectId 格式
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: '無效的標籤 ID 格式' })
+  }
+
+  try {
+    const tag = await Tag.findById(req.params.id)
+    if (!tag) {
+      return res.status(404).json({ error: '找不到標籤' })
+    }
+
+    // 切換狀態
+    const newStatus = tag.status === 'active' ? 'archived' : 'active'
+    tag.status = newStatus
+    await tag.save()
+
+    res.json({
+      message: '標籤狀態已更新',
+      tag: {
+        id: tag._id,
+        name: tag.name,
+        status: tag.status,
+      },
+    })
+  } catch (error) {
+    console.error('切換標籤狀態失敗:', error)
+    res.status(500).json({ error: error.message })
+  }
+}
+
+/**
+ * 合併標籤
+ * 將次要標籤合併到主要標籤，並將次要標籤的別名和使用次數轉移
+ */
+export const mergeTags = async (req, res) => {
+  const { primaryId, secondaryIds } = req.body
+
+  // 驗證參數
+  if (!primaryId || !secondaryIds || !Array.isArray(secondaryIds) || secondaryIds.length === 0) {
+    return res.status(400).json({ error: '需要提供主要標籤 ID 和次要標籤 ID 陣列' })
+  }
+
+  // 驗證 ObjectId 格式
+  if (!mongoose.Types.ObjectId.isValid(primaryId)) {
+    return res.status(400).json({ error: '無效的主要標籤 ID 格式' })
+  }
+
+  for (const id of secondaryIds) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: `無效的次要標籤 ID 格式: ${id}` })
+    }
+  }
+
+  // 使用 session 來確保原子性操作
+  const session = await Tag.startSession()
+  session.startTransaction()
+
+  try {
+    // 取得主要標籤
+    const primaryTag = await Tag.findById(primaryId).session(session)
+    if (!primaryTag) {
+      await session.abortTransaction()
+      return res.status(404).json({ error: '找不到主要標籤' })
+    }
+
+    // 取得次要標籤 - 確保 ID 正確轉換為 ObjectId
+    const validSecondaryIds = secondaryIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id))
+
+    if (validSecondaryIds.length !== secondaryIds.length) {
+      await session.abortTransaction()
+      return res.status(400).json({ error: '部分次要標籤 ID 格式無效' })
+    }
+
+    const secondaryTags = await Tag.find({ _id: { $in: validSecondaryIds } }, null, { session })
+
+    if (secondaryTags.length !== secondaryIds.length) {
+      await session.abortTransaction()
+      return res.status(404).json({ error: '部分次要標籤不存在' })
+    }
+
+    // 檢查是否有重複的標籤 ID
+    if (secondaryIds.includes(primaryId)) {
+      await session.abortTransaction()
+      return res.status(400).json({ error: '主要標籤不能包含在次要標籤中' })
+    }
+
+    // 合併別名
+    const allAliases = new Set(primaryTag.aliases || [])
+    for (const secondaryTag of secondaryTags) {
+      if (secondaryTag.aliases && Array.isArray(secondaryTag.aliases)) {
+        secondaryTag.aliases.forEach((alias) => {
+          if (alias && alias.trim()) {
+            allAliases.add(alias.trim())
+          }
+        })
+      }
+      // 將次要標籤的名稱也加入別名
+      if (secondaryTag.name && secondaryTag.name.trim()) {
+        allAliases.add(secondaryTag.name.trim())
+      }
+    }
+
+    // 更新主要標籤的別名
+    primaryTag.aliases = Array.from(allAliases)
+    await primaryTag.save({ session })
+
+    // 更新所有使用次要標籤的迷因，改為使用主要標籤
+    for (const secondaryTag of secondaryTags) {
+      await MemeTag.updateMany(
+        { tag_id: secondaryTag._id },
+        { tag_id: primaryTag._id },
+        { session },
+      )
+    }
+
+    // 刪除次要標籤 - 使用已驗證的 ObjectId
+    await Tag.deleteMany({ _id: { $in: validSecondaryIds } }, { session })
+
+    // 重新計算主要標籤的使用次數
+    const usageCount = await MemeTag.countDocuments({
+      tag_id: primaryTag._id,
+    }).session(session)
+
+    primaryTag.usageCount = usageCount
+    await primaryTag.save({ session })
+
+    // 提交事務
+    await session.commitTransaction()
+
+    res.json({
+      message: '標籤合併成功',
+      primaryTag: {
+        id: primaryTag._id,
+        name: primaryTag.name,
+        aliases: primaryTag.aliases,
+        usageCount: primaryTag.usageCount,
+      },
+      mergedTags: secondaryTags.map((tag) => ({
+        id: tag._id,
+        name: tag.name,
+      })),
+      totalMerged: secondaryTags.length,
+    })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+    console.error('合併標籤失敗:', error)
+    res.status(500).json({ error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
+  }
+}
+
+/**
+ * 批量刪除標籤
+ */
+export const batchDeleteTags = async (req, res) => {
+  const { ids } = req.body
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: '需要提供標籤 ID 陣列' })
+  }
+
+  // 驗證 ObjectId 格式
+  for (const id of ids) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: `無效的標籤 ID 格式: ${id}` })
+    }
+  }
+
+  // 使用 session 來確保原子性操作
+  const session = await Tag.startSession()
+  session.startTransaction()
+
+  try {
+    // 確保 ID 正確轉換為 ObjectId
+    const validIds = ids
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id))
+
+    if (validIds.length !== ids.length) {
+      await session.abortTransaction()
+      return res.status(400).json({ error: '部分標籤 ID 格式無效' })
+    }
+
+    // 檢查是否有標籤正在被使用
+    const usageCounts = await MemeTag.aggregate([
+      { $match: { tag_id: { $in: validIds } } },
+      { $group: { _id: '$tag_id', count: { $sum: 1 } } },
+    ]).session(session)
+
+    const usedTags = usageCounts.filter((item) => item.count > 0)
+    if (usedTags.length > 0) {
+      await session.abortTransaction()
+      return res.status(400).json({
+        error: '部分標籤正在被使用，無法刪除',
+        usedTags: usedTags.map((item) => ({
+          tagId: item._id,
+          usageCount: item.count,
+        })),
+      })
+    }
+
+    // 刪除標籤 - 使用已驗證的 ObjectId
+    const deleteResult = await Tag.deleteMany({ _id: { $in: validIds } }, { session })
+
+    // 提交事務
+    await session.commitTransaction()
+
+    res.json({
+      message: '批量刪除成功',
+      deletedCount: deleteResult.deletedCount,
+      totalRequested: ids.length,
+    })
+  } catch (error) {
+    // 回滾事務
+    await session.abortTransaction()
+    console.error('批量刪除標籤失敗:', error)
+    res.status(500).json({ error: error.message })
+  } finally {
+    // 結束 session
+    session.endSession()
   }
 }

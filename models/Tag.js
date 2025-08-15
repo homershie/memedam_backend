@@ -29,7 +29,7 @@ const TagSchema = new mongoose.Schema(
     // 標籤狀態
     status: {
       type: String,
-      enum: ['active', 'inactive', 'deleted'],
+      enum: ['active', 'archived', 'deleted'],
       default: 'active',
     },
     // 別名（用於搜尋）

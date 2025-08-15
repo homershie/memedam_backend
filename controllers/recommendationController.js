@@ -419,7 +419,15 @@ export const getSimilarRecommendations = async (req, res) => {
     const baseFilter = {
       _id: { $ne: memeId },
       status: 'public',
-      tags_cache: { $in: targetMeme.tags_cache },
+    }
+
+    // 確保 tags_cache 是陣列且不為空
+    if (
+      targetMeme.tags_cache &&
+      Array.isArray(targetMeme.tags_cache) &&
+      targetMeme.tags_cache.length > 0
+    ) {
+      baseFilter.tags_cache = { $in: targetMeme.tags_cache }
     }
 
     // 處理類型篩選
