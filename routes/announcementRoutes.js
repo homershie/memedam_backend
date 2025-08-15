@@ -286,10 +286,10 @@ const router = express.Router()
 
 // 建立公告
 router.post('/', token, isUser, validateCreateAnnouncement, createAnnouncement)
-// 取得所有公告
-router.get('/', getAnnouncements)
+// 取得所有公告（管理員可查看所有狀態，一般用戶只能查看公開的）
+router.get('/', token, getAnnouncements)
 // 取得單一公告
-router.get('/:id', getAnnouncementById)
+router.get('/:id', token, getAnnouncementById)
 // 更新公告
 router.put('/:id', token, isAdmin, updateAnnouncement)
 // 刪除公告

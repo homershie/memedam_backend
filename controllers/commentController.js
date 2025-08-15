@@ -3,17 +3,20 @@ import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
-import { createNewCommentNotification, createMentionNotifications } from '../utils/notificationService.js'
+import {
+  createNewCommentNotification,
+  createMentionNotifications,
+} from '../utils/notificationService.js'
 
 // 從內容中提取被提及的用戶名
 const extractMentionedUsers = (content) => {
   const mentionRegex = /@(\w+)/g
   const mentions = content.match(mentionRegex)
-  
+
   if (!mentions || mentions.length === 0) return []
-  
+
   // 移除 @ 符號並去重
-  const usernames = mentions.map(mention => mention.substring(1))
+  const usernames = mentions.map((mention) => mention.substring(1))
   return [...new Set(usernames)] // 去重
 }
 
@@ -41,12 +44,12 @@ export const createComment = async (req, res) => {
         throw new Error('迷因不存在')
       }
 
-      const comment = new Comment({ 
-        content, 
-        meme_id, 
-        parent_id, 
+      const comment = new Comment({
+        content,
+        meme_id,
+        parent_id,
         user_id: req.user?._id,
-        mentioned_users // 保存提及的用戶名
+        mentioned_users, // 保存提及的用戶名
       })
       await comment.save({ session })
 
@@ -60,12 +63,12 @@ export const createComment = async (req, res) => {
     })
 
     // 創建留言通知（在事務外執行）
-    createNewCommentNotification(meme_id, req.user._id, content).catch(error => {
+    createNewCommentNotification(meme_id, req.user._id, content).catch((error) => {
       console.error('發送留言通知失敗:', error)
     })
 
     // 檢查並創建提及通知（在事務外執行）
-    createMentionNotifications(content, req.user._id, meme_id, 'comment').catch(error => {
+    createMentionNotifications(content, req.user._id, meme_id, 'comment').catch((error) => {
       console.error('發送提及通知失敗:', error)
     })
 
@@ -81,12 +84,50 @@ export const getComments = async (req, res) => {
     const filter = {}
     if (req.query.meme_id) filter.meme_id = req.query.meme_id
     if (req.query.parent_id) filter.parent_id = req.query.parent_id
+    if (req.query.status) filter.status = req.query.status
 
+    // 分頁參數
+    const page = parseInt(req.query.page) || 1
+    const limit = parseInt(req.query.limit) || 10
+    const skip = (page - 1) * limit
+
+    // 排序參數
+    const sort = req.query.sort || 'createdAt'
+    const order = req.query.order === 'asc' ? 1 : -1
+    const sortObj = { [sort]: order }
+
+    // 搜尋功能
+    if (req.query.search) {
+      filter.content = { $regex: req.query.search, $options: 'i' }
+    }
+
+    // 如果不是管理員且沒有指定狀態，只顯示 normal 狀態的評論
+    const isAdmin = req.user && req.user.role === 'admin'
+    if (!isAdmin && !req.query.status) {
+      filter.status = 'normal'
+    }
+
+    // 查詢總數
+    const total = await Comment.countDocuments(filter)
+
+    // 查詢數據
     const comments = await Comment.find(filter)
       .populate('user_id', 'username display_name avatar')
-      .sort({ createdAt: 1 })
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
 
-    res.json({ success: true, data: comments, error: null })
+    res.json({
+      success: true,
+      data: comments,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+      error: null,
+    })
   } catch (err) {
     res.status(500).json({ success: false, data: null, error: err.message })
   }

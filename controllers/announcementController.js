@@ -24,7 +24,7 @@ export const createAnnouncement = async (req, res) => {
       content,
       status,
       category,
-      user_id: req.user?._id,
+      author_id: req.user?._id,
     })
     await announcement.save({ session })
 
@@ -65,10 +65,11 @@ export const createAnnouncement = async (req, res) => {
 export const getAnnouncements = async (req, res) => {
   try {
     const filter = {}
-    // 狀態過濾，預設只查 public
+    // 狀態過濾，如果沒有指定則查詢所有狀態
     if (req.query.status) {
       filter.status = req.query.status
-    } else {
+    } else if (!req.user || req.user.role !== 'admin') {
+      // 非管理員用戶只能查看公開的公告
       filter.status = 'public'
     }
     if (req.query.category) filter.category = req.query.category
@@ -110,6 +111,14 @@ export const getAnnouncementById = async (req, res) => {
     const announcement = await Announcement.findById(req.params.id)
     if (!announcement)
       return res.status(404).json({ success: false, data: null, error: '找不到公告' })
+    
+    // 非管理員用戶只能查看公開的公告
+    if (!req.user || req.user.role !== 'admin') {
+      if (announcement.status !== 'public') {
+        return res.status(404).json({ success: false, data: null, error: '找不到公告' })
+      }
+    }
+    
     res.json({ success: true, data: announcement, error: null })
   } catch (err) {
     res.status(500).json({ success: false, data: null, error: err.message })
