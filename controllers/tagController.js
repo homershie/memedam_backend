@@ -27,38 +27,38 @@ export const createTag = async (req, res) => {
 
     // 準備標籤資料
     const tagData = { ...req.body }
-    
+
     // 如果沒有提供 slug，自動生成英文 slug
     if (!tagData.slug) {
       try {
         // 翻譯標籤名稱為英文
         const englishName = await translateToEnglish(tagData.name, tagData.lang)
         let baseSlug = toSlug(englishName)
-        
+
         // 如果翻譯失敗或結果為空，直接使用原名稱生成 slug
         if (!baseSlug) {
           baseSlug = toSlug(tagData.name)
         }
-        
+
         if (baseSlug) {
           // 檢查 slug 唯一性，如果重複則加上數字後綴
           let finalSlug = baseSlug
           let counter = 1
-          
+
           while (true) {
             const existingSlugTag = await Tag.findOne({
               lang: tagData.lang || 'zh',
-              slug: finalSlug
+              slug: finalSlug,
             }).session(session)
-            
+
             if (!existingSlugTag) {
               break
             }
-            
+
             finalSlug = `${baseSlug}-${counter}`
             counter++
           }
-          
+
           tagData.slug = finalSlug
         }
       } catch (error) {
@@ -249,8 +249,10 @@ export const updateTag = async (req, res) => {
       const existingTag = await Tag.findOne({
         name: req.body.name,
         lang: req.body.lang || 'zh',
-        _id: { $ne: req.params.id },
-      }).session(session)
+      })
+        .where('_id')
+        .ne(req.params.id)
+        .session(session)
 
       if (existingTag) {
         await session.abortTransaction()
@@ -448,5 +450,120 @@ export const getTagCategories = async (req, res) => {
   } catch (err) {
     console.error('getTagCategories 錯誤:', err)
     res.status(500).json({ error: err.message })
+  }
+}
+
+/**
+ * 批次重建既有標籤的 slug 與 usageCount
+ * Query 參數：
+ * - lang: 僅處理特定語言（可省略處理全部）
+ * - onlyMissingSlug=true: 只為缺少/空 slug 的標籤產生 slug
+ * - updateUsage=true: 是否更新 usageCount
+ * - translate=true: 產生 slug 前是否嘗試翻譯為英文
+ * - limit: 只處理前 N 筆（測試用）
+ */
+export const rebuildTagsMetadata = async (req, res) => {
+  const {
+    lang,
+    onlyMissingSlug = 'true',
+    updateUsage = 'true',
+    translate = 'true',
+    limit,
+  } = req.query
+
+  try {
+    const filter = {}
+    if (lang) filter.lang = String(lang)
+
+    let query = Tag.find(filter).sort({ createdAt: 1 })
+    const limitNum = Math.max(parseInt(limit) || 0, 0)
+    if (limitNum > 0) query = query.limit(limitNum)
+
+    const tags = await query.lean()
+    if (tags.length === 0) return res.json({ processed: 0, updated: 0, details: [] })
+
+    // 預先計算所有 usageCount（一次聚合）
+    let usageMap = {}
+    if (String(updateUsage) === 'true') {
+      const usageAgg = await MemeTag.aggregate([
+        { $match: { tag_id: { $in: tags.map((t) => t._id) } } },
+        { $group: { _id: '$tag_id', usageCount: { $sum: 1 } } },
+      ])
+      usageMap = usageAgg.reduce((acc, x) => {
+        acc[String(x._id)] = x.usageCount || 0
+        return acc
+      }, {})
+    }
+
+    const results = []
+    let updated = 0
+
+    // 逐筆處理，確保 (lang, slug) 唯一性
+    for (const t of tags) {
+      const updates = {}
+      const tagLang = t.lang || 'zh'
+
+      // 處理 slug
+      const needSlugWork =
+        String(onlyMissingSlug) === 'true' ? !t.slug || String(t.slug).trim() === '' : true
+
+      if (needSlugWork) {
+        let candidate = null
+        if (String(translate) === 'true') {
+          // 若非 ASCII 或語言非 en，先嘗試翻譯
+          const containsNonAscii = /[^\x00-\x7F]/.test(String(t.name || ''))
+          if (containsNonAscii || tagLang !== 'en') {
+            const translated = await translateToEnglish(t.name, tagLang)
+            candidate = toSlugOrNull(translated || t.name)
+          } else {
+            candidate = toSlugOrNull(t.name)
+          }
+        } else {
+          candidate = toSlugOrNull(t.name)
+        }
+
+        // 確保唯一且排除自身
+        if (candidate) {
+          let unique = candidate
+          let suffix = 1
+          // 最多嘗試 50 次
+          for (let i = 0; i < 50; i++) {
+            // 先查詢所有符合條件的標籤，然後在記憶體中過濾
+            // eslint-disable-next-line no-await-in-loop
+            const existingTags = await Tag.find({
+              lang: tagLang,
+              slug: unique,
+            }).lean()
+
+            // 在記憶體中過濾掉當前標籤
+            const dup = existingTags.find((tag) => tag._id.toString() !== t._id.toString())
+            if (!dup) break
+            suffix += 1
+            unique = `${candidate}-${suffix}`
+          }
+          updates.slug = unique
+        } else {
+          updates.slug = undefined
+        }
+      }
+
+      // 處理 usageCount
+      if (String(updateUsage) === 'true') {
+        const desired = usageMap[String(t._id)] || 0
+        if (typeof t.usageCount !== 'number' || t.usageCount !== desired) {
+          updates.usageCount = desired
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await Tag.updateOne({ _id: t._id }, { $set: updates })
+        updated += 1
+        results.push({ id: t._id, name: t.name, lang: tagLang, updates })
+      }
+    }
+
+    return res.json({ processed: tags.length, updated, details: results.slice(0, 50) })
+  } catch (error) {
+    return res.status(500).json({ error: error.message })
   }
 }

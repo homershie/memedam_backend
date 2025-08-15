@@ -7,6 +7,7 @@ import {
   getTagCategories,
   updateTag,
   deleteTag,
+  rebuildTagsMetadata,
 } from '../controllers/tagController.js'
 import { token, isUser } from '../middleware/auth.js'
 
@@ -24,6 +25,7 @@ router.get('/test', (req, res) => {
 // 特定路由（必須在參數路由之前）
 router.get('/categories', getTagCategories)
 router.get('/popular', getPopularTags)
+router.post('/maintenance/rebuild', token, isUser, rebuildTagsMetadata)
 
 // 參數路由（必須在最後）
 router.get('/:id', getTagById)
