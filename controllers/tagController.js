@@ -711,7 +711,11 @@ export const mergeTags = async (req, res) => {
       return res.status(404).json({ error: '找不到主要標籤' })
     }
 
+<<<<<<< HEAD
     // 取得次要標籤 - 讓 Mongoose 自動處理 ObjectId 轉換
+=======
+    // 取得次要標籤 - 驗證並轉換為 ObjectId
+>>>>>>> origin/codex/fix-objectid-cast-error-on-tag-merge
     const validSecondaryIds = secondaryIds.filter((id) =>
       mongoose.Types.ObjectId.isValid(id),
     )
@@ -721,11 +725,21 @@ export const mergeTags = async (req, res) => {
       return res.status(400).json({ error: '部分次要標籤 ID 格式無效' })
     }
 
+<<<<<<< HEAD
     const secondaryTags = await Tag.find(
       { _id: { $in: validSecondaryIds } },
       null,
       { session },
     )
+=======
+    const secondaryObjectIds = validSecondaryIds.map(
+      (id) => new mongoose.Types.ObjectId(id),
+    )
+
+    const secondaryTags = await Tag.find({
+      _id: { $in: secondaryObjectIds },
+    }).session(session)
+>>>>>>> origin/codex/fix-objectid-cast-error-on-tag-merge
 
     if (secondaryTags.length !== secondaryIds.length) {
       await session.abortTransaction()
@@ -767,8 +781,13 @@ export const mergeTags = async (req, res) => {
       )
     }
 
+<<<<<<< HEAD
     // 刪除次要標籤 - 使用字串 ID 讓 Mongoose 自動轉換
     await Tag.deleteMany({ _id: { $in: validSecondaryIds } }, { session })
+=======
+    // 刪除次要標籤 - 使用已轉換的 ObjectId
+    await Tag.deleteMany({ _id: { $in: secondaryObjectIds } }).session(session)
+>>>>>>> origin/codex/fix-objectid-cast-error-on-tag-merge
 
     // 重新計算主要標籤的使用次數
     const usageCount = await MemeTag.countDocuments({
@@ -821,7 +840,11 @@ export const batchDeleteTags = async (req, res) => {
   session.startTransaction()
 
   try {
+<<<<<<< HEAD
     // 驗證並篩選有效的 ID，讓 Mongoose 自動處理 ObjectId 轉換
+=======
+    // 驗證並轉換 ID 為 ObjectId
+>>>>>>> origin/codex/fix-objectid-cast-error-on-tag-merge
     const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id))
 
     if (validIds.length !== ids.length) {
@@ -829,9 +852,11 @@ export const batchDeleteTags = async (req, res) => {
       return res.status(400).json({ error: '部分標籤 ID 格式無效' })
     }
 
+    const objectIds = validIds.map((id) => new mongoose.Types.ObjectId(id))
+
     // 檢查是否有標籤正在被使用
     const usageCounts = await MemeTag.aggregate([
-      { $match: { tag_id: { $in: validIds } } },
+      { $match: { tag_id: { $in: objectIds } } },
       { $group: { _id: '$tag_id', count: { $sum: 1 } } },
     ]).session(session)
 
@@ -847,8 +872,15 @@ export const batchDeleteTags = async (req, res) => {
       })
     }
 
+<<<<<<< HEAD
     // 刪除標籤 - 使用字串 ID 讓 Mongoose 自動轉換
     const deleteResult = await Tag.deleteMany({ _id: { $in: validIds } }, { session })
+=======
+    // 刪除標籤 - 使用已轉換的 ObjectId
+    const deleteResult = await Tag.deleteMany({ _id: { $in: objectIds } }).session(
+      session,
+    )
+>>>>>>> origin/codex/fix-objectid-cast-error-on-tag-merge
 
     // 提交事務
     await session.commitTransaction()
