@@ -1,49 +1,48 @@
 import mongoose from 'mongoose'
 import { logger } from '../utils/logger.js'
+import { getCurrentEnvironment, validateEnvironment, performSecurityCheck } from './environment.js'
 
 /**
- * 資料庫連線配置
+ * 連接到 MongoDB
  */
 const connectDB = async () => {
   try {
-    // 設定連線選項 - Mongoose 8.x 相容配置
-    const options = {
-      maxPoolSize: 10, // 連線池大小
-      serverSelectionTimeoutMS: 5000, // 伺服器選擇超時
-      socketTimeoutMS: 45000, // Socket 超時
-      connectTimeoutMS: 10000, // 連線超時
-      heartbeatFrequencyMS: 10000, // 心跳頻率
-      // 確保與最新版本相容
-      retryWrites: true,
-      retryReads: true,
-    }
+    // 環境驗證和安全檢查
+    validateEnvironment()
+    performSecurityCheck()
 
-    await mongoose.connect(process.env.MONGO_URI, options)
+    const env = getCurrentEnvironment()
+    const { uri, options } = env.database
+
+    logger.info(`正在連接到 ${env.name} 環境的資料庫...`)
+    logger.info(`資料庫名稱: ${env.database.name}`)
+
+    await mongoose.connect(uri, options)
 
     // 監聽連線事件
     mongoose.connection.on('connected', () => {
-      logger.info('MongoDB 已連線')
+      logger.info(`MongoDB ${env.name} 環境已連線`)
     })
 
     mongoose.connection.on('error', (err) => {
-      logger.error('MongoDB 連線錯誤:', err)
+      logger.error(`MongoDB ${env.name} 環境連線錯誤:`, err)
     })
 
     mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB 連線已斷開')
+      logger.warn(`MongoDB ${env.name} 環境連線已斷開`)
     })
 
     // 優雅關閉
     process.on('SIGINT', async () => {
       await mongoose.connection.close()
-      logger.info('MongoDB 連線已關閉')
+      logger.info(`MongoDB ${env.name} 環境連線已關閉`)
       process.exit(0)
     })
 
     // 建立索引
     await createIndexes()
   } catch (err) {
-    logger.error('MongoDB 連線失敗:', err)
+    logger.error(`MongoDB ${getCurrentEnvironment().name} 環境連線失敗:`, err)
     process.exit(1)
   }
 }
