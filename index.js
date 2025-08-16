@@ -10,6 +10,9 @@ process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || '') + ' --trace-uncaught
 // 預先載入環境變數，確保後續模組可取得設定值
 import './config/loadEnv.js'
 
+// 預先載入所有模型，確保索引建立時模型已註冊
+import './config/loadModels.js'
+
 import express from 'express'
 import crypto from 'crypto'
 import cors from 'cors'

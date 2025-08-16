@@ -73,6 +73,27 @@ const createIndexes = async () => {
  */
 const createModelIndexes = async (model, modelName) => {
   try {
+    // 檢查模型是否有效
+    if (!model || !model.collection) {
+      throw new Error(`模型 ${modelName} 無效或沒有 collection 屬性`)
+    }
+
+    // 檢查資料庫連接狀態
+    if (!mongoose.connection.readyState) {
+      throw new Error(`資料庫未連接，狀態: ${mongoose.connection.readyState}`)
+    }
+
+    // 檢查集合是否存在
+    const collections = await mongoose.connection.db
+      .listCollections({ name: model.collection.name })
+      .toArray()
+    if (collections.length === 0) {
+      logger.warn(`集合 ${model.collection.name} 不存在，跳過索引建立`)
+      return
+    }
+
+    logger.debug(`開始為 ${modelName} 模型建立索引...`)
+
     switch (modelName) {
       case 'User':
         await model.collection.createIndex({ username: 1 }, { unique: true })
@@ -235,7 +256,9 @@ const createModelIndexes = async (model, modelName) => {
         break
     }
   } catch (error) {
-    logger.error(`建立 ${modelName} 索引失敗:`, error)
+    logger.error(`建立 ${modelName} 索引失敗: ${error.message}`)
+    logger.error(`錯誤詳情: ${error.stack}`)
+    throw error // 重新拋出錯誤以便上層處理
   }
 }
 
