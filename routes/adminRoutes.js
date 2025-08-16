@@ -241,7 +241,7 @@ router.post('/check-counts/:memeId', token, isAdmin, async (req, res) => {
 // 檢查並修正所有迷因的計數
 router.post('/check-all-counts', token, isAdmin, async (req, res) => {
   try {
-    const { batchSize = 100 } = req.body
+    const batchSize = req.body?.batchSize || 100
     const result = await batchCheckCounts(batchSize)
     res.json({
       success: true,
