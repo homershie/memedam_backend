@@ -31,7 +31,6 @@ import { performanceMonitor } from './utils/asyncProcessor.js'
 import { logger } from './utils/logger.js'
 import {
   apiLimiter,
-  memeApiLimiter,
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,

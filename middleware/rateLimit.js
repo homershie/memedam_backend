@@ -62,6 +62,40 @@ const apiLimiter = rateLimit({
   },
 })
 
+// 檢舉提交限流：24 小時內最多 5 次檢舉，7 日內最多 20 次檢舉
+const reportSubmissionLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 小時
+  max: 5, // 24 小時內最多 5 次檢舉
+  message: {
+    success: false,
+    error: '檢舉提交過於頻繁，24小時內最多可提交5次檢舉。',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: getRedisStore('rl:report:24h:'),
+  keyGenerator: (req) => {
+    // 使用用戶ID作為key，確保每個用戶都有獨立的限制
+    return req.user ? `user:${req.user._id}` : `ip:${req.ip}`
+  },
+})
+
+// 檢舉提交週限流：7 日內最多 20 次檢舉
+const reportWeeklyLimiter = rateLimit({
+  windowMs: 7 * 24 * 60 * 60 * 1000, // 7 天
+  max: 20, // 7 日內最多 20 次檢舉
+  message: {
+    success: false,
+    error: '檢舉提交過於頻繁，7日內最多可提交20次檢舉。',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: getRedisStore('rl:report:7d:'),
+  keyGenerator: (req) => {
+    // 使用用戶ID作為key，確保每個用戶都有獨立的限制
+    return req.user ? `user:${req.user._id}` : `ip:${req.ip}`
+  },
+})
+
 // 登入特別限流：每個 IP 每 15 分鐘最多 5 次登入嘗試
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 分鐘
@@ -143,6 +177,8 @@ const authLimiter = rateLimit({
 export {
   apiLimiter,
   memeApiLimiter,
+  reportSubmissionLimiter,
+  reportWeeklyLimiter,
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,

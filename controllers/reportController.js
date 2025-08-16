@@ -1,36 +1,169 @@
 import Report from '../models/Report.js'
+import User from '../models/User.js'
+import Meme from '../models/Meme.js'
+import Comment from '../models/Comment.js'
 import { body, validationResult } from 'express-validator'
+import {
+  notifyReportSubmitted,
+  notifyReportProcessed,
+  notifyAuthorWarned,
+  notifyAuthorStruck,
+  notifyContentRemoved,
+  notifyContentHidden,
+  notifyCommentsLocked,
+} from '../utils/notificationService.js'
 
-// 建立舉報
-export const validateCreateReport = [
-  body('target_id').notEmpty().withMessage('被檢舉對象必填'),
-  body('reason').isLength({ min: 1, max: 200 }).withMessage('檢舉原因必填，且長度需在 1~200 字'),
+// 檢舉原因選項
+export const reportReasons = [
+  { value: 'inappropriate', label: '不當內容' },
+  { value: 'hate_speech', label: '仇恨言論' },
+  { value: 'spam', label: '垃圾訊息' },
+  { value: 'copyright', label: '版權問題' },
+  { value: 'other', label: '其他' },
 ]
 
+// 檢舉狀態選項
+export const reportStatuses = [
+  { value: 'pending', label: '待處理' },
+  { value: 'processed', label: '已處理' },
+  { value: 'rejected', label: '已駁回' },
+]
+
+// 處理方式選項
+export const actionTypes = [
+  { value: 'none', label: '無動作' },
+  { value: 'remove_content', label: '刪除內容' },
+  { value: 'soft_hide', label: '軟隱藏' },
+  { value: 'age_gate', label: '年齡限制' },
+  { value: 'mark_nsfw', label: '標記為成人內容' },
+  { value: 'lock_comments', label: '鎖定留言' },
+  { value: 'issue_strike', label: '記違規點數' },
+  { value: 'warn_author', label: '警告作者' },
+]
+
+// 建立檢舉驗證
+export const validateCreateReport = [
+  body('target_type')
+    .isIn(['meme', 'comment', 'user'])
+    .withMessage('檢舉目標類型必須是 meme、comment 或 user'),
+  body('target_id').isMongoId().withMessage('檢舉目標ID必須是有效的MongoDB ID'),
+  body('reason')
+    .isIn(['inappropriate', 'hate_speech', 'spam', 'copyright', 'other'])
+    .withMessage('檢舉原因必須是有效的選項'),
+  body('description').optional().isLength({ max: 1000 }).withMessage('詳細描述不能超過1000字'),
+]
+
+// 處理檢舉驗證
+export const validateResolveReport = [
+  body('status').isIn(['pending', 'processed', 'rejected']).withMessage('狀態必須是有效的選項'),
+  body('action')
+    .optional()
+    .isIn([
+      'none',
+      'remove_content',
+      'soft_hide',
+      'age_gate',
+      'mark_nsfw',
+      'lock_comments',
+      'issue_strike',
+      'warn_author',
+    ])
+    .withMessage('處理方式必須是有效的選項'),
+  body('action_meta').optional().isObject().withMessage('處理方式詳細資訊必須是物件'),
+  body('admin_comment').optional().isLength({ max: 1000 }).withMessage('管理員備註不能超過1000字'),
+]
+
+// 建立檢舉
 export const createReport = async (req, res) => {
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, data: null, error: errors.array() })
+    return res.status(400).json({
+      success: false,
+      data: null,
+      error: errors.array(),
+    })
   }
 
-  // 使用 session 來確保原子性操作
   const session = await Report.startSession()
   session.startTransaction()
 
   try {
-    const { target_id, reason } = req.body
-    const report = new Report({ target_id, reason, user_id: req.user?._id })
-    await report.save({ session })
+    const { target_type, target_id, reason, description } = req.body
+    const reporter_id = req.user._id
 
-    // 提交事務
+    // 檢查目標是否存在
+    let targetExists = false
+    switch (target_type) {
+      case 'meme':
+        targetExists = await Meme.findById(target_id).session(session)
+        break
+      case 'comment':
+        targetExists = await Comment.findById(target_id).session(session)
+        break
+      case 'user':
+        targetExists = await User.findById(target_id).session(session)
+        break
+    }
+
+    if (!targetExists) {
+      await session.abortTransaction()
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: '檢舉目標不存在',
+      })
+    }
+
+    // 檢查是否已檢舉過
+    const existingReport = await Report.findOne({
+      reporter_id,
+      target_type,
+      target_id,
+    }).session(session)
+
+    if (existingReport) {
+      await session.abortTransaction()
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: '您已經檢舉過此內容，請勿重複檢舉',
+      })
+    }
+
+    const report = new Report({
+      reporter_id,
+      target_type,
+      target_id,
+      reason,
+      description,
+    })
+
+    await report.save({ session })
     await session.commitTransaction()
 
-    res.status(201).json({ success: true, data: report, error: null })
+    // 發送檢舉提交通知
+    try {
+      await notifyReportSubmitted(report._id, reporter_id)
+    } catch (notificationError) {
+      console.error('發送檢舉提交通知失敗:', notificationError)
+      // 通知失敗不影響檢舉提交
+    }
+
+    // 如果有品質警告，加入回應中
+    const response = {
+      success: true,
+      data: report,
+      error: null,
+    }
+
+    if (req.reportWarning) {
+      response.warning = req.reportWarning
+    }
+
+    res.status(201).json(response)
   } catch (error) {
-    // 回滾事務
     await session.abortTransaction()
 
-    // 處理重複鍵錯誤
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -39,7 +172,6 @@ export const createReport = async (req, res) => {
       })
     }
 
-    // 處理驗證錯誤
     if (error.name === 'ValidationError') {
       return res.status(400).json({
         success: false,
@@ -48,89 +180,373 @@ export const createReport = async (req, res) => {
       })
     }
 
-    res.status(500).json({ success: false, data: null, error: error.message })
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
   } finally {
-    // 結束 session
     session.endSession()
   }
 }
 
-// 取得所有舉報（可加分頁、條件查詢）
-export const getReports = async (req, res) => {
+// 取得用戶自己的檢舉列表
+export const getMyReports = async (req, res) => {
   try {
-    const filter = {}
-    if (req.query.status) filter.status = req.query.status
-    if (req.query.target_type) filter.target_type = req.query.target_type
-    if (req.query.target_id) filter.target_id = req.query.target_id
-    if (req.query.reporter_id) filter.reporter_id = req.query.reporter_id
-    const reports = await Report.find(filter).sort({ createdAt: -1 })
-    res.json(reports)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
+    const { page = 1, limit = 10, status, sort = 'createdAt', order = 'desc' } = req.query
+    const reporter_id = req.user._id
+
+    const filter = { reporter_id }
+    if (status) filter.status = status
+
+    const sortObj = {}
+    sortObj[sort] = order === 'desc' ? -1 : 1
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const reports = await Report.find(filter)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('handler_id', 'username avatar')
+
+    const total = await Report.countDocuments(filter)
+
+    res.json({
+      success: true,
+      data: {
+        reports,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / parseInt(limit)),
+        },
+      },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
   }
 }
 
-// 取得單一舉報
+// 取得檢舉列表（管理員功能）
+export const getReports = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      reason,
+      target_type,
+      groupBy = 'target',
+      sort = 'createdAt',
+      order = 'desc',
+    } = req.query
+
+    const filter = {}
+    if (status) filter.status = status
+    if (reason) filter.reason = reason
+    if (target_type) filter.target_type = target_type
+
+    const sortObj = {}
+    sortObj[sort] = order === 'desc' ? -1 : 1
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    if (groupBy === 'target') {
+      // 群組化查詢：按目標分組
+      const pipeline = [
+        { $match: filter },
+        {
+          $group: {
+            _id: { target_type: '$target_type', target_id: '$target_id' },
+            reports: { $push: '$$ROOT' },
+            total_reports: { $sum: 1 },
+            reasons: { $addToSet: '$reason' },
+            latest_report: { $max: '$createdAt' },
+            statuses: { $addToSet: '$status' },
+          },
+        },
+        { $sort: { latest_report: -1 } },
+        { $skip: skip },
+        { $limit: parseInt(limit) },
+      ]
+
+      const groupedReports = await Report.aggregate(pipeline)
+      const total = await Report.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: { target_type: '$target_type', target_id: '$target_id' },
+          },
+        },
+        { $count: 'total' },
+      ])
+
+      res.json({
+        success: true,
+        data: {
+          reports: groupedReports,
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total: total[0]?.total || 0,
+            pages: Math.ceil((total[0]?.total || 0) / parseInt(limit)),
+          },
+        },
+        error: null,
+      })
+    } else {
+      // 一般查詢
+      const reports = await Report.find(filter)
+        .sort(sortObj)
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate('reporter_id', 'username avatar')
+        .populate('handler_id', 'username avatar')
+
+      const total = await Report.countDocuments(filter)
+
+      res.json({
+        success: true,
+        data: {
+          reports,
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit)),
+          },
+        },
+        error: null,
+      })
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}
+
+// 取得單一檢舉詳情
 export const getReportById = async (req, res) => {
   try {
     const report = await Report.findById(req.params.id)
-    if (!report) return res.status(404).json({ error: '找不到舉報' })
-    res.json(report)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
+      .populate('reporter_id', 'username avatar')
+      .populate('handler_id', 'username avatar')
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: '檢舉不存在',
+      })
+    }
+
+    // 如果是管理員，同時取得同目標的其他檢舉摘要
+    if (req.user.role === 'admin' || req.user.role === 'manager') {
+      const relatedReports = await Report.find({
+        target_type: report.target_type,
+        target_id: report.target_id,
+        _id: { $ne: report._id },
+      })
+        .populate('reporter_id', 'username avatar')
+        .sort({ createdAt: -1 })
+        .limit(10)
+
+      res.json({
+        success: true,
+        data: {
+          report,
+          relatedReports,
+        },
+        error: null,
+      })
+    } else {
+      res.json({
+        success: true,
+        data: { report },
+        error: null,
+      })
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
   }
 }
 
-// 更新舉報
-export const updateReport = async (req, res) => {
-  // 使用 session 來確保原子性操作
+// 處理檢舉
+export const resolveReport = async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      data: null,
+      error: errors.array(),
+    })
+  }
+
   const session = await Report.startSession()
   session.startTransaction()
 
   try {
-    const report = await Report.findByIdAndUpdate(req.params.id, req.body, {
+    const { status, action, action_meta, admin_comment } = req.body
+    const handler_id = req.user._id
+
+    const report = await Report.findById(req.params.id).session(session)
+    if (!report) {
+      await session.abortTransaction()
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: '檢舉不存在',
+      })
+    }
+
+    // 更新檢舉
+    const updateData = {
+      status,
+      action,
+      action_meta,
+      admin_comment,
+      handler_id,
+    }
+
+    if (status === 'processed' || status === 'rejected') {
+      updateData.processed_at = new Date()
+    }
+
+    const updatedReport = await Report.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
       session,
     })
 
-    if (!report) {
-      await session.abortTransaction()
-      return res.status(404).json({ error: '找不到舉報' })
-    }
-
-    // 提交事務
     await session.commitTransaction()
 
-    res.json(report)
-  } catch (error) {
-    // 回滾事務
-    await session.abortTransaction()
+    // 發送相應的通知
+    try {
+      // 通知檢舉者處理結果
+      await notifyReportProcessed(report._id, report.reporter_id, status, action, admin_comment)
 
-    // 處理重複鍵錯誤
-    if (error.code === 11000) {
-      return res.status(409).json({
-        error: '檢舉記錄重複，請檢查是否已存在相同記錄',
-      })
+      // 根據處理方式發送相應通知
+      if (status === 'processed' && action !== 'none') {
+        await sendActionNotifications(report, action, admin_comment)
+      }
+    } catch (notificationError) {
+      console.error('發送處理通知失敗:', notificationError)
+      // 通知失敗不影響檢舉處理
     }
 
-    // 處理驗證錯誤
+    res.json({
+      success: true,
+      data: updatedReport,
+      error: null,
+    })
+  } catch (error) {
+    await session.abortTransaction()
+
     if (error.name === 'ValidationError') {
       return res.status(400).json({
+        success: false,
+        data: null,
         error: error.message,
       })
     }
 
-    res.status(400).json({ error: error.message })
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
   } finally {
-    // 結束 session
     session.endSession()
   }
 }
 
-// 刪除舉報
+// 批次處理檢舉
+export const batchResolveReports = async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      data: null,
+      error: errors.array(),
+    })
+  }
+
+  const session = await Report.startSession()
+  session.startTransaction()
+
+  try {
+    const { ids, status, action, action_meta, admin_comment } = req.body
+    const handler_id = req.user._id
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      await session.abortTransaction()
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '請提供要處理的檢舉ID列表',
+      })
+    }
+
+    const updateData = {
+      status,
+      action,
+      action_meta,
+      admin_comment,
+      handler_id,
+    }
+
+    if (status === 'processed' || status === 'rejected') {
+      updateData.processed_at = new Date()
+    }
+
+    const result = await Report.updateMany({ _id: { $in: ids } }, updateData, { session })
+
+    await session.commitTransaction()
+
+    res.json({
+      success: true,
+      data: {
+        updatedCount: result.modifiedCount,
+        totalCount: ids.length,
+      },
+      error: null,
+    })
+  } catch (error) {
+    await session.abortTransaction()
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: error.message,
+      })
+    }
+
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  } finally {
+    session.endSession()
+  }
+}
+
+// 刪除檢舉
 export const deleteReport = async (req, res) => {
-  // 使用 session 來確保原子性操作
   const session = await Report.startSession()
   session.startTransaction()
 
@@ -138,19 +554,161 @@ export const deleteReport = async (req, res) => {
     const report = await Report.findByIdAndDelete(req.params.id).session(session)
     if (!report) {
       await session.abortTransaction()
-      return res.status(404).json({ error: '找不到舉報' })
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: '檢舉不存在',
+      })
     }
 
-    // 提交事務
     await session.commitTransaction()
 
-    res.json({ message: '舉報已刪除' })
+    res.json({
+      success: true,
+      data: { message: '檢舉已刪除' },
+      error: null,
+    })
   } catch (error) {
-    // 回滾事務
     await session.abortTransaction()
-    res.status(500).json({ error: error.message })
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
   } finally {
-    // 結束 session
     session.endSession()
+  }
+}
+
+// 取得檢舉統計
+export const getReportStats = async (req, res) => {
+  try {
+    const { period = '7d' } = req.query
+    let dateFilter = {}
+
+    // 根據期間設定日期篩選
+    const now = new Date()
+    switch (period) {
+      case '1d':
+        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } }
+        break
+      case '7d':
+        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } }
+        break
+      case '30d':
+        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }
+        break
+      default:
+        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } }
+    }
+
+    const [
+      totalReports,
+      pendingReports,
+      processedReports,
+      rejectedReports,
+      reasonStats,
+      targetTypeStats,
+    ] = await Promise.all([
+      Report.countDocuments(dateFilter),
+      Report.countDocuments({ ...dateFilter, status: 'pending' }),
+      Report.countDocuments({ ...dateFilter, status: 'processed' }),
+      Report.countDocuments({ ...dateFilter, status: 'rejected' }),
+      Report.aggregate([
+        { $match: dateFilter },
+        { $group: { _id: '$reason', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      Report.aggregate([
+        { $match: dateFilter },
+        { $group: { _id: '$target_type', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+    ])
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        totalReports,
+        pendingReports,
+        processedReports,
+        rejectedReports,
+        reasonStats,
+        targetTypeStats,
+      },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}
+
+// 根據處理方式發送相應通知
+const sendActionNotifications = async (report, action, adminComment) => {
+  try {
+    let authorId = null
+    let contentType = ''
+
+    // 根據目標類型取得作者ID
+    switch (report.target_type) {
+      case 'meme': {
+        const meme = await Meme.findById(report.target_id)
+        if (meme) {
+          authorId = meme.user_id
+          contentType = '迷因'
+        }
+        break
+      }
+      case 'comment': {
+        const comment = await Comment.findById(report.target_id)
+        if (comment) {
+          authorId = comment.user_id
+          contentType = '留言'
+        }
+        break
+      }
+      case 'user': {
+        authorId = report.target_id
+        contentType = '用戶資料'
+        break
+      }
+    }
+
+    if (!authorId) {
+      return
+    }
+
+    // 根據處理方式發送相應通知
+    switch (action) {
+      case 'warn_author': {
+        await notifyAuthorWarned(authorId, report._id, adminComment)
+        break
+      }
+      case 'issue_strike': {
+        // 這裡可以實作違規點數系統
+        const strikeCount = 1 // 暫時設為1，實際應該從用戶資料取得
+        await notifyAuthorStruck(authorId, report._id, strikeCount, adminComment)
+        break
+      }
+      case 'remove_content': {
+        await notifyContentRemoved(authorId, report._id, contentType, adminComment)
+        break
+      }
+      case 'soft_hide': {
+        await notifyContentHidden(authorId, report._id, contentType, adminComment)
+        break
+      }
+      case 'lock_comments': {
+        await notifyCommentsLocked(authorId, report._id, adminComment)
+        break
+      }
+    }
+  } catch (error) {
+    console.error('發送處理方式通知失敗:', error)
   }
 }

@@ -10,6 +10,14 @@ export const NOTIFICATION_TYPES = {
   NEW_MENTION: 'new_mention',
   HOT_CONTENT: 'hot_content',
   WEEKLY_SUMMARY: 'weekly_summary',
+  REPORT_SUBMITTED: 'report_submitted',
+  REPORT_PROCESSED: 'report_processed',
+  REPORT_REJECTED: 'report_rejected',
+  AUTHOR_WARNED: 'author_warned',
+  AUTHOR_STRUCK: 'author_struck',
+  CONTENT_REMOVED: 'content_removed',
+  CONTENT_HIDDEN: 'content_hidden',
+  COMMENTS_LOCKED: 'comments_locked',
 }
 
 /**
@@ -466,6 +474,288 @@ export const cleanupOldNotifications = async (daysOld = 30) => {
     return result.deletedCount
   } catch (error) {
     console.error('清理舊通知失敗:', error)
+    throw error
+  }
+}
+
+// 建立通知（檢舉系統專用）
+export const createReportNotification = async ({
+  userId,
+  type,
+  title,
+  content,
+  senderId = null,
+  url = '',
+  actionText = '查看',
+  priority = 0,
+  meta = {},
+  expireAt = null,
+}) => {
+  try {
+    const notification = new Notification({
+      user_id: userId,
+      type,
+      title,
+      content,
+      sender_id: senderId,
+      url,
+      action_text: actionText,
+      priority,
+      meta,
+      expire_at: expireAt,
+    })
+
+    await notification.save()
+    return notification
+  } catch (error) {
+    console.error('建立通知失敗:', error)
+    throw error
+  }
+}
+
+// 檢舉提交成功通知
+export const notifyReportSubmitted = async (reportId, reporterId) => {
+  try {
+    const notification = await createReportNotification({
+      userId: reporterId,
+      type: NOTIFICATION_TYPES.REPORT_SUBMITTED,
+      title: '檢舉已提交',
+      content: '您的檢舉已成功提交，我們會盡快處理。感謝您協助維護平台品質。',
+      url: `/reports`,
+      actionText: '查看檢舉',
+      priority: 1,
+      meta: {
+        reportId,
+        action: 'submitted',
+      },
+    })
+
+    return notification
+  } catch (error) {
+    console.error('檢舉提交通知失敗:', error)
+  }
+}
+
+// 檢舉處理結果通知
+export const notifyReportProcessed = async (reportId, reporterId, status, action, adminComment) => {
+  try {
+    let title, content, actionText
+
+    if (status === 'processed') {
+      title = '檢舉已處理'
+      content = '您的檢舉已被處理。'
+      if (adminComment) {
+        content += ` 管理員備註：${adminComment}`
+      }
+      actionText = '查看詳情'
+    } else if (status === 'rejected') {
+      title = '檢舉未成立'
+      content = '您的檢舉經審查後未成立。'
+      if (adminComment) {
+        content += ` 原因：${adminComment}`
+      }
+      actionText = '查看詳情'
+    }
+
+    const notification = await createReportNotification({
+      userId: reporterId,
+      type:
+        status === 'processed'
+          ? NOTIFICATION_TYPES.REPORT_PROCESSED
+          : NOTIFICATION_TYPES.REPORT_REJECTED,
+      title,
+      content,
+      url: `/reports`,
+      actionText,
+      priority: 2,
+      meta: {
+        reportId,
+        status,
+        action,
+        adminComment,
+      },
+    })
+
+    return notification
+  } catch (error) {
+    console.error('檢舉處理通知失敗:', error)
+  }
+}
+
+// 作者警告通知
+export const notifyAuthorWarned = async (authorId, reportId, adminComment) => {
+  try {
+    const notification = await createReportNotification({
+      userId: authorId,
+      type: NOTIFICATION_TYPES.AUTHOR_WARNED,
+      title: '內容警告',
+      content: `您的內容被檢舉並收到警告。${adminComment ? `原因：${adminComment}` : ''}`,
+      url: `/memes`,
+      actionText: '查看內容',
+      priority: 3,
+      meta: {
+        reportId,
+        action: 'warned',
+        adminComment,
+      },
+    })
+
+    return notification
+  } catch (error) {
+    console.error('作者警告通知失敗:', error)
+  }
+}
+
+// 作者記違規點數通知
+export const notifyAuthorStruck = async (authorId, reportId, strikeCount, adminComment) => {
+  try {
+    const notification = await createReportNotification({
+      userId: authorId,
+      type: NOTIFICATION_TYPES.AUTHOR_STRUCK,
+      title: '違規記錄',
+      content: `您的內容違反平台規範，已記違規點數。當前違規點數：${strikeCount}。${adminComment ? `原因：${adminComment}` : ''}`,
+      url: `/memes`,
+      actionText: '查看內容',
+      priority: 4,
+      meta: {
+        reportId,
+        action: 'struck',
+        strikeCount,
+        adminComment,
+      },
+    })
+
+    return notification
+  } catch (error) {
+    console.error('作者記違規通知失敗:', error)
+  }
+}
+
+// 內容被刪除通知
+export const notifyContentRemoved = async (authorId, reportId, contentType, adminComment) => {
+  try {
+    const notification = await createReportNotification({
+      userId: authorId,
+      type: NOTIFICATION_TYPES.CONTENT_REMOVED,
+      title: '內容已刪除',
+      content: `您的${contentType}因違反平台規範已被刪除。${adminComment ? `原因：${adminComment}` : ''}`,
+      url: `/memes`,
+      actionText: '查看其他內容',
+      priority: 5,
+      meta: {
+        reportId,
+        action: 'removed',
+        contentType,
+        adminComment,
+      },
+    })
+
+    return notification
+  } catch (error) {
+    console.error('內容刪除通知失敗:', error)
+  }
+}
+
+// 內容被隱藏通知
+export const notifyContentHidden = async (authorId, reportId, contentType, adminComment) => {
+  try {
+    const notification = await createReportNotification({
+      userId: authorId,
+      type: NOTIFICATION_TYPES.CONTENT_HIDDEN,
+      title: '內容已隱藏',
+      content: `您的${contentType}因違反平台規範已被隱藏。${adminComment ? `原因：${adminComment}` : ''}`,
+      url: `/memes`,
+      actionText: '查看其他內容',
+      priority: 3,
+      meta: {
+        reportId,
+        action: 'hidden',
+        contentType,
+        adminComment,
+      },
+    })
+
+    return notification
+  } catch (error) {
+    console.error('內容隱藏通知失敗:', error)
+  }
+}
+
+// 留言被鎖定通知
+export const notifyCommentsLocked = async (authorId, reportId, adminComment) => {
+  try {
+    const notification = await createReportNotification({
+      userId: authorId,
+      type: NOTIFICATION_TYPES.COMMENTS_LOCKED,
+      title: '留言功能已鎖定',
+      content: `您的內容留言功能已被鎖定。${adminComment ? `原因：${adminComment}` : ''}`,
+      url: `/memes`,
+      actionText: '查看內容',
+      priority: 3,
+      meta: {
+        reportId,
+        action: 'comments_locked',
+        adminComment,
+      },
+    })
+
+    return notification
+  } catch (error) {
+    console.error('留言鎖定通知失敗:', error)
+  }
+}
+
+// 批次發送通知
+export const batchNotify = async (userIds, notificationData) => {
+  try {
+    const notifications = []
+
+    for (const userId of userIds) {
+      const notification = await createReportNotification({
+        userId,
+        ...notificationData,
+      })
+      notifications.push(notification)
+    }
+
+    return notifications
+  } catch (error) {
+    console.error('批次發送通知失敗:', error)
+    throw error
+  }
+}
+
+// 取得用戶未讀通知數量
+export const getUnreadNotificationCount = async (userId) => {
+  try {
+    const count = await Notification.countDocuments({
+      user_id: userId,
+      status: 'unread',
+    })
+    return count
+  } catch (error) {
+    console.error('取得未讀通知數量失敗:', error)
+    return 0
+  }
+}
+
+// 標記通知為已讀
+export const markNotificationAsRead = async (notificationId, userId) => {
+  try {
+    const notification = await Notification.findOneAndUpdate(
+      {
+        _id: notificationId,
+        user_id: userId,
+      },
+      {
+        status: 'read',
+        is_read: true,
+      },
+      { new: true },
+    )
+    return notification
+  } catch (error) {
+    console.error('標記通知為已讀失敗:', error)
     throw error
   }
 }

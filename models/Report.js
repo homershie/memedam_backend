@@ -2,42 +2,30 @@ import mongoose from 'mongoose'
 
 const ReportSchema = new mongoose.Schema(
   {
-    // 檢舉人 user id
+    // 檢舉者ID（必填）
     reporter_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, '檢舉人ID為必填'],
+      required: [true, '檢舉者ID為必填'],
       index: true,
       validate: {
         validator: (v) => mongoose.Types.ObjectId.isValid(v),
-        message: '檢舉人ID必須是有效的ObjectId',
+        message: '檢舉者ID必須是有效的ObjectId',
       },
     },
-    // 被處罰的用戶 id（如果檢舉成立）
-    punished_user_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      default: null,
-      validate: {
-        validator: (v) => !v || mongoose.Types.ObjectId.isValid(v),
-        message: '被處罰用戶ID必須是有效的ObjectId',
-      },
-    },
-    // 是否匿名檢舉
-    is_anonymous: {
-      type: Boolean,
-      default: false,
-    },
-    // 檢舉對象類型（meme/comment...）
+
+    // 檢舉目標類型（必填）
     target_type: {
       type: String,
-      required: [true, '檢舉對象類型為必填'],
+      required: [true, '檢舉目標類型為必填'],
       enum: {
-        values: ['user', 'meme', 'comment', 'other'],
-        message: '檢舉對象類型必須是 user、meme、comment 或 other',
+        values: ['meme', 'comment', 'user'],
+        message: '檢舉目標類型必須是 meme、comment 或 user',
       },
+      default: 'meme',
     },
-    // 檢舉目標的 id
+
+    // 檢舉目標ID（必填）
     target_id: {
       type: mongoose.Schema.Types.ObjectId,
       required: [true, '檢舉目標ID為必填'],
@@ -47,48 +35,76 @@ const ReportSchema = new mongoose.Schema(
         message: '檢舉目標ID必須是有效的ObjectId',
       },
     },
-    // 檢舉理由
+
+    // 檢舉原因（必填）
     reason: {
       type: String,
-      required: [true, '檢舉理由為必填'],
-      trim: true,
-      minlength: [1, '檢舉理由不能為空'],
-      maxlength: [1000, '檢舉理由長度不能超過1000字'],
-    },
-    // 附加證據（如圖片網址、json、敘述等）
-    evidence: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-      validate: {
-        validator: (v) => typeof v === 'object' && v !== null,
-        message: '證據欄位必須是物件',
+      required: [true, '檢舉原因為必填'],
+      enum: {
+        values: ['inappropriate', 'hate_speech', 'spam', 'copyright', 'other'],
+        message: '檢舉原因必須是 inappropriate、hate_speech、spam、copyright 或 other',
       },
     },
-    // 檢舉狀態（pending:待處理, resolved:已處理, rejected:不成立）
+
+    // 詳細描述
+    description: {
+      type: String,
+      maxlength: [1000, '詳細描述長度不能超過1000字'],
+      trim: true,
+    },
+
+    // 檢舉狀態
     status: {
       type: String,
       default: 'pending',
       enum: {
-        values: ['pending', 'resolved', 'rejected'],
-        message: '狀態必須是 pending、resolved、rejected',
+        values: ['pending', 'processed', 'rejected'],
+        message: '狀態必須是 pending、processed 或 rejected',
       },
     },
-    // 管理員處理方式（如刪除/保留/封鎖）
+
+    // V2 新增：處理方式
     action: {
       type: String,
-      default: '',
-      trim: true,
-      maxlength: [100, '處理方式長度不能超過100字'],
+      enum: {
+        values: [
+          'none',
+          'remove_content',
+          'soft_hide',
+          'age_gate',
+          'mark_nsfw',
+          'lock_comments',
+          'issue_strike',
+          'warn_author',
+        ],
+        message: '處理方式必須是有效的選項',
+      },
+      default: 'none',
     },
+
+    // V2 新增：處理方式詳細資訊
+    action_meta: {
+      type: Object,
+      default: {},
+    },
+
+    // 管理員處理備註
+    admin_comment: {
+      type: String,
+      maxlength: [1000, '管理員備註長度不能超過1000字'],
+      trim: true,
+    },
+
     // 處理時間
-    handled_at: {
+    processed_at: {
       type: Date,
       validate: {
         validator: (v) => !v || (v instanceof Date && !isNaN(v)),
         message: '處理時間必須是有效日期',
       },
     },
-    // 處理人員 user id
+
+    // 處理人員ID
     handler_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -98,18 +114,26 @@ const ReportSchema = new mongoose.Schema(
         message: '處理人員ID必須是有效的ObjectId',
       },
     },
-    // 處理結果/備註
-    result: {
-      type: String,
-      default: '',
-      trim: true,
-      maxlength: [1000, '處理結果長度不能超過1000字'],
-    },
   },
   {
     collection: 'reports',
     timestamps: true,
   },
 )
+
+// 防止重複檢舉的唯一索引
+ReportSchema.index({ reporter_id: 1, target_type: 1, target_id: 1 }, { unique: true })
+
+// 群組化查詢索引
+ReportSchema.index({ target_type: 1, target_id: 1, status: 1, createdAt: -1 })
+
+// 用戶檢舉歷史查詢
+ReportSchema.index({ reporter_id: 1, createdAt: -1 })
+
+// 管理員篩選查詢
+ReportSchema.index({ status: 1, createdAt: -1 })
+
+// 處理時間查詢
+ReportSchema.index({ processed_at: -1 })
 
 export default mongoose.model('Report', ReportSchema)
