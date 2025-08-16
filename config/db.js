@@ -94,31 +94,48 @@ const createModelIndexes = async (model, modelName) => {
 
     logger.debug(`開始為 ${modelName} 模型建立索引...`)
 
+    // 通用索引建立函數，包含錯誤處理
+    const createIndexSafely = async (indexSpec, options = {}) => {
+      try {
+        await model.collection.createIndex(indexSpec, options)
+        logger.debug(`成功建立索引: ${JSON.stringify(indexSpec)}`)
+      } catch (error) {
+        // 如果是索引已存在的錯誤，記錄為警告而不是錯誤
+        if (
+          error.message.includes('existing index has the same name') ||
+          error.message.includes('already exists')
+        ) {
+          logger.debug(`索引已存在，跳過建立: ${JSON.stringify(indexSpec)}`)
+        } else {
+          logger.warn(`建立索引失敗: ${JSON.stringify(indexSpec)}, 錯誤: ${error.message}`)
+        }
+      }
+    }
+
     switch (modelName) {
       case 'User':
-        await model.collection.createIndex({ username: 1 }, { unique: true })
-        // Email 索引改為非唯一，允許多個 null 值（用於社群登入用戶）
-        await model.collection.createIndex({ email: 1 }, { unique: false })
-        await model.collection.createIndex({ created_at: -1 })
-        await model.collection.createIndex({ status: 1 })
+        await createIndexSafely({ username: 1 }, { unique: true })
+        await createIndexSafely({ email: 1 }, { unique: false })
+        await createIndexSafely({ created_at: -1 })
+        await createIndexSafely({ status: 1 })
         break
 
       case 'Meme':
-        await model.collection.createIndex({ status: 1 })
-        await model.collection.createIndex({ author_id: 1 })
-        await model.collection.createIndex({ created_at: -1 })
-        await model.collection.createIndex({ hot_score: -1 })
-        await model.collection.createIndex({ tags_cache: 1 })
-        await model.collection.createIndex({
+        await createIndexSafely({ status: 1 })
+        await createIndexSafely({ author_id: 1 })
+        await createIndexSafely({ created_at: -1 })
+        await createIndexSafely({ hot_score: -1 })
+        await createIndexSafely({ tags_cache: 1 })
+        await createIndexSafely({
           status: 1,
           created_at: -1,
         })
-        await model.collection.createIndex({
+        await createIndexSafely({
           status: 1,
           hot_score: -1,
         })
         // 暫時移除全文搜尋索引以避免相容性問題
-        // await model.collection.createIndex(
+        // await createIndexSafely(
         //   {
         //     status: 1,
         //     title: 'text',
@@ -131,24 +148,24 @@ const createModelIndexes = async (model, modelName) => {
         break
 
       case 'Like':
-        await model.collection.createIndex({ user_id: 1 })
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex(
+        await createIndexSafely({ user_id: 1 })
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely(
           {
             user_id: 1,
             meme_id: 1,
           },
           { unique: true },
         )
-        await model.collection.createIndex({ created_at: -1 })
+        await createIndexSafely({ created_at: -1 })
         break
 
       case 'Comment':
-        await model.collection.createIndex({ user_id: 1 })
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex({ status: 1 })
-        await model.collection.createIndex({ created_at: -1 })
-        await model.collection.createIndex({
+        await createIndexSafely({ user_id: 1 })
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely({ status: 1 })
+        await createIndexSafely({ created_at: -1 })
+        await createIndexSafely({
           meme_id: 1,
           status: 1,
           created_at: -1,
@@ -156,31 +173,31 @@ const createModelIndexes = async (model, modelName) => {
         break
 
       case 'Share':
-        await model.collection.createIndex({ user_id: 1 })
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex({ created_at: -1 })
+        await createIndexSafely({ user_id: 1 })
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely({ created_at: -1 })
         break
 
       case 'View':
-        await model.collection.createIndex({ user_id: 1 })
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex({ created_at: -1 })
-        await model.collection.createIndex({
+        await createIndexSafely({ user_id: 1 })
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely({ created_at: -1 })
+        await createIndexSafely({
           meme_id: 1,
           created_at: -1,
         })
         break
 
       case 'Collection':
-        await model.collection.createIndex({ user_id: 1 })
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex({ created_at: -1 })
+        await createIndexSafely({ user_id: 1 })
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely({ created_at: -1 })
         break
 
       case 'Follow':
-        await model.collection.createIndex({ follower_id: 1 })
-        await model.collection.createIndex({ following_id: 1 })
-        await model.collection.createIndex(
+        await createIndexSafely({ follower_id: 1 })
+        await createIndexSafely({ following_id: 1 })
+        await createIndexSafely(
           {
             follower_id: 1,
             following_id: 1,
@@ -190,14 +207,14 @@ const createModelIndexes = async (model, modelName) => {
         break
 
       case 'Tag':
-        await model.collection.createIndex({ name: 1 }, { unique: true })
-        await model.collection.createIndex({ usage_count: -1 })
+        await createIndexSafely({ name: 1 }, { unique: true })
+        await createIndexSafely({ usage_count: -1 })
         break
 
       case 'MemeTag':
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex({ tag_id: 1 })
-        await model.collection.createIndex(
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely({ tag_id: 1 })
+        await createIndexSafely(
           {
             meme_id: 1,
             tag_id: 1,
@@ -207,52 +224,52 @@ const createModelIndexes = async (model, modelName) => {
         break
 
       case 'Notification':
-        await model.collection.createIndex({ user_id: 1 })
-        await model.collection.createIndex({ is_read: 1 })
-        await model.collection.createIndex({ created_at: -1 })
-        await model.collection.createIndex({
+        await createIndexSafely({ user_id: 1 })
+        await createIndexSafely({ is_read: 1 })
+        await createIndexSafely({ created_at: -1 })
+        await createIndexSafely({
           user_id: 1,
           is_read: 1,
         })
         break
 
       case 'Report':
-        await model.collection.createIndex({ reporter_id: 1 })
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex({ status: 1 })
-        await model.collection.createIndex({ created_at: -1 })
+        await createIndexSafely({ reporter_id: 1 })
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely({ status: 1 })
+        await createIndexSafely({ created_at: -1 })
         break
 
       case 'MemeVersion':
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex({ version: 1 })
-        await model.collection.createIndex({ created_at: -1 })
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely({ version: 1 })
+        await createIndexSafely({ created_at: -1 })
         break
 
       case 'MemeEditProposal':
-        await model.collection.createIndex({ meme_id: 1 })
-        await model.collection.createIndex({ proposer_id: 1 })
-        await model.collection.createIndex({ status: 1 })
-        await model.collection.createIndex({ created_at: -1 })
+        await createIndexSafely({ meme_id: 1 })
+        await createIndexSafely({ proposer_id: 1 })
+        await createIndexSafely({ status: 1 })
+        await createIndexSafely({ created_at: -1 })
         break
 
       case 'Announcement':
-        await model.collection.createIndex({ status: 1 })
-        await model.collection.createIndex({ created_at: -1 })
-        await model.collection.createIndex({
+        await createIndexSafely({ status: 1 })
+        await createIndexSafely({ created_at: -1 })
+        await createIndexSafely({
           status: 1,
           created_at: -1,
         })
         break
 
       case 'Sponsor':
-        await model.collection.createIndex({ status: 1 })
-        await model.collection.createIndex({ created_at: -1 })
+        await createIndexSafely({ status: 1 })
+        await createIndexSafely({ created_at: -1 })
         break
 
       default:
         // 為其他模型建立基本索引
-        await model.collection.createIndex({ created_at: -1 })
+        await createIndexSafely({ created_at: -1 })
         break
     }
   } catch (error) {

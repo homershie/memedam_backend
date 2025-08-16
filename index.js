@@ -117,66 +117,14 @@ app.use(hpp())
 app.use(mongoSanitize())
 app.use(compression())
 
-// 設定基本的 session 中介軟體（在 startServer 之前）
-const configureSession = () => {
-  // 根據環境選擇 session store
-  let sessionStore
+// Session 配置已移至 startServer 函數中，確保在 Redis 連線後進行
 
-  if (process.env.NODE_ENV === 'production' && redisCache.isConnected && redisCache.client) {
-    // 生產環境使用 Redis store
-    sessionStore = new RedisStore({
-      client: redisCache.client,
-      prefix: 'sess:',
-      ttl: 86400 * 7, // 7 天
-    })
-    logger.info('使用 Redis session store')
-  } else {
-    // 開發環境或 Redis 不可用時使用 MemoryStore
-    sessionStore = new session.MemoryStore()
-    logger.info('使用 Memory session store (開發環境)')
-    logger.info('開發環境 session 配置:', {
-      NODE_ENV: process.env.NODE_ENV,
-      SESSION_SECRET: process.env.SESSION_SECRET ? '已設置' : '未設置',
-      cookieSecure: process.env.NODE_ENV === 'production',
-      cookieMaxAge: '2小時',
-    })
-  }
+// Session 配置將在 startServer 中進行，確保 Redis 連線後再設定
+// app.use(configureSession())
 
-  return session({
-    store: sessionStore,
-    secret: process.env.SESSION_SECRET || 'your-session-secret',
-    name: 'memedam.sid',
-    resave: true, // Twitter OAuth 1.0a 必須設為 true
-    saveUninitialized: true, // Twitter OAuth 1.0a 必須設為 true
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax', // 支援 OAuth 跨域流程
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 1000 * 60 * 60 * 2, // 縮短為 2 小時，OAuth 流程通常很快
-      // 明確設定 path，確保 cookie 在所有路徑都可用
-      path: '/',
-      // 本地開發環境不設定 domain，讓瀏覽器自動處理
-      // 生產環境也不限制 domain，避免跨子域問題
-    },
-    // Twitter OAuth 1.0a 最佳化設定
-    rolling: false, // 避免 OAuth 流程中 session ID 變化
-    unset: 'keep', // 保持 session 資料不被清除
-    // 只在生產環境信任代理
-    proxy: process.env.NODE_ENV === 'production',
-    genid: () => {
-      // 使用更穩定的 session ID 生成方式
-      return crypto.randomBytes(32).toString('hex')
-    },
-    // 強制 session 保存，即使沒有修改
-    touchAfter: 0, // 每次請求都更新，確保 OAuth 流程中狀態同步
-  })
-}
-
-app.use(configureSession())
-
-// Passport 初始化（在 session 配置之後）
-app.use(passport.initialize())
-app.use(passport.session())
+// Passport 初始化（暫時移除，將在 startServer 中重新設定）
+// app.use(passport.initialize())
+// app.use(passport.session())
 
 // 其他中間件
 app.use(express.json({ limit: '10mb' }))
@@ -587,16 +535,64 @@ const startServer = async () => {
       logger.info('跳過 Redis 連線 (SKIP_REDIS=true)')
     }
 
-    // 如果 Redis 可用，重新設定 session store（可選）
+    // 配置 session store（在 Redis 連線後）
     const isProd = process.env.NODE_ENV === 'production'
-    if (redisCache.isEnabled && redisCache.client && redisCache.isConnected && isProd) {
+    let sessionStore
+
+    if (isProd && redisCache.isEnabled && redisCache.client && redisCache.isConnected) {
+      // 生產環境使用 Redis store
+      sessionStore = new RedisStore({
+        client: redisCache.client,
+        prefix: 'sess:',
+        ttl: 86400 * 7, // 7 天
+      })
       logger.info('生產環境：Redis 可用，session 將使用 Redis store')
     } else {
-      logger.info('使用 MemoryStore 作為 session store')
+      // 開發環境或 Redis 不可用時使用 MemoryStore
+      sessionStore = new session.MemoryStore()
+      logger.info('使用 Memory session store')
       if (isProd) {
-        logger.warn('生產環境使用 MemoryStore，建議檢查 Redis 配置')
+        logger.warn('⚠️  生產環境使用 MemoryStore，建議檢查 Redis 配置')
       }
+      logger.info('Session 配置:', {
+        NODE_ENV: process.env.NODE_ENV,
+        SESSION_SECRET: process.env.SESSION_SECRET ? '已設置' : '未設置',
+        cookieSecure: process.env.NODE_ENV === 'production',
+        cookieMaxAge: '2小時',
+        store: 'MemoryStore',
+        redisConnected: redisCache.isConnected,
+        redisEnabled: redisCache.isEnabled,
+      })
     }
+
+    // 設定 session 中間件
+    app.use(
+      session({
+        store: sessionStore,
+        secret: process.env.SESSION_SECRET || 'your-session-secret',
+        name: 'memedam.sid',
+        resave: true, // Twitter OAuth 1.0a 必須設為 true
+        saveUninitialized: true, // Twitter OAuth 1.0a 必須設為 true
+        cookie: {
+          httpOnly: true,
+          sameSite: 'lax', // 支援 OAuth 跨域流程
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 1000 * 60 * 60 * 2, // 縮短為 2 小時，OAuth 流程通常很快
+          path: '/',
+        },
+        rolling: false, // 避免 OAuth 流程中 session ID 變化
+        unset: 'keep', // 保持 session 資料不被清除
+        proxy: process.env.NODE_ENV === 'production',
+        genid: () => {
+          return crypto.randomBytes(32).toString('hex')
+        },
+        touchAfter: 0, // 每次請求都更新，確保 OAuth 流程中狀態同步
+      }),
+    )
+
+    // Passport 初始化（在 session 配置之後）
+    app.use(passport.initialize())
+    app.use(passport.session())
 
     // 啟動定期維護任務
     if (process.env.NODE_ENV === 'production') {
