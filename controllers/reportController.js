@@ -737,16 +737,24 @@ export const getReportStats = async (req, res) => {
     const now = new Date()
     switch (period) {
       case '1d':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) }),
+        }
         break
       case '7d':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }),
+        }
         break
       case '30d':
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }),
+        }
         break
       default:
-        dateFilter = { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } }
+        dateFilter = {
+          createdAt: mongoose.trusted({ $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }),
+        }
     }
 
     const [
@@ -793,6 +801,237 @@ export const getReportStats = async (req, res) => {
       error: error.message,
     })
   }
+}
+
+// 取得詳細檢舉統計（用於管理員統計頁面）
+export const getDetailedReportStats = async (req, res) => {
+  try {
+    const { startDate, endDate, groupBy = 'day' } = req.query
+
+    // 基本統計
+    const dateQuery =
+      startDate && endDate
+        ? {
+            createdAt: mongoose.trusted({
+              $gte: new Date(startDate),
+              $lte: new Date(endDate + 'T23:59:59.999Z'),
+            }),
+          }
+        : {}
+
+    const [total, pending, processed, rejected] = await Promise.all([
+      Report.countDocuments(dateQuery),
+      Report.countDocuments({ ...dateQuery, status: 'pending' }),
+      Report.countDocuments({ ...dateQuery, status: 'processed' }),
+      Report.countDocuments({ ...dateQuery, status: 'rejected' }),
+    ])
+
+    // 類型分佈統計
+    const typeDistribution = await Report.aggregate([
+      {
+        $match:
+          startDate && endDate
+            ? {
+                createdAt: mongoose.trusted({
+                  $gte: new Date(startDate),
+                  $lte: new Date(endDate + 'T23:59:59.999Z'),
+                }),
+              }
+            : {},
+      },
+      { $group: { _id: '$reason', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ])
+
+    // 狀態分佈統計
+    const statusDistribution = await Report.aggregate([
+      {
+        $match:
+          startDate && endDate
+            ? {
+                createdAt: mongoose.trusted({
+                  $gte: new Date(startDate),
+                  $lte: new Date(endDate + 'T23:59:59.999Z'),
+                }),
+              }
+            : {},
+      },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ])
+
+    // 每日趨勢統計
+    let trendData = []
+    if (groupBy === 'day' && startDate && endDate) {
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+
+      trendData = await Report.aggregate([
+        {
+          $match: {
+            createdAt: mongoose.trusted({
+              $gte: new Date(startDate),
+              $lte: new Date(endDate + 'T23:59:59.999Z'),
+            }),
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ])
+
+      // 填充缺失的日期
+      const trendMap = new Map(trendData.map((item) => [item._id, item.count]))
+      const filledTrendData = []
+
+      for (let i = 0; i < days; i++) {
+        const date = new Date(start)
+        date.setDate(date.getDate() + i)
+        const dateStr = date.toISOString().split('T')[0]
+        filledTrendData.push({
+          date: dateStr,
+          count: trendMap.get(dateStr) || 0,
+        })
+      }
+      trendData = filledTrendData
+    }
+
+    // 近期檢舉列表
+    const recentReports = await Report.find(
+      startDate && endDate
+        ? {
+            createdAt: mongoose.trusted({
+              $gte: new Date(startDate),
+              $lte: new Date(endDate + 'T23:59:59.999Z'),
+            }),
+          }
+        : {},
+    )
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('reporter_id', 'username email')
+      .populate('handler_id', 'username')
+      .lean()
+
+    // 為每個檢舉添加目標資訊
+    const reportsWithTargetInfo = await Promise.all(
+      recentReports.map(async (report) => {
+        let targetInfo = {}
+        try {
+          switch (report.target_type) {
+            case 'meme': {
+              const meme = await Meme.findById(report.target_id).select('title author_id')
+              if (meme) {
+                const author = await User.findById(meme.author_id).select('username')
+                targetInfo = {
+                  title: meme.title || '無標題',
+                  author: author ? author.username : '未知用戶',
+                }
+              }
+              break
+            }
+            case 'comment': {
+              const comment = await Comment.findById(report.target_id).select('content author_id')
+              if (comment) {
+                const author = await User.findById(comment.author_id).select('username')
+                targetInfo = {
+                  title:
+                    comment.content.substring(0, 50) + (comment.content.length > 50 ? '...' : ''),
+                  author: author ? author.username : '未知用戶',
+                }
+              }
+              break
+            }
+            case 'user': {
+              const user = await User.findById(report.target_id).select('username')
+              if (user) {
+                targetInfo = {
+                  title: `用戶: ${user.username}`,
+                  author: user.username,
+                }
+              }
+              break
+            }
+          }
+        } catch (error) {
+          console.error('獲取目標資訊失敗:', error)
+          targetInfo = {
+            title: '無法獲取資訊',
+            author: '未知',
+          }
+        }
+
+        return {
+          ...report,
+          target_info: targetInfo,
+        }
+      }),
+    )
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          total,
+          pending,
+          processed,
+          rejected,
+        },
+        typeDistribution: typeDistribution.map((item) => ({
+          label: getReasonLabel(item._id),
+          value: item._id,
+          count: item.count,
+        })),
+        statusDistribution: statusDistribution.map((item) => ({
+          label: getStatusLabel(item._id),
+          value: item._id,
+          count: item.count,
+        })),
+        trendData,
+        recentReports: reportsWithTargetInfo,
+        dateRange: {
+          startDate,
+          endDate,
+        },
+      },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}
+
+// 輔助函數：獲取檢舉原因標籤
+const getReasonLabel = (reason) => {
+  const reasonMap = {
+    inappropriate: '不當內容',
+    hate_speech: '仇恨言論',
+    spam: '垃圾訊息',
+    copyright: '版權問題',
+    other: '其他',
+  }
+  return reasonMap[reason] || reason
+}
+
+// 輔助函數：獲取狀態標籤
+const getStatusLabel = (status) => {
+  const statusMap = {
+    pending: '待處理',
+    processed: '已處理',
+    rejected: '已駁回',
+  }
+  return statusMap[status] || status
 }
 
 // 根據處理方式發送相應通知

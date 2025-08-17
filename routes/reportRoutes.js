@@ -9,6 +9,7 @@ import {
   deleteReport,
   getReportStats,
   getUserReportStats,
+  getDetailedReportStats,
   validateCreateReport,
   validateResolveReport,
   validateBatchResolveReport,
@@ -475,6 +476,9 @@ router.get('/my/stats', token, isUser, getUserReportStats)
 
 // 取得檢舉統計
 router.get('/stats', token, isManager, getReportStats)
+
+// 取得詳細檢舉統計（用於管理員統計頁面）
+router.get('/stats/detailed', token, isManager, getDetailedReportStats)
 
 // 取得檢舉選項
 router.get('/options', (req, res) => {
