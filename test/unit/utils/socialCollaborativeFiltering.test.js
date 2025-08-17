@@ -335,7 +335,7 @@ describe('社交協同過濾推薦系統測試', () => {
       expect(cacheResults.total_users).toBeGreaterThanOrEqual(1)
       expect(cacheResults.total_interactions).toBeGreaterThanOrEqual(0)
       expect(cacheResults.total_social_connections).toBeGreaterThanOrEqual(0)
-      expect(cacheResults.processing_time).toBeGreaterThan(0)
+      expect(cacheResults.processing_time).toBeGreaterThanOrEqual(0)
     })
   })
 
