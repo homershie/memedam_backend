@@ -3,6 +3,9 @@ import mongoose from 'mongoose'
 import dotenv from 'dotenv'
 import { MongoMemoryServer } from 'mongodb-memory-server'
 
+// 先 mock 掉會在載入時檢查雲端設定的模組，避免測試環境因未設 CLOUDINARY_* 失敗
+vi.mock('../config/cloudinary.js', () => ({ default: {} }))
+
 // 載入環境變數
 dotenv.config({ path: '.env.test' })
 
@@ -35,6 +38,26 @@ beforeAll(async () => {
       connectTimeoutMS: 5000,
     })
     console.log('✅ 記憶體 MongoDB 已啟動並連線成功')
+
+    // 在單節點 memory server 下，禁用 Mongoose transaction sessions，避免 500
+    try {
+      const UserModule = await import('../models/User.js')
+      const fakeSession = {
+        startTransaction: vi.fn(),
+        commitTransaction: vi.fn(),
+        abortTransaction: vi.fn(),
+        endSession: vi.fn(),
+      }
+      if (UserModule?.default?.startSession) {
+        vi.spyOn(UserModule.default, 'startSession').mockResolvedValue(fakeSession)
+      }
+      // 也防禦性覆寫 mongoose.startSession
+      if (typeof mongoose.startSession === 'function') {
+        vi.spyOn(mongoose, 'startSession').mockResolvedValue(fakeSession)
+      }
+    } catch (e) {
+      console.warn('跳過 startSession stub 設定:', e?.message)
+    }
   } catch (error) {
     console.error('❌ 記憶體 MongoDB 連線失敗:', error.message)
     throw error
