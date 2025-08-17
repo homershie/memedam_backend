@@ -1,218 +1,440 @@
-import { describe, it, expect } from 'vitest'
-import {
-  advancedFuzzySearch,
-  processAdvancedSearchResults,
-  combineAdvancedSearchFilters,
-  getSearchStats,
-} from '../../../utils/advancedSearch.js'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import request from 'supertest'
+import { app } from '../../../index.js'
+import User from '../../../models/User.js'
+import Meme from '../../../models/Meme.js'
+import { createTestUser, createTestMeme, cleanupTestData } from '../../setup.js'
 
 describe('進階搜尋功能測試', () => {
-  // 模擬迷因資料
-  const mockMemes = [
-    {
-      _id: '1',
-      title: '有趣的迷因',
-      content: '這是一個很有趣的迷因',
-      tags_cache: ['有趣', '迷因'],
-      author: { username: 'user1', display_name: '用戶1', meme_count: 50 },
-      views: 1000,
-      likes: 100,
-      shares: 20,
-      comments: 10,
-      createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
-    },
-    {
-      _id: '2',
-      title: '熱門迷因',
-      content: '這是一個非常熱門的迷因',
-      tags_cache: ['熱門', '迷因'],
-      author: { username: 'user2', display_name: '用戶2', meme_count: 100 },
-      views: 5000,
-      likes: 500,
-      shares: 100,
-      comments: 50,
-      createdAt: new Date('2024-01-15'),
-      updatedAt: new Date('2024-01-15'),
-    },
-    {
-      _id: '3',
-      title: '最新迷因',
-      content: '這是最新的迷因',
-      tags_cache: ['最新', '迷因'],
-      author: { username: 'user3', display_name: '用戶3', meme_count: 25 },
-      views: 500,
-      likes: 50,
-      shares: 10,
-      comments: 5,
-      createdAt: new Date('2024-02-01'),
-      updatedAt: new Date('2024-02-01'),
-    },
-  ]
+  let testUser
+  let authToken
+  let testMemes = []
 
-  describe('advancedFuzzySearch', () => {
-    it('應該能進行模糊搜尋並計算綜合分數', () => {
-      const results = advancedFuzzySearch(mockMemes, '迷因')
-
-      expect(Array.isArray(results)).toBe(true)
-      expect(results.length).toBeGreaterThan(0)
-
-      // 檢查每個結果都有分數
-      results.forEach((result) => {
-        expect(result).toHaveProperty('relevanceScore')
-        expect(result).toHaveProperty('qualityScore')
-        expect(result).toHaveProperty('freshnessScore')
-        expect(result).toHaveProperty('userBehaviorScore')
-        expect(result).toHaveProperty('comprehensiveScore')
-        expect(result).toHaveProperty('searchScore')
-      })
+  beforeAll(async () => {
+    // 創建測試用戶
+    testUser = await createTestUser(User, {
+      username: `search_user_${Date.now()}`,
+      email: `search_${Date.now()}@example.com`,
     })
 
-    it('無搜尋詞時應該按綜合品質排序', () => {
-      const results = advancedFuzzySearch(mockMemes, '')
+    // 登入取得 token
+    const loginResponse = await request(app)
+      .post('/api/users/login')
+      .send({
+        email: testUser.email,
+        password: 'testpassword123',
+      })
+    authToken = loginResponse.body.token
 
-      expect(Array.isArray(results)).toBe(true)
-      expect(results.length).toBe(mockMemes.length)
+    // 創建多個測試迷因
+    const memeData = [
+      {
+        title: '有趣的程式設計迷因',
+        description: '這是一個關於程式設計的有趣迷因',
+        tags: ['程式設計', '有趣', 'javascript'],
+        author_id: testUser._id,
+        view_count: 1000,
+        like_count: 100,
+        share_count: 20,
+        created_at: new Date('2024-01-01'),
+      },
+      {
+        title: '熱門貓咪迷因',
+        description: '超級可愛的貓咪迷因，大家都喜歡',
+        tags: ['貓咪', '熱門', '可愛'],
+        author_id: testUser._id,
+        view_count: 5000,
+        like_count: 500,
+        share_count: 100,
+        created_at: new Date('2024-01-15'),
+      },
+      {
+        title: '最新科技趨勢',
+        description: 'AI 和機器學習的最新發展',
+        tags: ['科技', 'AI', '機器學習', '最新'],
+        author_id: testUser._id,
+        view_count: 2000,
+        like_count: 200,
+        share_count: 50,
+        created_at: new Date('2024-02-01'),
+      },
+      {
+        title: 'JavaScript 框架比較',
+        description: 'React vs Vue vs Angular 的詳細比較',
+        tags: ['javascript', 'react', 'vue', 'angular', '框架'],
+        author_id: testUser._id,
+        view_count: 3000,
+        like_count: 300,
+        share_count: 75,
+        created_at: new Date('2024-02-10'),
+      },
+      {
+        title: '狗狗的日常生活',
+        description: '記錄狗狗們的可愛瞬間',
+        tags: ['狗狗', '寵物', '日常', '可愛'],
+        author_id: testUser._id,
+        view_count: 1500,
+        like_count: 150,
+        share_count: 30,
+        created_at: new Date('2024-02-15'),
+      },
+    ]
 
-      // 檢查是否按綜合分數排序（降序）
-      for (let i = 1; i < results.length; i++) {
-        expect(results[i - 1].comprehensiveScore).toBeGreaterThanOrEqual(
-          results[i].comprehensiveScore,
+    for (const data of memeData) {
+      const meme = await createTestMeme(Meme, data)
+      testMemes.push(meme)
+    }
+  })
+
+  afterAll(async () => {
+    await cleanupTestData({ User, Meme })
+  })
+
+  describe('基本搜尋功能', () => {
+    it('應該根據關鍵字搜尋迷因標題', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=程式設計')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toBeInstanceOf(Array)
+      expect(response.body.data.some(meme => 
+        meme.title.includes('程式設計')
+      )).toBe(true)
+    })
+
+    it('應該根據關鍵字搜尋迷因描述', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=機器學習')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data.some(meme => 
+        meme.description.includes('機器學習')
+      )).toBe(true)
+    })
+
+    it('應該支援空白搜尋返回所有結果', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('標籤搜尋', () => {
+    it('應該根據單一標籤搜尋', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?tags=javascript')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data.every(meme => 
+        meme.tags.includes('javascript')
+      )).toBe(true)
+    })
+
+    it('應該支援多個標籤搜尋（OR 邏輯）', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?tags=貓咪,狗狗')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data.every(meme => 
+        meme.tags.includes('貓咪') || meme.tags.includes('狗狗')
+      )).toBe(true)
+    })
+
+    it('應該支援標籤組合搜尋（AND 邏輯）', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?tags=javascript&tags=框架')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data.every(meme => 
+        meme.tags.includes('javascript') && meme.tags.includes('框架')
+      )).toBe(true)
+    })
+  })
+
+  describe('排序功能', () => {
+    it('應該按照熱門度排序（預設）', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&sort=hot')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      const data = response.body.data
+      for (let i = 1; i < data.length; i++) {
+        const prevScore = data[i-1].view_count + data[i-1].like_count * 2
+        const currScore = data[i].view_count + data[i].like_count * 2
+        expect(prevScore).toBeGreaterThanOrEqual(currScore)
+      }
+    })
+
+    it('應該按照最新時間排序', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&sort=latest')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      const data = response.body.data
+      for (let i = 1; i < data.length; i++) {
+        expect(new Date(data[i-1].created_at)).toBeGreaterThanOrEqual(
+          new Date(data[i].created_at)
         )
       }
     })
 
-    it('應該處理特殊字符和空格', () => {
-      const results = advancedFuzzySearch(mockMemes, ' 迷因 ')
-      expect(Array.isArray(results)).toBe(true)
-      expect(results.length).toBeGreaterThan(0)
-    })
+    it('應該按照最多讚數排序', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&sort=likes')
+        .set('Authorization', `Bearer ${authToken}`)
 
-    it('應該處理不存在的搜尋詞', () => {
-      const results = advancedFuzzySearch(mockMemes, '不存在的詞')
-      expect(Array.isArray(results)).toBe(true)
-      expect(results.length).toBe(0)
-    })
-  })
-
-  describe('processAdvancedSearchResults', () => {
-    it('應該能正確處理分頁和排序', () => {
-      const searchResults = advancedFuzzySearch(mockMemes, '迷因')
-      const processed = processAdvancedSearchResults(
-        searchResults,
-        { page: 1, limit: 2 },
-        'comprehensive',
-      )
-
-      expect(processed).toHaveProperty('results')
-      expect(processed).toHaveProperty('pagination')
-      expect(processed).toHaveProperty('scoring')
-
-      expect(processed.results.length).toBe(2)
-      expect(processed.pagination.page).toBe(1)
-      expect(processed.pagination.limit).toBe(2)
-      expect(processed.pagination.total).toBe(searchResults.length)
-    })
-
-    it('應該處理不同的排序方式', () => {
-      const searchResults = advancedFuzzySearch(mockMemes, '迷因')
-
-      const relevanceSorted = processAdvancedSearchResults(
-        searchResults,
-        { page: 1, limit: 10 },
-        'relevance',
-      )
-
-      const qualitySorted = processAdvancedSearchResults(
-        searchResults,
-        { page: 1, limit: 10 },
-        'quality',
-      )
-
-      expect(relevanceSorted.results).toBeDefined()
-      expect(qualitySorted.results).toBeDefined()
-    })
-
-    it('應該處理邊界分頁', () => {
-      const searchResults = advancedFuzzySearch(mockMemes, '迷因')
-      const processed = processAdvancedSearchResults(
-        searchResults,
-        { page: 999, limit: 10 },
-        'comprehensive',
-      )
-
-      expect(processed.results.length).toBe(0)
-      expect(processed.pagination.page).toBe(999)
-    })
-  })
-
-  describe('combineAdvancedSearchFilters', () => {
-    it('應該能組合多個搜尋條件', () => {
-      const filters = {
-        tags: ['有趣'],
-        dateRange: { start: new Date('2024-01-01'), end: new Date('2024-12-31') },
-        minViews: 100,
-        maxViews: 2000,
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      const data = response.body.data
+      for (let i = 1; i < data.length; i++) {
+        expect(data[i-1].like_count).toBeGreaterThanOrEqual(data[i].like_count)
       }
-
-      const combined = combineAdvancedSearchFilters(filters)
-      expect(combined).toBeDefined()
-      expect(typeof combined).toBe('function')
     })
 
-    it('應該處理空的過濾條件', () => {
-      const filters = {}
-      const combined = combineAdvancedSearchFilters(filters)
-      expect(combined).toBeDefined()
-    })
-  })
+    it('應該按照最多觀看數排序', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&sort=views')
+        .set('Authorization', `Bearer ${authToken}`)
 
-  describe('getSearchStats', () => {
-    it('應該能計算搜尋統計資訊', () => {
-      const searchResults = advancedFuzzySearch(mockMemes, '迷因')
-      const stats = getSearchStats(searchResults)
-
-      expect(stats).toHaveProperty('totalResults')
-      expect(stats).toHaveProperty('avgScore')
-      expect(stats).toHaveProperty('scoreDistribution')
-      expect(stats).toHaveProperty('tagFrequency')
-    })
-
-    it('應該處理空結果的統計', () => {
-      const emptyResults = []
-      const stats = getSearchStats(emptyResults)
-
-      expect(stats.totalResults).toBe(0)
-      expect(stats.avgScore).toBe(0)
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      const data = response.body.data
+      for (let i = 1; i < data.length; i++) {
+        expect(data[i-1].view_count).toBeGreaterThanOrEqual(data[i].view_count)
+      }
     })
   })
 
-  describe('搜尋品質評估', () => {
-    it('應該根據多個因素計算品質分數', () => {
-      const results = advancedFuzzySearch(mockMemes, '迷因')
+  describe('過濾功能', () => {
+    it('應該根據日期範圍過濾', async () => {
+      const startDate = '2024-01-10'
+      const endDate = '2024-02-05'
+      
+      const response = await request(app)
+        .get(`/api/memes/search?q=&startDate=${startDate}&endDate=${endDate}`)
+        .set('Authorization', `Bearer ${authToken}`)
 
-      results.forEach((result) => {
-        expect(result.qualityScore).toBeGreaterThanOrEqual(0)
-        expect(result.qualityScore).toBeLessThanOrEqual(1)
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      response.body.data.forEach(meme => {
+        const memeDate = new Date(meme.created_at)
+        expect(memeDate).toBeGreaterThanOrEqual(new Date(startDate))
+        expect(memeDate).toBeLessThanOrEqual(new Date(endDate))
       })
     })
 
-    it('應該計算新鮮度分數', () => {
-      const results = advancedFuzzySearch(mockMemes, '迷因')
+    it('應該根據最小讚數過濾', async () => {
+      const minLikes = 200
+      
+      const response = await request(app)
+        .get(`/api/memes/search?q=&minLikes=${minLikes}`)
+        .set('Authorization', `Bearer ${authToken}`)
 
-      results.forEach((result) => {
-        expect(result.freshnessScore).toBeGreaterThanOrEqual(0)
-        expect(result.freshnessScore).toBeLessThanOrEqual(1)
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      response.body.data.forEach(meme => {
+        expect(meme.like_count).toBeGreaterThanOrEqual(minLikes)
       })
     })
 
-    it('應該計算用戶行為分數', () => {
-      const results = advancedFuzzySearch(mockMemes, '迷因')
+    it('應該根據最小觀看數過濾', async () => {
+      const minViews = 2000
+      
+      const response = await request(app)
+        .get(`/api/memes/search?q=&minViews=${minViews}`)
+        .set('Authorization', `Bearer ${authToken}`)
 
-      results.forEach((result) => {
-        expect(result.userBehaviorScore).toBeGreaterThanOrEqual(0)
-        expect(result.userBehaviorScore).toBeLessThanOrEqual(1)
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      response.body.data.forEach(meme => {
+        expect(meme.view_count).toBeGreaterThanOrEqual(minViews)
       })
+    })
+
+    it('應該根據作者過濾', async () => {
+      const response = await request(app)
+        .get(`/api/memes/search?q=&author=${testUser.username}`)
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      response.body.data.forEach(meme => {
+        expect(meme.author.username).toBe(testUser.username)
+      })
+    })
+  })
+
+  describe('組合搜尋', () => {
+    it('應該支援關鍵字 + 標籤組合搜尋', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=JavaScript&tags=框架')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      response.body.data.forEach(meme => {
+        const hasKeyword = meme.title.includes('JavaScript') || 
+                          meme.description.includes('JavaScript')
+        const hasTag = meme.tags.includes('框架')
+        expect(hasKeyword && hasTag).toBe(true)
+      })
+    })
+
+    it('應該支援多個過濾條件組合', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&tags=javascript&minLikes=100&sort=latest')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      response.body.data.forEach(meme => {
+        expect(meme.tags.includes('javascript')).toBe(true)
+        expect(meme.like_count).toBeGreaterThanOrEqual(100)
+      })
+    })
+  })
+
+  describe('搜尋建議', () => {
+    it('應該提供搜尋建議', async () => {
+      const response = await request(app)
+        .get('/api/memes/search/suggestions?q=java')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toBeInstanceOf(Array)
+      expect(response.body.data.some(suggestion => 
+        suggestion.toLowerCase().includes('java')
+      )).toBe(true)
+    })
+
+    it('應該提供熱門標籤建議', async () => {
+      const response = await request(app)
+        .get('/api/memes/search/popular-tags')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toBeInstanceOf(Array)
+      expect(response.body.data.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('搜尋歷史', () => {
+    it('應該記錄用戶搜尋歷史', async () => {
+      // 執行搜尋
+      await request(app)
+        .get('/api/memes/search?q=測試搜尋')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      // 獲取搜尋歷史
+      const response = await request(app)
+        .get('/api/users/search-history')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toBeInstanceOf(Array)
+      expect(response.body.data.some(item => 
+        item.query === '測試搜尋'
+      )).toBe(true)
+    })
+
+    it('應該能清除搜尋歷史', async () => {
+      const response = await request(app)
+        .delete('/api/users/search-history')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+    })
+  })
+
+  describe('分頁功能', () => {
+    it('應該支援搜尋結果分頁', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&page=1&limit=2')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toHaveLength(2)
+      expect(response.body.pagination).toBeDefined()
+      expect(response.body.pagination.page).toBe(1)
+      expect(response.body.pagination.limit).toBe(2)
+      expect(response.body.pagination.total).toBeGreaterThanOrEqual(2)
+    })
+
+    it('應該返回正確的分頁資訊', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&page=2&limit=2')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.pagination.page).toBe(2)
+      expect(response.body.pagination.hasNext).toBeDefined()
+      expect(response.body.pagination.hasPrev).toBe(true)
+    })
+  })
+
+  describe('錯誤處理', () => {
+    it('應該處理無效的排序參數', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&sort=invalid')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(400)
+      expect(response.body.success).toBe(false)
+      expect(response.body.message).toContain('排序')
+    })
+
+    it('應該處理無效的日期格式', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&startDate=invalid-date')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(400)
+      expect(response.body.success).toBe(false)
+      expect(response.body.message).toContain('日期')
+    })
+
+    it('應該處理過大的分頁限制', async () => {
+      const response = await request(app)
+        .get('/api/memes/search?q=&limit=1000')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(400)
+      expect(response.body.success).toBe(false)
+      expect(response.body.message).toContain('限制')
     })
   })
 })
