@@ -1,16 +1,26 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import request from 'supertest'
-import { app } from '../../index.js'
-import User from '../../models/User.js'
-import VerificationToken from '../../models/VerificationToken.js'
+import { app } from '../../../index.js'
+import User from '../../../models/User.js'
+import VerificationToken from '../../../models/VerificationToken.js'
+import { createTestUser, cleanupTestData } from '../../setup.js'
 
-describe('註冊時發送驗證信測試', () => {
+describe('註冊驗證功能', () => {
+  beforeAll(async () => {
+    // 設置測試環境
+  })
+
+  afterAll(async () => {
+    await cleanupTestData({ User, VerificationToken })
+  })
+
   beforeEach(async () => {
     // 清理測試資料
     await User.deleteMany({})
     await VerificationToken.deleteMany({})
   })
 
-  test('註冊新用戶時應該發送驗證信', async () => {
+  it('註冊新用戶時應該發送驗證信', async () => {
     const testUser = {
       username: 'testuser123',
       email: 'test@example.com',
@@ -18,9 +28,9 @@ describe('註冊時發送驗證信測試', () => {
       display_name: '測試用戶',
     }
 
-    const response = await request(app).post('/api/users').send(testUser).expect(201)
+    const response = await request(app).post('/api/users').send(testUser)
 
-    // 檢查回應
+    expect(response.status).toBe(201)
     expect(response.body.success).toBe(true)
     expect(response.body.message).toContain('註冊成功')
     expect(response.body.emailSent).toBe(true)
@@ -42,8 +52,7 @@ describe('註冊時發送驗證信測試', () => {
     expect(verificationToken.expiresAt).toBeDefined()
   })
 
-  test('註冊時 email 發送失敗應該仍然創建用戶（放寬）', async () => {
-    // 模擬 email 服務失敗的情況
+  it('註冊時 email 發送失敗應該仍然創建用戶', async () => {
     const testUser = {
       username: 'testuser456',
       email: 'invalid-email', // 無效的 email 格式
@@ -68,7 +77,7 @@ describe('註冊時發送驗證信測試', () => {
     expect(createdUser).toBeDefined()
   })
 
-  test('重複註冊應該返回錯誤', async () => {
+  it('重複註冊應該返回錯誤', async () => {
     const testUser = {
       username: 'testuser789',
       email: 'test789@example.com',
@@ -85,5 +94,38 @@ describe('註冊時發送驗證信測試', () => {
 
     expect(response.body.success).toBe(false)
     expect(typeof response.body.message).toBe('string')
+  })
+
+  it('應該能驗證 email', async () => {
+    // 先註冊用戶
+    const testUser = {
+      username: 'testuser_verify',
+      email: 'verify@example.com',
+      password: 'password123',
+      display_name: '驗證用戶',
+    }
+
+    const registerResponse = await request(app).post('/api/users').send(testUser)
+    expect(registerResponse.status).toBe(201)
+
+    // 獲取驗證 token
+    const verificationToken = await VerificationToken.findOne({
+      userId: registerResponse.body.user._id,
+      type: 'email_verification',
+      used: false,
+    })
+    expect(verificationToken).toBeDefined()
+
+    // 驗證 email
+    const verifyResponse = await request(app)
+      .post('/api/verification/verify-email')
+      .send({ token: verificationToken.token })
+
+    expect(verifyResponse.status).toBe(200)
+    expect(verifyResponse.body.success).toBe(true)
+
+    // 檢查用戶狀態
+    const updatedUser = await User.findById(registerResponse.body.user._id)
+    expect(updatedUser.email_verified).toBe(true)
   })
 })

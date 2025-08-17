@@ -9,11 +9,52 @@ vi.mock('../config/cloudinary.js', () => ({ default: {} }))
 // 載入環境變數
 dotenv.config({ path: '.env.test' })
 
+// 測試環境配置（僅保留安全檢查）
+const TEST_CONFIG = {
+  safety: {
+    preventProduction: true,
+    productionKeywords: ['production', 'prod', 'live'],
+    testUserPattern: /^test_/,
+    testEmailPattern: /^test_.*@example\.com$/,
+  },
+}
+
+// 環境安全檢查
+const checkTestEnvironment = () => {
+  const { safety } = TEST_CONFIG
+
+  if (safety.preventProduction) {
+    const mongoUri = process.env.MONGODB_URI || ''
+    const nodeEnv = process.env.NODE_ENV || 'development'
+
+    // 檢查是否為生產環境
+    const isProduction = safety.productionKeywords.some(
+      (keyword) =>
+        mongoUri.toLowerCase().includes(keyword) || nodeEnv.toLowerCase().includes(keyword),
+    )
+
+    if (isProduction) {
+      throw new Error(`
+❌ 安全警告：檢測到生產環境！
+- 資料庫連接：${mongoUri}
+- 環境變數：${nodeEnv}
+- 為保護生產資料，測試已停止執行
+
+請設置 MONGODB_TEST_URI 環境變數指向測試資料庫。
+      `)
+    }
+  }
+
+  console.log('🔒 測試環境檢查通過')
+  console.log(`🌍 環境：${process.env.NODE_ENV || 'development'}`)
+}
+
+// 執行環境檢查
+checkTestEnvironment()
+
 // 測試環境旗標，阻止應用自動啟動與重度背景任務
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 process.env.SKIP_SERVER = process.env.SKIP_SERVER || 'true'
-process.env.SKIP_REDIS = process.env.SKIP_REDIS || 'true'
-process.env.SKIP_METRICS = process.env.SKIP_METRICS || 'true'
 process.env.REDIS_ENABLED = 'false'
 
 // 全域 mock 郵件，避免外部 I/O
@@ -97,6 +138,9 @@ export const createTestUser = async (User, userData = {}) => {
 
   return await User.create(defaultData)
 }
+
+// 檢查是否為測試資料
+//（移除未使用的測試工具：isTestData / generateTestUserData / safeCleanup）
 
 export const createTestMeme = async (Meme, authorId, memeData = {}) => {
   const defaultData = {
