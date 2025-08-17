@@ -8,6 +8,7 @@
 test/
 ├── README.md                    # 本檔案
 ├── run-tests.js                 # 統一測試執行器
+├── admin-tests/                 # 管理員功能測試
 ├── api-tests/                   # API 測試
 ├── db-tests/                    # 資料庫測試
 ├── debug-tests/                 # 調試測試
@@ -27,6 +28,12 @@ test/
 ```
 
 ## 測試分類詳情
+
+### 管理員功能測試 (`admin-tests/`)
+
+- `admin-routes-comprehensive-test.js` - 管理員路由完整功能測試
+- `admin-routes-test.js` - 管理員路由基礎測試
+- `simple-admin-test.js` - 管理員功能簡單測試
 
 ### API 測試 (`api-tests/`)
 

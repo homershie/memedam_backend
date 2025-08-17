@@ -122,49 +122,6 @@ const checkSingleMemeCounts = async (meme) => {
 }
 
 /**
- * 批次檢查所有迷因的計數（用於定期維護）
- * @param {number} batchSize - 批次大小
- * @returns {Object} 批次處理結果
- */
-export const batchCheckCounts = async (batchSize = 100) => {
-  const results = {
-    total: 0,
-    processed: 0,
-    fixed: 0,
-    errors: [],
-  }
-
-  try {
-    const totalMemes = await Meme.countDocuments()
-    results.total = totalMemes
-
-    for (let skip = 0; skip < totalMemes; skip += batchSize) {
-      const memes = await Meme.find({}).skip(skip).limit(batchSize)
-
-      for (const meme of memes) {
-        try {
-          const memeResult = await checkSingleMemeCounts(meme)
-          results.processed++
-
-          if (memeResult.fixed) {
-            results.fixed++
-          }
-        } catch (error) {
-          results.errors.push({
-            meme_id: meme._id,
-            error: error.message,
-          })
-        }
-      }
-    }
-
-    return results
-  } catch (error) {
-    throw new Error(`批次檢查計數時發生錯誤: ${error.message}`)
-  }
-}
-
-/**
  * 檢查並修正用戶的計數欄位
  * @param {string} userId - 可選的用戶ID，如果不提供則檢查所有用戶
  * @returns {Object} 檢查結果
@@ -340,5 +297,58 @@ export const getCountStatistics = async () => {
     }
   } catch (error) {
     throw new Error(`取得統計資訊時發生錯誤: ${error.message}`)
+  }
+}
+
+/**
+ * 批次檢查並修正迷因計數
+ * @param {number} batchSize - 批次處理大小
+ * @returns {Object} 檢查結果
+ */
+export const batchCheckCounts = async (batchSize = 100) => {
+  const results = {
+    total: 0,
+    fixed: 0,
+    errors: [],
+    details: [],
+  }
+
+  try {
+    // 分批處理所有迷因
+    let skip = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const memes = await Meme.find({}).skip(skip).limit(batchSize)
+
+      if (memes.length === 0) {
+        hasMore = false
+        break
+      }
+
+      results.total += memes.length
+
+      for (const meme of memes) {
+        try {
+          const memeResult = await checkSingleMemeCounts(meme)
+          results.details.push(memeResult)
+
+          if (memeResult.fixed) {
+            results.fixed++
+          }
+        } catch (error) {
+          results.errors.push({
+            meme_id: meme._id,
+            error: error.message,
+          })
+        }
+      }
+
+      skip += batchSize
+    }
+
+    return results
+  } catch (error) {
+    throw new Error(`批次檢查計數時發生錯誤: ${error.message}`)
   }
 }

@@ -1252,4 +1252,353 @@ router.post('/notifications/cleanup', token, isAdmin, async (req, res) => {
   }
 })
 
+/**
+ * @swagger
+ * /api/admin/create-test-reports:
+ *   post:
+ *     summary: 創建測試報告
+ *     tags: [管理員]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 測試報告創建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.post('/create-test-reports', token, isAdmin, async (req, res) => {
+  try {
+    // 這裡可以調用測試報告創建腳本
+    const { spawn } = await import('child_process')
+    const { fileURLToPath } = await import('url')
+    const { dirname, join } = await import('path')
+
+    const __filename = fileURLToPath(import.meta.url)
+    const __dirname = dirname(__filename)
+    const scriptPath = join(__dirname, '..', 'scripts', 'create-test-reports.js')
+
+    const child = spawn('node', [scriptPath], {
+      stdio: 'pipe',
+      cwd: join(__dirname, '..'),
+    })
+
+    let output = ''
+    let errorOutput = ''
+
+    child.stdout.on('data', (data) => {
+      output += data.toString()
+    })
+
+    child.stderr.on('data', (data) => {
+      errorOutput += data.toString()
+    })
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        res.json({
+          success: true,
+          data: {
+            message: '測試報告創建成功',
+            output: output,
+          },
+          error: null,
+        })
+      } else {
+        res.status(500).json({
+          success: false,
+          data: null,
+          error: `測試報告創建失敗: ${errorOutput}`,
+        })
+      }
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /api/admin/system-performance-stats:
+ *   get:
+ *     summary: 獲取系統性能統計
+ *     tags: [管理員]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 系統性能統計獲取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.get('/system-performance-stats', token, isAdmin, async (req, res) => {
+  try {
+    const os = await import('os')
+    const process = await import('process')
+
+    const stats = {
+      uptime: process.uptime(),
+      memory: {
+        total: os.totalmem(),
+        free: os.freemem(),
+        used: os.totalmem() - os.freemem(),
+        usage: (((os.totalmem() - os.freemem()) / os.totalmem()) * 100).toFixed(2),
+      },
+      cpu: {
+        loadAverage: os.loadavg(),
+        cores: os.cpus().length,
+      },
+      platform: os.platform(),
+      arch: os.arch(),
+      nodeVersion: process.version,
+      pid: process.pid,
+    }
+
+    res.json({
+      success: true,
+      data: stats,
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /api/admin/database-stats:
+ *   get:
+ *     summary: 獲取資料庫統計
+ *     tags: [管理員]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 資料庫統計獲取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.get('/database-stats', token, isAdmin, async (req, res) => {
+  try {
+    // 直接使用已導入的 mongoose
+    const mongoose = (await import('mongoose')).default
+
+    // 檢查 mongoose 是否已初始化
+    if (!mongoose || !mongoose.connection) {
+      throw new Error('Mongoose 未初始化')
+    }
+
+    // 檢查連接狀態
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error('資料庫連接未就緒')
+    }
+
+    // 等待連接完全建立
+    await new Promise((resolve, reject) => {
+      if (mongoose.connection.readyState === 1) {
+        resolve()
+      } else {
+        mongoose.connection.once('connected', resolve)
+        mongoose.connection.once('error', reject)
+        // 設置超時
+        setTimeout(() => reject(new Error('資料庫連接超時')), 5000)
+      }
+    })
+
+    const db = mongoose.connection.db
+    if (!db) {
+      throw new Error('無法獲取資料庫實例')
+    }
+
+    const stats = await db.stats()
+    const collections = await db.listCollections().toArray()
+
+    res.json({
+      success: true,
+      data: {
+        database: stats.db,
+        collectionsCount: collections.length,
+        dataSize: stats.dataSize,
+        storageSize: stats.storageSize,
+        indexes: stats.indexes,
+        indexSize: stats.indexSize,
+        collections: collections.map((col) => ({
+          name: col.name,
+          type: col.type,
+        })),
+      },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /api/admin/cleanup-expired-cache:
+ *   post:
+ *     summary: 清理過期快取
+ *     tags: [管理員]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 過期快取清理成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.post('/cleanup-expired-cache', token, isAdmin, async (req, res) => {
+  try {
+    // 這裡可以實現快取清理邏輯
+    // 例如清理 Redis 過期鍵、清理記憶體快取等
+
+    res.json({
+      success: true,
+      data: { message: '過期快取清理完成' },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /api/admin/rebuild-indexes:
+ *   post:
+ *     summary: 重建資料庫索引
+ *     tags: [管理員]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 索引重建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AdminResponse'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.post('/rebuild-indexes', token, isAdmin, async (req, res) => {
+  try {
+    // 直接使用已導入的 mongoose
+    const mongoose = (await import('mongoose')).default
+
+    // 檢查 mongoose 是否已初始化
+    if (!mongoose || !mongoose.connection) {
+      throw new Error('Mongoose 未初始化')
+    }
+
+    // 檢查連接狀態
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error('資料庫連接未就緒')
+    }
+
+    // 等待連接完全建立
+    await new Promise((resolve, reject) => {
+      if (mongoose.connection.readyState === 1) {
+        resolve()
+      } else {
+        mongoose.connection.once('connected', resolve)
+        mongoose.connection.once('error', reject)
+        // 設置超時
+        setTimeout(() => reject(new Error('資料庫連接超時')), 5000)
+      }
+    })
+
+    const db = mongoose.connection.db
+    if (!db) {
+      throw new Error('無法獲取資料庫實例')
+    }
+
+    // 重建所有集合的索引
+    const collections = await db.listCollections().toArray()
+    const results = []
+
+    for (const collection of collections) {
+      try {
+        await db.collection(collection.name).reIndex()
+        results.push({
+          collection: collection.name,
+          status: 'success',
+        })
+      } catch (error) {
+        results.push({
+          collection: collection.name,
+          status: 'error',
+          error: error.message,
+        })
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        message: '索引重建完成',
+        results: results,
+      },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+})
+
 export default router

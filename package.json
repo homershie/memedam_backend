@@ -80,6 +80,8 @@
     "test:username": "node test/username-tests/username-optimization-test.js",
     "test:verification": "node test/verification-tests/verification-system-test.js",
     "test:verification:registration": "node test/verification-tests/registration-email-test.js",
+    "test:admin": "cross-env NODE_ENV=test node test/admin-tests/admin-routes-comprehensive-test.js",
+    "test:admin:simple": "cross-env NODE_ENV=test node test/admin-tests/simple-admin-test.js",
     "test:runner": "node test/run-tests.js",
     "test:runner:rate-limit": "node test/run-tests.js rate-limit",
     "test:runner:report": "node test/run-tests.js report",
