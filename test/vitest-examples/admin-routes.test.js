@@ -1,9 +1,101 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import request from 'supertest'
 import { app } from '../../index.js'
 import User from '../../models/User.js'
 import Meme from '../../models/Meme.js'
 import { createTestUser, createTestMeme, cleanupTestData } from '../setup.js'
+
+// Mock 排程與系統依賴，避免測試環境中的實際呼叫
+vi.mock('../../utils/checkCounts.js', () => ({
+  checkAndFixCounts: vi.fn().mockResolvedValue({
+    total: { checked: 10, fixed: 2 },
+    details: { likes: 5, comments: 3, views: 2 },
+  }),
+  batchCheckCounts: vi.fn().mockResolvedValue({ processed: 15 }),
+  getCountStatistics: vi.fn().mockResolvedValue({
+    memes: { total: 1000, public: 950 },
+    users: { total: 500, active: 450 },
+    interactions: { likes: 5000, comments: 2000 },
+  }),
+  checkAndFixUserCounts: vi.fn().mockResolvedValue({ checked: 5, fixed: 1 }),
+}))
+vi.mock('../../utils/hotScoreScheduler.js', () => ({
+  batchUpdateHotScores: vi.fn().mockResolvedValue({ updated: 10 }),
+  scheduledHotScoreUpdate: vi.fn().mockResolvedValue({ processed: 5 }),
+  getHotScoreStats: vi.fn().mockResolvedValue({ totalProcessed: 100, avgTime: 50 }),
+}))
+
+vi.mock('../../utils/contentBasedScheduler.js', () => ({
+  batchUpdateUserPreferences: vi.fn().mockResolvedValue({ updated: 5 }),
+  scheduledContentBasedUpdate: vi.fn().mockResolvedValue({ processed: 8 }),
+  getContentBasedStats: vi.fn().mockResolvedValue({ totalUsers: 50 }),
+  updateContentBasedConfig: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+vi.mock('../../utils/collaborativeFilteringScheduler.js', () => ({
+  batchUpdateCollaborativeFilteringCache: vi.fn().mockResolvedValue({ updated: 3 }),
+  scheduledCollaborativeFilteringUpdate: vi.fn().mockResolvedValue({ processed: 7 }),
+  getCollaborativeFilteringStats: vi.fn().mockResolvedValue({ totalUsers: 40 }),
+  updateCollaborativeFilteringConfig: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+vi.mock('../../utils/maintenance.js', () => ({
+  default: {
+    getMaintenanceStatus: vi.fn().mockResolvedValue({
+      isInMaintenance: false,
+      scheduledMaintenance: null,
+      lastMaintenance: new Date(),
+    }),
+  },
+}))
+
+vi.mock('../../utils/notificationScheduler.js', () => ({
+  manualTriggers: {
+    sendHotContentNotifications: vi.fn().mockResolvedValue({ sent: 15 }),
+    sendWeeklyDigest: vi.fn().mockResolvedValue({ sent: 25 }),
+    cleanupOldNotifications: vi.fn().mockResolvedValue({ deleted: 100 }),
+  },
+}))
+
+vi.mock('../../utils/recommendationScheduler.js', () => ({
+  updateAllRecommendationSystems: vi.fn().mockResolvedValue({ updated: 'all' }),
+  getRecommendationSystemStatus: vi.fn().mockResolvedValue({
+    status: 'active',
+    lastUpdate: new Date(),
+    systems: ['hot', 'content-based', 'collaborative'],
+  }),
+  updateRecommendationConfig: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+// Mock 系統統計與監控
+vi.mock('mongoose', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    connection: {
+      ...actual.connection,
+      db: {
+        stats: vi.fn().mockResolvedValue({
+          collections: 10,
+          objects: 1000,
+          dataSize: 5000000,
+          storageSize: 10000000,
+          indexes: 15,
+        }),
+        admin: vi.fn().mockReturnValue({
+          buildInfo: vi.fn().mockResolvedValue({ version: '5.0.0' }),
+        }),
+      },
+    },
+  }
+})
+
+vi.mock('../../config/redis.js', () => ({
+  default: {
+    flushall: vi.fn().mockResolvedValue('OK'),
+    info: vi.fn().mockResolvedValue('redis_version:6.2.0\r\nused_memory:1024000'),
+  },
+}))
 
 describe('管理員路由測試 (Vitest)', () => {
   let adminUser, adminToken

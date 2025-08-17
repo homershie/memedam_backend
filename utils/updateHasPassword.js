@@ -52,7 +52,7 @@ export const updateHasPasswordField = async () => {
   }
 }
 
-// 主執行函數
+// 主執行函數（測試環境不自動執行/exit）
 const main = async () => {
   try {
     console.log('開始執行 has_password 更新腳本...')
@@ -72,9 +72,13 @@ const main = async () => {
     process.exit(1)
   } finally {
     await mongoose.disconnect()
-    process.exit(0)
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(0)
+    }
   }
 }
 
 // 直接執行
-main()
+if (process.env.NODE_ENV !== 'test') {
+  main()
+}

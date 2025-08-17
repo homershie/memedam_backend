@@ -89,16 +89,97 @@ test/
 │   ├── auth.test.js
 │   └── api.test.js
 ├── unit/                      # 單元測試
+│   ├── admin/
+│   │   ├── routes.test.js
+│   │   ├── permissions.test.js
+│   │   └── statistics.test.js
+│   ├── api/
+│   │   ├── pagination.test.js
+│   │   ├── validation.test.js
+│   │   └── responses.test.js
 │   ├── utils/
+│   │   ├── search.test.js
+│   │   ├── recommendation.test.js
+│   │   └── notification.test.js
 │   ├── models/
+│   │   ├── user.test.js
+│   │   ├── meme.test.js
+│   │   └── report.test.js
 │   └── controllers/
+│       ├── auth.test.js
+│       ├── meme.test.js
+│       └── user.test.js
 ├── integration/               # 整合測試
-│   ├── routes/
+│   ├── admin/
+│   │   ├── dashboard.test.js
+│   │   ├── user-management.test.js
+│   │   └── content-moderation.test.js
+│   ├── api/
+│   │   ├── authentication.test.js
+│   │   ├── meme-crud.test.js
+│   │   └── user-operations.test.js
+│   ├── workflows/
+│   │   ├── user-registration.test.js
+│   │   ├── meme-creation.test.js
+│   │   └── report-handling.test.js
 │   ├── middleware/
+│   │   ├── auth.test.js
+│   │   ├── rate-limit.test.js
+│   │   └── validation.test.js
 │   └── services/
-└── e2e/                      # 端到端測試
-    ├── api/
-    └── workflows/
+│       ├── email.test.js
+│       ├── notification.test.js
+│       └── recommendation.test.js
+├── e2e/                      # 端到端測試
+│   ├── user-journeys/
+│   │   ├── registration-flow.test.js
+│   │   ├── meme-creation-flow.test.js
+│   │   └── social-interaction.test.js
+│   ├── critical-flows/
+│   │   ├── authentication-flow.test.js
+│   │   ├── content-moderation.test.js
+│   │   └── payment-flow.test.js
+│   └── api/
+│       ├── complete-workflows.test.js
+│       └── performance.test.js
+└── legacy/                  # 舊測試（逐步遷移）
+    ├── admin-tests/
+    │   ├── admin-routes-comprehensive-test.js
+    │   ├── admin-routes-test.js
+    │   ├── basic-admin-test.js
+    │   └── simple-admin-test.js
+    ├── api-tests/
+    │   ├── api-pagination-test.js
+    │   └── username-test.js
+    ├── email-tests/
+    │   └── password-reset-test.js
+    ├── notification-tests/
+    ├── rate-limit-tests/
+    │   └── basic-rate-limit-test.js
+    ├── recommendation-tests/
+    │   ├── collaborativeFiltering.test.js
+    │   ├── contentBasedRecommendation.test.js
+    │   ├── mixedRecommendation.test.js
+    │   ├── socialCollaborativeFiltering.test.js
+    │   └── socialScoreCalculator.test.js
+    ├── report-tests/
+    │   └── report-system-comprehensive-test.js
+    ├── search-sort-tests/
+    │   ├── advancedSearch.test.js
+    │   ├── content-tag-collaborative-pagination.test.js
+    │   ├── hot-latest-pagination.test.js
+    │   └── infiniteScroll.test.js
+    ├── user-cleanup-tests/
+    │   ├── has-password-test.js
+    │   └── test-password-status-api.js
+    ├── username-tests/
+    │   └── username-optimization-test.js
+    ├── verification-tests/
+    │   └── registration-email-test.js
+    ├── utils/
+    │   └── test-config.js
+    ├── README.md
+    └── run-tests.js
 ```
 
 ## 🧪 測試語法對比

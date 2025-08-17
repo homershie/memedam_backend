@@ -1250,6 +1250,96 @@ router.post('/change-password', token, changePassword)
 // 電子信箱變更
 router.post('/change-email', token, changeEmail)
 
+// ===== Username 驗證與變更 =====
+// 驗證 username 是否可用（格式/長度/保留字/重複）
+router.get('/validate-username/:username', async (req, res) => {
+  try {
+    const { username } = req.params
+    const isValidFormat = /^[a-z0-9._]{5,30}$/.test(username)
+    if (!isValidFormat) {
+      return res.status(400).json({
+        success: false,
+        available: false,
+        message: 'username 格式或長度不符合（5-30，小寫英數、_、.）',
+      })
+    }
+
+    const reserved = new Set(['admin', 'root', 'system', 'support'])
+    if (reserved.has(username)) {
+      return res
+        .status(200)
+        .json({ success: true, available: false, message: '此 username 為保留字' })
+    }
+
+    const exists = await User.exists({ username })
+    return res.status(200).json({
+      success: true,
+      available: !exists,
+      message: exists ? '此 username 已被使用' : '此 username 可以使用',
+    })
+  } catch (err) {
+    return res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+})
+
+// 變更 username（需認證）
+router.post('/change-username', token, isUser, async (req, res) => {
+  try {
+    const userId = req.user._id
+    const { username: newUsername, currentPassword } = req.body || {}
+
+    if (!newUsername || !currentPassword) {
+      return res.status(400).json({ success: false, message: '缺少必要參數' })
+    }
+    if (!/^[a-z0-9._]{5,30}$/.test(newUsername)) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'username 格式或長度不符合（5-30，小寫英數、_、.）' })
+    }
+    const reserved = new Set(['admin', 'root', 'system', 'support'])
+    if (reserved.has(newUsername)) {
+      return res.status(400).json({ success: false, message: '此 username 為保留字，無法使用' })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(401).json({ success: false, message: '未授權' })
+    }
+    if (user.username === newUsername) {
+      return res
+        .status(400)
+        .json({ success: false, message: '新 username 不能與目前 username 相同' })
+    }
+    const ok = await user.comparePassword(currentPassword)
+    if (!ok) {
+      return res.status(401).json({ success: false, message: '目前密碼不正確' })
+    }
+    const dup = await User.exists({ username: newUsername })
+    if (dup) {
+      return res.status(409).json({ success: false, message: '此 username 已被其他使用者使用' })
+    }
+
+    user.previous_usernames = user.previous_usernames || []
+    user.previous_usernames.unshift({ username: user.username, changed_at: new Date() })
+    user.previous_usernames = user.previous_usernames.slice(0, 10)
+    user.username = newUsername
+    user.username_changed_at = new Date()
+    await user.save()
+
+    return res.status(200).json({
+      success: true,
+      message: 'username 已成功變更',
+      user: {
+        _id: user._id,
+        username: user.username,
+        username_changed_at: user.username_changed_at,
+      },
+    })
+  } catch (err) {
+    return res.status(500).json({ success: false, message: '伺服器錯誤' })
+  }
+})
+
 // 觸發 Google OAuth
 router.get('/auth/google', (req, res, next) => {
   // 生成並儲存 state 參數

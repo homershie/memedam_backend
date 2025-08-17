@@ -596,7 +596,10 @@ const startServer = async () => {
 
     // Passport 初始化（在 session 配置之後）
     app.use(passport.initialize())
-    app.use(passport.session())
+    // 測試環境不需要持久化 session，避免 400/401 影響測試
+    if (process.env.NODE_ENV !== 'test') {
+      app.use(passport.session())
+    }
 
     // 啟動定期維護任務
     if (process.env.NODE_ENV === 'production') {

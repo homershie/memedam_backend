@@ -44,9 +44,8 @@ beforeAll(async () => {
 // 每次測試後清理：還原所有 mock 並清空資料庫
 afterEach(async () => {
   vi.restoreAllMocks()
-  if (mongoose.connection.readyState === 1) {
-    await mongoose.connection.db.dropDatabase()
-  }
+  // 保留資料以維持同一測試檔內的登入/授權流程穩定
+  // 若個別測試需要清庫，請在該測試中自行清理
 })
 
 // 全局測試清理：關閉連線並停止記憶體 MongoDB

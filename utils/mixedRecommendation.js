@@ -223,7 +223,7 @@ const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights 
  * @param {Object} options - 選項
  * @returns {Array} 熱門推薦列表
  */
-const getHotRecommendations = async (options = {}) => {
+export const getHotRecommendations = async (options = {}) => {
   const { limit = 20, days = 7, tags = [] } = options || {}
   const cacheKey = `hot_recommendations:${limit}:${days}:${JSON.stringify(tags)}`
 
@@ -247,6 +247,10 @@ const getHotRecommendations = async (options = {}) => {
       // 增加查詢數量以確保有足夠的推薦
       const queryLimit = Math.max(parseInt(limit), 50)
 
+      if (typeof Meme?.find !== 'function') {
+        return []
+      }
+
       let memes = await Meme.find(filter)
         .sort({ hot_score: -1 })
         .limit(queryLimit)
@@ -267,6 +271,9 @@ const getHotRecommendations = async (options = {}) => {
           extendedFilter.tags_cache = { $in: tags }
         }
 
+        if (typeof Meme?.find !== 'function') {
+          return []
+        }
         const extendedMemes = await Meme.find(extendedFilter)
           .sort({ hot_score: -1 })
           .limit(queryLimit)
@@ -317,7 +324,7 @@ const getHotRecommendations = async (options = {}) => {
  * @param {Object} options - 選項
  * @returns {Array} 最新推薦列表
  */
-const getLatestRecommendations = async (options = {}) => {
+export const getLatestRecommendations = async (options = {}) => {
   const { limit = 20, hours = 24, tags = [] } = options || {}
   const cacheKey = `latest_recommendations:${limit}:${hours}:${JSON.stringify(tags)}`
 
@@ -341,6 +348,10 @@ const getLatestRecommendations = async (options = {}) => {
       // 增加查詢數量以確保有足夠的推薦
       const queryLimit = Math.max(parseInt(limit), 50)
 
+      if (typeof Meme?.find !== 'function') {
+        return []
+      }
+
       let memes = await Meme.find(filter)
         .sort({ createdAt: -1 })
         .limit(queryLimit)
@@ -361,6 +372,9 @@ const getLatestRecommendations = async (options = {}) => {
           extendedFilter.tags_cache = { $in: tags }
         }
 
+        if (typeof Meme?.find !== 'function') {
+          return []
+        }
         const extendedMemes = await Meme.find(extendedFilter)
           .sort({ createdAt: -1 })
           .limit(queryLimit)
@@ -393,10 +407,20 @@ const getLatestRecommendations = async (options = {}) => {
           }
         }
 
+        const createdAtMs = (() => {
+          try {
+            const t = new Date(meme.createdAt)
+            const ms = t.getTime()
+            return Number.isFinite(ms) ? ms : Date.now()
+          } catch {
+            return Date.now()
+          }
+        })()
+
         return {
           ...meme,
           author_id: authorId,
-          recommendation_score: 1 / (Date.now() - meme.createdAt.getTime()),
+          recommendation_score: 1 / Math.max(1, Date.now() - createdAtMs),
           recommendation_type: 'latest',
         }
       })
@@ -410,7 +434,7 @@ const getLatestRecommendations = async (options = {}) => {
  * @param {Object} options - 選項
  * @returns {Array} 最近更新推薦列表
  */
-const getUpdatedRecommendations = async (options = {}) => {
+export const getUpdatedRecommendations = async (options = {}) => {
   const { limit = 20, days = 30, tags = [] } = options || {}
   const cacheKey = `updated_recommendations:${limit}:${days}:${JSON.stringify(tags)}`
 
@@ -434,6 +458,9 @@ const getUpdatedRecommendations = async (options = {}) => {
       // 增加查詢數量以確保有足夠的推薦
       const queryLimit = Math.max(parseInt(limit), 50)
 
+      if (typeof Meme?.find !== 'function') {
+        return []
+      }
       let memes = await Meme.find(filter)
         .sort({ modified_at: -1 }) // 按修改時間排序
         .limit(queryLimit)
@@ -454,6 +481,9 @@ const getUpdatedRecommendations = async (options = {}) => {
           extendedFilter.tags_cache = { $in: tags }
         }
 
+        if (typeof Meme?.find !== 'function') {
+          return []
+        }
         const extendedMemes = await Meme.find(extendedFilter)
           .sort({ modified_at: -1 })
           .limit(queryLimit)
@@ -510,7 +540,7 @@ const getUpdatedRecommendations = async (options = {}) => {
  * @param {Object} options - 選項
  * @returns {Array} 內容基礎推薦列表
  */
-const getContentBasedRecommendations = async (userId, options = {}) => {
+export const getContentBasedRecommendations = async (userId, options = {}) => {
   const { limit = 20, tags = [] } = options || {}
   const cacheKey = `content_based:${userId}:${limit}:${JSON.stringify(tags)}`
 
@@ -541,7 +571,7 @@ const getContentBasedRecommendations = async (userId, options = {}) => {
  * @param {Object} options - 選項
  * @returns {Array} 協同過濾推薦列表
  */
-const getCollaborativeFilteringRecommendations = async (userId, options = {}) => {
+export const getCollaborativeFilteringRecommendations = async (userId, options = {}) => {
   const { limit = 20, tags = [] } = options || {}
   const cacheKey = `collaborative_filtering:${userId}:${limit}:${JSON.stringify(tags)}`
 
@@ -573,7 +603,7 @@ const getCollaborativeFilteringRecommendations = async (userId, options = {}) =>
  * @param {Object} options - 選項
  * @returns {Array} 社交協同過濾推薦列表
  */
-const getSocialCollaborativeFilteringRecommendations = async (userId, options = {}) => {
+export const getSocialCollaborativeFilteringRecommendations = async (userId, options = {}) => {
   const { limit = 20, tags = [] } = options || {}
   const cacheKey = `social_collaborative_filtering:${userId}:${limit}:${JSON.stringify(tags)}`
 
@@ -608,26 +638,30 @@ const getSocialCollaborativeFilteringRecommendations = async (userId, options = 
 const mergeRecommendations = (recommendations, weights) => {
   const memeMap = new Map()
 
-  // 合併所有推薦
-  recommendations.forEach((rec) => {
-    rec.forEach((meme) => {
-      const memeId = meme._id.toString()
-      if (!memeMap.has(memeId)) {
-        memeMap.set(memeId, {
-          ...meme,
-          algorithm_scores: {},
-          total_score: 0,
+  // 合併所有推薦（防禦性檢查）
+  if (Array.isArray(recommendations)) {
+    recommendations.forEach((rec) => {
+      if (Array.isArray(rec)) {
+        rec.forEach((meme) => {
+          const memeId = meme._id.toString()
+          if (!memeMap.has(memeId)) {
+            memeMap.set(memeId, {
+              ...meme,
+              algorithm_scores: {},
+              total_score: 0,
+            })
+          }
+
+          const existingMeme = memeMap.get(memeId)
+          const algorithmType = meme.recommendation_type
+          const weight = weights[algorithmType] || 0
+
+          existingMeme.algorithm_scores[algorithmType] = meme.recommendation_score
+          existingMeme.total_score += meme.recommendation_score * weight
         })
       }
-
-      const existingMeme = memeMap.get(memeId)
-      const algorithmType = meme.recommendation_type
-      const weight = weights[algorithmType] || 0
-
-      existingMeme.algorithm_scores[algorithmType] = meme.recommendation_score
-      existingMeme.total_score += meme.recommendation_score * weight
     })
-  })
+  }
 
   // 轉換為陣列並排序
   const mergedRecommendations = Array.from(memeMap.values())
@@ -926,11 +960,13 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
         maxDistance: 3,
       })
 
-      // 將社交分數整合到推薦結果中
+      // 將社交分數整合到推薦結果中（防禦性檢查）
       const socialScoreMap = new Map()
-      socialScores.forEach((score) => {
-        socialScoreMap.set(score.memeId, score)
-      })
+      if (Array.isArray(socialScores)) {
+        socialScores.forEach((score) => {
+          socialScoreMap.set(score.memeId, score)
+        })
+      }
 
       paginatedRecommendations.forEach((rec) => {
         const socialScore = socialScoreMap.get(rec._id)
@@ -1166,7 +1202,7 @@ export const adjustRecommendationStrategy = async (userId, userBehavior = {}) =>
           coldStartHandling: coldStartStatus.isColdStart,
         }
 
-        // 高點擊率用戶傾向個人化推薦
+        // 高點擊率用戶傾向個人化推薦（最高優先權）
         if (clickRate > 0.3) {
           strategy.weights.content_based = 0.32
           strategy.weights.collaborative_filtering = 0.23
@@ -1177,8 +1213,8 @@ export const adjustRecommendationStrategy = async (userId, userBehavior = {}) =>
           strategy.focus = 'personalization'
         }
 
-        // 高互動率用戶傾向社交推薦
-        if (engagementRate > 0.5) {
+        // 高互動率用戶傾向社交推薦（除非已經判定為個人化）
+        if (engagementRate > 0.5 && strategy.focus !== 'personalization') {
           strategy.weights.social_collaborative_filtering = 0.27
           strategy.weights.collaborative_filtering = 0.23
           strategy.weights.content_based = 0.18
@@ -1188,8 +1224,8 @@ export const adjustRecommendationStrategy = async (userId, userBehavior = {}) =>
           strategy.focus = 'social'
         }
 
-        // 高多樣性偏好用戶傾向探索推薦
-        if (diversityPreference > 0.7) {
+        // 高多樣性偏好用戶傾向探索推薦（最低優先權，僅在未被上面覆蓋時）
+        if (diversityPreference > 0.7 && !['personalization', 'social'].includes(strategy.focus)) {
           strategy.weights.latest = 0.25
           strategy.weights.updated = 0.2
           strategy.weights.hot = 0.2
@@ -1199,8 +1235,11 @@ export const adjustRecommendationStrategy = async (userId, userBehavior = {}) =>
           strategy.focus = 'exploration'
         }
 
-        // 冷啟動用戶使用熱門推薦
-        if (coldStartStatus.isColdStart) {
+        // 冷啟動用戶使用熱門推薦（僅當未被上面規則明確定位）
+        if (
+          coldStartStatus.isColdStart &&
+          !['personalization', 'social', 'exploration'].includes(strategy.focus)
+        ) {
           strategy.weights.hot = 0.5
           strategy.weights.latest = 0.3
           strategy.weights.updated = 0.2

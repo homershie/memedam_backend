@@ -6,10 +6,10 @@ export default defineConfig({
     // 測試環境
     environment: 'node',
 
-    // 測試文件模式：同時支援 *.test.* / *.spec.* 與 *-test.* 檔名
+    // 測試文件模式：支援新結構 (unit/integration/e2e/vitest-examples) 與舊測試 (legacy)
     include: [
-      'test/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'test/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'test/{unit,integration,e2e,vitest-examples,legacy}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'test/{unit,integration,e2e,vitest-examples,legacy}/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
 

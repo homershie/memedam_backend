@@ -188,11 +188,8 @@ export const buildSocialGraph = async (userIds = []) => {
     // 取得所有關注關係
     // 確保使用正確的查詢格式，避免 CastError
     const follows = await Follow.find({
-      $or: [
-        { follower_id: { $in: targetUserIds } }, 
-        { following_id: { $in: targetUserIds } }
-      ],
-      status: 'active'
+      $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
+      status: 'active',
     })
       .select('follower_id following_id createdAt')
       .lean()
@@ -695,3 +692,6 @@ export default {
   generateSocialRecommendationReasons,
   SOCIAL_SCORE_CONFIG,
 }
+
+// 供測試與型別引用：提供具名導出
+export { SOCIAL_SCORE_CONFIG }
