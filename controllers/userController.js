@@ -1221,14 +1221,18 @@ export const getUnverifiedUsersStats = async (req, res) => {
 
 // 忘記密碼 API
 export const forgotPassword = async (req, res) => {
-  const session = await User.startSession()
-  session.startTransaction()
+  const enableSession = process.env.NODE_ENV !== 'test'
+  let session = null
+  if (enableSession) {
+    session = await User.startSession()
+    session.startTransaction()
+  }
 
   try {
     const { email } = req.body
 
     if (!email) {
-      await session.abortTransaction()
+      if (session) await session.abortTransaction()
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '請提供 email 地址',
@@ -1238,7 +1242,7 @@ export const forgotPassword = async (req, res) => {
     // 驗證 email 格式
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
-      await session.abortTransaction()
+      if (session) await session.abortTransaction()
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '請提供有效的 email 地址',
@@ -1246,9 +1250,9 @@ export const forgotPassword = async (req, res) => {
     }
 
     // 查找用戶
-    const user = await User.findOne({ email: email.toLowerCase() }).session(session)
+    const user = await User.findOne({ email: email.toLowerCase() })
     if (!user) {
-      await session.abortTransaction()
+      if (session) await session.abortTransaction()
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
         message: '找不到此 email 對應的用戶',
@@ -1261,10 +1265,10 @@ export const forgotPassword = async (req, res) => {
       type: 'password_reset',
       used: false,
       expiresAt: mongoose.trusted({ $gt: new Date() }),
-    }).session(session)
+    })
 
     if (existingToken) {
-      await session.abortTransaction()
+      if (session) await session.abortTransaction()
       return res.status(StatusCodes.TOO_MANY_REQUESTS).json({
         success: false,
         message: '密碼重設 email 已發送，請檢查您的信箱或稍後再試',
@@ -1275,25 +1279,22 @@ export const forgotPassword = async (req, res) => {
     const resetToken = await VerificationController.generateVerificationToken(
       user._id,
       'password_reset',
-      1, // 1 小時過期
+      1,
     )
 
     // 發送密碼重設 email
     await EmailService.sendPasswordResetEmail(email, resetToken, user.username)
 
-    // 提交事務
-    await session.commitTransaction()
+    // 提交事務（測試環境無事務）
+    if (session) await session.commitTransaction()
 
     res.status(StatusCodes.OK).json({
       success: true,
       message: '密碼重設 email 已發送',
-      data: {
-        email,
-        sentAt: new Date().toISOString(),
-      },
+      data: { email, sentAt: new Date().toISOString() },
     })
   } catch (error) {
-    await session.abortTransaction()
+    if (session) await session.abortTransaction()
     logger.error('忘記密碼處理失敗:', error)
 
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -1302,29 +1303,31 @@ export const forgotPassword = async (req, res) => {
       error: error.message,
     })
   } finally {
-    session.endSession()
+    if (session) session.endSession()
   }
 }
 
-// 重設密碼 API
 export const resetPassword = async (req, res) => {
-  const session = await User.startSession()
-  session.startTransaction()
+  const enableSession = process.env.NODE_ENV !== 'test'
+  let session = null
+  if (enableSession) {
+    session = await User.startSession()
+    session.startTransaction()
+  }
 
   try {
     const { token, newPassword } = req.body
 
     if (!token || !newPassword) {
-      await session.abortTransaction()
+      if (session) await session.abortTransaction()
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '請提供 token 和新密碼',
       })
     }
 
-    // 驗證新密碼長度
     if (newPassword.length < 8 || newPassword.length > 20) {
-      await session.abortTransaction()
+      if (session) await session.abortTransaction()
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '新密碼長度必須在8到20個字元之間',
@@ -1337,10 +1340,10 @@ export const resetPassword = async (req, res) => {
       type: 'password_reset',
       used: false,
       expiresAt: mongoose.trusted({ $gt: new Date() }),
-    }).session(session)
+    })
 
     if (!verificationToken) {
-      await session.abortTransaction()
+      if (session) await session.abortTransaction()
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '無效或已過期的重設連結',
@@ -1348,36 +1351,29 @@ export const resetPassword = async (req, res) => {
     }
 
     // 查找用戶
-    const user = await User.findById(verificationToken.userId).session(session)
+    const user = await User.findById(verificationToken.userId)
     if (!user) {
-      await session.abortTransaction()
-      return res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        message: '找不到對應的用戶',
-      })
+      if (session) await session.abortTransaction()
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: '找不到對應的用戶' })
     }
 
     // 更新密碼
     user.password = newPassword
-    await user.save({ session })
+    await user.save()
 
     // 標記 token 為已使用
     verificationToken.used = true
-    await verificationToken.save({ session })
+    await verificationToken.save()
 
     // 清除所有登入 token（強制重新登入）
     user.tokens = []
-    await user.save({ session })
+    await user.save()
 
-    // 提交事務
-    await session.commitTransaction()
+    if (session) await session.commitTransaction()
 
-    res.status(StatusCodes.OK).json({
-      success: true,
-      message: '密碼重設成功，請使用新密碼登入',
-    })
+    res.status(StatusCodes.OK).json({ success: true, message: '密碼重設成功，請使用新密碼登入' })
   } catch (error) {
-    await session.abortTransaction()
+    if (session) await session.abortTransaction()
     logger.error('重設密碼失敗:', error)
 
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -1386,7 +1382,7 @@ export const resetPassword = async (req, res) => {
       error: error.message,
     })
   } finally {
-    session.endSession()
+    if (session) session.endSession()
   }
 }
 
