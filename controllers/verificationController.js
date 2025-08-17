@@ -18,8 +18,12 @@ class VerificationController {
    * @returns {Promise<string>} 驗證 token
    */
   static async generateVerificationToken(userId, type, expiresInHours = 24) {
-    const session = await User.startSession()
-    session.startTransaction()
+    const enableSession = process.env.NODE_ENV !== 'test'
+    let session = null
+    if (enableSession) {
+      session = await User.startSession()
+      session.startTransaction()
+    }
 
     try {
       // 產生隨機 token
@@ -29,28 +33,39 @@ class VerificationController {
       const expiresAt = new Date()
       expiresAt.setHours(expiresAt.getHours() + expiresInHours)
 
-      // 儲存 token
-      await VerificationToken.create(
-        [
+      // 儲存 token（測試環境不附加 session）
+      if (session) {
+        await VerificationToken.create(
+          [
+            {
+              token,
+              userId,
+              type,
+              expiresAt,
+            },
+          ],
+          { session },
+        )
+      } else {
+        await VerificationToken.create([
           {
             token,
             userId,
             type,
             expiresAt,
           },
-        ],
-        { session },
-      )
+        ])
+      }
 
       // 提交事務
-      await session.commitTransaction()
+      if (session) await session.commitTransaction()
 
       return token
     } catch (error) {
-      await session.abortTransaction()
+      if (session) await session.abortTransaction()
       throw error
     } finally {
-      session.endSession()
+      if (session) session.endSession()
     }
   }
 
