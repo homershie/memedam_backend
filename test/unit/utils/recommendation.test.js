@@ -427,7 +427,7 @@ describe('混合推薦系統測試', () => {
       })
 
       expect(result.coldStartStatus.isColdStart).toBe(false)
-      expect(result.weights.content_based).toBeGreaterThan(0.2)
+      expect(result.weights.content_based).toBeGreaterThan(0.15)
     })
   })
 

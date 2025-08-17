@@ -10,7 +10,7 @@ export default defineConfig([
     languageOptions: {
       globals: {
         ...globals.node,
-        ...globals.jest,
+        // Vitest provides globals via config; remove jest globals to avoid conflicts
       },
     },
   },
