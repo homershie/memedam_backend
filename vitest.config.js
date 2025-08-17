@@ -15,6 +15,8 @@ export default defineConfig({
 
     // 全局設置
     globals: true,
+    restoreMocks: true,
+    clearMocks: true,
 
     // 測試超時
     testTimeout: 10000,

@@ -1,6 +1,7 @@
-import { beforeAll, afterAll } from 'vitest'
+import { beforeAll, afterAll, afterEach, vi } from 'vitest'
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
+import { MongoMemoryServer } from 'mongodb-memory-server'
 
 // 載入環境變數
 dotenv.config({ path: '.env.test' })
@@ -10,31 +11,50 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 process.env.SKIP_SERVER = process.env.SKIP_SERVER || 'true'
 process.env.SKIP_REDIS = process.env.SKIP_REDIS || 'true'
 process.env.SKIP_METRICS = process.env.SKIP_METRICS || 'true'
+process.env.REDIS_ENABLED = 'false'
 
-// 全局測試設置
+// 全域 mock 郵件，避免外部 I/O
+vi.mock('@sendgrid/mail', () => ({
+  default: {
+    setApiKey: vi.fn(),
+    send: vi.fn().mockResolvedValue([{ statusCode: 202 }]),
+  },
+}))
+
+let mongo
+
+// 全局測試設置：啟動記憶體 MongoDB 並連線
 beforeAll(async () => {
-  // 連接測試資料庫
-  const testMongoUri = process.env.MONGO_TEST_URI || 'mongodb://localhost:27017/memedam_test'
-
   try {
-    await mongoose.connect(testMongoUri, {
+    mongo = await MongoMemoryServer.create()
+    const uri = mongo.getUri()
+    await mongoose.connect(uri, {
       maxPoolSize: 1,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 10000,
       connectTimeoutMS: 5000,
     })
-    console.log('✅ 測試資料庫連接成功')
+    console.log('✅ 記憶體 MongoDB 已啟動並連線成功')
   } catch (error) {
-    console.error('❌ 測試資料庫連接失敗:', error.message)
+    console.error('❌ 記憶體 MongoDB 連線失敗:', error.message)
     throw error
   }
 })
 
-// 全局測試清理
+// 每次測試後清理：還原所有 mock 並清空資料庫
+afterEach(async () => {
+  vi.restoreAllMocks()
+  if (mongoose.connection.readyState === 1) {
+    await mongoose.connection.db.dropDatabase()
+  }
+})
+
+// 全局測試清理：關閉連線並停止記憶體 MongoDB
 afterAll(async () => {
   try {
     await mongoose.disconnect()
-    console.log('✅ 測試資料庫連接已關閉')
+    if (mongo) await mongo.stop()
+    console.log('✅ 測試資料庫連接已關閉並釋放資源')
   } catch (error) {
     console.error('❌ 關閉測試資料庫連接失敗:', error.message)
   }
