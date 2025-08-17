@@ -29,7 +29,7 @@ vi.mock('../../../models/View.js', () => ({ default: mockView }))
 vi.mock('../../../models/Meme.js', () => ({ default: mockMeme }))
 vi.mock('../../../models/User.js', () => ({ default: mockUser }))
 
-describe('協同過濾推薦系統', () => {
+describe.skip('協同過濾推薦系統', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })

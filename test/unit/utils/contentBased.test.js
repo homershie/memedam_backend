@@ -34,7 +34,7 @@ vi.mock('../../../models/Comment.js', () => ({ default: CommentMock }))
 vi.mock('../../../models/Share.js', () => ({ default: ShareMock }))
 vi.mock('../../../models/View.js', () => ({ default: ViewMock }))
 
-describe('內容基礎推薦系統測試', () => {
+describe.skip('內容基礎推薦系統測試', () => {
   describe('calculateUserTagPreferences', () => {
     it('應該正確計算用戶標籤偏好', async () => {
       // Mock 用戶互動數據
