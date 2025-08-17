@@ -11,20 +11,14 @@ import {
   getCollaborativeFilteringStats,
 } from '../../../utils/collaborativeFiltering.js'
 
-// 模擬數據庫模型
-const mockLike = { find: vi.fn() }
-
-const mockCollection = { find: vi.fn() }
-
-const mockComment = { find: vi.fn() }
-
-const mockShare = { find: vi.fn() }
-
-const mockView = { find: vi.fn() }
-
-const mockMeme = { find: vi.fn() }
-
-const mockUser = { find: vi.fn() }
+// 使用 hoisted 方式避免 vi.mock 提升導致未初始化變數
+const mockLike = vi.hoisted(() => ({ find: vi.fn() }))
+const mockCollection = vi.hoisted(() => ({ find: vi.fn() }))
+const mockComment = vi.hoisted(() => ({ find: vi.fn() }))
+const mockShare = vi.hoisted(() => ({ find: vi.fn() }))
+const mockView = vi.hoisted(() => ({ find: vi.fn() }))
+const mockMeme = vi.hoisted(() => ({ find: vi.fn() }))
+const mockUser = vi.hoisted(() => ({ find: vi.fn() }))
 
 // 模擬模組
 vi.mock('../../../models/Like.js', () => ({ default: mockLike }))

@@ -56,7 +56,7 @@ vi.mock('../../../models/View.js', () => ({
   default: { find: vi.fn() },
 }))
 
-describe.skip('社交協同過濾推薦系統測試', () => {
+describe('社交協同過濾推薦系統測試 (legacy, to be removed after confirm)', () => {
   let mockUser, mockMeme, mockFollow, mockLike, mockCollection, mockComment, mockShare, mockView
 
   beforeEach(() => {

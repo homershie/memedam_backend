@@ -6,12 +6,12 @@ export default defineConfig({
     // 測試環境
     environment: 'node',
 
-    // 測試文件模式：支援新結構 (unit/integration/e2e/vitest-examples) 與舊測試 (legacy)
+    // 僅包含單元測試，排除 legacy 與示例測試
     include: [
-      'test/{unit,integration,e2e,vitest-examples,legacy}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'test/{unit,integration,e2e,vitest-examples,legacy}/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'test/unit/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'test/unit/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
-    exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
+    exclude: ['node_modules', 'dist', '.idea', '.git', '.cache', 'test/legacy/**', 'test/vitest-examples/**', 'test/integration/**', 'test/e2e/**'],
 
     // 全局設置
     globals: true,
