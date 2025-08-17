@@ -1,8 +1,8 @@
 import request from 'supertest'
-import { app } from '../index.js'
-import Report from '../models/Report.js'
-import User from '../models/User.js'
-import Meme from '../models/Meme.js'
+import { app } from '../../index.js'
+import Report from '../../models/Report.js'
+import User from '../../models/User.js'
+import Meme from '../../models/Meme.js'
 
 // 安全檢查：確保不會在生產環境運行測試
 const checkEnvironment = () => {
@@ -63,8 +63,9 @@ const runTests = async () => {
     ])
 
     // 建立測試用戶（使用獨特的用戶名避免衝突）
-    const testUsername = `testuser_${Date.now()}`
-    const testEmail = `test_${Date.now()}@example.com`
+    const timestamp = Date.now().toString().slice(-8) // 只取最後8位數字
+    const testUsername = `testuser_${timestamp}`
+    const testEmail = `test_${timestamp}@example.com`
 
     testUser = await User.create({
       username: testUsername,

@@ -1,10 +1,10 @@
 import mongoose from 'mongoose'
 import request from 'supertest'
-import { app } from '../index.js'
-import Report from '../models/Report.js'
-import User from '../models/User.js'
-import Meme from '../models/Meme.js'
-import Notification from '../models/Notification.js'
+import { app } from '../../index.js'
+import Report from '../../models/Report.js'
+import User from '../../models/User.js'
+import Meme from '../../models/Meme.js'
+import Notification from '../../models/Notification.js'
 
 describe('檢舉系統測試', () => {
   let testUser, testMeme, testReport, authToken

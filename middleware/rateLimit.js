@@ -58,6 +58,19 @@ const apiLimiter = rateLimit({
       '/api/recommendations',
       '/api/analytics',
     ]
+
+    // 跳過管理員的檢舉相關路徑
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'manager')) {
+      if (req.path.startsWith('/api/reports')) {
+        return true
+      }
+    }
+
+    // 跳過用戶狀態檢查端點
+    if (req.path === '/api/users/me') {
+      return true
+    }
+
     return memePaths.some((path) => req.path.startsWith(path))
   },
 })
@@ -75,7 +88,17 @@ const reportSubmissionLimiter = rateLimit({
   store: getRedisStore('rl:report:24h:'),
   keyGenerator: (req) => {
     // 使用用戶ID作為key，確保每個用戶都有獨立的限制
-    return req.user ? `user:${req.user._id}` : `ip:${req.ip}`
+    const key = req.user ? `user:${req.user._id}` : `ip:${req.ip}`
+    console.log(`🔑 Rate Limit Key (24h): ${key} for user: ${req.user?.email || 'anonymous'}`)
+    return key
+  },
+  skip: (req) => {
+    // 跳過管理員的檢舉限制
+    if (req.user && req.user.role === 'admin') {
+      console.log(`🚀 跳過管理員 ${req.user.email} 的檢舉限制`)
+      return true
+    }
+    return false
   },
 })
 
@@ -92,7 +115,17 @@ const reportWeeklyLimiter = rateLimit({
   store: getRedisStore('rl:report:7d:'),
   keyGenerator: (req) => {
     // 使用用戶ID作為key，確保每個用戶都有獨立的限制
-    return req.user ? `user:${req.user._id}` : `ip:${req.ip}`
+    const key = req.user ? `user:${req.user._id}` : `ip:${req.ip}`
+    console.log(`🔑 Rate Limit Key (7d): ${key} for user: ${req.user?.email || 'anonymous'}`)
+    return key
+  },
+  skip: (req) => {
+    // 跳過管理員的檢舉限制
+    if (req.user && req.user.role === 'admin') {
+      console.log(`🚀 跳過管理員 ${req.user.email} 的檢舉限制`)
+      return true
+    }
+    return false
   },
 })
 

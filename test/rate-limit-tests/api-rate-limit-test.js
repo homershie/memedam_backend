@@ -1,5 +1,5 @@
 import request from 'supertest'
-import { app } from '../index.js'
+import { app } from '../../index.js'
 
 // 測試迷因相關 API 的速率限制
 async function testRateLimits() {
