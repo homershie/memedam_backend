@@ -416,7 +416,7 @@ export const createWeeklySummaryNotification = async (userId, weeklyStats) => {
       type: NOTIFICATION_TYPES.WEEKLY_SUMMARY,
       title: '週報摘要',
       content: content,
-      url: '/profile',
+      url: `${process.env.FRONTEND_URL || 'https://memedam.com'}/profile`,
       meta: {
         week_start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
         week_end: new Date(),
@@ -521,7 +521,7 @@ export const notifyReportSubmitted = async (reportId, reporterId) => {
       type: NOTIFICATION_TYPES.REPORT_SUBMITTED,
       title: '檢舉已提交',
       content: '您的檢舉已成功提交，我們會盡快處理。感謝您協助維護平台品質。',
-      url: `/reports`,
+      url: `${process.env.FRONTEND_URL || 'https://memedam.com'}/reports`,
       actionText: '查看檢舉',
       priority: 1,
       meta: {
@@ -565,7 +565,7 @@ export const notifyReportProcessed = async (reportId, reporterId, status, action
           : NOTIFICATION_TYPES.REPORT_REJECTED,
       title,
       content,
-      url: `/reports`,
+      url: `${process.env.FRONTEND_URL || 'https://memedam.com'}/reports`,
       actionText,
       priority: 2,
       meta: {
@@ -590,7 +590,7 @@ export const notifyAuthorWarned = async (authorId, reportId, adminComment) => {
       type: NOTIFICATION_TYPES.AUTHOR_WARNED,
       title: '內容警告',
       content: `您的內容被檢舉並收到警告。${adminComment ? `原因：${adminComment}` : ''}`,
-      url: `/memes`,
+      url: `${process.env.FRONTEND_URL || 'https://memedam.com'}/memes`,
       actionText: '查看內容',
       priority: 3,
       meta: {
@@ -614,7 +614,7 @@ export const notifyAuthorStruck = async (authorId, reportId, strikeCount, adminC
       type: NOTIFICATION_TYPES.AUTHOR_STRUCK,
       title: '違規記錄',
       content: `您的內容違反平台規範，已記違規點數。當前違規點數：${strikeCount}。${adminComment ? `原因：${adminComment}` : ''}`,
-      url: `/memes`,
+      url: `${process.env.FRONTEND_URL || 'https://memedam.com'}/memes`,
       actionText: '查看內容',
       priority: 4,
       meta: {
@@ -639,7 +639,7 @@ export const notifyContentRemoved = async (authorId, reportId, contentType, admi
       type: NOTIFICATION_TYPES.CONTENT_REMOVED,
       title: '內容已刪除',
       content: `您的${contentType}因違反平台規範已被刪除。${adminComment ? `原因：${adminComment}` : ''}`,
-      url: `/memes`,
+      url: `${process.env.FRONTEND_URL || 'https://memedam.com'}/memes`,
       actionText: '查看其他內容',
       priority: 5,
       meta: {
@@ -664,7 +664,7 @@ export const notifyContentHidden = async (authorId, reportId, contentType, admin
       type: NOTIFICATION_TYPES.CONTENT_HIDDEN,
       title: '內容已隱藏',
       content: `您的${contentType}因違反平台規範已被隱藏。${adminComment ? `原因：${adminComment}` : ''}`,
-      url: `/memes`,
+      url: `${process.env.FRONTEND_URL || 'https://memedam.com'}/memes`,
       actionText: '查看其他內容',
       priority: 3,
       meta: {
@@ -689,7 +689,7 @@ export const notifyCommentsLocked = async (authorId, reportId, adminComment) => 
       type: NOTIFICATION_TYPES.COMMENTS_LOCKED,
       title: '留言功能已鎖定',
       content: `您的內容留言功能已被鎖定。${adminComment ? `原因：${adminComment}` : ''}`,
-      url: `/memes`,
+      url: `${process.env.FRONTEND_URL || 'https://memedam.com'}/memes`,
       actionText: '查看內容',
       priority: 3,
       meta: {

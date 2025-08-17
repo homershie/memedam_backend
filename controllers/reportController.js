@@ -2,6 +2,7 @@ import Report from '../models/Report.js'
 import User from '../models/User.js'
 import Meme from '../models/Meme.js'
 import Comment from '../models/Comment.js'
+import mongoose from 'mongoose'
 import { body, validationResult } from 'express-validator'
 import {
   notifyReportSubmitted,
@@ -41,6 +42,14 @@ export const actionTypes = [
   { value: 'warn_author', label: '警告作者' },
 ]
 
+// ObjectId 驗證函數
+const validateObjectId = (id) => {
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new Error('無效的檢舉ID格式')
+  }
+  return new mongoose.Types.ObjectId(id)
+}
+
 // 建立檢舉驗證
 export const validateCreateReport = [
   body('target_type')
@@ -55,6 +64,28 @@ export const validateCreateReport = [
 
 // 處理檢舉驗證
 export const validateResolveReport = [
+  body('status').isIn(['pending', 'processed', 'rejected']).withMessage('狀態必須是有效的選項'),
+  body('action')
+    .optional()
+    .isIn([
+      'none',
+      'remove_content',
+      'soft_hide',
+      'age_gate',
+      'mark_nsfw',
+      'lock_comments',
+      'issue_strike',
+      'warn_author',
+    ])
+    .withMessage('處理方式必須是有效的選項'),
+  body('action_meta').optional().isObject().withMessage('處理方式詳細資訊必須是物件'),
+  body('admin_comment').optional().isLength({ max: 1000 }).withMessage('管理員備註不能超過1000字'),
+]
+
+// 批量處理檢舉驗證
+export const validateBatchResolveReport = [
+  body('ids').isArray({ min: 1 }).withMessage('檢舉ID列表不能為空'),
+  body('ids.*').isMongoId().withMessage('檢舉ID必須是有效的MongoDB ID'),
   body('status').isIn(['pending', 'processed', 'rejected']).withMessage('狀態必須是有效的選項'),
   body('action')
     .optional()
@@ -209,12 +240,70 @@ export const getMyReports = async (req, res) => {
       .limit(parseInt(limit))
       .populate('handler_id', 'username avatar')
 
+    // 為每個檢舉添加目標資訊
+    const reportsWithTargetInfo = await Promise.all(
+      reports.map(async (report) => {
+        const reportObj = report.toObject()
+
+        // 根據目標類型獲取目標資訊
+        let targetInfo = {}
+        try {
+          switch (report.target_type) {
+            case 'meme': {
+              const meme = await Meme.findById(report.target_id).select('title author_id')
+              if (meme) {
+                const author = await User.findById(meme.author_id).select('username')
+                targetInfo = {
+                  title: meme.title,
+                  author: author ? author.username : '未知用戶',
+                }
+              }
+              break
+            }
+            case 'comment': {
+              const comment = await Comment.findById(report.target_id).select('content author_id')
+              if (comment) {
+                const author = await User.findById(comment.author_id).select('username')
+                targetInfo = {
+                  title:
+                    comment.content.substring(0, 50) + (comment.content.length > 50 ? '...' : ''),
+                  author: author ? author.username : '未知用戶',
+                }
+              }
+              break
+            }
+            case 'user': {
+              const user = await User.findById(report.target_id).select('username')
+              if (user) {
+                targetInfo = {
+                  title: `用戶: ${user.username}`,
+                  author: user.username,
+                }
+              }
+              break
+            }
+          }
+        } catch (error) {
+          console.error('獲取目標資訊失敗:', error)
+          targetInfo = {
+            title: '無法獲取資訊',
+            author: '未知',
+          }
+        }
+
+        return {
+          ...reportObj,
+          target_info: targetInfo,
+        }
+      }),
+    )
+
     const total = await Report.countDocuments(filter)
 
     res.json({
       success: true,
       data: {
-        reports,
+        reports: reportsWithTargetInfo,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -337,7 +426,8 @@ export const getReports = async (req, res) => {
 // 取得單一檢舉詳情
 export const getReportById = async (req, res) => {
   try {
-    const report = await Report.findById(req.params.id)
+    const reportId = validateObjectId(req.params.id)
+    const report = await Report.findById(reportId)
       .populate('reporter_id', 'username avatar')
       .populate('handler_id', 'username avatar')
 
@@ -354,8 +444,9 @@ export const getReportById = async (req, res) => {
       const relatedReports = await Report.find({
         target_type: report.target_type,
         target_id: report.target_id,
-        _id: { $ne: report._id },
       })
+        .where('_id')
+        .ne(report._id)
         .populate('reporter_id', 'username avatar')
         .sort({ createdAt: -1 })
         .limit(10)
@@ -401,8 +492,9 @@ export const resolveReport = async (req, res) => {
   try {
     const { status, action, action_meta, admin_comment } = req.body
     const handler_id = req.user._id
+    const reportId = validateObjectId(req.params.id)
 
-    const report = await Report.findById(req.params.id).session(session)
+    const report = await Report.findById(reportId).session(session)
     if (!report) {
       await session.abortTransaction()
       return res.status(404).json({
@@ -425,7 +517,7 @@ export const resolveReport = async (req, res) => {
       updateData.processed_at = new Date()
     }
 
-    const updatedReport = await Report.findByIdAndUpdate(req.params.id, updateData, {
+    const updatedReport = await Report.findByIdAndUpdate(reportId, updateData, {
       new: true,
       runValidators: true,
       session,
@@ -500,6 +592,20 @@ export const batchResolveReports = async (req, res) => {
       })
     }
 
+    // 驗證並轉換 ID 為 ObjectId（根據網路搜尋結果的建議）
+    const validObjectIds = ids
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id))
+
+    if (validObjectIds.length !== ids.length) {
+      await session.abortTransaction()
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '部分檢舉ID格式無效',
+      })
+    }
+
     const updateData = {
       status,
       action,
@@ -512,14 +618,23 @@ export const batchResolveReports = async (req, res) => {
       updateData.processed_at = new Date()
     }
 
-    const result = await Report.updateMany({ _id: { $in: ids } }, updateData, { session })
+    // 使用逐筆等值更新以避免在 _id 上使用 $in 導致的 CastError
+    const operations = validObjectIds.map((id) => ({
+      updateOne: {
+        filter: { _id: id },
+        update: { $set: updateData },
+        upsert: false,
+      },
+    }))
+
+    const result = await Report.bulkWrite(operations, { session })
 
     await session.commitTransaction()
 
     res.json({
       success: true,
       data: {
-        updatedCount: result.modifiedCount,
+        updatedCount: result.modifiedCount || 0,
         totalCount: ids.length,
       },
       error: null,
@@ -551,7 +666,8 @@ export const deleteReport = async (req, res) => {
   session.startTransaction()
 
   try {
-    const report = await Report.findByIdAndDelete(req.params.id).session(session)
+    const reportId = validateObjectId(req.params.id)
+    const report = await Report.findByIdAndDelete(reportId).session(session)
     if (!report) {
       await session.abortTransaction()
       return res.status(404).json({
@@ -577,6 +693,37 @@ export const deleteReport = async (req, res) => {
     })
   } finally {
     session.endSession()
+  }
+}
+
+// 取得用戶自己的檢舉統計
+export const getUserReportStats = async (req, res) => {
+  try {
+    const reporter_id = req.user._id
+
+    const [total, pending, processed, rejected] = await Promise.all([
+      Report.countDocuments({ reporter_id }),
+      Report.countDocuments({ reporter_id, status: 'pending' }),
+      Report.countDocuments({ reporter_id, status: 'processed' }),
+      Report.countDocuments({ reporter_id, status: 'rejected' }),
+    ])
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        pending,
+        processed,
+        rejected,
+      },
+      error: null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
   }
 }
 

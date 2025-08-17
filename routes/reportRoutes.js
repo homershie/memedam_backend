@@ -8,8 +8,10 @@ import {
   batchResolveReports,
   deleteReport,
   getReportStats,
+  getUserReportStats,
   validateCreateReport,
   validateResolveReport,
+  validateBatchResolveReport,
   reportReasons,
   reportStatuses,
   actionTypes,
@@ -468,6 +470,9 @@ router.post(
 // 取得用戶自己的檢舉列表
 router.get('/my', token, isUser, getMyReports)
 
+// 取得用戶自己的檢舉統計
+router.get('/my/stats', token, isUser, getUserReportStats)
+
 // 取得檢舉統計
 router.get('/stats', token, isManager, getReportStats)
 
@@ -487,14 +492,14 @@ router.get('/options', (req, res) => {
 // 取得檢舉列表（管理員功能）
 router.get('/', token, isManager, getReports)
 
+// 批次處理檢舉 - 必須在 /:id 路由之前
+router.put('/batch/resolve', token, isManager, validateBatchResolveReport, batchResolveReports)
+
 // 取得單一檢舉詳情
 router.get('/:id', token, canViewReport, getReportById)
 
 // 處理檢舉
 router.put('/:id/resolve', token, isManager, validateResolveReport, resolveReport)
-
-// 批次處理檢舉
-router.put('/batch/resolve', token, isManager, validateResolveReport, batchResolveReports)
 
 // 刪除檢舉
 router.delete('/:id', token, isManager, deleteReport)

@@ -64,8 +64,15 @@ const NotificationSchema = new mongoose.Schema(
       trim: true,
       maxlength: [500, '連結長度不能超過500字'],
       validate: {
-        validator: (v) =>
-          !v || validator.isURL(v, { protocols: ['http', 'https'], require_protocol: true }),
+        validator: (v) => {
+          if (!v) return true
+          // 允許 localhost URL
+          if (v.includes('localhost')) {
+            return /^https?:\/\/localhost(:\d+)?(\/.*)?$/.test(v)
+          }
+          // 其他 URL 使用標準驗證
+          return validator.isURL(v, { protocols: ['http', 'https'], require_protocol: true })
+        },
         message: '連結必須是有效的URL',
       },
     },

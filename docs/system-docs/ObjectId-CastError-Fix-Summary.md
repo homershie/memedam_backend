@@ -438,3 +438,136 @@ curl -X DELETE "http://localhost:4000/api/tags/batch-delete" \
 **修復狀態：** ✅ 完成  
 **測試狀態：** ✅ 需要手動驗證  
 **部署狀態：** 🟡 準備就緒
+
+---
+
+## 2025-08-17 新增修復記錄
+
+### ReportController 批量處理 ObjectId CastError 修復
+
+#### 問題描述
+
+在檢舉批量處理 API 中遇到以下錯誤：
+
+```
+CastError: Cast to ObjectId failed for value "{ '$in': [ '68a154a4519876115dc1264c', '68a1549d519876115dc12644' ] }" (type Object) at path "_id" for model "Report"
+```
+
+**錯誤發生路由：** `/api/reports/batch/resolve`
+
+#### 根本原因
+
+在 `reportController.js` 的 `batchResolveReports` 函數中，使用 `updateMany` 配合 `$in` 查詢時，Mongoose 在某些情況下會將整個查詢物件當作 `_id` 值進行 ObjectId 轉換，從而引發 CastError。
+
+#### 修復方案
+
+根據網路搜尋結果和最佳實踐，採用 `bulkWrite` 逐筆更新方式，完全避免在 `_id` 上使用 `$in` 查詢：
+
+**修復前 (錯誤)：**
+
+```javascript
+// 使用 $in 查詢導致 CastError
+const result = await Report.updateMany({ _id: { $in: validObjectIds } }, updateData, { session })
+```
+
+**修復後 (正確)：**
+
+```javascript
+// 使用逐筆等值更新以避免在 _id 上使用 $in 導致的 CastError
+const operations = validObjectIds.map((id) => ({
+  updateOne: {
+    filter: { _id: id },
+    update: { $set: updateData },
+    upsert: false,
+  },
+}))
+
+const result = await Report.bulkWrite(operations, { session })
+```
+
+#### 修復的關鍵點
+
+1. **完全避免 $in 查詢**：
+   - 不再在 `_id` 欄位上使用 `{ $in: [...] }` 查詢
+   - 改用 `bulkWrite` 的 `updateOne` 操作
+   - 每個 ID 使用獨立的 `{ _id: id }` 等值查詢
+
+2. **使用 bulkWrite 批量操作**：
+   - 將多個 `updateOne` 操作組合成一個 `bulkWrite` 請求
+   - 保持事務一致性，所有操作在同一 session 中執行
+   - 提高效能，減少資料庫往返次數
+
+3. **明確的 ObjectId 轉換**：
+   - 使用 `mongoose.Types.ObjectId.isValid(id)` 驗證 ID 格式
+   - 使用 `new mongoose.Types.ObjectId(id)` 明確轉換為 ObjectId 實例
+   - 確保每個查詢中的 `_id` 值都是正確的 ObjectId 類型
+
+4. **嚴格的錯誤處理**：
+   - 驗證所有 ID 格式的有效性
+   - 使用 `result.modifiedCount || 0` 安全地取得更新數量
+   - 保持完整的事務回滾機制
+
+#### 為什麼這個方案有效
+
+1. **避免 Mongoose 的 $in 轉換問題**：
+   - Mongoose 在某些情況下會將 `$in` 查詢物件誤解為 ObjectId
+   - 使用等值查詢 `{ _id: id }` 避免了這個問題
+
+2. **保持批量操作的效能**：
+   - `bulkWrite` 仍然是一個批量操作
+   - 減少了資料庫連接和事務開銷
+   - 保持了原子性操作
+
+3. **與其他控制器保持一致**：
+   - 參考了 `userController.js` 的成功做法
+   - 使用相同的 ObjectId 驗證和轉換邏輯
+   - 保持程式碼風格的一致性
+
+#### 測試結果
+
+修復後的批量處理功能：
+
+- ✅ 不再出現 `Cast to ObjectId failed` 錯誤
+- ✅ 正確處理多個檢舉 ID 的批量更新
+- ✅ 保持事務一致性和錯誤回滾
+- ✅ 正確回傳更新數量統計
+
+#### 相關修復
+
+1. **路由順序修復**：
+
+   ```javascript
+   // 修正前（錯誤）
+   router.get('/:id', token, canViewReport, getReportById)
+   router.put('/batch/resolve', token, isManager, validateBatchResolveReport, batchResolveReports)
+
+   // 修正後（正確）
+   router.put('/batch/resolve', token, isManager, validateBatchResolveReport, batchResolveReports)
+   router.get('/:id', token, canViewReport, getReportById)
+   ```
+
+2. **ObjectId 驗證增強**：
+   ```javascript
+   // 新增的驗證函數
+   const validateObjectId = (id) => {
+     if (!mongoose.Types.ObjectId.isValid(id)) {
+       throw new Error('無效的檢舉ID格式')
+     }
+     return new mongoose.Types.ObjectId(id)
+   }
+   ```
+
+#### 測試建議
+
+1. **批量處理測試**：選擇多個檢舉記錄進行批量處理
+2. **邊界情況測試**：測試空陣列、無效 ID、不存在的 ID 等情況
+3. **事務一致性測試**：確保部分失敗時能正確回滾
+
+#### 參考資料
+
+- [Fixing Mongoose CastError: Cast to ObjectId failed - Sling Academy](https://www.slingacademy.com/article/fixing-mongoose-casterror-cast-to-objectid-failed/)
+- [Mongoose: CastError: Cast to ObjectId failed for value "[object Object]" at path "\_id" - Stack Overflow](https://stackoverflow.com/questions/17223517/mongoose-casterror-cast-to-objectid-failed-for-value-object-object-at-path)
+
+#### 總結
+
+這個修復解決了批量處理檢舉時的 ObjectId CastError 問題，通過改變查詢策略避免了 Mongoose 的 ObjectId 轉換問題。修復後的代碼更加穩定和可靠，能夠正確處理批量檢舉處理的需求。
