@@ -402,4 +402,4 @@ ABTestSchema.methods.selectWinner = function () {
   }
 }
 
-export default mongoose.model('ABTest', ABTestSchema)
+export default mongoose.models.ABTest || mongoose.model('ABTest', ABTestSchema)

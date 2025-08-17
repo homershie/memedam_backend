@@ -170,4 +170,4 @@ MemeVersionSchema.virtual('fullVersion').get(function () {
 MemeVersionSchema.set('toJSON', { virtuals: true })
 MemeVersionSchema.set('toObject', { virtuals: true })
 
-export default mongoose.model('MemeVersion', MemeVersionSchema)
+export default mongoose.models.MemeVersion || mongoose.model('MemeVersion', MemeVersionSchema)

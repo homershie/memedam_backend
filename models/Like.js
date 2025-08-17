@@ -96,4 +96,4 @@ LikeSchema.pre('validate', function (next) {
   }
 })
 
-export default mongoose.model('Like', LikeSchema)
+export default mongoose.models.Like || mongoose.model('Like', LikeSchema)

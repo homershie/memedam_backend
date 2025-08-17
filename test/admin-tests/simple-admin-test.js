@@ -1,5 +1,4 @@
 import request from 'supertest'
-import mongoose from 'mongoose'
 import { app } from '../../index.js'
 import User from '../../models/User.js'
 import '../../config/loadEnv.js'
@@ -9,10 +8,7 @@ let adminToken
 
 describe('Admin Routes 簡單測試', () => {
   beforeAll(async () => {
-    // 連接測試資料庫
-    const mongoUri = process.env.MONGO_TEST_URI || 'mongodb://localhost:27017/memedam_test'
-    await mongoose.connect(mongoUri)
-    console.log('已連接到測試資料庫')
+    // 連線由全域 setup 處理
 
     // 創建測試管理員用戶
     await User.create({
@@ -25,8 +21,8 @@ describe('Admin Routes 簡單測試', () => {
     })
 
     // 獲取管理員 token
-    const adminLoginResponse = await request(app).post('/api/auth/login').send({
-      email: 'admin_simple@test.com',
+    const adminLoginResponse = await request(app).post('/api/users/login').send({
+      login: 'admin_simple@test.com',
       password: 'admin123',
     })
 
@@ -35,10 +31,8 @@ describe('Admin Routes 簡單測試', () => {
   })
 
   afterAll(async () => {
-    // 清理測試數據
+    // 清理測試數據（連線由全域 setup 關閉）
     await User.deleteMany({ username: 'admin_test_simple' })
-    await mongoose.disconnect()
-    console.log('已斷開測試資料庫連接')
   })
 
   test('獲取計數統計 - 需要管理員權限', async () => {

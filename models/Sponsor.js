@@ -69,4 +69,4 @@ const SponsorSchema = new mongoose.Schema(
   },
 )
 
-export default mongoose.model('Sponsor', SponsorSchema)
+export default mongoose.models.Sponsor || mongoose.model('Sponsor', SponsorSchema)

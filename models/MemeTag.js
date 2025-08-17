@@ -41,4 +41,4 @@ const MemeTagSchema = new mongoose.Schema(
   },
 )
 
-export default mongoose.model('MemeTag', MemeTagSchema)
+export default mongoose.models.MemeTag || mongoose.model('MemeTag', MemeTagSchema)

@@ -92,4 +92,4 @@ CollectionSchema.pre('validate', function (next) {
   }
 })
 
-export default mongoose.model('Collection', CollectionSchema)
+export default mongoose.models.Collection || mongoose.model('Collection', CollectionSchema)

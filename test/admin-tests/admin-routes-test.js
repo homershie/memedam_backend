@@ -1,5 +1,4 @@
 import request from 'supertest'
-import mongoose from 'mongoose'
 import { app } from '../../index.js'
 import User from '../../models/User.js'
 import Meme from '../../models/Meme.js'
@@ -17,16 +16,13 @@ let _testMeme
 
 describe('Admin Routes 功能測試', () => {
   beforeAll(async () => {
-    // 連接測試資料庫
-    const mongoUri = process.env.MONGO_TEST_URI || 'mongodb://localhost:27017/memedam_test'
-    await mongoose.connect(mongoUri)
-    console.log('已連接到測試資料庫')
+    // 連線由全域 setup 處理
 
     // 創建測試管理員用戶
     await User.create({
       username: 'admin_test',
       email: 'admin@test.com',
-      password: 'admin123',
+      password: 'admin1234',
       role: 'admin',
       status: 'active',
       is_verified: true,
@@ -36,7 +32,7 @@ describe('Admin Routes 功能測試', () => {
     _testUser = await User.create({
       username: 'user_test',
       email: 'user@test.com',
-      password: 'user123',
+      password: 'user1234',
       role: 'user',
       status: 'active',
       is_verified: true,
@@ -45,8 +41,11 @@ describe('Admin Routes 功能測試', () => {
     // 創建測試迷因
     _testMeme = await Meme.create({
       title: '測試迷因',
+      type: 'image',
+      content: 'test content',
+      image_url: 'https://example.com/test.jpg',
       author_id: _testUser._id,
-      status: 'active',
+      status: 'public',
       like_count: 0,
       dislike_count: 0,
       comment_count: 0,
@@ -54,28 +53,26 @@ describe('Admin Routes 功能測試', () => {
     })
 
     // 獲取管理員 token
-    const adminLoginResponse = await request(app).post('/api/auth/login').send({
-      email: 'admin@test.com',
-      password: 'admin123',
+    const adminLoginResponse = await request(app).post('/api/users/login').send({
+      login: 'admin@test.com',
+      password: 'admin1234',
     })
 
     adminToken = adminLoginResponse.body.token
 
     // 獲取普通用戶 token
-    const userLoginResponse = await request(app).post('/api/auth/login').send({
-      email: 'user@test.com',
-      password: 'user123',
+    const userLoginResponse = await request(app).post('/api/users/login').send({
+      login: 'user@test.com',
+      password: 'user1234',
     })
 
     testToken = userLoginResponse.body.token
   })
 
   afterAll(async () => {
-    // 清理測試數據
+    // 清理測試數據（連線由全域 setup 關閉）
     await User.deleteMany({ username: { $in: ['admin_test', 'user_test'] } })
     await Meme.deleteMany({ title: '測試迷因' })
-    await mongoose.disconnect()
-    console.log('已斷開測試資料庫連接')
   })
 
   describe('權限測試', () => {

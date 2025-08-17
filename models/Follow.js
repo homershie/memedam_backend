@@ -112,4 +112,4 @@ FollowSchema.pre('validate', function (next) {
   }
 })
 
-export default mongoose.model('Follow', FollowSchema)
+export default mongoose.models.Follow || mongoose.model('Follow', FollowSchema)

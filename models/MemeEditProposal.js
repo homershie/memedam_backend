@@ -36,4 +36,5 @@ const MemeEditProposalSchema = new mongoose.Schema(
   },
 )
 
-export default mongoose.model('MemeEditProposal', MemeEditProposalSchema)
+export default mongoose.models.MemeEditProposal ||
+  mongoose.model('MemeEditProposal', MemeEditProposalSchema)

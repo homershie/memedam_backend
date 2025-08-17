@@ -461,4 +461,4 @@ MemeSchema.statics.getTrendingMemes = async function (limit = 50, hours = 24) {
     .populate('author_id', 'username display_name avatar')
 }
 
-export default mongoose.model('Meme', MemeSchema)
+export default mongoose.models.Meme || mongoose.model('Meme', MemeSchema)

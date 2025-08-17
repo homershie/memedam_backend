@@ -5,13 +5,8 @@
 
 import request from 'supertest'
 import express from 'express'
-import { jest } from '@jest/globals'
 
-// Mock 依賴
-jest.mock('../models/Meme.js')
-jest.mock('../models/User.js')
-jest.mock('../utils/contentBased.js')
-jest.mock('../utils/collaborativeFiltering.js')
+// 此檔案為純端點行為測試，直接以本地 mock 控制器與中介層驗證分頁與參數處理
 
 // 創建測試應用
 const app = express()

@@ -136,4 +136,4 @@ ReportSchema.index({ status: 1, createdAt: -1 })
 // 處理時間查詢
 ReportSchema.index({ processed_at: -1 })
 
-export default mongoose.model('Report', ReportSchema)
+export default mongoose.models.Report || mongoose.model('Report', ReportSchema)

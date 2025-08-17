@@ -76,4 +76,4 @@ const AnnouncementSchema = new mongoose.Schema(
   },
 )
 
-export default mongoose.model('Announcement', AnnouncementSchema)
+export default mongoose.models.Announcement || mongoose.model('Announcement', AnnouncementSchema)

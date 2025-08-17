@@ -8,15 +8,15 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: [true, '使用者名稱必填'],
       unique: true,
-      minlength: [8, '使用者名稱至少8個字元'],
-      maxlength: [20, '使用者名稱最多20個字元'],
+      minlength: [1, '使用者名稱至少1個字元'],
+      maxlength: [30, '使用者名稱最多30個字元'],
       trim: true,
       validate: {
         validator(value) {
-          // 只允許小寫英文字母、數字和常用符號，但不允許空格和特殊控制字符
-          return /^[a-z0-9._-]+$/.test(value)
+          // 僅允許小寫英文字母、數字、底線與句點
+          return /^[a-z0-9._]+$/.test(value)
         },
-        message: '使用者名稱只能包含小寫英文字母、數字、點號(.)、底線(_)和連字號(-)',
+        message: '使用者名稱只能包含小寫英文字母、數字、底線(_)與句點(.)，且不超過30個字元',
       },
     },
     display_name: {
@@ -437,9 +437,9 @@ const UserSchema = new mongoose.Schema(
           trim: true,
           validate: {
             validator(value) {
-              return /^[a-z0-9._-]+$/.test(value)
+              return /^[a-z0-9._]+$/.test(value)
             },
-            message: '用戶名只能包含小寫英文字母、數字、點號(.)、底線(_)和連字號(-)',
+            message: '用戶名只能包含小寫英文字母、數字、底線(_)與句點(.)',
           },
         },
         changed_at: {
@@ -486,18 +486,8 @@ UserSchema.pre('save', function (next) {
   if (user.isModified('password')) {
     // 對於社群用戶，跳過密碼長度驗證
     if (!isSocialUser && (user.password.length < 8 || user.password.length > 20)) {
-      // 如果密碼長度不符合規定，拋出 mongoose 的驗證錯誤
-      // 用跟 mongoose 的 schema 驗證錯誤一樣的錯誤格式
-      // 可以跟其他驗證錯誤一起處理
-      const error = new Error.ValidationError()
-      // 設定密碼欄位錯誤
-      error.addError(
-        'password',
-        new Error.ValidationError({ message: '密碼長度必須在8到20個字元之間' }),
-      )
-      // 繼續處理，把錯誤傳出去
-      // mongoose 遇到錯誤就不會存入資料庫
-      next(error)
+      // 直接回傳錯誤訊息，讓 Mongoose 包裝為 ValidationError
+      next(new Error('密碼長度必須在8到20個字元之間'))
       return
     } else {
       // 使用 bcrypt 加密
@@ -567,4 +557,5 @@ UserSchema.set('toJSON', {
 
 UserSchema.set('toObject', { virtuals: true })
 
-export default mongoose.model('User', UserSchema)
+// 避免在測試或多次載入時重複編譯模型
+export default mongoose.models.User || mongoose.model('User', UserSchema)

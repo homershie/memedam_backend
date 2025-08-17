@@ -42,4 +42,5 @@ VerificationTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 // 防止重複使用
 VerificationTokenSchema.index({ token: 1, used: 1 })
 
-export default mongoose.model('VerificationToken', VerificationTokenSchema)
+export default mongoose.models.VerificationToken ||
+  mongoose.model('VerificationToken', VerificationTokenSchema)

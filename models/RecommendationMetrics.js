@@ -356,4 +356,5 @@ RecommendationMetricsSchema.statics.getABTestResults = async function (testId, s
   }))
 }
 
-export default mongoose.model('RecommendationMetrics', RecommendationMetricsSchema)
+export default mongoose.models.RecommendationMetrics ||
+  mongoose.model('RecommendationMetrics', RecommendationMetricsSchema)

@@ -67,10 +67,10 @@ export const checkTestEnvironment = () => {
 
 // 生成測試用戶資料
 export const generateTestUserData = () => {
-  const timestamp = Date.now()
+  const ts = Date.now().toString().slice(-5) // <= 5 碼，確保即使加上 'admin_' 前綴也不超過 20 字
   return {
-    username: `testuser_${timestamp}`,
-    email: `test_${timestamp}@example.com`,
+    username: `testuser_${ts}`,
+    email: `test_${ts}@example.com`,
     password: 'password123456',
   }
 }
@@ -106,7 +106,8 @@ export const safeCleanup = async (models) => {
     // 只清理測試資料
     if (models.User) {
       const result = await models.User.deleteMany({
-        username: { $regex: /^testuser_/ },
+        // 同時清掉包含 testuser_ 的帳號（含 admin_ 前綴情況）
+        username: { $regex: /testuser_/ },
       })
       console.log(`已清理 ${result.deletedCount} 個測試用戶`)
     }

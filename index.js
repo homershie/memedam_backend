@@ -130,22 +130,26 @@ app.use(compression())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
-// Prometheus 指標收集中間件
-const metrics = promBundle({
-  includeMethod: true, // 包括 HTTP 方法
-  includePath: true, // 包括請求路徑
-  includeStatusCode: true, // 包括狀態碼
-  promClient: { collectDefaultMetrics: {} }, // 收集默認指標
-  normalizePath: [
-    // 規範化動態路徑，避免標籤過多
-    ['^/api/memes/[0-9a-fA-F]{24}$', '/api/memes/:id'],
-    ['^/api/users/[0-9a-fA-F]{24}$', '/api/users/:id'],
-    ['^/api/comments/[0-9a-fA-F]{24}$', '/api/comments/:id'],
-    ['^/api/collections/[0-9a-fA-F]{24}$', '/api/collections/:id'],
-    ['^/api/tags/[0-9a-fA-F]{24}$', '/api/tags/:id'],
-  ],
-})
-app.use(metrics)
+// Prometheus 指標收集中間件（測試環境與顯式跳過時不註冊；確保單例）
+if (process.env.NODE_ENV !== 'test' && !process.env.SKIP_METRICS) {
+  if (!globalThis.__MEMEDAM_METRICS_INITIALIZED__) {
+    const metrics = promBundle({
+      includeMethod: true,
+      includePath: true,
+      includeStatusCode: true,
+      promClient: { collectDefaultMetrics: {} },
+      normalizePath: [
+        ['^/api/memes/[0-9a-fA-F]{24}$', '/api/memes/:id'],
+        ['^/api/users/[0-9a-fA-F]{24}$', '/api/users/:id'],
+        ['^/api/comments/[0-9a-fA-F]{24}$', '/api/comments/:id'],
+        ['^/api/collections/[0-9a-fA-F]{24}$', '/api/collections/:id'],
+        ['^/api/tags/[0-9a-fA-F]{24}$', '/api/tags/:id'],
+      ],
+    })
+    app.use(metrics)
+    globalThis.__MEMEDAM_METRICS_INITIALIZED__ = true
+  }
+}
 
 // Session 配置和 Passport 初始化將在 startServer 中進行
 
@@ -678,7 +682,10 @@ process.on('SIGINT', async () => {
   }
 })
 
-startServer()
+// 測試環境預設不自動啟動伺服器，避免未連線就觸發背景任務
+if (process.env.NODE_ENV !== 'test' && !process.env.SKIP_SERVER) {
+  startServer()
+}
 
 // 導出 app 實例供測試使用
 export { app }

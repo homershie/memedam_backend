@@ -37,8 +37,25 @@ export const login = (req, res, next) => {
 }
 
 export const token = (req, res, next) => {
+  // 若未提供 Authorization Bearer token，回傳 401 未授權
+  const authHeader = req.headers?.authorization || ''
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      success: false,
+      message: '未提供授權 token',
+    })
+  }
+
   passport.authenticate('jwt', { session: false }, (err, data, info) => {
     if (!data || err) {
+      // 未帶 token 或 Passport 回報缺少 token
+      if (info && typeof info.message === 'string' && /no auth token/i.test(info.message)) {
+        return res.status(StatusCodes.UNAUTHORIZED).json({
+          success: false,
+          message: '未提供授權 token',
+        })
+      }
+
       // 是不是 JWT 錯誤，可能是過期、格式錯誤、SECRET 錯誤等
       if (info instanceof jwt.JsonWebTokenError) {
         return res.status(StatusCodes.BAD_REQUEST).json({

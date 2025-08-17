@@ -101,4 +101,4 @@ ViewSchema.pre('save', function (next) {
   next()
 })
 
-export default mongoose.model('View', ViewSchema)
+export default mongoose.models.View || mongoose.model('View', ViewSchema)

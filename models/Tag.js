@@ -81,4 +81,4 @@ TagSchema.pre('validate', function (next) {
   next()
 })
 
-export default mongoose.model('Tag', TagSchema)
+export default mongoose.models.Tag || mongoose.model('Tag', TagSchema)

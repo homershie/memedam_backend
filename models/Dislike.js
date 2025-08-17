@@ -92,4 +92,4 @@ DislikeSchema.pre('validate', function (next) {
   }
 })
 
-export default mongoose.model('Dislike', DislikeSchema)
+export default mongoose.models.Dislike || mongoose.model('Dislike', DislikeSchema)

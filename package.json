@@ -14,7 +14,12 @@
     "start:prod": "node scripts/start-prod.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "cross-env NODE_ENV=test node test/report-tests/report-system-simple-test.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch",
+    "test:legacy": "cross-env NODE_ENV=test node test/report-tests/report-system-simple-test.js",
     "test:all": "npm run test:report && npm run test:rate-limit && npm run test:notification",
     "test:report": "cross-env NODE_ENV=test node test/report-tests/report-system-simple-test.js",
     "test:report:comprehensive": "cross-env NODE_ENV=test node test/report-tests/report-system-comprehensive-test.js",
@@ -146,6 +151,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
+    "@vitest/coverage-v8": "^2.1.8",
     "cross-env": "^10.0.0",
     "eslint": "^9.29.0",
     "eslint-config-prettier": "^10.1.5",
@@ -153,6 +159,7 @@
     "globals": "^16.2.0",
     "nodemon": "^3.1.10",
     "pino-pretty": "^13.1.1",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "vitest": "^2.1.9"
   }
 }

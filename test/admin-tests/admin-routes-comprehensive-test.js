@@ -1,14 +1,8 @@
 import request from 'supertest'
-import mongoose from 'mongoose'
 import { app } from '../../index.js'
 import User from '../../models/User.js'
 import Meme from '../../models/Meme.js'
-import {
-  TEST_CONFIG,
-  checkTestEnvironment,
-  generateTestUserData,
-  safeCleanup,
-} from '../utils/test-config.js'
+import { checkTestEnvironment, generateTestUserData, safeCleanup } from '../utils/test-config.js'
 import '../../config/loadEnv.js'
 
 // 測試用的管理員用戶
@@ -23,13 +17,8 @@ let testMeme
 
 describe('Admin Routes 完整功能測試', () => {
   beforeAll(async () => {
-    // 檢查測試環境
+    // 檢查測試環境（連線由全域 setup 負責）
     checkTestEnvironment()
-
-    // 連接測試資料庫
-    const mongoUri = TEST_CONFIG.database.uri
-    await mongoose.connect(mongoUri)
-    console.log('✅ 已連接到測試資料庫')
 
     // 生成測試用戶資料
     const adminData = generateTestUserData()
@@ -55,11 +44,14 @@ describe('Admin Routes 完整功能測試', () => {
       is_verified: true,
     })
 
-    // 創建測試迷因
+    // 創建測試迷因（補齊必填欄位）
     testMeme = await Meme.create({
       title: '測試迷因',
+      type: 'image',
+      content: 'test content',
+      image_url: 'https://example.com/test.jpg',
       author_id: testUser._id,
-      status: 'active',
+      status: 'public',
       like_count: 0,
       dislike_count: 0,
       comment_count: 0,
@@ -68,9 +60,9 @@ describe('Admin Routes 完整功能測試', () => {
 
     // 獲取管理員 token
     const adminLoginResponse = await request(app)
-      .post('/api/auth/login')
+      .post('/api/users/login')
       .send({
-        email: `admin_${adminData.email}`,
+        login: `admin_${adminData.email}`,
         password: adminData.password,
       })
 
@@ -78,8 +70,8 @@ describe('Admin Routes 完整功能測試', () => {
     console.log('✅ 管理員 token 已獲取')
 
     // 獲取普通用戶 token
-    const userLoginResponse = await request(app).post('/api/auth/login').send({
-      email: userData.email,
+    const userLoginResponse = await request(app).post('/api/users/login').send({
+      login: userData.email,
       password: userData.password,
     })
 
@@ -88,13 +80,11 @@ describe('Admin Routes 完整功能測試', () => {
   })
 
   afterAll(async () => {
-    // 安全清理測試數據
+    // 安全清理測試數據（連線由全域 setup 關閉）
     await safeCleanup({
       User,
       Meme,
     })
-    await mongoose.disconnect()
-    console.log('✅ 已斷開測試資料庫連接')
   })
 
   describe('權限測試', () => {

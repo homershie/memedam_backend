@@ -78,4 +78,4 @@ const ShareSchema = new mongoose.Schema(
   },
 )
 
-export default mongoose.model('Share', ShareSchema)
+export default mongoose.models.Share || mongoose.model('Share', ShareSchema)
