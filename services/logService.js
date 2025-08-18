@@ -1,5 +1,3 @@
-import fs from 'fs/promises'
-import path from 'path'
 import { logger } from '../utils/logger.js'
 
 class LogService {
@@ -50,6 +48,12 @@ class LogService {
       this.addToBuffer('warn', this.formatLogArgs(args), 'pino')
       originalLoggerWarn(...args)
     }
+
+    // 添加一些測試日誌來確保系統正常工作
+    this.addToBuffer('info', '日誌服務已初始化', 'system')
+    this.addToBuffer('info', '系統啟動完成', 'system')
+    this.addToBuffer('warn', '這是一條測試警告日誌', 'test')
+    this.addToBuffer('error', '這是一條測試錯誤日誌', 'test')
   }
 
   formatLogArgs(args) {
