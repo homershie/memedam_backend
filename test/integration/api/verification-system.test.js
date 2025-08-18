@@ -54,7 +54,7 @@ describe('驗證系統測試', () => {
         password: 'testpassword123',
       }
 
-      const response = await request(app)
+      await request(app)
         .post('/api/users')
         .send(newUser)
 

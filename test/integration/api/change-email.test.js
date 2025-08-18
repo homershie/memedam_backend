@@ -3,9 +3,8 @@ import request from 'supertest'
 import { app } from '../../../index.js'
 import User from '../../../models/User.js'
 import VerificationToken from '../../../models/VerificationToken.js'
-import { createTestUser, cleanupTestData } from '../../setup.js'
+import { cleanupTestData } from '../../setup.js'
 import jwt from 'jsonwebtoken'
-import bcrypt from 'bcrypt'
 
 // Mock SendGrid
 vi.mock('@sendgrid/mail', () => ({

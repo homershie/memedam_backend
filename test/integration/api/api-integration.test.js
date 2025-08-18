@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import request from 'supertest'
 import { app } from '../../../index.js'
 import User from '../../../models/User.js'
@@ -930,11 +930,11 @@ describe('API 整合測試套件', () => {
           email: `delete_${Date.now()}@example.com`,
         })
 
-        // 創建用戶內容
-        const meme = await createTestMeme(Meme, {
-          title: 'User content',
-          author_id: userToDelete._id,
-        })
+              // 創建用戶內容
+      await createTestMeme(Meme, {
+        title: 'User content',
+        author_id: userToDelete._id,
+      })
 
         await Comment.create({
           content: 'User comment',

@@ -8,7 +8,7 @@ import Like from '../../../models/Like.js'
 import Follow from '../../../models/Follow.js'
 import Notification from '../../../models/Notification.js'
 import VerificationToken from '../../../models/VerificationToken.js'
-import { createTestUser, createTestMeme, cleanupTestData } from '../../setup.js'
+import { cleanupTestData } from '../../setup.js'
 import { userCleanupScheduler } from '../../../utils/userCleanupScheduler.js'
 
 describe('用戶清理系統測試', () => {
@@ -67,7 +67,7 @@ describe('用戶清理系統測試', () => {
       image_url: 'https://example.com/meme.jpg',
     })
 
-    testComment = await Comment.create({
+    await Comment.create({
       content: 'Test comment',
       author_id: verifiedUser._id,
       meme_id: testMeme._id,
@@ -199,7 +199,7 @@ describe('用戶清理系統測試', () => {
   })
 
   describe('級聯刪除', () => {
-    let userToDelete, memeToDelete, commentToDelete
+    let userToDelete, memeToDelete
 
     beforeEach(async () => {
       // 創建要刪除的用戶及其內容
@@ -216,7 +216,7 @@ describe('用戶清理系統測試', () => {
         image_url: 'https://example.com/delete.jpg',
       })
 
-      commentToDelete = await Comment.create({
+      await Comment.create({
         content: 'Comment to delete',
         author_id: userToDelete._id,
         meme_id: memeToDelete._id,
@@ -385,6 +385,16 @@ describe('用戶清理系統測試', () => {
 
     it('應該使用事務確保資料一致性', async () => {
       const session = await User.startSession()
+      
+      let userToDelete
+      beforeEach(async () => {
+        userToDelete = await User.create({
+          username: `cascade_test_${Date.now()}`,
+          email: `cascade_test_${Date.now()}@example.com`,
+          password: 'password123',
+          is_verified: true,
+        })
+      })
       
       try {
         await session.withTransaction(async () => {

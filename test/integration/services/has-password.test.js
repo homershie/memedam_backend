@@ -4,7 +4,7 @@ import { updateHasPasswordField } from '../../../utils/updateHasPassword.js'
 import { createTestUser, cleanupTestData } from '../../setup.js'
 
 describe('has_password 功能測試', () => {
-  let userWithPassword, socialUser
+  let socialUser
 
   beforeAll(async () => {
     // 清理測試資料
@@ -42,8 +42,8 @@ describe('has_password 功能測試', () => {
 
   it('應該正確更新 has_password 欄位', async () => {
     // 檢查初始狀態
-    const user1 = await User.findOne({ username: 'test_user_with_password' })
-    const user2 = await User.findOne({ username: 'test_social_user' })
+    await User.findOne({ username: 'test_user_with_password' })
+    await User.findOne({ username: 'test_social_user' })
 
     // 執行更新腳本
     await updateHasPasswordField()

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import request from 'supertest'
 import { app } from '../../../index.js'
 import User from '../../../models/User.js'
