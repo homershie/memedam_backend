@@ -4,6 +4,7 @@ import pino from 'pino'
 process.env.LANG = process.env.LANG || 'zh_TW.UTF-8'
 process.env.LC_ALL = process.env.LC_ALL || 'zh_TW.UTF-8'
 process.env.LC_CTYPE = process.env.LC_CTYPE || 'zh_TW.UTF-8'
+process.env.LC_MESSAGES = process.env.LC_MESSAGES || 'zh_TW.UTF-8'
 
 // 強制設置標準輸出編碼
 if (process.stdout.setEncoding) {
@@ -11,6 +12,16 @@ if (process.stdout.setEncoding) {
 }
 if (process.stderr.setEncoding) {
   process.stderr.setEncoding('utf8')
+}
+
+// Windows 環境特殊處理
+if (process.platform === 'win32') {
+  // 確保 Windows 控制台使用 UTF-8
+  try {
+    require('child_process').execSync('chcp 65001', { stdio: 'ignore' })
+  } catch (e) {
+    // 忽略錯誤，繼續執行
+  }
 }
 
 // 檢查是否為本地開發環境（更寬鬆的判斷）
@@ -41,6 +52,11 @@ const logger = pino({
           sync: true,
           // 強制使用 UTF-8 編碼
           messageFormat: '{msg}',
+          // Windows 環境特殊設定
+          ...(process.platform === 'win32' && {
+            colorize: false, // Windows 控制台顏色可能有問題
+            translateTime: false, // 避免時間格式問題
+          }),
         },
       }
     : {

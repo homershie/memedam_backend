@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon index.js",
+    "dev:win": "start-dev.bat",
     "dev:local": "cross-env NODE_ENV=development PORT=4000 nodemon index.js",
     "start": "node index.js",
     "start:local": "cross-env NODE_ENV=development node index.js",
