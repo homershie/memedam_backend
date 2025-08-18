@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import request from 'supertest'
 import { app } from '../../../index.js'
 import User from '../../../models/User.js'
@@ -12,8 +12,8 @@ import { cleanupTestData } from '../../setup.js'
 import { userCleanupScheduler } from '../../../utils/userCleanupScheduler.js'
 
 describe('用戶清理系統測試', () => {
-  let verifiedUser, unverifiedUser, inactiveUser, activeUser
-  let testMeme, testComment
+  let verifiedUser, inactiveUser, activeUser
+  let testMeme
 
   beforeAll(async () => {
     // 創建各種狀態的測試用戶
@@ -29,15 +29,6 @@ describe('用戶清理系統測試', () => {
       is_verified: true,
       last_login: now,
       created_at: thirtyDaysAgo,
-    })
-
-    // 未驗證的用戶（超過 7 天）
-    unverifiedUser = await User.create({
-      username: `unverified_${Date.now()}`,
-      email: `unverified_${Date.now()}@example.com`,
-      password: 'password123',
-      is_verified: false,
-      created_at: new Date(now - 8 * 24 * 60 * 60 * 1000),
     })
 
     // 非活躍用戶（超過一年未登入）
@@ -154,8 +145,8 @@ describe('用戶清理系統測試', () => {
   describe('非活躍用戶處理', () => {
     it('應該識別超過一年未登入的用戶', async () => {
       const inactiveUsers = await userCleanupScheduler.findInactiveUsers(365)
-      
-      const inactiveUserIds = inactiveUsers.map(u => u._id.toString())
+
+      const inactiveUserIds = inactiveUsers.map((u) => u._id.toString())
       expect(inactiveUserIds).toContain(inactiveUser._id.toString())
       expect(inactiveUserIds).not.toContain(activeUser._id.toString())
     })
@@ -180,7 +171,7 @@ describe('用戶清理系統測試', () => {
       expect(sendEmailMock).toHaveBeenCalledWith(
         expect.objectContaining({
           email: inactiveUser.email,
-        })
+        }),
       )
     })
 
@@ -267,10 +258,7 @@ describe('用戶清理系統測試', () => {
       await userCleanupScheduler.cascadeDeleteUser(userToDelete._id)
 
       const followsExist = await Follow.find({
-        $or: [
-          { follower_id: userToDelete._id },
-          { following_id: userToDelete._id },
-        ],
+        $or: [{ follower_id: userToDelete._id }, { following_id: userToDelete._id }],
       })
       expect(followsExist).toHaveLength(0)
     })
@@ -279,10 +267,7 @@ describe('用戶清理系統測試', () => {
       await userCleanupScheduler.cascadeDeleteUser(userToDelete._id)
 
       const notificationsExist = await Notification.find({
-        $or: [
-          { recipient_id: userToDelete._id },
-          { sender_id: userToDelete._id },
-        ],
+        $or: [{ recipient_id: userToDelete._id }, { sender_id: userToDelete._id }],
       })
       expect(notificationsExist).toHaveLength(0)
     })
@@ -312,7 +297,7 @@ describe('用戶清理系統測試', () => {
 
     it('應該每天執行一次清理任務', () => {
       const cleanupSpy = vi.spyOn(userCleanupScheduler, 'runDailyCleanup')
-      
+
       // 啟動排程
       userCleanupScheduler.startScheduler()
 
@@ -339,17 +324,15 @@ describe('用戶清理系統測試', () => {
 
     it('應該處理清理過程中的錯誤', async () => {
       // 模擬資料庫錯誤
-      vi.spyOn(User, 'deleteMany').mockRejectedValueOnce(
-        new Error('Database error')
-      )
+      vi.spyOn(User, 'deleteMany').mockRejectedValueOnce(new Error('Database error'))
 
       const consoleSpy = vi.spyOn(console, 'error')
-      
+
       await userCleanupScheduler.runDailyCleanup()
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('清理失敗'),
-        expect.any(Error)
+        expect.any(Error),
       )
     })
   })
@@ -385,7 +368,7 @@ describe('用戶清理系統測試', () => {
 
     it('應該使用事務確保資料一致性', async () => {
       const session = await User.startSession()
-      
+
       let userToDelete
       beforeEach(async () => {
         userToDelete = await User.create({
@@ -395,13 +378,10 @@ describe('用戶清理系統測試', () => {
           is_verified: true,
         })
       })
-      
+
       try {
         await session.withTransaction(async () => {
-          await userCleanupScheduler.cascadeDeleteUser(
-            userToDelete._id,
-            { session }
-          )
+          await userCleanupScheduler.cascadeDeleteUser(userToDelete._id, { session })
         })
 
         // 檢查所有相關資料都被刪除
@@ -431,12 +411,10 @@ describe('用戶清理系統測試', () => {
         role: 'admin',
       })
 
-      const loginResponse = await request(app)
-        .post('/api/users/login')
-        .send({
-          email: admin.email,
-          password: 'admin123',
-        })
+      const loginResponse = await request(app).post('/api/users/login').send({
+        email: admin.email,
+        password: 'admin123',
+      })
 
       adminToken = loginResponse.body.token
     })
