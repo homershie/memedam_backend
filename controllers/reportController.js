@@ -1098,3 +1098,25 @@ const sendActionNotifications = async (report, action, adminComment) => {
     console.error('發送處理方式通知失敗:', error)
   }
 }
+
+// 獲取待處理檢舉數量（用於管理員選單 badge 顯示）
+export const getPendingCount = async (req, res) => {
+  try {
+    const count = await Report.countDocuments({ status: 'pending' })
+
+    res.json({
+      success: true,
+      data: {
+        count: count,
+      },
+      error: null,
+    })
+  } catch (error) {
+    console.error('獲取待處理檢舉數量失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: '獲取待處理檢舉數量失敗',
+    })
+  }
+}

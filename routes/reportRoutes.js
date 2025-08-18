@@ -10,6 +10,7 @@ import {
   getReportStats,
   getUserReportStats,
   getDetailedReportStats,
+  getPendingCount,
   validateCreateReport,
   validateResolveReport,
   validateBatchResolveReport,
@@ -414,6 +415,38 @@ const router = express.Router()
 
 /**
  * @swagger
+ * /api/reports/pending-count:
+ *   get:
+ *     summary: 取得待處理檢舉數量
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功取得待處理檢舉數量
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     count:
+ *                       type: integer
+ *                       description: 待處理檢舉數量
+ *                 error:
+ *                   type: null
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ */
+
+/**
+ * @swagger
  * /api/reports/options:
  *   get:
  *     summary: 取得檢舉選項
@@ -479,6 +512,9 @@ router.get('/stats', token, isManager, getReportStats)
 
 // 取得詳細檢舉統計（用於管理員統計頁面）
 router.get('/stats/detailed', token, isManager, getDetailedReportStats)
+
+// 取得待處理檢舉數量（用於管理員選單 badge 顯示）
+router.get('/pending-count', token, isManager, getPendingCount)
 
 // 取得檢舉選項
 router.get('/options', (req, res) => {

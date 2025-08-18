@@ -8,7 +8,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: [true, '使用者名稱必填'],
       unique: true,
-      minlength: [1, '使用者名稱至少1個字元'],
+      minlength: [5, '使用者名稱至少5個字元'],
       maxlength: [30, '使用者名稱最多30個字元'],
       trim: true,
       validate: {
