@@ -91,6 +91,53 @@ const {
   getSocialCollaborativeFilteringRecommendationsController,
 } = await import('../../../controllers/recommendationController.js')
 
+// Mock 依賴
+vi.mock('../../../models/Meme.js', () => ({
+  default: {
+    find: vi.fn().mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        skip: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            populate: vi.fn().mockReturnValue({
+              lean: vi.fn().mockResolvedValue([])
+            })
+          })
+        })
+      })
+    }),
+    countDocuments: vi.fn().mockResolvedValue(0)
+  }
+}))
+
+vi.mock('../../../models/User.js', () => ({
+  default: {
+    findById: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue({ _id: 'user123', username: 'testuser' })
+      })
+    })
+  }
+}))
+
+vi.mock('../../../utils/contentBased.js', () => ({
+  getContentBasedRecommendations: vi.fn().mockResolvedValue({
+    recommendations: [],
+    totalCount: 0,
+    userInteractions: []
+  })
+}))
+
+vi.mock('../../../utils/collaborativeFiltering.js', () => ({
+  getCollaborativeFilteringRecommendations: vi.fn().mockResolvedValue({
+    recommendations: [],
+    totalCount: 0
+  }),
+  getSocialCollaborativeFilteringRecommendations: vi.fn().mockResolvedValue({
+    recommendations: [],
+    totalCount: 0
+  })
+}))
+
 describe('推薦系統分頁功能測試', () => {
   let mockReq, mockRes
 
