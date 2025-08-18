@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import request from 'supertest'
 import { app } from '../../../index.js'
 import User from '../../../models/User.js'
@@ -337,7 +337,7 @@ describe('無限滾動功能測試', () => {
 
     it('應該在數據更新後重置滾動', async () => {
       // 獲取第一批
-      const firstBatch = await request(app)
+      await request(app)
         .get('/api/memes?limit=5')
         .set('Authorization', `Bearer ${authToken}`)
 

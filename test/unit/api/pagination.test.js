@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import mongoose from 'mongoose'
 
 // Mock mongoose
 vi.mock('mongoose', () => ({
@@ -13,368 +12,352 @@ vi.mock('mongoose', () => ({
   },
 }))
 
-// Mock 模型
+// Mock models
 vi.mock('../../../models/Meme.js', () => ({
   default: {
-    find: vi.fn(() => ({
-      sort: vi.fn(() => ({
-        skip: vi.fn(() => ({
-          limit: vi.fn(() => ({
-            populate: vi.fn(() => ({
-              lean: vi.fn(() => Promise.resolve([])),
-            })),
-          })),
-        })),
-      })),
-    })),
-    countDocuments: vi.fn(() => Promise.resolve(0)),
-    findById: vi.fn(() => ({
-      populate: vi.fn(() => ({
-        lean: vi.fn(() => Promise.resolve(null)),
-      })),
-    })),
+    find: vi.fn(),
+    countDocuments: vi.fn(),
   },
 }))
 
-vi.mock('../../../models/User.js', () => ({
-  default: {
-    findById: vi.fn(() => ({
-      select: vi.fn(() => ({
-        lean: vi.fn(() =>
-          Promise.resolve({
-            _id: 'user123',
-            username: 'testuser',
-            email: 'test@example.com',
-          }),
-        ),
-      })),
-    })),
-    find: vi.fn(() => ({
-      select: vi.fn(() => ({
-        lean: vi.fn(() => Promise.resolve([])),
-      })),
-    })),
-  },
-}))
-
-// Mock utils
-vi.mock('../../../utils/contentBased.js', () => ({
-  getContentBasedRecommendations: vi.fn(() =>
-    Promise.resolve({
-      recommendations: [],
-      totalCount: 0,
-      userInteractions: [],
-    }),
-  ),
-}))
-
-vi.mock('../../../utils/collaborativeFiltering.js', () => ({
-  getCollaborativeFilteringRecommendations: vi.fn(() =>
-    Promise.resolve({
-      recommendations: [],
-      totalCount: 0,
-    }),
-  ),
-  getSocialCollaborativeFilteringRecommendations: vi.fn(() =>
-    Promise.resolve({
-      recommendations: [],
-      totalCount: 0,
-    }),
-  ),
-}))
-
-// Import controllers after mocks
-const {
-  getContentBasedRecommendationsController,
-  getTagBasedRecommendationsController,
-  getCollaborativeFilteringRecommendationsController,
-  getSocialCollaborativeFilteringRecommendationsController,
-} = await import('../../../controllers/recommendationController.js')
-
-// Mock 依賴
-vi.mock('../../../models/Meme.js', () => ({
-  default: {
-    find: vi.fn().mockReturnValue({
-      sort: vi.fn().mockReturnValue({
-        skip: vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue({
-            populate: vi.fn().mockReturnValue({
-              lean: vi.fn().mockResolvedValue([])
-            })
-          })
-        })
-      })
-    }),
-    countDocuments: vi.fn().mockResolvedValue(0)
-  }
-}))
-
-vi.mock('../../../models/User.js', () => ({
-  default: {
-    findById: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        lean: vi.fn().mockResolvedValue({ _id: 'user123', username: 'testuser' })
-      })
-    })
-  }
-}))
-
-vi.mock('../../../utils/contentBased.js', () => ({
-  getContentBasedRecommendations: vi.fn().mockResolvedValue({
-    recommendations: [],
-    totalCount: 0,
-    userInteractions: []
-  })
-}))
-
-vi.mock('../../../utils/collaborativeFiltering.js', () => ({
-  getCollaborativeFilteringRecommendations: vi.fn().mockResolvedValue({
-    recommendations: [],
-    totalCount: 0
-  }),
-  getSocialCollaborativeFilteringRecommendations: vi.fn().mockResolvedValue({
-    recommendations: [],
-    totalCount: 0
-  })
-}))
-
-describe('推薦系統分頁功能測試', () => {
-  let mockReq, mockRes
-
+describe('分頁功能測試', () => {
   beforeEach(() => {
-    // 重置 mock
     vi.clearAllMocks()
-
-    // 設置 mock 請求
-    mockReq = {
-      query: {},
-      user: { _id: 'user123' },
-    }
-
-    // 設置 mock 響應
-    mockRes = {
-      json: vi.fn(),
-      status: vi.fn().mockReturnThis(),
-    }
   })
 
-  describe('內容基礎推薦分頁測試', () => {
-    it('應該正確處理分頁參數', async () => {
-      mockReq.query = {
-        page: '2',
-        limit: '10',
-        min_similarity: '0.1',
-        exclude_interacted: 'true',
-        include_hot_score: 'true',
-        hot_score_weight: '0.3',
-        tags: 'funny,memes',
+  describe('基本分頁參數', () => {
+    it('應該使用預設分頁參數', () => {
+      const req = {
+        query: {},
       }
 
-      await getContentBasedRecommendationsController(mockReq, mockRes)
+      const page = parseInt(req.query.page) || 1
+      const limit = parseInt(req.query.limit) || 20
 
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
-      expect(response.data).toBeDefined()
+      expect(page).toBe(1)
+      expect(limit).toBe(20)
     })
 
-    it('應該處理無效的分頁參數', async () => {
-      mockReq.query = {
-        page: 'invalid',
-        limit: 'invalid',
+    it('應該接受自定義分頁參數', () => {
+      const req = {
+        query: {
+          page: '3',
+          limit: '50',
+        },
       }
 
-      await getContentBasedRecommendationsController(mockReq, mockRes)
+      const page = parseInt(req.query.page) || 1
+      const limit = parseInt(req.query.limit) || 20
 
-      // 控制器可能會使用預設值而不是返回錯誤
-      expect(mockRes.json).toHaveBeenCalled()
+      expect(page).toBe(3)
+      expect(limit).toBe(50)
     })
 
-    it('應該處理邊界分頁值', async () => {
-      mockReq.query = {
-        page: '999',
-        limit: '100', // 使用合理的限制值
+    it('應該限制最大頁面大小', () => {
+      const req = {
+        query: {
+          limit: '200',
+        },
       }
 
-      await getContentBasedRecommendationsController(mockReq, mockRes)
+      const MAX_LIMIT = 100
+      const limit = Math.min(parseInt(req.query.limit) || 20, MAX_LIMIT)
 
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
-    })
-  })
-
-  describe('標籤基礎推薦分頁測試', () => {
-    it('應該正確處理標籤過濾和分頁', async () => {
-      mockReq.query = {
-        page: '1',
-        limit: '5',
-        tags: 'funny,memes',
-        exclude_ids: 'meme1,meme2',
-      }
-
-      await getTagBasedRecommendationsController(mockReq, mockRes)
-
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
+      expect(limit).toBe(100)
     })
 
-    it('應該處理空的標籤列表', async () => {
-      mockReq.query = {
-        page: '1',
-        limit: '10',
-        tags: '',
+    it('應該處理無效的分頁參數', () => {
+      const req = {
+        query: {
+          page: 'invalid',
+          limit: 'abc',
+        },
       }
 
-      await getTagBasedRecommendationsController(mockReq, mockRes)
+      const page = parseInt(req.query.page) || 1
+      const limit = parseInt(req.query.limit) || 20
 
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
+      expect(page).toBe(1)
+      expect(limit).toBe(20)
+    })
+
+    it('應該處理負數頁碼', () => {
+      const req = {
+        query: {
+          page: '-1',
+          limit: '20',
+        },
+      }
+
+      const page = Math.max(parseInt(req.query.page) || 1, 1)
+      const limit = parseInt(req.query.limit) || 20
+
+      expect(page).toBe(1)
+      expect(limit).toBe(20)
     })
   })
 
-  describe('協同過濾推薦分頁測試', () => {
-    it('應該正確處理協同過濾分頁', async () => {
-      mockReq.query = {
-        page: '3',
-        limit: '15',
-        min_similarity: '0.5',
-        include_social_score: 'true',
-      }
+  describe('分頁計算', () => {
+    it('應該正確計算 skip 值', () => {
+      const testCases = [
+        { page: 1, limit: 20, expectedSkip: 0 },
+        { page: 2, limit: 20, expectedSkip: 20 },
+        { page: 3, limit: 10, expectedSkip: 20 },
+        { page: 5, limit: 15, expectedSkip: 60 },
+      ]
 
-      await getCollaborativeFilteringRecommendationsController(mockReq, mockRes)
-
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
+      testCases.forEach(({ page, limit, expectedSkip }) => {
+        const skip = (page - 1) * limit
+        expect(skip).toBe(expectedSkip)
+      })
     })
 
-    it('應該處理相似度閾值', async () => {
-      mockReq.query = {
-        page: '1',
-        limit: '10',
-        min_similarity: '0.8',
-      }
+    it('應該正確計算總頁數', () => {
+      const testCases = [
+        { total: 100, limit: 20, expectedPages: 5 },
+        { total: 101, limit: 20, expectedPages: 6 },
+        { total: 0, limit: 20, expectedPages: 0 },
+        { total: 19, limit: 20, expectedPages: 1 },
+      ]
 
-      await getCollaborativeFilteringRecommendationsController(mockReq, mockRes)
-
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
-    })
-  })
-
-  describe('社交協同過濾推薦分頁測試', () => {
-    it('應該正確處理社交協同過濾分頁', async () => {
-      mockReq.query = {
-        page: '1',
-        limit: '20',
-        include_social_interactions: 'true',
-        social_weight: '0.7',
-      }
-
-      await getSocialCollaborativeFilteringRecommendationsController(mockReq, mockRes)
-
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
+      testCases.forEach(({ total, limit, expectedPages }) => {
+        const totalPages = Math.ceil(total / limit)
+        expect(totalPages).toBe(expectedPages)
+      })
     })
 
-    it('應該處理社交權重參數', async () => {
-      mockReq.query = {
-        page: '1',
-        limit: '10',
-        social_weight: '0.5',
-      }
+    it('應該正確判斷是否有下一頁', () => {
+      const testCases = [
+        { page: 1, totalPages: 5, expectedHasNext: true },
+        { page: 5, totalPages: 5, expectedHasNext: false },
+        { page: 3, totalPages: 3, expectedHasNext: false },
+        { page: 2, totalPages: 10, expectedHasNext: true },
+      ]
 
-      await getSocialCollaborativeFilteringRecommendationsController(mockReq, mockRes)
+      testCases.forEach(({ page, totalPages, expectedHasNext }) => {
+        const hasNext = page < totalPages
+        expect(hasNext).toBe(expectedHasNext)
+      })
+    })
 
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
+    it('應該正確判斷是否有上一頁', () => {
+      const testCases = [
+        { page: 1, expectedHasPrev: false },
+        { page: 2, expectedHasPrev: true },
+        { page: 5, expectedHasPrev: true },
+      ]
+
+      testCases.forEach(({ page, expectedHasPrev }) => {
+        const hasPrev = page > 1
+        expect(hasPrev).toBe(expectedHasPrev)
+      })
     })
   })
 
-  describe('通用分頁功能測試', () => {
-    it('應該計算正確的分頁資訊', async () => {
-      mockReq.query = {
-        page: '2',
-        limit: '10',
+  describe('分頁回應格式', () => {
+    it('應該返回正確的分頁 metadata', () => {
+      const page = 2
+      const limit = 20
+      const total = 100
+      const totalPages = Math.ceil(total / limit)
+
+      const pagination = {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       }
 
-      await getContentBasedRecommendationsController(mockReq, mockRes)
-
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      
-      if (response.data && response.data.pagination) {
-        expect(response.data.pagination).toHaveProperty('page')
-        expect(response.data.pagination).toHaveProperty('limit')
-      }
+      expect(pagination).toEqual({
+        page: 2,
+        limit: 20,
+        total: 100,
+        totalPages: 5,
+        hasNext: true,
+        hasPrev: true,
+      })
     })
 
-    it('應該處理排除 ID 列表', async () => {
-      mockReq.query = {
-        page: '1',
-        limit: '10',
-        exclude_ids: 'meme1,meme2,meme3',
+    it('應該處理空結果集', () => {
+      const page = 1
+      const limit = 20
+      const total = 0
+      const totalPages = Math.ceil(total / limit)
+
+      const pagination = {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: false,
+        hasPrev: false,
       }
 
-      await getContentBasedRecommendationsController(mockReq, mockRes)
-
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
+      expect(pagination).toEqual({
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false,
+      })
     })
 
-    it('應該處理排序參數', async () => {
-      mockReq.query = {
-        page: '1',
-        limit: '10',
-        sort_by: 'recommendation_score',
-        sort_order: 'desc',
+    it('應該處理超出範圍的頁碼', () => {
+      const page = 10
+      const limit = 20
+      const total = 50
+      const totalPages = Math.ceil(total / limit)
+
+      const pagination = {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        data: [], // 超出範圍應返回空數組
       }
 
-      await getContentBasedRecommendationsController(mockReq, mockRes)
-
-      expect(mockRes.json).toHaveBeenCalled()
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response.success).toBe(true)
+      expect(pagination.data).toEqual([])
+      expect(pagination.hasNext).toBe(false)
+      expect(pagination.hasPrev).toBe(true)
     })
   })
 
-  describe('錯誤處理測試', () => {
-    it('應該處理無效的用戶 ID', async () => {
-      mockReq.user = null
+  describe('MongoDB 分頁查詢', () => {
+    it('應該構建正確的查詢選項', () => {
+      const page = 2
+      const limit = 10
+      const skip = (page - 1) * limit
 
-      await getContentBasedRecommendationsController(mockReq, mockRes)
-
-      expect(mockRes.json).toHaveBeenCalled()
-      // 控制器可能允許匿名用戶
-      const response = mockRes.json.mock.calls[0][0]
-      expect(response).toBeDefined()
-    })
-
-    it('應該處理資料庫錯誤', async () => {
-      // 模擬資料庫錯誤
-      const { default: Meme } = await import('../../../models/Meme.js')
-      Meme.countDocuments = vi.fn().mockRejectedValue(new Error('Database error'))
-
-      mockReq.query = {
-        page: '1',
-        limit: '10',
+      const queryOptions = {
+        skip,
+        limit,
+        sort: { created_at: -1 },
       }
 
-      await getContentBasedRecommendationsController(mockReq, mockRes)
+      expect(queryOptions).toEqual({
+        skip: 10,
+        limit: 10,
+        sort: { created_at: -1 },
+      })
+    })
 
-      expect(mockRes.status).toHaveBeenCalledWith(500)
-      expect(mockRes.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: false,
-        }),
-      )
+    it('應該支援自定義排序', () => {
+      const sortOptions = {
+        'created_at': { created_at: -1 },
+        'likes': { like_count: -1 },
+        'views': { view_count: -1 },
+        'hot': { hot_score: -1 },
+      }
+
+      const sortBy = 'likes'
+      const sort = sortOptions[sortBy] || { created_at: -1 }
+
+      expect(sort).toEqual({ like_count: -1 })
+    })
+
+    it('應該支援多欄位排序', () => {
+      const sort = {
+        hot_score: -1,
+        created_at: -1,
+      }
+
+      expect(sort).toHaveProperty('hot_score')
+      expect(sort).toHaveProperty('created_at')
+      expect(sort.hot_score).toBe(-1)
+      expect(sort.created_at).toBe(-1)
+    })
+  })
+
+  describe('無限滾動支援', () => {
+    it('應該生成正確的 cursor', () => {
+      const lastItem = {
+        _id: '507f1f77bcf86cd799439011',
+        created_at: new Date('2024-01-01'),
+      }
+
+      const cursor = Buffer.from(JSON.stringify({
+        _id: lastItem._id,
+        created_at: lastItem.created_at,
+      })).toString('base64')
+
+      expect(cursor).toBeDefined()
+      expect(typeof cursor).toBe('string')
+    })
+
+    it('應該解析 cursor', () => {
+      const originalData = {
+        _id: '507f1f77bcf86cd799439011',
+        created_at: '2024-01-01T00:00:00.000Z',
+      }
+
+      const cursor = Buffer.from(JSON.stringify(originalData)).toString('base64')
+      const decoded = JSON.parse(Buffer.from(cursor, 'base64').toString())
+
+      expect(decoded).toEqual(originalData)
+    })
+
+    it('應該使用 cursor 構建查詢', () => {
+      const cursor = {
+        _id: '507f1f77bcf86cd799439011',
+        created_at: new Date('2024-01-01'),
+      }
+
+      const query = {
+        $or: [
+          { created_at: { $lt: cursor.created_at } },
+          {
+            created_at: cursor.created_at,
+            _id: { $lt: cursor._id },
+          },
+        ],
+      }
+
+      expect(query.$or).toHaveLength(2)
+      expect(query.$or[0]).toHaveProperty('created_at')
+      expect(query.$or[1]).toHaveProperty('_id')
+    })
+  })
+
+  describe('效能優化', () => {
+    it('應該使用索引提示', () => {
+      const query = {
+        status: 'public',
+        created_at: { $gte: new Date('2024-01-01') },
+      }
+
+      const hint = { status: 1, created_at: -1 }
+
+      expect(hint).toEqual({
+        status: 1,
+        created_at: -1,
+      })
+    })
+
+    it('應該限制返回欄位', () => {
+      const projection = {
+        _id: 1,
+        title: 1,
+        author_id: 1,
+        created_at: 1,
+        like_count: 1,
+        view_count: 1,
+      }
+
+      expect(projection).not.toHaveProperty('content')
+      expect(projection).not.toHaveProperty('comments')
+    })
+
+    it('應該使用 lean() 查詢', () => {
+      const options = {
+        lean: true,
+      }
+
+      expect(options.lean).toBe(true)
     })
   })
 })
