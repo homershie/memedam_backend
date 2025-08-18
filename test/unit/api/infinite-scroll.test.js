@@ -1,273 +1,406 @@
-import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest'
-import {
-  getInfiniteScrollRecommendations,
-  getMixedRecommendations,
-} from '../../../utils/mixedRecommendation.js'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import request from 'supertest'
+import { app } from '../../../index.js'
+import User from '../../../models/User.js'
+import Meme from '../../../models/Meme.js'
+import { createTestUser, createTestMeme, cleanupTestData } from '../../setup.js'
 
-// Mock 相關模組
-vi.mock('../../../models/Meme.js', () => ({ default: {} }))
-vi.mock('../../../models/User.js', () => ({ default: {} }))
-vi.mock('../../../models/Like.js', () => ({ default: {} }))
-vi.mock('../../../models/Comment.js', () => ({ default: {} }))
-vi.mock('../../../models/Share.js', () => ({ default: {} }))
-vi.mock('../../../models/Collection.js', () => ({ default: {} }))
-vi.mock('../../../models/View.js', () => ({ default: {} }))
-vi.mock('../../../config/redis.js', () => ({
-  default: {
-    get: vi.fn(),
-    set: vi.fn(),
-    delPattern: vi.fn(),
-  },
-}))
-vi.mock('../../../utils/hotScore.js', () => ({}))
-vi.mock('../../../utils/contentBased.js', () => ({}))
-vi.mock('../../../utils/collaborativeFiltering.js', () => ({}))
-vi.mock('../../../utils/socialScoreCalculator.js', () => ({
-  calculateMultipleMemeSocialScores: vi.fn().mockResolvedValue([
-    {
-      memeId: 'meme_0',
-      socialScore: 5.0,
-      distanceScore: 2.0,
-      influenceScore: 3.0,
-      interactionScore: 0,
-      reasons: [],
-      socialInteractions: [],
-    },
-  ]),
-  calculateMemeSocialScore: vi.fn().mockResolvedValue({
-    socialScore: 5.0,
-    distanceScore: 2.0,
-    influenceScore: 3.0,
-    interactionScore: 0,
-    reasons: [],
-    socialInteractions: [],
-  }),
-}))
-vi.mock('../../../utils/asyncProcessor.js', () => ({
-  performanceMonitor: {
-    start: vi.fn(),
-    end: vi.fn(),
-    getAllMetrics: vi.fn().mockReturnValue({}),
-  },
-  cacheProcessor: {
-    processWithCache: vi.fn(async (key, processor) => {
-      return await processor()
-    }),
-  },
-}))
-vi.mock('../../../utils/logger.js', () => ({ logger: {} }))
+describe('無限滾動功能測試', () => {
+  let testUser
+  let authToken
+  let testMemes = []
+  const totalMemes = 50 // 創建足夠多的迷因來測試無限滾動
 
-describe('無限滾動推薦測試', () => {
   beforeAll(async () => {
-    // 確保可變的 Redis mock 物件存在
-    const redisModule = await import('../../../config/redis.js')
-    if (!redisModule.default) {
-      redisModule.default = {}
+    // 創建測試用戶
+    testUser = await createTestUser(User, {
+      username: `scroll_user_${Date.now()}`,
+      email: `scroll_${Date.now()}@example.com`,
+    })
+
+    // 登入取得 token
+    const loginResponse = await request(app)
+      .post('/api/users/login')
+      .send({
+        email: testUser.email,
+        password: 'testpassword123',
+      })
+    authToken = loginResponse.body.token
+
+    // 創建大量測試迷因
+    const now = Date.now()
+    for (let i = 0; i < totalMemes; i++) {
+      const meme = await createTestMeme(Meme, {
+        title: `Scroll Test Meme ${i}`,
+        description: `Description for infinite scroll test ${i}`,
+        author_id: testUser._id,
+        image_url: `https://example.com/scroll${i}.jpg`,
+        tags: ['scroll', 'test', `batch${Math.floor(i / 10)}`],
+        view_count: Math.floor(Math.random() * 1000) + i * 10,
+        like_count: Math.floor(Math.random() * 100) + i,
+        created_at: new Date(now - i * 60 * 60 * 1000), // 每個相差一小時
+      })
+      testMemes.push(meme)
     }
   })
 
-  beforeEach(async () => {
-    // 清除所有 mock
-    vi.clearAllMocks()
-
-    // Mock Redis
-    const redisMock = {
-      get: vi.fn().mockResolvedValue(null),
-      set: vi.fn().mockResolvedValue('OK'),
-      delPattern: vi.fn().mockResolvedValue(1),
-    }
-    const redisModule = await import('../../../config/redis.js')
-    Object.assign(redisModule.default, redisMock)
-
-    // Mock logger
-    const loggerMock = {
-      info: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn(),
-    }
-    const loggerModule = await import('../../../utils/logger.js')
-    Object.assign(loggerModule.logger, loggerMock)
+  afterAll(async () => {
+    await cleanupTestData({ User, Meme })
   })
 
-  describe('getInfiniteScrollRecommendations', () => {
-    it('應該返回正確格式的推薦結果', async () => {
-      const userId = 'test_user_id'
-      const page = 1
-      const limit = 10
-      const excludeIds = ['exclude_1', 'exclude_2']
+  describe('基本無限滾動', () => {
+    it('應該返回第一批數據', async () => {
+      const response = await request(app)
+        .get('/api/memes?limit=10')
+        .set('Authorization', `Bearer ${authToken}`)
 
-      const result = await getInfiniteScrollRecommendations(userId, page, limit, excludeIds)
-
-      expect(result).toHaveProperty('memes')
-      expect(result).toHaveProperty('pagination')
-      expect(result).toHaveProperty('recommendationStats')
-      expect(Array.isArray(result.memes)).toBe(true)
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toHaveLength(10)
+      expect(response.body).toHaveProperty('nextCursor')
+      expect(response.body.hasMore).toBe(true)
     })
 
-    it('應該處理不同的分頁參數', async () => {
-      const userId = 'test_user_id'
+    it('應該使用 cursor 獲取下一批數據', async () => {
+      // 獲取第一批
+      const firstBatch = await request(app)
+        .get('/api/memes?limit=10')
+        .set('Authorization', `Bearer ${authToken}`)
 
-      // 測試第一頁
-      const page1Result = await getInfiniteScrollRecommendations(userId, 1, 5)
-      expect(page1Result.pagination.page).toBe(1)
-      expect(page1Result.pagination.limit).toBe(5)
+      expect(firstBatch.status).toBe(200)
+      const cursor = firstBatch.body.nextCursor
 
-      // 測試第二頁
-      const page2Result = await getInfiniteScrollRecommendations(userId, 2, 5)
-      expect(page2Result.pagination.page).toBe(2)
-      expect(page2Result.pagination.limit).toBe(5)
+      // 使用 cursor 獲取第二批
+      const secondBatch = await request(app)
+        .get(`/api/memes?cursor=${cursor}&limit=10`)
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(secondBatch.status).toBe(200)
+      expect(secondBatch.body.data).toHaveLength(10)
+      
+      // 確保沒有重複數據
+      const firstIds = firstBatch.body.data.map(m => m._id)
+      const secondIds = secondBatch.body.data.map(m => m._id)
+      const hasOverlap = firstIds.some(id => secondIds.includes(id))
+      expect(hasOverlap).toBe(false)
     })
 
-    it('應該正確排除指定的迷因 ID', async () => {
-      const userId = 'test_user_id'
-      const excludeIds = ['exclude_1', 'exclude_2']
+    it('應該正確標記最後一頁', async () => {
+      let cursor = null
+      let hasMore = true
+      let totalFetched = 0
 
-      const result = await getInfiniteScrollRecommendations(userId, 1, 10, excludeIds)
+      // 持續滾動直到沒有更多數據
+      while (hasMore && totalFetched < totalMemes + 10) {
+        const url = cursor 
+          ? `/api/memes?cursor=${cursor}&limit=20`
+          : '/api/memes?limit=20'
+        
+        const response = await request(app)
+          .get(url)
+          .set('Authorization', `Bearer ${authToken}`)
 
-      // 檢查返回的迷因不包含被排除的 ID
-      result.memes.forEach((meme) => {
-        expect(excludeIds).not.toContain(meme._id)
-      })
-    })
+        expect(response.status).toBe(200)
+        
+        totalFetched += response.body.data.length
+        hasMore = response.body.hasMore
+        cursor = response.body.nextCursor
 
-    it('應該處理空的排除列表', async () => {
-      const userId = 'test_user_id'
-      const excludeIds = []
-
-      const result = await getInfiniteScrollRecommendations(userId, 1, 10, excludeIds)
-      expect(result).toBeDefined()
-      expect(Array.isArray(result.memes)).toBe(true)
-    })
-
-    it('應該處理無效的用戶 ID', async () => {
-      const invalidUserId = null
-
-      await expect(getInfiniteScrollRecommendations(invalidUserId, 1, 10)).rejects.toThrow()
-    })
-  })
-
-  describe('getMixedRecommendations', () => {
-    it('應該返回混合推薦結果', async () => {
-      const userId = 'test_user_id'
-      const options = {
-        page: 1,
-        limit: 10,
-        excludeIds: ['exclude_1'],
-        includeSocialScore: true,
+        // 最後一頁應該標記 hasMore 為 false
+        if (response.body.data.length < 20) {
+          expect(response.body.hasMore).toBe(false)
+        }
       }
 
-      const result = await getMixedRecommendations(userId, options)
+      expect(totalFetched).toBeGreaterThanOrEqual(totalMemes)
+    })
+  })
 
-      expect(result).toHaveProperty('memes')
-      expect(result).toHaveProperty('pagination')
-      expect(result).toHaveProperty('recommendationStats')
-      expect(Array.isArray(result.memes)).toBe(true)
+  describe('基於時間的無限滾動', () => {
+    it('應該支援基於時間戳的滾動', async () => {
+      const response = await request(app)
+        .get('/api/memes?limit=10&sortBy=createdAt')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      // 檢查是否按時間排序
+      const memes = response.body.data
+      for (let i = 1; i < memes.length; i++) {
+        expect(new Date(memes[i-1].created_at)).toBeGreaterThanOrEqual(
+          new Date(memes[i].created_at)
+        )
+      }
     })
 
-    it('應該包含社交分數計算', async () => {
-      const userId = 'test_user_id'
-      const options = {
-        page: 1,
-        limit: 5,
-        includeSocialScore: true,
+    it('應該使用時間戳作為 cursor', async () => {
+      // 獲取第一批
+      const firstBatch = await request(app)
+        .get('/api/memes?limit=5&sortBy=createdAt')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      const lastMeme = firstBatch.body.data[firstBatch.body.data.length - 1]
+      const timestamp = new Date(lastMeme.created_at).getTime()
+
+      // 使用時間戳獲取下一批
+      const secondBatch = await request(app)
+        .get(`/api/memes?before=${timestamp}&limit=5&sortBy=createdAt`)
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(secondBatch.status).toBe(200)
+      
+      // 確保第二批的所有迷因都比第一批的最後一個舊
+      secondBatch.body.data.forEach(meme => {
+        expect(new Date(meme.created_at)).toBeLessThan(new Date(lastMeme.created_at))
+      })
+    })
+  })
+
+  describe('基於分數的無限滾動', () => {
+    it('應該支援基於熱門度分數的滾動', async () => {
+      const response = await request(app)
+        .get('/api/memes?limit=10&sortBy=hot')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      
+      // 檢查是否按熱門度排序
+      const memes = response.body.data
+      for (let i = 1; i < memes.length; i++) {
+        const prevScore = memes[i-1].view_count + memes[i-1].like_count * 2
+        const currScore = memes[i].view_count + memes[i].like_count * 2
+        expect(prevScore).toBeGreaterThanOrEqual(currScore)
+      }
+    })
+
+    it('應該處理相同分數的情況', async () => {
+      // 創建多個相同分數的迷因
+      const sameScoredMemes = []
+      for (let i = 0; i < 5; i++) {
+        const meme = await createTestMeme(Meme, {
+          title: `Same Score Meme ${i}`,
+          author_id: testUser._id,
+          view_count: 100,
+          like_count: 50,
+        })
+        sameScoredMemes.push(meme)
       }
 
-      const result = await getMixedRecommendations(userId, options)
+      const response = await request(app)
+        .get('/api/memes?limit=10&sortBy=hot')
+        .set('Authorization', `Bearer ${authToken}`)
 
-      // 檢查是否包含社交分數
-      result.memes.forEach((meme) => {
-        expect(meme).toHaveProperty('socialScore')
-        expect(typeof meme.socialScore).toBe('number')
-      })
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toBeDefined()
+    })
+  })
+
+  describe('過濾條件下的無限滾動', () => {
+    it('應該在標籤過濾下保持滾動連續性', async () => {
+      // 第一批帶標籤過濾
+      const firstBatch = await request(app)
+        .get('/api/memes?tags=scroll&limit=5')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(firstBatch.status).toBe(200)
+      expect(firstBatch.body.data.every(m => m.tags.includes('scroll'))).toBe(true)
+
+      // 使用 cursor 獲取第二批
+      if (firstBatch.body.nextCursor) {
+        const secondBatch = await request(app)
+          .get(`/api/memes?tags=scroll&cursor=${firstBatch.body.nextCursor}&limit=5`)
+          .set('Authorization', `Bearer ${authToken}`)
+
+        expect(secondBatch.status).toBe(200)
+        expect(secondBatch.body.data.every(m => m.tags.includes('scroll'))).toBe(true)
+      }
     })
 
-    it('應該處理不同的推薦策略', async () => {
-      const userId = 'test_user_id'
+    it('應該在搜索條件下保持滾動連續性', async () => {
+      // 第一批帶搜索條件
+      const firstBatch = await request(app)
+        .get('/api/memes?q=Test&limit=5')
+        .set('Authorization', `Bearer ${authToken}`)
 
-      // 測試熱門推薦
-      const hotResult = await getMixedRecommendations(userId, {
-        page: 1,
-        limit: 5,
-        strategy: 'hot',
-      })
+      expect(firstBatch.status).toBe(200)
+      
+      // 使用 cursor 獲取第二批
+      if (firstBatch.body.nextCursor) {
+        const secondBatch = await request(app)
+          .get(`/api/memes?q=Test&cursor=${firstBatch.body.nextCursor}&limit=5`)
+          .set('Authorization', `Bearer ${authToken}`)
 
-      // 測試最新推薦
-      const latestResult = await getMixedRecommendations(userId, {
-        page: 1,
-        limit: 5,
-        strategy: 'latest',
-      })
+        expect(secondBatch.status).toBe(200)
+        
+        // 確保沒有重複
+        const firstIds = firstBatch.body.data.map(m => m._id)
+        const secondIds = secondBatch.body.data.map(m => m._id)
+        const hasOverlap = firstIds.some(id => secondIds.includes(id))
+        expect(hasOverlap).toBe(false)
+      }
+    })
+  })
 
-      expect(hotResult).toBeDefined()
-      expect(latestResult).toBeDefined()
-      expect(Array.isArray(hotResult.memes)).toBe(true)
-      expect(Array.isArray(latestResult.memes)).toBe(true)
+  describe('錯誤處理', () => {
+    it('應該處理無效的 cursor', async () => {
+      const response = await request(app)
+        .get('/api/memes?cursor=invalid_cursor&limit=10')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(400)
+      expect(response.body.success).toBe(false)
+      expect(response.body.message).toContain('cursor')
     })
 
-    it('應該處理推薦統計資訊', async () => {
-      const userId = 'test_user_id'
-      const options = {
-        page: 1,
-        limit: 10,
-        includeStats: true,
+    it('應該處理過大的 limit', async () => {
+      const response = await request(app)
+        .get('/api/memes?limit=1000')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data.length).toBeLessThanOrEqual(100) // 假設最大限制是 100
+    })
+
+    it('應該處理負數 limit', async () => {
+      const response = await request(app)
+        .get('/api/memes?limit=-10')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(400)
+      expect(response.body.success).toBe(false)
+    })
+  })
+
+  describe('效能優化', () => {
+    it('應該快速返回大批數據', async () => {
+      const startTime = Date.now()
+      
+      const response = await request(app)
+        .get('/api/memes?limit=50')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      const endTime = Date.now()
+      const responseTime = endTime - startTime
+
+      expect(response.status).toBe(200)
+      expect(responseTime).toBeLessThan(500) // 應該在 500ms 內返回
+    })
+
+    it('應該支援預加載下一批數據', async () => {
+      const response = await request(app)
+        .get('/api/memes?limit=10&preload=true')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(response.status).toBe(200)
+      
+      // 檢查是否有預加載提示
+      if (response.body.preloadHint) {
+        expect(response.body.preloadHint).toHaveProperty('nextCursor')
+        expect(response.body.preloadHint).toHaveProperty('expectedCount')
+      }
+    })
+  })
+
+  describe('狀態管理', () => {
+    it('應該正確處理並發滾動請求', async () => {
+      const requests = []
+      
+      // 同時發送多個滾動請求
+      for (let i = 0; i < 3; i++) {
+        requests.push(
+          request(app)
+            .get(`/api/memes?limit=10&offset=${i * 10}`)
+            .set('Authorization', `Bearer ${authToken}`)
+        )
       }
 
-      const result = await getMixedRecommendations(userId, options)
+      const responses = await Promise.all(requests)
+      
+      responses.forEach(response => {
+        expect(response.status).toBe(200)
+        expect(response.body.success).toBe(true)
+      })
 
-      expect(result.recommendationStats).toHaveProperty('totalProcessed')
-      expect(result.recommendationStats).toHaveProperty('processingTime')
-      expect(result.recommendationStats).toHaveProperty('cacheHitRate')
+      // 確保每個請求返回不同的數據
+      const allIds = []
+      responses.forEach(response => {
+        response.body.data.forEach(meme => {
+          expect(allIds).not.toContain(meme._id)
+          allIds.push(meme._id)
+        })
+      })
+    })
+
+    it('應該在數據更新後重置滾動', async () => {
+      // 獲取第一批
+      const firstBatch = await request(app)
+        .get('/api/memes?limit=5')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      // 創建新迷因
+      const newMeme = await createTestMeme(Meme, {
+        title: 'Brand New Meme',
+        author_id: testUser._id,
+        created_at: new Date(),
+      })
+
+      // 重新獲取第一批
+      const refreshedBatch = await request(app)
+        .get('/api/memes?limit=5')
+        .set('Authorization', `Bearer ${authToken}`)
+
+      expect(refreshedBatch.status).toBe(200)
+      
+      // 新迷因應該出現在列表中
+      const hasNewMeme = refreshedBatch.body.data.some(m => m._id === newMeme._id.toString())
+      expect(hasNewMeme).toBe(true)
     })
   })
 
-  describe('分頁功能', () => {
-    it('應該正確計算分頁資訊', async () => {
-      const userId = 'test_user_id'
-      const page = 2
-      const limit = 5
+  describe('混合推薦滾動', () => {
+    it('應該支援混合推薦的無限滾動', async () => {
+      const response = await request(app)
+        .get('/api/memes/mixed?limit=10')
+        .set('Authorization', `Bearer ${authToken}`)
 
-      const result = await getInfiniteScrollRecommendations(userId, page, limit)
-
-      expect(result.pagination).toHaveProperty('page')
-      expect(result.pagination).toHaveProperty('limit')
-      expect(result.pagination).toHaveProperty('total')
-      expect(result.pagination).toHaveProperty('totalPages')
-      expect(result.pagination).toHaveProperty('hasNext')
-      expect(result.pagination).toHaveProperty('hasPrev')
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toBeDefined()
+      
+      // 混合推薦應該包含不同類型的內容
+      if (response.body.data.length > 0) {
+        expect(response.body.data[0]).toHaveProperty('recommendationType')
+      }
     })
 
-    it('應該處理邊界分頁', async () => {
-      const userId = 'test_user_id'
+    it('應該在混合推薦中避免重複', async () => {
+      const seenIds = new Set()
+      let cursor = null
+      
+      // 獲取多批混合推薦
+      for (let i = 0; i < 3; i++) {
+        const url = cursor 
+          ? `/api/memes/mixed?cursor=${cursor}&limit=10`
+          : '/api/memes/mixed?limit=10'
+        
+        const response = await request(app)
+          .get(url)
+          .set('Authorization', `Bearer ${authToken}`)
 
-      // 測試超出範圍的頁面
-      const result = await getInfiniteScrollRecommendations(userId, 999, 10)
-      expect(result.memes.length).toBe(0)
-      expect(result.pagination.hasNext).toBe(false)
-    })
-  })
-
-  describe('性能監控', () => {
-    it('應該記錄性能指標', async () => {
-      const userId = 'test_user_id'
-
-      await getInfiniteScrollRecommendations(userId, 1, 10)
-
-      // 檢查性能監控是否被調用
-      const { performanceMonitor } = await import('../../../utils/asyncProcessor.js')
-      expect(performanceMonitor.start).toHaveBeenCalled()
-      expect(performanceMonitor.end).toHaveBeenCalled()
-    })
-  })
-
-  describe('快取功能', () => {
-    it('應該使用快取處理器', async () => {
-      const userId = 'test_user_id'
-
-      await getInfiniteScrollRecommendations(userId, 1, 10)
-
-      // 檢查快取處理器是否被調用
-      const { cacheProcessor } = await import('../../../utils/asyncProcessor.js')
-      expect(cacheProcessor.processWithCache).toHaveBeenCalled()
+        expect(response.status).toBe(200)
+        
+        response.body.data.forEach(meme => {
+          expect(seenIds.has(meme._id)).toBe(false)
+          seenIds.add(meme._id)
+        })
+        
+        cursor = response.body.nextCursor
+        if (!response.body.hasMore) break
+      }
     })
   })
 })
