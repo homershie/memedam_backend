@@ -4,15 +4,15 @@ import {
   getFeedbacks,
   updateFeedbackStatus,
 } from '../controllers/feedbackController.js'
-import { isAuthenticated, isAdmin } from '../middleware/auth.js'
-import { rateLimit } from '../middleware/rateLimit.js'
+import { token, isAdmin } from '../middleware/auth.js'
+import rateLimit from 'express-rate-limit'
 
 const router = express.Router()
 
 // 需要登入的路由：提交意見 (限制頻率防止濫用)
 router.post(
   '/submit',
-  isAuthenticated, // 需要登入
+  token, // 需要登入
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 分鐘
     max: 3, // 降低為最多 3 次提交
