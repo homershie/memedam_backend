@@ -19,14 +19,21 @@ describe('has_password 功能測試', () => {
     })
 
     // 建立測試用戶 - 社群登入用戶（沒有密碼）
-    socialUser = await createTestUser(User, {
-      username: 'test_social_user',
-      email: 'test2@example.com',
-      google_id: 'test_google_id_123',
-      login_method: 'google',
-      display_name: '測試社群用戶',
-      password: undefined, // 確保沒有密碼
-    })
+    // 使用 findOneAndUpdate 避免 pre-save hook
+    socialUser = await User.findOneAndUpdate(
+      { username: 'test_social_user' },
+      {
+        username: 'test_social_user',
+        email: 'test2@example.com',
+        google_id: 'test_google_id_123',
+        login_method: 'google',
+        display_name: '測試社群用戶',
+        status: 'active',
+        has_password: false,
+        // 不設置 password 欄位
+      },
+      { upsert: true, new: true, runValidators: false },
+    )
   })
 
   afterAll(async () => {
@@ -52,17 +59,21 @@ describe('has_password 功能測試', () => {
 
   it('應該在密碼變更時更新 has_password', async () => {
     // 為社群用戶設定密碼
-    socialUser.password = 'newpassword123'
-    await socialUser.save()
+    const user = await User.findOne({ username: 'test_social_user' })
+    user.password = 'newpassword123'
+    await user.save()
 
     const userAfterPasswordChange = await User.findOne({ username: 'test_social_user' })
     expect(userAfterPasswordChange.has_password).toBe(true)
   })
 
   it('應該在移除密碼時更新 has_password', async () => {
-    // 移除密碼
-    socialUser.password = undefined
-    await socialUser.save()
+    // 使用 findOneAndUpdate 移除密碼，避免 pre-save hook
+    await User.findOneAndUpdate(
+      { username: 'test_social_user' },
+      { $unset: { password: 1 }, has_password: false },
+      { runValidators: false },
+    )
 
     const userAfterPasswordRemoval = await User.findOne({ username: 'test_social_user' })
     expect(userAfterPasswordRemoval.has_password).toBe(false)
@@ -72,13 +83,32 @@ describe('has_password 功能測試', () => {
     // 創建多個測試用戶
     const testUsers = []
     for (let i = 0; i < 5; i++) {
-      const user = await createTestUser(User, {
-        username: `test_batch_user_${i}`,
-        email: `batch${i}@example.com`,
-        password: i % 2 === 0 ? 'password123' : undefined,
-        display_name: `批次用戶 ${i}`,
-      })
-      testUsers.push(user)
+      if (i % 2 === 0) {
+        // 有密碼的用戶
+        const user = await createTestUser(User, {
+          username: `test_batch_user_${i}`,
+          email: `batch${i}@example.com`,
+          password: 'password123',
+          display_name: `批次用戶 ${i}`,
+        })
+        testUsers.push(user)
+      } else {
+        // 無密碼的用戶（OAuth）
+        const user = await User.findOneAndUpdate(
+          { username: `test_batch_user_${i}` },
+          {
+            username: `test_batch_user_${i}`,
+            email: `batch${i}@example.com`,
+            google_id: `google_${i}`,
+            login_method: 'google',
+            display_name: `批次用戶 ${i}`,
+            status: 'active',
+            has_password: false,
+          },
+          { upsert: true, new: true, runValidators: false },
+        )
+        testUsers.push(user)
+      }
     }
 
     // 執行更新
