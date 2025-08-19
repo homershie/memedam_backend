@@ -56,6 +56,8 @@ checkTestEnvironment()
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 process.env.SKIP_SERVER = process.env.SKIP_SERVER || 'true'
 process.env.REDIS_ENABLED = 'false'
+process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-session-secret'
+process.env.SKIP_REDIS = 'true'
 
 // 全域 mock 郵件，避免外部 I/O
 vi.mock('@sendgrid/mail', () => ({

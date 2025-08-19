@@ -6,12 +6,14 @@ export default defineConfig({
     // 測試環境
     environment: 'node',
 
-    // 包含單元測試和日誌相關測試，排除 legacy 與示例測試
+    // 包含所有測試檔案，排除 legacy 與示例測試
     include: [
       'test/unit/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'test/unit/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'test/integration/**/*log*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'test/e2e/**/*log*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'test/integration/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'test/integration/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'test/e2e/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'test/e2e/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: [
       'node_modules',

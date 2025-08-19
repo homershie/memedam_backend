@@ -70,26 +70,11 @@ const verifyOAuthState = (req, res, next) => {
 
   const sessionState = req.session.oauthState
 
-  // 調試資訊（生產環境也記錄，但減少詳細程度）
-  console.log('OAuth state verification:')
-  console.log('  Provided state:', state)
-  console.log('  Session state:', sessionState)
-  console.log('  Session ID:', req.sessionID)
-  console.log('  Session exists:', !!req.session)
-
   // 清除 session 中的 state（無論驗證是否成功）
   delete req.session.oauthState
 
   if (!state || !sessionState || state !== sessionState) {
-    console.error('OAuth state 驗證失敗:', { provided: state, expected: sessionState })
-
-    // 在生產環境中，如果 session 存在但 state 不匹配，可能是 session 過期或重啟
-    if (req.session && !sessionState) {
-      console.error(
-        'Session exists but oauthState is undefined - possible session restart or timeout',
-      )
-    }
-
+    console.error('OAuth state verification failed:', { provided: state, expected: sessionState })
     const frontendUrl = getFrontendUrl()
     return res.redirect(`${frontendUrl}/login?error=invalid_state`)
   }
@@ -102,7 +87,6 @@ const verifyOAuthState = (req, res, next) => {
       return res.redirect(`${frontendUrl}/login?error=session_save_failed`)
     }
 
-    console.log('OAuth state verified successfully')
     next()
   })
 }
@@ -591,18 +575,6 @@ router.get('/bind-status', token, getBindStatus)
 
 // 密碼狀態相關路由
 router.get('/password-status', token, isUser, checkPasswordStatus)
-
-// 會話調試端點（僅開發環境）
-if (process.env.NODE_ENV !== 'production') {
-  router.get('/debug/session', (req, res) => {
-    res.json({
-      sessionExists: !!req.session,
-      sessionId: req.sessionID,
-      sessionData: req.session || {},
-      cookies: req.headers.cookie || 'No cookies',
-    })
-  })
-}
 
 /**
  * @swagger
@@ -1277,7 +1249,7 @@ router.get('/validate-username/:username', async (req, res) => {
       available: !exists,
       message: exists ? '此 username 已被使用' : '此 username 可以使用',
     })
-  } catch (err) {
+  } catch {
     return res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 })
@@ -1335,7 +1307,7 @@ router.post('/change-username', token, isUser, async (req, res) => {
         username_changed_at: user.username_changed_at,
       },
     })
-  } catch (err) {
+  } catch {
     return res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 })
@@ -1347,27 +1319,28 @@ router.get('/auth/google', (req, res, next) => {
 
   // 確保 session 存在
   if (!req.session) {
-    console.error('Session not available in development mode')
-    return res.status(500).json({ error: 'Session not available' })
+    console.error('Session not available in Google OAuth')
+    return res.status(500).json({
+      error: 'Session not available',
+      debug: {
+        sessionExists: !!req.session,
+        sessionStore: req.sessionStore?.constructor?.name || 'unknown',
+        environment: process.env.NODE_ENV,
+        hasSessionSecret: !!process.env.SESSION_SECRET,
+      },
+    })
   }
 
   req.session.oauthState = state
-
-  // 開發模式下的調試資訊
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Development mode - OAuth state set:', state)
-    console.log('Session ID:', req.sessionID)
-  }
 
   // 確保 session 被保存
   req.session.save((err) => {
     if (err) {
       console.error('Session save error:', err)
-      return res.status(500).json({ error: 'Session save failed' })
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Development mode - Session saved successfully')
+      return res.status(500).json({
+        error: 'Session save failed',
+        details: err.message,
+      })
     }
 
     passport.authenticate('google', {
@@ -1430,7 +1403,16 @@ router.get('/auth/facebook', (req, res, next) => {
 
   // 確保 session 存在
   if (!req.session) {
-    return res.status(500).json({ error: 'Session not available' })
+    console.error('Session not available in Facebook OAuth')
+    return res.status(500).json({
+      error: 'Session not available',
+      debug: {
+        sessionExists: !!req.session,
+        sessionStore: req.sessionStore?.constructor?.name || 'unknown',
+        environment: process.env.NODE_ENV,
+        hasSessionSecret: !!process.env.SESSION_SECRET,
+      },
+    })
   }
 
   req.session.oauthState = state
@@ -1501,43 +1483,34 @@ router.get('/auth/discord', (req, res, next) => {
   // 確保 session 存在
   if (!req.session) {
     console.error('Session not available in Discord OAuth')
-    return res.status(500).json({ error: 'Session not available' })
+    return res.status(500).json({
+      error: 'Session not available',
+      debug: {
+        sessionExists: !!req.session,
+        sessionStore: req.sessionStore?.constructor?.name || 'unknown',
+        environment: process.env.NODE_ENV,
+        hasSessionSecret: !!process.env.SESSION_SECRET,
+      },
+    })
   }
 
   req.session.oauthState = state
-
-  // 調試資訊
-  console.log('Discord OAuth initiated:')
-  console.log('  Generated state:', state)
-  console.log('  Session ID:', req.sessionID)
 
   // 清除 req.user 以確保這被視為登入流程而不是綁定流程
   req.user = undefined
   req.session.isBindingFlow = false
 
-  // 強制保存 session 並等待完成
+  // 保存 session
   req.session.save((err) => {
     if (err) {
       console.error('Session save error:', err)
       return res.status(500).json({ error: 'Session save failed' })
     }
 
-    console.log('Session saved successfully, proceeding with Discord OAuth')
-
-    // 再次確認 session 已保存
-    req.session.reload((reloadErr) => {
-      if (reloadErr) {
-        console.error('Session reload error:', reloadErr)
-        return res.status(500).json({ error: 'Session reload failed' })
-      }
-
-      console.log('Session reloaded successfully, oauthState:', req.session.oauthState)
-
-      passport.authenticate('discord', {
-        scope: ['identify', 'email'],
-        state: state,
-      })(req, res, next)
-    })
+    passport.authenticate('discord', {
+      scope: ['identify', 'email'],
+      state: state,
+    })(req, res, next)
   })
 })
 
@@ -1546,8 +1519,6 @@ router.get(
   '/auth/discord/callback',
   verifyOAuthState,
   (req, res, next) => {
-    console.log('Discord OAuth callback - state verified, proceeding with authentication')
-
     passport.authenticate('discord', (err, user) => {
       if (err) {
         console.error('Discord OAuth 錯誤:', err)
@@ -1572,15 +1543,12 @@ router.get(
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
 
-      console.log('Discord OAuth successful, user:', user._id)
       req.user = user
       next()
     })(req, res, next)
   },
   async (req, res) => {
     try {
-      console.log('Processing Discord OAuth callback for user:', req.user._id)
-
       const token = signToken({ _id: req.user._id })
       req.user.tokens = req.user.tokens || []
 
@@ -1606,11 +1574,10 @@ router.get(
 
       await req.user.save()
 
-      console.log('Discord OAuth completed successfully, redirecting to frontend')
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
-      console.error('Discord OAuth callback 錯誤:', error)
+      console.error('Discord OAuth callback error:', error)
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/login?error=server_error`)
     }
@@ -1624,7 +1591,16 @@ router.get('/auth/twitter', (req, res, next) => {
 
   // 確保 session 存在
   if (!req.session) {
-    return res.status(500).json({ error: 'Session not available' })
+    console.error('Session not available in Twitter OAuth')
+    return res.status(500).json({
+      error: 'Session not available',
+      debug: {
+        sessionExists: !!req.session,
+        sessionStore: req.sessionStore?.constructor?.name || 'unknown',
+        environment: process.env.NODE_ENV,
+        hasSessionSecret: !!process.env.SESSION_SECRET,
+      },
+    })
   }
 
   req.session.oauthState = state
@@ -1633,24 +1609,12 @@ router.get('/auth/twitter', (req, res, next) => {
   req.user = undefined
   req.session.isBindingFlow = false
 
-  // 確保 session 被保存
+  // 保存 session
   req.session.save((err) => {
     if (err) {
       console.error('Session save error:', err)
       return res.status(500).json({ error: 'Session save failed' })
     }
-
-    // Twitter OAuth 1.0a 不需要 state 參數，但我們保留用於安全驗證
-    console.log('=== Twitter OAuth 1.0a 登入開始 ===')
-    console.log('Generated state:', state)
-    console.log('Session ID (before auth):', req.sessionID || req.session.id)
-    console.log('Session 內容 (before auth):', req.session)
-    console.log('Request headers host:', req.get('host'))
-    console.log('Request cookies:', req.headers.cookie)
-    console.log('環境變數檢查:')
-    console.log('  TWITTER_API_KEY:', !!process.env.TWITTER_API_KEY)
-    console.log('  TWITTER_API_SECRET:', !!process.env.TWITTER_API_SECRET)
-    console.log('  TWITTER_REDIRECT_URI:', process.env.TWITTER_REDIRECT_URI)
 
     passport.authenticate('twitter')(req, res, next)
   })
@@ -1660,30 +1624,9 @@ router.get('/auth/twitter', (req, res, next) => {
 router.get(
   '/auth/twitter/callback',
   (req, res, next) => {
-    logger.info('=== Twitter OAuth 登入回調開始 ===')
-    logger.info('Query 參數:', req.query)
-    logger.info('Session ID:', req.sessionID || req.session?.id)
-    logger.info('Session 內容:', req.session)
-    logger.info('Request headers host:', req.get('host'))
-    logger.info('Request cookies:', req.headers.cookie)
-    logger.info('環境變數檢查:')
-    logger.info('  TWITTER_API_KEY:', !!process.env.TWITTER_API_KEY)
-    logger.info('  TWITTER_API_SECRET:', !!process.env.TWITTER_API_SECRET)
-    logger.info('  TWITTER_REDIRECT_URI:', process.env.TWITTER_REDIRECT_URI)
-
-    passport.authenticate('twitter', (err, user, info) => {
-      logger.info('=== Twitter OAuth 認證結果 ===')
-      logger.info('錯誤:', err)
-      logger.info('用戶:', user ? `用戶ID: ${user._id}` : '無用戶')
-      logger.info('額外信息:', info)
-
+    passport.authenticate('twitter', (err, user) => {
       if (err) {
-        logger.error('Twitter OAuth 錯誤詳情:', {
-          message: err.message,
-          stack: err.stack,
-          code: err.code,
-          statusCode: err.statusCode,
-        })
+        console.error('Twitter OAuth error:', err.message)
         const frontendUrl = getFrontendUrl()
 
         // 處理特定的錯誤類型
@@ -1700,13 +1643,11 @@ router.get(
       }
 
       if (!user) {
-        logger.error('Twitter OAuth - 沒有返回用戶，但也沒有錯誤')
-        logger.error('這通常表示認證被拒絕或用戶取消了授權')
+        console.error('Twitter OAuth - no user returned')
         const frontendUrl = getFrontendUrl()
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
       }
 
-      logger.info('Twitter OAuth 成功，用戶:', user._id)
       req.user = user
       next()
     })(req, res, next)
@@ -1741,7 +1682,7 @@ router.get(
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/?token=${token}`)
     } catch (error) {
-      logger.error('Twitter OAuth callback 錯誤:', error)
+      console.error('Twitter OAuth callback error:', error)
       const frontendUrl = getFrontendUrl()
       res.redirect(`${frontendUrl}/login?error=server_error`)
     }
@@ -1758,18 +1699,8 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
   const { provider } = req.params
   const { state, token } = req.query
 
-  logger.info('=== OAuth 綁定初始化 ===', {
-    provider,
-    state,
-    token: !!token,
-    tokenLength: token ? token.length : 0,
-    sessionExists: !!req.session,
-    sessionId: req.sessionID,
-  })
-
   // 驗證必要參數
   if (!state) {
-    logger.error('❌ 缺少 state 參數')
     return res.status(400).json({
       success: false,
       message: '缺少 state 參數',
@@ -1780,25 +1711,17 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
 
   // 優先使用 query token 通過資料庫查找，避免密鑰不一致或簽章問題
   if (token) {
-    logger.info('🔍 嘗試以 token 查找用戶（不驗簽），token 長度:', token.length)
     const user = await User.findOne({ tokens: token })
     if (!user) {
-      logger.error('❌ 以 token 查無用戶，可能為過期或無效 token')
       const frontendUrl = getFrontendUrl()
       return res.redirect(
         `${frontendUrl}/settings?error=auth_failed&message=${encodeURIComponent('認證失敗，請重新登錄')}`,
       )
     }
-    logger.info('✅ 以 token 查找用戶成功:', user.username)
     bindUserId = user._id.toString()
   } else if (req.session && req.session.bindUserId) {
     bindUserId = req.session.bindUserId
-    logger.info('✅ 使用 session 中的 bindUserId:', {
-      userId: bindUserId,
-      sessionId: req.sessionID,
-    })
   } else {
-    logger.error('❌ 缺少 token 且 session 無 bindUserId，無法獲取綁定用戶 ID')
     const frontendUrl = getFrontendUrl()
     return res.redirect(
       `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`,
@@ -1808,7 +1731,6 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
   // 驗證 provider
   const validProviders = ['google', 'facebook', 'discord', 'twitter']
   if (!validProviders.includes(provider)) {
-    logger.error('❌ 不支援的社群平台:', provider)
     return res.status(400).json({
       success: false,
       message: '不支援的社群平台',
@@ -1821,18 +1743,11 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
     const stored = storeBindState(state, bindUserId, provider)
 
     if (!stored) {
-      logger.error('❌ 無法存儲綁定狀態到臨時緩存')
       const frontendUrl = getFrontendUrl()
       return res.redirect(
         `${frontendUrl}/settings?error=storage_error&message=${encodeURIComponent('系統錯誤，請稍後再試')}`,
       )
     }
-
-    logger.info('✅ 綁定狀態已存儲到臨時緩存:', {
-      state: state.substring(0, 10) + '...',
-      userId: bindUserId,
-      provider,
-    })
 
     // 僅對 Twitter 流程寫入 session（OAuth 1.0a 依賴 session）
     if (provider === 'twitter' && req.session) {
@@ -1843,17 +1758,11 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
         await new Promise((resolve, reject) => {
           req.session.save((err) => (err ? reject(err) : resolve()))
         })
-        logger.info('✅ 已將綁定欄位寫入 session 並保存 (Twitter)', {
-          sessionId: req.sessionID,
-          bindUserId: req.session.bindUserId,
-          bindProvider: req.session.bindProvider,
-        })
-      } catch (saveErr) {
-        logger.warn('⚠️ 寫入/保存 session 失敗 (Twitter)，但將繼續使用臨時存儲流程', saveErr)
+      } catch {
+        // 寫入/保存 session 失敗，但將繼續使用臨時存儲流程
       }
     }
   } else {
-    logger.error('❌ 無法獲取綁定用戶 ID，無法存儲臨時狀態')
     const frontendUrl = getFrontendUrl()
     return res.redirect(
       `${frontendUrl}/settings?error=auth_required&message=${encodeURIComponent('用戶認證失效，請重新登錄後綁定')}`,
@@ -1875,19 +1784,12 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
     req.session['oauth:twitter:bind'].bindUserId = req.session.bindUserId
     req.session['oauth:twitter:bind'].bindProvider = provider
 
-    logger.info('✅ Twitter OAuth session 設置完成', {
-      bindUserId: req.session['oauth:twitter:bind'].bindUserId,
-      bindProvider: req.session['oauth:twitter:bind'].bindProvider,
-    })
-
     // 強制保存會話
     await new Promise((resolve, reject) => {
       req.session.save((err) => {
         if (err) {
-          logger.error('❌ Twitter 會話保存失敗:', err)
           reject(err)
         } else {
-          logger.info('✅ Twitter 會話保存成功')
           resolve()
         }
       })
@@ -1896,18 +1798,11 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
 
   // 兼容性檢查：若 session 存在但資料不完整，只記錄警告，不中斷流程
   if (req.session && req.session.bindProvider && req.session.bindProvider !== provider) {
-    logger.warn('⚠️ 綁定提供者與 session 記錄不一致，將以當前請求為準', {
-      sessionProvider: req.session.bindProvider,
-      requestProvider: provider,
-    })
+    // 記錄警告但不中斷流程
   }
 
   // 不再依賴 session state 嚴格驗證，主要以臨時存儲 state 為準（session 僅作最佳努力）
   if (req.session && req.session.oauthState !== state) {
-    logger.warn('⚠️ Session state 與請求 state 不一致，將以請求 state 為準', {
-      sessionState: req.session.oauthState,
-      requestState: state,
-    })
     req.session.oauthState = state
   }
 
@@ -1942,27 +1837,14 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
       // 在 Twitter OAuth session 中保存用戶 ID
       req.session['oauth:twitter:bind'].bindUserId = req.session.bindUserId
       req.session['oauth:twitter:bind'].bindProvider = provider
-
-      logger.info('✅ Twitter OAuth session 設置完成', {
-        bindUserId: req.session['oauth:twitter:bind'].bindUserId,
-        bindProvider: req.session['oauth:twitter:bind'].bindProvider,
-      })
     }
-
-    logger.info('✅ 會話驗證通過，準備 OAuth 重定向', {
-      provider,
-      userId: req.session.bindUserId,
-      sessionId: req.sessionID,
-    })
 
     // 強制保存會話狀態，確保在 OAuth 重定向前保存
     await new Promise((resolve, reject) => {
       req.session.save((err) => {
         if (err) {
-          logger.error('❌ 會話保存失敗:', err)
           reject(err)
         } else {
-          logger.info('✅ OAuth 初始化會話保存成功')
           resolve()
         }
       })
@@ -2011,7 +1893,6 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
         )
       }
       // 如果沒有錯誤，passport.authenticate 會自動處理重定向
-      logger.info(`✅ ${provider} OAuth 認證成功，正在重定向到授權頁面`)
     })
   } catch (error) {
     logger.error(`❌ ${provider} OAuth 初始化錯誤:`, error)
@@ -2221,17 +2102,5 @@ router.delete('/batch-delete', token, isManager, batchSoftDeleteUsers)
 
 // 檢查使用者是否已設定密碼狀態
 router.get('/password-status', token, checkPasswordStatus)
-
-// 會話調試端點（僅開發環境）
-if (process.env.NODE_ENV !== 'production') {
-  router.get('/debug/session', (req, res) => {
-    res.json({
-      sessionExists: !!req.session,
-      sessionId: req.sessionID,
-      sessionData: req.session || {},
-      cookies: req.headers.cookie || 'No cookies',
-    })
-  })
-}
 
 export default router
