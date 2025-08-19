@@ -129,12 +129,24 @@ const validateEnvironment = () => {
   switch (env.name) {
     case 'development':
       requiredVars.push('MONGO_DEV_URI')
+      // 開發環境可選的 reCAPTCHA
+      if (!process.env.RECAPTCHA_SECRET_KEY) {
+        console.warn('⚠️  警告：未設定 RECAPTCHA_SECRET_KEY，feedback 功能可能無法正常運作')
+      }
       break
     case 'test':
       requiredVars.push('MONGO_TEST_URI')
+      // 測試環境可選的 reCAPTCHA
+      if (!process.env.RECAPTCHA_SECRET_KEY) {
+        console.warn('⚠️  警告：未設定 RECAPTCHA_SECRET_KEY，feedback 功能可能無法正常運作')
+      }
       break
     case 'production':
       requiredVars.push('MONGO_PROD_URI', 'SESSION_SECRET', 'JWT_SECRET')
+      // 生產環境建議設定 reCAPTCHA
+      if (!process.env.RECAPTCHA_SECRET_KEY) {
+        console.warn('⚠️  警告：生產環境未設定 RECAPTCHA_SECRET_KEY，feedback 功能可能無法正常運作')
+      }
       break
   }
 

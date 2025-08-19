@@ -4,7 +4,7 @@ import {
   getFeedbacks,
   updateFeedbackStatus,
 } from '../controllers/feedbackController.js'
-import { token, isAdmin } from '../middleware/auth.js'
+import { token, isManager } from '../middleware/auth.js'
 import rateLimit from 'express-rate-limit'
 
 const router = express.Router()
@@ -22,9 +22,9 @@ router.post(
 )
 
 // 管理員路由：取得意見列表
-router.get('/admin', isAdmin, getFeedbacks)
+router.get('/admin', token, isManager, getFeedbacks)
 
 // 管理員路由：更新意見狀態
-router.put('/admin/:id', isAdmin, updateFeedbackStatus)
+router.put('/admin/:id', token, isManager, updateFeedbackStatus)
 
 export default router

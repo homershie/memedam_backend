@@ -6,6 +6,24 @@ import { logger } from '../utils/logger.js'
 // reCAPTCHA 驗證函數
 const verifyRecaptcha = async (recaptchaToken) => {
   try {
+    console.log('🔍 reCAPTCHA 驗證開始...')
+    console.log('📝 收到的 token:', recaptchaToken ? '已提供' : '未提供')
+    console.log('🔑 是否有 SECRET_KEY:', !!process.env.RECAPTCHA_SECRET_KEY)
+    console.log('🌍 當前環境:', process.env.NODE_ENV || 'development')
+
+    // 檢查是否有設定 reCAPTCHA 密鑰
+    if (!process.env.RECAPTCHA_SECRET_KEY) {
+      console.error('❌ reCAPTCHA 密鑰未設定，無法進行驗證')
+      return false
+    }
+
+    // 檢查是否有提供 token
+    if (!recaptchaToken) {
+      console.error('❌ 未提供 reCAPTCHA token')
+      return false
+    }
+
+    console.log('🌐 開始向 Google reCAPTCHA API 發送驗證請求...')
     const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
       params: {
         secret: process.env.RECAPTCHA_SECRET_KEY,
@@ -13,9 +31,18 @@ const verifyRecaptcha = async (recaptchaToken) => {
       },
     })
 
-    return response.data.success
+    console.log('📊 Google API 回應:', response.data)
+    const isValid = response.data.success
+    console.log('✅ reCAPTCHA 驗證結果:', isValid)
+
+    return isValid
   } catch (error) {
-    console.error('reCAPTCHA 驗證錯誤:', error)
+    console.error('❌ reCAPTCHA 驗證錯誤:', error)
+    console.error('🔍 錯誤詳情:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    })
     return false
   }
 }
@@ -134,12 +161,34 @@ export const getFeedbacks = async (req, res) => {
     const { page = 1, limit = 20, status, category } = req.query
     const skip = (page - 1) * limit
 
-    let query = {}
-    if (status) {
-      query.status = status
+    // 正規化輸入，將『全部』/ 'all' / 空字串 視為未篩選（參考 memeController.js 的做法）
+    const normalizeAll = (val) => {
+      if (val === undefined || val === null) return ''
+      const v = String(val).trim()
+      if (
+        v === '' ||
+        v.toLowerCase() === 'all' ||
+        v === '全部' ||
+        v === '全部狀態' ||
+        v === '全部分類' ||
+        v === '全部類型' ||
+        v === '全部種類'
+      )
+        return ''
+      return v
     }
-    if (category) {
-      query.category = category
+
+    const statusVal = normalizeAll(status)
+    const categoryVal = normalizeAll(category)
+
+    let query = {}
+
+    // 只有非空值才添加到查詢條件中
+    if (statusVal !== '') {
+      query.status = statusVal
+    }
+    if (categoryVal !== '') {
+      query.category = categoryVal
     }
 
     const feedbacks = await Feedback.find(query)
