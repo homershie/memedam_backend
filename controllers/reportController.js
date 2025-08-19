@@ -12,7 +12,7 @@ import {
   notifyContentRemoved,
   notifyContentHidden,
   notifyCommentsLocked,
-} from '../utils/notificationService.js'
+} from '../services/notificationService.js'
 
 // 檢舉原因選項
 export const reportReasons = [

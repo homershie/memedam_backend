@@ -4,14 +4,12 @@ import { updateHasPasswordField } from '../../../utils/updateHasPassword.js'
 import { createTestUser, cleanupTestData } from '../../setup.js'
 
 describe('has_password 功能測試', () => {
-  let socialUser
-
   beforeAll(async () => {
     // 清理測試資料
     await User.deleteMany({ username: { $regex: /^test_/ } })
 
     // 建立測試用戶 - 有密碼的用戶
-    userWithPassword = await createTestUser(User, {
+    await createTestUser(User, {
       username: 'test_user_with_password',
       email: 'test1@example.com',
       password: 'testpassword123',
@@ -20,7 +18,7 @@ describe('has_password 功能測試', () => {
 
     // 建立測試用戶 - 社群登入用戶（沒有密碼）
     // 使用 findOneAndUpdate 避免 pre-save hook
-    socialUser = await User.findOneAndUpdate(
+    await User.findOneAndUpdate(
       { username: 'test_social_user' },
       {
         username: 'test_social_user',

@@ -3,57 +3,76 @@ import validator from 'validator'
 
 const NotificationSchema = new mongoose.Schema(
   {
-    // 被通知的用戶ID
-    user_id: {
+    // 觸發者ID（誰做了這個動作）
+    actor_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, '用戶ID為必填'],
+      required: [true, '觸發者ID為必填'],
       index: true,
       validate: {
         validator: (v) => mongoose.Types.ObjectId.isValid(v),
-        message: '用戶ID必須是有效的ObjectId',
+        message: '觸發者ID必須是有效的ObjectId',
       },
     },
-    // 通知標題（用於顯示）
+    // 動作類型（follow, like, comment, mention, system, announcement）
+    verb: {
+      type: String,
+      required: [true, '動作類型為必填'],
+      trim: true,
+      maxlength: [50, '動作類型長度不能超過50字'],
+      enum: {
+        values: [
+          'follow',
+          'like',
+          'comment',
+          'mention',
+          'system',
+          'announcement',
+          'share',
+          'report',
+        ],
+        message: '動作類型必須是有效的類型',
+      },
+    },
+    // 物件類型（post, comment, user, meme）
+    object_type: {
+      type: String,
+      required: [true, '物件類型為必填'],
+      trim: true,
+      maxlength: [50, '物件類型長度不能超過50字'],
+      enum: {
+        values: ['post', 'comment', 'user', 'meme', 'collection'],
+        message: '物件類型必須是有效的類型',
+      },
+    },
+    // 物件ID
+    object_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: [true, '物件ID為必填'],
+      index: true,
+      validate: {
+        validator: (v) => mongoose.Types.ObjectId.isValid(v),
+        message: '物件ID必須是有效的ObjectId',
+      },
+    },
+    // 額外資料（彈性結構）
+    payload: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+      validate: {
+        validator: (v) => typeof v === 'object' && v !== null,
+        message: 'Payload欄位必須是物件',
+      },
+    },
+    // 系統通知標題（用於顯示）
     title: {
       type: String,
-      required: [true, '通知標題為必填'],
       trim: true,
       maxlength: [100, '通知標題長度不能超過100字'],
     },
-    // 發送者ID（用於顯示誰發送的通知）
-    sender_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      index: true,
-    },
-    // 通知重要性（數字越大越重要，預設0）
-    priority: {
-      type: Number,
-      default: 0,
-      min: [0, '通知重要性不能為負數'],
-      max: [10, '通知重要性不能超過10'],
-    },
-    // 通知類型（如：system, comment, audit, mention, like...）
-    type: {
-      type: String,
-      required: [true, '通知類型為必填'],
-      trim: true,
-      maxlength: [50, '通知類型長度不能超過50字'],
-    },
-    // 狀態（unread: 未讀, read: 已讀, deleted: 已刪除）
-    status: {
-      type: String,
-      default: 'unread',
-      enum: {
-        values: ['unread', 'read', 'deleted'],
-        message: '狀態必須是 unread、read、deleted',
-      },
-    },
-    // 通知內容（可為文字、HTML 或 JSON 字串）
+    // 系統通知內容
     content: {
       type: String,
-      required: [true, '通知內容為必填'],
       trim: true,
       maxlength: [2000, '通知內容長度不能超過2000字'],
     },
@@ -83,26 +102,12 @@ const NotificationSchema = new mongoose.Schema(
       trim: true,
       maxlength: [20, '操作按鈕文字不能超過20字'],
     },
-    // 是否已讀
-    is_read: {
-      type: Boolean,
-      default: false,
-    },
     // 過期時間，超過後前端可自動隱藏
     expire_at: {
       type: Date,
       validate: {
         validator: (v) => !v || (v instanceof Date && !isNaN(v)),
         message: '過期時間必須是有效日期',
-      },
-    },
-    // 彈性結構，如附帶的參數
-    meta: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-      validate: {
-        validator: (v) => typeof v === 'object' && v !== null,
-        message: 'Meta欄位必須是物件',
       },
     },
   },
@@ -112,5 +117,9 @@ const NotificationSchema = new mongoose.Schema(
     versionKey: false,
   },
 )
+
+// 複合索引優化查詢
+NotificationSchema.index({ actor_id: 1, verb: 1, object_type: 1, object_id: 1 })
+NotificationSchema.index({ createdAt: -1 })
 
 export default mongoose.models.Notification || mongoose.model('Notification', NotificationSchema)

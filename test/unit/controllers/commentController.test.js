@@ -32,14 +32,14 @@ vi.mock('../../../models/Notification.js', () => ({
   },
 }))
 
-vi.mock('../../../utils/notificationService.js', () => ({
+vi.mock('../../../services/notificationService.js', () => ({
   createNotification: vi.fn(),
   notifyMentionedUsers: vi.fn(),
 }))
 
 describe('Comment Controller', () => {
   let req, res, next
-  let Comment, Meme, User, Notification
+  let Comment, Meme, User
 
   beforeEach(async () => {
     // Reset mocks
@@ -49,12 +49,10 @@ describe('Comment Controller', () => {
     const CommentModule = await import('../../../models/Comment.js')
     const MemeModule = await import('../../../models/Meme.js')
     const UserModule = await import('../../../models/User.js')
-    const NotificationModule = await import('../../../models/Notification.js')
 
     Comment = CommentModule.default
     Meme = MemeModule.default
     User = UserModule.default
-    Notification = NotificationModule.default
 
     // Setup request and response objects
     req = {
@@ -334,7 +332,7 @@ describe('Comment Controller', () => {
       await commentController.createComment(req, res, next)
 
       // 驗證是否處理了提及通知
-      const notificationService = await import('../../../utils/notificationService.js')
+      const notificationService = await import('../../../services/notificationService.js')
       expect(notificationService.notifyMentionedUsers).toHaveBeenCalled()
     })
   })

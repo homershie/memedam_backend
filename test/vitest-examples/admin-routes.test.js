@@ -52,8 +52,8 @@ vi.mock('../../utils/maintenance.js', () => ({
 vi.mock('../../utils/notificationScheduler.js', () => ({
   manualTriggers: {
     sendHotContentNotifications: vi.fn().mockResolvedValue({ sent: 15 }),
-    sendWeeklyDigest: vi.fn().mockResolvedValue({ sent: 25 }),
-    cleanupOldNotifications: vi.fn().mockResolvedValue({ deleted: 100 }),
+    sendWeeklySummaryNotifications: vi.fn().mockResolvedValue({ sent: 25 }),
+    cleanupOldNotificationsTask: vi.fn().mockResolvedValue({ deletedNotifications: 50, deletedReceipts: 50 }),
   },
 }))
 

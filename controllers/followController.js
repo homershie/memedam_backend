@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 import Follow from '../models/Follow.js'
 import User from '../models/User.js'
 import { executeTransaction } from '../utils/transaction.js'
-import { createNewFollowerNotification } from '../utils/notificationService.js'
+import { createNewFollowerNotification } from '../services/notificationService.js'
 import { logger } from '../utils/logger.js'
 
 // 追隨用戶

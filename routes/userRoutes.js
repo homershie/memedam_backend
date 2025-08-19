@@ -26,6 +26,8 @@ import {
   unbanUserById, // 新增解除封禁
   batchSoftDeleteUsers, // 新增批次軟刪除
   exportUsersCsv, // 新增匯出 CSV
+  updateNotificationSettings, // 新增通知設定更新
+  getNotificationSettings, // 新增通知設定獲取
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -569,6 +571,10 @@ router.get('/search', searchUsers)
 router.get('/me', token, isUser, getMe)
 router.put('/me', token, isUser, singleUpload('avatar'), updateMe)
 router.delete('/me', token, isUser, deleteMe)
+
+// 通知設定相關路由
+router.get('/notification-settings', token, isUser, getNotificationSettings)
+router.patch('/notification-settings', token, isUser, updateNotificationSettings)
 
 // OAuth 綁定相關路由（必須在 /:id 之前）
 router.get('/bind-status', token, getBindStatus)

@@ -4,7 +4,7 @@ import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { executeTransaction } from '../utils/transaction.js'
-import { createNewLikeNotification } from '../utils/notificationService.js'
+import { createNewLikeNotification } from '../services/notificationService.js'
 import { logger } from '../utils/logger.js'
 
 // 建立讚
@@ -42,11 +42,14 @@ export const createLike = async (req, res) => {
     // 創建按讚通知（在事務外執行）
     createNewLikeNotification(meme_id, req.user._id)
       .then(() => {
-        logger.info({
-          event: 'like_notification_created',
-          memeId: meme_id,
-          userId: req.user._id
-        }, '按讚通知創建完成')
+        logger.info(
+          {
+            event: 'like_notification_created',
+            memeId: meme_id,
+            userId: req.user._id,
+          },
+          '按讚通知創建完成',
+        )
       })
       .catch((error) => {
         logger.error({ error, memeId: meme_id, userId: req.user._id }, '發送按讚通知失敗')
@@ -140,11 +143,14 @@ export const toggleLike = async (req, res) => {
     if (result.action === 'added') {
       createNewLikeNotification(meme_id, user_id)
         .then(() => {
-          logger.info({
-            event: 'toggle_like_notification_created',
-            memeId: meme_id,
-            userId: user_id
-          }, '切換按讚通知創建完成')
+          logger.info(
+            {
+              event: 'toggle_like_notification_created',
+              memeId: meme_id,
+              userId: user_id,
+            },
+            '切換按讚通知創建完成',
+          )
         })
         .catch((error) => {
           logger.error({ error, memeId: meme_id, userId: user_id }, '發送切換按讚通知失敗')

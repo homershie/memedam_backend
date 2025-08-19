@@ -19,7 +19,7 @@ if (process.platform === 'win32') {
   // 確保 Windows 控制台使用 UTF-8
   try {
     require('child_process').execSync('chcp 65001', { stdio: 'ignore' })
-  } catch (e) {
+  } catch {
     // 忽略錯誤，繼續執行
   }
 }

@@ -1,584 +1,443 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import * as notificationController from '../../../controllers/notificationController.js'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import mongoose from 'mongoose'
+import * as notificationUtils from '../../../utils/notificationUtils.js'
+import {
+  getNotifications,
+  getNotificationById,
+  updateNotification,
+  deleteNotification,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotifications,
+  getUnreadCount,
+} from '../../../controllers/notificationController.js'
 
-// Mock dependencies
-vi.mock('../../../models/Notification.js', () => ({
+// Mock models
+vi.mock('../../../models/NotificationReceipt.js', () => ({
   default: {
     find: vi.fn(),
     findById: vi.fn(),
-    findByIdAndUpdate: vi.fn(),
-    findByIdAndDelete: vi.fn(),
-    create: vi.fn(),
+    findOne: vi.fn(),
     countDocuments: vi.fn(),
     updateMany: vi.fn(),
-    deleteMany: vi.fn(),
+    updateOne: vi.fn(),
+    findByIdAndUpdate: vi.fn(),
+    findByIdAndDelete: vi.fn(),
   },
 }))
 
-vi.mock('../../../models/User.js', () => ({
+vi.mock('../../../models/Notification.js', () => ({
   default: {
     findById: vi.fn(),
-    findByIdAndUpdate: vi.fn(),
+    findByIdAndDelete: vi.fn(),
   },
 }))
 
-vi.mock('../../../utils/notificationService.js', () => ({
-  createNotification: vi.fn(),
-  sendEmailNotification: vi.fn(),
-  sendPushNotification: vi.fn(),
-}))
+vi.mock('../../../utils/notificationUtils.js')
 
-describe('Notification Controller', () => {
-  let req, res, next
-  let Notification, User
+import NotificationReceipt from '../../../models/NotificationReceipt.js'
 
-  beforeEach(async () => {
-    // Reset mocks
-    vi.clearAllMocks()
+describe('通知控制器', () => {
+  let mockReq, mockRes
 
-    // Import mocked models
-    const NotificationModule = await import('../../../models/Notification.js')
-    const UserModule = await import('../../../models/User.js')
-
-    Notification = NotificationModule.default
-    User = UserModule.default
-
-    // Setup request and response objects
-    req = {
-      body: {},
+  beforeEach(() => {
+    mockReq = {
+      user: { _id: new mongoose.Types.ObjectId() },
+      query: { page: '1', limit: '20' },
       params: {},
-      query: {},
-      user: null,
+      body: {},
     }
 
-    res = {
+    mockRes = {
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
-      send: vi.fn().mockReturnThis(),
     }
 
-    next = vi.fn()
-  })
-
-  afterEach(() => {
     vi.clearAllMocks()
   })
 
   describe('getNotifications', () => {
-    it('應該返回用戶的通知列表', async () => {
-      req.user = { id: 'user123' }
-      req.query = {
-        page: '1',
-        limit: '10',
-        unreadOnly: 'false',
-      }
-
-      const mockNotifications = [
+    it('應該能取得通知列表', async () => {
+      const mockReceipts = [
         {
-          _id: 'notif1',
-          recipient: 'user123',
-          type: 'like',
-          message: '有人按讚了你的迷因',
+          _id: new mongoose.Types.ObjectId(),
+          user_id: mockReq.user._id,
+          notification_id: {
+            _id: new mongoose.Types.ObjectId(),
+            actor_id: { username: 'testuser', avatar: 'avatar.jpg' },
+            verb: 'like',
+            object_type: 'meme',
+            object_id: new mongoose.Types.ObjectId(),
+            title: '測試通知',
+            content: '有人按讚了您的迷因',
+            createdAt: new Date(),
+          },
+          read_at: null,
+          deleted_at: null,
+          archived_at: null,
+          createdAt: new Date(),
           isRead: false,
-          createdAt: new Date(),
-          from: { _id: 'user456', username: 'user456' },
-        },
-        {
-          _id: 'notif2',
-          recipient: 'user123',
-          type: 'comment',
-          message: '有人評論了你的迷因',
-          isRead: true,
-          createdAt: new Date(),
-          from: { _id: 'user789', username: 'user789' },
+          isDeleted: false,
+          isArchived: false,
         },
       ]
 
-      Notification.find.mockReturnValue({
-        populate: vi.fn().mockReturnThis(),
-        sort: vi.fn().mockReturnThis(),
-        skip: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue(mockNotifications),
-      })
-
-      Notification.countDocuments.mockResolvedValue(2)
-
-      await notificationController.getNotifications(req, res, next)
-
-      expect(Notification.find).toHaveBeenCalledWith({ recipient: 'user123' })
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          notifications: mockNotifications,
-          pagination: expect.objectContaining({
-            total: 2,
-            page: 1,
-            limit: 10,
+      const mockQuery = { user_id: mockReq.user._id, deleted_at: null }
+      vi.mocked(notificationUtils.getUserReceiptQuery).mockReturnValue(mockQuery)
+      vi.mocked(NotificationReceipt.find).mockReturnValue({
+        populate: vi.fn().mockReturnValue({
+          sort: vi.fn().mockReturnValue({
+            skip: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue(mockReceipts),
+            }),
           }),
         }),
-      )
-    })
-
-    it('應該過濾未讀通知', async () => {
-      req.user = { id: 'user123' }
-      req.query = {
-        unreadOnly: 'true',
-        page: '1',
-        limit: '10',
-      }
-
-      const mockNotifications = [
-        {
-          _id: 'notif1',
-          recipient: 'user123',
-          type: 'like',
-          isRead: false,
-        },
-      ]
-
-      Notification.find.mockReturnValue({
-        populate: vi.fn().mockReturnThis(),
-        sort: vi.fn().mockReturnThis(),
-        skip: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue(mockNotifications),
       })
+      vi.mocked(NotificationReceipt.countDocuments).mockResolvedValue(1)
+      vi.mocked(notificationUtils.getUnreadCount).mockResolvedValue(1)
 
-      Notification.countDocuments.mockResolvedValue(1)
+      await getNotifications(mockReq, mockRes)
 
-      await notificationController.getNotifications(req, res, next)
-
-      expect(Notification.find).toHaveBeenCalledWith({
-        recipient: 'user123',
-        isRead: false,
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            _id: mockReceipts[0]._id,
+            notification_id: mockReceipts[0].notification_id._id,
+            verb: 'like',
+            object_type: 'meme',
+            isRead: false,
+            isDeleted: false,
+            isArchived: false,
+          }),
+        ]),
+        error: null,
+        unreadCount: 1,
+        pagination: expect.objectContaining({
+          page: 1,
+          limit: 20,
+          total: 1,
+          pages: 1,
+        }),
       })
     })
 
-    it('應該按類型過濾通知', async () => {
-      req.user = { id: 'user123' }
-      req.query = {
-        type: 'comment',
-        page: '1',
-        limit: '10',
-      }
-
-      Notification.find.mockReturnValue({
-        populate: vi.fn().mockReturnThis(),
-        sort: vi.fn().mockReturnThis(),
-        skip: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue([]),
+    it('應該處理查詢錯誤', async () => {
+      vi.mocked(notificationUtils.getUserReceiptQuery).mockImplementation(() => {
+        throw new Error('查詢錯誤')
       })
 
-      Notification.countDocuments.mockResolvedValue(0)
+      await getNotifications(mockReq, mockRes)
 
-      await notificationController.getNotifications(req, res, next)
-
-      expect(Notification.find).toHaveBeenCalledWith({
-        recipient: 'user123',
-        type: 'comment',
+      expect(mockRes.status).toHaveBeenCalledWith(500)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        data: null,
+        error: '取得通知列表失敗',
       })
     })
   })
 
-  describe('markAsRead', () => {
-    it('應該標記單個通知為已讀', async () => {
-      req.user = { id: 'user123' }
-      req.params = { notificationId: 'notif123' }
-
-      const mockNotification = {
-        _id: 'notif123',
-        recipient: 'user123',
+  describe('getNotificationById', () => {
+    it('應該能取得特定通知', async () => {
+      const mockReceipt = {
+        _id: new mongoose.Types.ObjectId(),
+        user_id: mockReq.user._id,
+        notification_id: {
+          _id: new mongoose.Types.ObjectId(),
+          actor_id: { username: 'testuser' },
+          verb: 'comment',
+          object_type: 'meme',
+          object_id: new mongoose.Types.ObjectId(),
+          title: '新評論',
+          content: '有人評論了您的迷因',
+          createdAt: new Date(),
+        },
+        read_at: null,
+        deleted_at: null,
+        archived_at: null,
+        createdAt: new Date(),
         isRead: false,
+        isDeleted: false,
+        isArchived: false,
       }
 
-      Notification.findById.mockResolvedValue(mockNotification)
-      Notification.findByIdAndUpdate.mockResolvedValue({
-        ...mockNotification,
-        isRead: true,
-        readAt: new Date(),
+      mockReq.params.id = mockReceipt._id.toString()
+      vi.mocked(notificationUtils.ensureReceiptOwner).mockResolvedValue(mockReceipt)
+
+      await getNotificationById(mockReq, mockRes)
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.objectContaining({
+          _id: mockReceipt._id,
+          notification_id: mockReceipt.notification_id._id,
+          verb: 'comment',
+          object_type: 'meme',
+          isRead: false,
+          isDeleted: false,
+          isArchived: false,
+        }),
+        error: null,
       })
-
-      await notificationController.markAsRead(req, res, next)
-
-      expect(Notification.findByIdAndUpdate).toHaveBeenCalledWith(
-        'notif123',
-        expect.objectContaining({
-          isRead: true,
-          readAt: expect.any(Date),
-        }),
-        expect.objectContaining({
-          new: true,
-        }),
-      )
-
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          notification: expect.objectContaining({
-            isRead: true,
-          }),
-        }),
-      )
     })
 
-    it('應該拒絕標記其他用戶的通知', async () => {
-      req.user = { id: 'user123' }
-      req.params = { notificationId: 'notif123' }
+    it('應該處理通知不存在', async () => {
+      mockReq.params.id = new mongoose.Types.ObjectId().toString()
+      vi.mocked(notificationUtils.ensureReceiptOwner).mockResolvedValue(null)
 
-      const mockNotification = {
-        _id: 'notif123',
-        recipient: 'user456', // Different user
-      }
+      await getNotificationById(mockReq, mockRes)
 
-      Notification.findById.mockResolvedValue(mockNotification)
-
-      await notificationController.markAsRead(req, res, next)
-
-      expect(res.status).toHaveBeenCalledWith(403)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: false,
-          message: expect.stringContaining('無權限'),
-        }),
-      )
+      expect(mockRes.status).toHaveBeenCalledWith(404)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        data: null,
+        error: '找不到通知',
+      })
     })
   })
 
-  describe('markAllAsRead', () => {
-    it('應該標記所有通知為已讀', async () => {
-      req.user = { id: 'user123' }
-
-      Notification.updateMany.mockResolvedValue({
-        modifiedCount: 5,
-      })
-
-      await notificationController.markAllAsRead(req, res, next)
-
-      expect(Notification.updateMany).toHaveBeenCalledWith(
-        {
-          recipient: 'user123',
-          isRead: false,
+  describe('updateNotification', () => {
+    it('應該能更新通知狀態', async () => {
+      const mockReceipt = {
+        _id: new mongoose.Types.ObjectId(),
+        user_id: mockReq.user._id,
+        notification_id: {
+          _id: new mongoose.Types.ObjectId(),
+          actor_id: { username: 'testuser' },
+          verb: 'like',
+          object_type: 'meme',
+          object_id: new mongoose.Types.ObjectId(),
+          title: '新讚',
+          content: '有人按讚了您的迷因',
+          createdAt: new Date(),
         },
-        {
+        read_at: null,
+        deleted_at: null,
+        archived_at: null,
+        createdAt: new Date(),
+        isRead: false,
+        isDeleted: false,
+        isArchived: false,
+      }
+
+      mockReq.params.id = mockReceipt._id.toString()
+      mockReq.body = { read: true, archived: false }
+
+      vi.mocked(notificationUtils.ensureReceiptOwner).mockResolvedValue(mockReceipt)
+      vi.mocked(notificationUtils.markReceiptRead).mockResolvedValue({ modifiedCount: 1 })
+      vi.mocked(notificationUtils.markReceiptArchived).mockResolvedValue({ modifiedCount: 1 })
+
+      await updateNotification(mockReq, mockRes)
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.objectContaining({
+          _id: mockReceipt._id,
           isRead: true,
-          readAt: expect.any(Date),
-        },
-      )
-
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          message: expect.stringContaining('標記為已讀'),
-          modifiedCount: 5,
+          isArchived: false,
         }),
-      )
+        error: null,
+      })
+    })
+
+    it('應該處理更新錯誤', async () => {
+      mockReq.params.id = new mongoose.Types.ObjectId().toString()
+      mockReq.body = { read: true }
+
+      vi.mocked(notificationUtils.ensureReceiptOwner).mockResolvedValue(null)
+
+      await updateNotification(mockReq, mockRes)
+
+      expect(mockRes.status).toHaveBeenCalledWith(404)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        data: null,
+        error: '找不到通知',
+      })
     })
   })
 
   describe('deleteNotification', () => {
-    it('應該成功刪除通知', async () => {
-      req.user = { id: 'user123' }
-      req.params = { notificationId: 'notif123' }
-
-      const mockNotification = {
-        _id: 'notif123',
-        recipient: 'user123',
+    it('應該能軟刪除通知', async () => {
+      const mockReceipt = {
+        _id: new mongoose.Types.ObjectId(),
+        user_id: mockReq.user._id,
+        notification_id: {
+          _id: new mongoose.Types.ObjectId(),
+          actor_id: { username: 'testuser' },
+          verb: 'like',
+          object_type: 'meme',
+          object_id: new mongoose.Types.ObjectId(),
+          title: '新讚',
+          content: '有人按讚了您的迷因',
+          createdAt: new Date(),
+        },
+        read_at: null,
+        deleted_at: null,
+        archived_at: null,
+        createdAt: new Date(),
+        isRead: false,
+        isDeleted: false,
+        isArchived: false,
       }
 
-      Notification.findById.mockResolvedValue(mockNotification)
-      Notification.findByIdAndDelete.mockResolvedValue(mockNotification)
+      mockReq.params.id = mockReceipt._id.toString()
 
-      await notificationController.deleteNotification(req, res, next)
+      vi.mocked(notificationUtils.ensureReceiptOwner).mockResolvedValue(mockReceipt)
+      vi.mocked(notificationUtils.softDeleteReceipt).mockResolvedValue({ modifiedCount: 1 })
 
-      expect(Notification.findByIdAndDelete).toHaveBeenCalledWith('notif123')
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          message: expect.stringContaining('刪除成功'),
-        }),
-      )
+      await deleteNotification(mockReq, mockRes)
+
+      expect(mockRes.status).toHaveBeenCalledWith(204)
     })
 
-    it('應該拒絕刪除其他用戶的通知', async () => {
-      req.user = { id: 'user123' }
-      req.params = { notificationId: 'notif123' }
+    it('應該處理刪除錯誤', async () => {
+      mockReq.params.id = new mongoose.Types.ObjectId().toString()
 
-      const mockNotification = {
-        _id: 'notif123',
-        recipient: 'user456',
-      }
+      vi.mocked(notificationUtils.ensureReceiptOwner).mockResolvedValue(null)
 
-      Notification.findById.mockResolvedValue(mockNotification)
+      await deleteNotification(mockReq, mockRes)
 
-      await notificationController.deleteNotification(req, res, next)
-
-      expect(res.status).toHaveBeenCalledWith(403)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: false,
-          message: expect.stringContaining('無權限'),
-        }),
-      )
+      expect(mockRes.status).toHaveBeenCalledWith(404)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        data: null,
+        error: '找不到通知',
+      })
     })
   })
 
-  describe('deleteAllNotifications', () => {
-    it('應該刪除所有通知', async () => {
-      req.user = { id: 'user123' }
+  describe('markNotificationRead', () => {
+    it('應該能標記通知為已讀', async () => {
+      const mockReceipt = {
+        _id: new mongoose.Types.ObjectId(),
+        user_id: mockReq.user._id,
+        notification_id: {
+          _id: new mongoose.Types.ObjectId(),
+          actor_id: { username: 'testuser' },
+          verb: 'like',
+          object_type: 'meme',
+          object_id: new mongoose.Types.ObjectId(),
+          title: '新讚',
+          content: '有人按讚了您的迷因',
+          createdAt: new Date(),
+        },
+        read_at: null,
+        deleted_at: null,
+        archived_at: null,
+        createdAt: new Date(),
+        isRead: false,
+        isDeleted: false,
+        isArchived: false,
+      }
 
-      Notification.deleteMany.mockResolvedValue({
-        deletedCount: 10,
-      })
+      mockReq.params.id = mockReceipt._id.toString()
 
-      await notificationController.deleteAllNotifications(req, res, next)
+      vi.mocked(notificationUtils.ensureReceiptOwner).mockResolvedValue(mockReceipt)
+      vi.mocked(notificationUtils.markReceiptRead).mockResolvedValue({ modifiedCount: 1 })
 
-      expect(Notification.deleteMany).toHaveBeenCalledWith({
-        recipient: 'user123',
-      })
+      await markNotificationRead(mockReq, mockRes)
 
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          message: expect.stringContaining('刪除成功'),
-          deletedCount: 10,
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.objectContaining({
+          _id: mockReceipt._id,
+          isRead: true,
         }),
-      )
+        error: null,
+      })
+    })
+  })
+
+  describe('markAllNotificationsRead', () => {
+    it('應該能標記所有通知為已讀', async () => {
+      vi.mocked(NotificationReceipt.updateMany).mockResolvedValue({ modifiedCount: 5 })
+
+      await markAllNotificationsRead(mockReq, mockRes)
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          updatedCount: 5,
+        },
+        error: null,
+      })
+    })
+
+    it('應該處理標記錯誤', async () => {
+      vi.mocked(NotificationReceipt.updateMany).mockRejectedValue(new Error('更新錯誤'))
+
+      await markAllNotificationsRead(mockReq, mockRes)
+
+      expect(mockRes.status).toHaveBeenCalledWith(500)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        data: null,
+        error: '標記所有通知為已讀失敗',
+      })
+    })
+  })
+
+  describe('deleteNotifications', () => {
+    it('應該能批次刪除通知', async () => {
+      mockReq.body = { ids: [new mongoose.Types.ObjectId().toString()] }
+
+      vi.mocked(notificationUtils.batchSoftDeleteReceipts).mockResolvedValue(3)
+
+      await deleteNotifications(mockReq, mockRes)
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          deletedCount: 3,
+        },
+        error: null,
+      })
+    })
+
+    it('應該處理批次刪除錯誤', async () => {
+      mockReq.body = { ids: [new mongoose.Types.ObjectId().toString()] }
+
+      vi.mocked(notificationUtils.batchSoftDeleteReceipts).mockRejectedValue(new Error('刪除錯誤'))
+
+      await deleteNotifications(mockReq, mockRes)
+
+      expect(mockRes.status).toHaveBeenCalledWith(500)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        data: null,
+        error: '批次刪除通知失敗',
+      })
     })
   })
 
   describe('getUnreadCount', () => {
-    it('應該返回未讀通知數量', async () => {
-      req.user = { id: 'user123' }
+    it('應該能取得未讀通知數量', async () => {
+      vi.mocked(notificationUtils.getUnreadCount).mockResolvedValue(5)
 
-      Notification.countDocuments.mockResolvedValue(5)
+      await getUnreadCount(mockReq, mockRes)
 
-      await notificationController.getUnreadCount(req, res, next)
-
-      expect(Notification.countDocuments).toHaveBeenCalledWith({
-        recipient: 'user123',
-        isRead: false,
-      })
-
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
           unreadCount: 5,
-        }),
-      )
-    })
-  })
-
-  describe('getNotificationSettings', () => {
-    it('應該返回通知設定', async () => {
-      req.user = { id: 'user123' }
-
-      const mockUser = {
-        _id: 'user123',
-        notificationSettings: {
-          email: {
-            likes: true,
-            comments: true,
-            follows: false,
-            mentions: true,
-          },
-          push: {
-            likes: false,
-            comments: true,
-            follows: true,
-            mentions: true,
-          },
         },
-      }
-
-      User.findById.mockReturnValue({
-        select: vi.fn().mockResolvedValue(mockUser),
+        error: null,
       })
-
-      await notificationController.getNotificationSettings(req, res, next)
-
-      expect(User.findById).toHaveBeenCalledWith('user123')
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          settings: mockUser.notificationSettings,
-        }),
-      )
     })
-  })
 
-  describe('updateNotificationSettings', () => {
-    it('應該更新通知設定', async () => {
-      req.user = { id: 'user123' }
-      req.body = {
-        email: {
-          likes: false,
-          comments: true,
-        },
-        push: {
-          likes: true,
-          comments: false,
-        },
-      }
+    it('應該處理取得未讀數量錯誤', async () => {
+      vi.mocked(notificationUtils.getUnreadCount).mockRejectedValue(new Error('查詢錯誤'))
 
-      const mockUser = {
-        _id: 'user123',
-        notificationSettings: {
-          email: {
-            likes: false,
-            comments: true,
-            follows: true,
-            mentions: true,
-          },
-          push: {
-            likes: true,
-            comments: false,
-            follows: true,
-            mentions: true,
-          },
-        },
-      }
+      await getUnreadCount(mockReq, mockRes)
 
-      User.findByIdAndUpdate.mockResolvedValue(mockUser)
-
-      await notificationController.updateNotificationSettings(req, res, next)
-
-      expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
-        'user123',
-        {
-          $set: {
-            'notificationSettings.email': expect.objectContaining({
-              likes: false,
-              comments: true,
-            }),
-            'notificationSettings.push': expect.objectContaining({
-              likes: true,
-              comments: false,
-            }),
-          },
-        },
-        expect.objectContaining({
-          new: true,
-        }),
-      )
-
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          settings: mockUser.notificationSettings,
-        }),
-      )
-    })
-  })
-
-  describe('createNotification', () => {
-    it('應該創建新通知', async () => {
-      req.body = {
-        recipient: 'user123',
-        type: 'system',
-        message: '系統維護通知',
-        data: {
-          priority: 'high',
-        },
-      }
-
-      const mockNotification = {
-        _id: 'newnotif123',
-        recipient: 'user123',
-        type: 'system',
-        message: '系統維護通知',
-        data: {
-          priority: 'high',
-        },
-        isRead: false,
-        createdAt: new Date(),
-      }
-
-      Notification.create.mockResolvedValue(mockNotification)
-
-      const mockUser = {
-        _id: 'user123',
-        notificationSettings: {
-          email: { system: true },
-          push: { system: true },
-        },
-      }
-
-      User.findById.mockResolvedValue(mockUser)
-
-      await notificationController.createNotification(req, res, next)
-
-      expect(Notification.create).toHaveBeenCalledWith({
-        recipient: 'user123',
-        type: 'system',
-        message: '系統維護通知',
-        data: {
-          priority: 'high',
-        },
+      expect(mockRes.status).toHaveBeenCalledWith(500)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        data: null,
+        error: '取得未讀通知數量失敗',
       })
-
-      expect(res.status).toHaveBeenCalledWith(201)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          notification: mockNotification,
-        }),
-      )
-    })
-  })
-
-  describe('getNotificationTypes', () => {
-    it('應該返回所有通知類型', async () => {
-      await notificationController.getNotificationTypes(req, res, next)
-
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          types: expect.arrayContaining([
-            'like',
-            'comment',
-            'follow',
-            'mention',
-            'system',
-            'meme_approved',
-            'meme_rejected',
-          ]),
-        }),
-      )
-    })
-  })
-
-  describe('batchUpdateNotifications', () => {
-    it('應該批量更新通知', async () => {
-      req.user = { id: 'user123' }
-      req.body = {
-        notificationIds: ['notif1', 'notif2', 'notif3'],
-        updates: {
-          isRead: true,
-        },
-      }
-
-      Notification.updateMany.mockResolvedValue({
-        modifiedCount: 3,
-      })
-
-      await notificationController.batchUpdateNotifications(req, res, next)
-
-      expect(Notification.updateMany).toHaveBeenCalledWith(
-        {
-          _id: { $in: ['notif1', 'notif2', 'notif3'] },
-          recipient: 'user123',
-        },
-        {
-          isRead: true,
-          readAt: expect.any(Date),
-        },
-      )
-
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          modifiedCount: 3,
-        }),
-      )
     })
   })
 })

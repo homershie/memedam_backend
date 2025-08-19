@@ -6,7 +6,7 @@ import { executeTransaction } from '../utils/transaction.js'
 import {
   createNewCommentNotification,
   createMentionNotifications,
-} from '../utils/notificationService.js'
+} from '../services/notificationService.js'
 
 // 從內容中提取被提及的用戶名
 const extractMentionedUsers = (content) => {

@@ -14,6 +14,82 @@ import EmailService from '../utils/emailService.js'
 import VerificationController from './verificationController.js'
 import { deleteCloudinaryImage } from '../utils/deleteImg.js'
 
+// 通知設定相關方法
+export const updateNotificationSettings = async (req, res) => {
+  try {
+    const userId = req.user._id
+    const settings = req.body
+
+    // 驗證設定欄位
+    const validSettings = [
+      'browser',
+      'newFollower',
+      'newComment',
+      'newLike',
+      'newMention',
+      'trendingContent',
+      'weeklyDigest',
+    ]
+
+    const updateData = {}
+    for (const key of validSettings) {
+      if (Object.prototype.hasOwnProperty.call(settings, key)) {
+        updateData[`notificationSettings.${key}`] = settings[key]
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true },
+    ).select('notificationSettings')
+
+    if (!updatedUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: updatedUser.notificationSettings,
+      message: '通知設定已更新',
+    })
+  } catch (error) {
+    logger.error('更新通知設定失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '更新通知設定失敗',
+    })
+  }
+}
+
+export const getNotificationSettings = async (req, res) => {
+  try {
+    const userId = req.user._id
+
+    const user = await User.findById(userId).select('notificationSettings')
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: user.notificationSettings,
+    })
+  } catch (error) {
+    logger.error('獲取通知設定失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '獲取通知設定失敗',
+    })
+  }
+}
+
 // 建立新使用者
 export const createUser = async (req, res) => {
   // 使用 session 來確保原子性操作

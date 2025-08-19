@@ -42,15 +42,7 @@ vi.mock('../../../utils/collaborativeFiltering.js', async (orig) => {
   }
 })
 
-import {
-  buildSocialGraph,
-  calculateSocialSimilarity,
-  findSocialSimilarUsers,
-  calculateSocialWeightedSimilarity,
-  getSocialCollaborativeFilteringRecommendations,
-  getSocialCollaborativeFilteringStats,
-  updateSocialCollaborativeFilteringCache,
-} from '../../../utils/collaborativeFiltering.js'
+import { buildSocialGraph } from '../../../utils/collaborativeFiltering.js'
 
 // Mock 模型
 vi.mock('../../../models/User.js', () => ({
@@ -123,10 +115,13 @@ describe('社交協同過濾推薦系統測試', () => {
 
     // 設置 mock 數據
     mockUser = {
-      find: vi.fn().mockReturnValue(makeQuery([{ _id: U1 }, { _id: U2 }, { _id: U3 }]))
+      find: vi.fn().mockReturnValue(makeQuery([{ _id: U1 }, { _id: U2 }, { _id: U3 }])),
     }
 
-    const defaultMemes = [makeDoc({ _id: M1, hot_score: 100 }), makeDoc({ _id: M2, hot_score: 200 })]
+    const defaultMemes = [
+      makeDoc({ _id: M1, hot_score: 100 }),
+      makeDoc({ _id: M2, hot_score: 200 }),
+    ]
     mockMeme = {
       find: vi.fn().mockImplementation(() => {
         const next = memeFindQueue.length ? memeFindQueue.shift() : defaultMemes
@@ -142,16 +137,20 @@ describe('社交協同過濾推薦系統測試', () => {
     mockFollow = { find: vi.fn().mockReturnValue(makeQuery(defaultFollows)) }
 
     mockLike = {
-      find: vi.fn().mockReturnValue(makeQuery([
-        { user_id: U1, meme_id: M1, createdAt: new Date('2024-01-01') },
-        { user_id: U2, meme_id: M1, createdAt: new Date('2024-01-02') },
-      ])),
+      find: vi.fn().mockReturnValue(
+        makeQuery([
+          { user_id: U1, meme_id: M1, createdAt: new Date('2024-01-01') },
+          { user_id: U2, meme_id: M1, createdAt: new Date('2024-01-02') },
+        ]),
+      ),
     }
 
     mockCollection = {
-      find: vi.fn().mockReturnValue(makeQuery([
-        { user_id: U1, meme_id: M2, createdAt: new Date('2024-01-01') },
-      ])),
+      find: vi
+        .fn()
+        .mockReturnValue(
+          makeQuery([{ user_id: U1, meme_id: M2, createdAt: new Date('2024-01-01') }]),
+        ),
     }
 
     mockComment = { find: vi.fn().mockReturnValue(makeQuery([])) }
@@ -198,8 +197,16 @@ describe('社交協同過濾推薦系統測試', () => {
   describe('社交相似度計算', () => {
     test('應該正確計算社交相似度', () => {
       const socialGraph = {
-        [U1]: { followers: [{ user_id: U2 }, { user_id: U3 }], following: [{ user_id: U2 }], mutual: [U2] },
-        [U2]: { followers: [{ user_id: U1 }], following: [{ user_id: U1 }, { user_id: U3 }], mutual: [U1] },
+        [U1]: {
+          followers: [{ user_id: U2 }, { user_id: U3 }],
+          following: [{ user_id: U2 }],
+          mutual: [U2],
+        },
+        [U2]: {
+          followers: [{ user_id: U1 }],
+          following: [{ user_id: U1 }, { user_id: U3 }],
+          mutual: [U1],
+        },
       }
 
       const similarity = CF.calculateSocialSimilarity(U1, U2, socialGraph)
@@ -208,7 +215,10 @@ describe('社交協同過濾推薦系統測試', () => {
     })
 
     test('應該處理無社交關係的情況', () => {
-      const socialGraph = { [U1]: { followers: [], following: [], mutual: [] }, [U2]: { followers: [], following: [], mutual: [] } }
+      const socialGraph = {
+        [U1]: { followers: [], following: [], mutual: [] },
+        [U2]: { followers: [], following: [], mutual: [] },
+      }
       const similarity = CF.calculateSocialSimilarity(U1, U2, socialGraph)
       expect(similarity).toBe(0)
     })
@@ -217,9 +227,27 @@ describe('社交協同過濾推薦系統測試', () => {
   describe('社交相似用戶發現', () => {
     test('應該找到社交相似用戶', () => {
       const socialGraph = {
-        [U1]: { followers: [{ user_id: U2 }], following: [{ user_id: U2 }], mutual: [U2], influence_score: 10, social_connections: 2 },
-        [U2]: { followers: [{ user_id: U1 }], following: [{ user_id: U1 }], mutual: [U1], influence_score: 15, social_connections: 2 },
-        [U3]: { followers: [], following: [], mutual: [], influence_score: 5, social_connections: 0 },
+        [U1]: {
+          followers: [{ user_id: U2 }],
+          following: [{ user_id: U2 }],
+          mutual: [U2],
+          influence_score: 10,
+          social_connections: 2,
+        },
+        [U2]: {
+          followers: [{ user_id: U1 }],
+          following: [{ user_id: U1 }],
+          mutual: [U1],
+          influence_score: 15,
+          social_connections: 2,
+        },
+        [U3]: {
+          followers: [],
+          following: [],
+          mutual: [],
+          influence_score: 5,
+          social_connections: 0,
+        },
       }
 
       const similarUsers = CF.findSocialSimilarUsers(U1, socialGraph, 0.1, 10)
@@ -230,9 +258,27 @@ describe('社交協同過濾推薦系統測試', () => {
 
     test('應該按相似度和影響力排序', () => {
       const socialGraph = {
-        [U1]: { followers: [{ user_id: U2 }], following: [{ user_id: U2 }], mutual: [U2], influence_score: 10, social_connections: 2 },
-        [U2]: { followers: [{ user_id: U1 }], following: [{ user_id: U1 }], mutual: [U1], influence_score: 15, social_connections: 2 },
-        [U3]: { followers: [{ user_id: U1 }], following: [], mutual: [], influence_score: 20, social_connections: 1 },
+        [U1]: {
+          followers: [{ user_id: U2 }],
+          following: [{ user_id: U2 }],
+          mutual: [U2],
+          influence_score: 10,
+          social_connections: 2,
+        },
+        [U2]: {
+          followers: [{ user_id: U1 }],
+          following: [{ user_id: U1 }],
+          mutual: [U1],
+          influence_score: 15,
+          social_connections: 2,
+        },
+        [U3]: {
+          followers: [{ user_id: U1 }],
+          following: [],
+          mutual: [],
+          influence_score: 20,
+          social_connections: 1,
+        },
       }
 
       const similarUsers = CF.findSocialSimilarUsers(U1, socialGraph, 0.1, 10)
@@ -279,13 +325,29 @@ describe('社交協同過濾推薦系統測試', () => {
     test('應該生成社交協同過濾推薦', async () => {
       // Mock 互動矩陣和社交圖譜（直接 spy 不會覆蓋內部同名函式，這裡保留實作，讓結果走 fallback 即可）
       const collaborativeFilteringModule = await import('../../../utils/collaborativeFiltering.js')
-      vi.spyOn(collaborativeFilteringModule, 'buildInteractionMatrix').mockResolvedValue({ [U1]: { [M1]: 1.0, [M2]: 2.0 } })
+      vi.spyOn(collaborativeFilteringModule, 'buildInteractionMatrix').mockResolvedValue({
+        [U1]: { [M1]: 1.0, [M2]: 2.0 },
+      })
       vi.spyOn(collaborativeFilteringModule, 'buildSocialGraph').mockResolvedValue({
-        [U1]: { followers: [{ user_id: U2 }], following: [{ user_id: U2 }], mutual: [U2], influence_score: 10, social_connections: 2 },
-        [U2]: { followers: [{ user_id: U1 }], following: [{ user_id: U1 }], mutual: [U1], influence_score: 15, social_connections: 2 },
+        [U1]: {
+          followers: [{ user_id: U2 }],
+          following: [{ user_id: U2 }],
+          mutual: [U2],
+          influence_score: 10,
+          social_connections: 2,
+        },
+        [U2]: {
+          followers: [{ user_id: U1 }],
+          following: [{ user_id: U1 }],
+          mutual: [U1],
+          influence_score: 15,
+          social_connections: 2,
+        },
       })
 
-      const recommendations = await CF.getSocialCollaborativeFilteringRecommendations(U1, { limit: 5 })
+      const recommendations = await CF.getSocialCollaborativeFilteringRecommendations(U1, {
+        limit: 5,
+      })
       expect(recommendations).toBeDefined()
       expect(Array.isArray(recommendations)).toBe(true)
     })
@@ -295,7 +357,9 @@ describe('社交協同過濾推薦系統測試', () => {
       vi.spyOn(collaborativeFilteringModule, 'buildInteractionMatrix').mockResolvedValue({})
       vi.spyOn(collaborativeFilteringModule, 'buildSocialGraph').mockResolvedValue({})
 
-      const recommendations = await CF.getSocialCollaborativeFilteringRecommendations(U1, { limit: 5 })
+      const recommendations = await CF.getSocialCollaborativeFilteringRecommendations(U1, {
+        limit: 5,
+      })
       expect(recommendations).toBeDefined()
       expect(Array.isArray(recommendations)).toBe(true)
       expect(recommendations[0].recommendation_type).toBe('social_collaborative_fallback')
@@ -305,10 +369,24 @@ describe('社交協同過濾推薦系統測試', () => {
   describe('社交協同過濾統計', () => {
     test('應該取得用戶社交協同過濾統計', async () => {
       const collaborativeFilteringModule = await import('../../../utils/collaborativeFiltering.js')
-      vi.spyOn(collaborativeFilteringModule, 'buildInteractionMatrix').mockResolvedValue({ [U1]: { [M1]: 1.0, [M2]: 2.0 } })
+      vi.spyOn(collaborativeFilteringModule, 'buildInteractionMatrix').mockResolvedValue({
+        [U1]: { [M1]: 1.0, [M2]: 2.0 },
+      })
       vi.spyOn(collaborativeFilteringModule, 'buildSocialGraph').mockResolvedValue({
-        [U1]: { followers: [{ user_id: U2 }], following: [{ user_id: U2 }], mutual: [U2], influence_score: 10, social_connections: 2 },
-        [U2]: { followers: [{ user_id: U1 }], following: [{ user_id: U1 }], mutual: [U1], influence_score: 15, social_connections: 2 },
+        [U1]: {
+          followers: [{ user_id: U2 }],
+          following: [{ user_id: U2 }],
+          mutual: [U2],
+          influence_score: 10,
+          social_connections: 2,
+        },
+        [U2]: {
+          followers: [{ user_id: U1 }],
+          following: [{ user_id: U1 }],
+          mutual: [U1],
+          influence_score: 15,
+          social_connections: 2,
+        },
       })
 
       const stats = await CF.getSocialCollaborativeFilteringStats(U1)
@@ -324,10 +402,25 @@ describe('社交協同過濾推薦系統測試', () => {
   describe('社交協同過濾快取更新', () => {
     test('應該更新社交協同過濾快取', async () => {
       const collaborativeFilteringModule = await import('../../../utils/collaborativeFiltering.js')
-      vi.spyOn(collaborativeFilteringModule, 'buildInteractionMatrix').mockResolvedValue({ [U1]: { [M1]: 1.0 }, [U2]: { [M2]: 2.0 } })
+      vi.spyOn(collaborativeFilteringModule, 'buildInteractionMatrix').mockResolvedValue({
+        [U1]: { [M1]: 1.0 },
+        [U2]: { [M2]: 2.0 },
+      })
       vi.spyOn(collaborativeFilteringModule, 'buildSocialGraph').mockResolvedValue({
-        [U1]: { followers: [], following: [], mutual: [], influence_score: 5, social_connections: 0 },
-        [U2]: { followers: [{ user_id: U1 }], following: [], mutual: [], influence_score: 10, social_connections: 1 },
+        [U1]: {
+          followers: [],
+          following: [],
+          mutual: [],
+          influence_score: 5,
+          social_connections: 0,
+        },
+        [U2]: {
+          followers: [{ user_id: U1 }],
+          following: [],
+          mutual: [],
+          influence_score: 10,
+          social_connections: 1,
+        },
       })
 
       const cacheResults = await CF.updateSocialCollaborativeFilteringCache([U1, U2])
@@ -360,12 +453,20 @@ describe('社交協同過濾推薦系統測試', () => {
       memeFindQueue.push([makeDoc({ _id: 'pubB' })])
       memeFindQueue.push([mockMemes[2], mockMemes[3]])
 
-      const recommendations1 = await CF.getSocialCollaborativeFilteringRecommendations(U1, { limit: 2, page: 1, excludeIds: [] })
+      const recommendations1 = await CF.getSocialCollaborativeFilteringRecommendations(U1, {
+        limit: 2,
+        page: 1,
+        excludeIds: [],
+      })
       expect(recommendations1).toBeDefined()
       expect(Array.isArray(recommendations1)).toBe(true)
       expect(recommendations1.length).toBeLessThanOrEqual(2)
 
-      const recommendations2 = await CF.getSocialCollaborativeFilteringRecommendations(U1, { limit: 2, page: 2, excludeIds: [M1, M2] })
+      const recommendations2 = await CF.getSocialCollaborativeFilteringRecommendations(U1, {
+        limit: 2,
+        page: 2,
+        excludeIds: [M1, M2],
+      })
       expect(recommendations2).toBeDefined()
       expect(Array.isArray(recommendations2)).toBe(true)
       expect(recommendations2.length).toBeLessThanOrEqual(2)
@@ -392,12 +493,20 @@ describe('社交協同過濾推薦系統測試', () => {
       memeFindQueue.push([makeDoc({ _id: 'pubD' })])
       memeFindQueue.push([mockMemes[2]])
 
-      const recommendations1 = await CF.getSocialCollaborativeFilteringRecommendations(U1, { limit: 2, page: 1, excludeIds: [] })
+      const recommendations1 = await CF.getSocialCollaborativeFilteringRecommendations(U1, {
+        limit: 2,
+        page: 1,
+        excludeIds: [],
+      })
       expect(recommendations1).toBeDefined()
       expect(Array.isArray(recommendations1)).toBe(true)
       expect(recommendations1[0].recommendation_type).toBe('social_collaborative_fallback')
 
-      const recommendations2 = await CF.getSocialCollaborativeFilteringRecommendations(U1, { limit: 2, page: 2, excludeIds: [M1, M2] })
+      const recommendations2 = await CF.getSocialCollaborativeFilteringRecommendations(U1, {
+        limit: 2,
+        page: 2,
+        excludeIds: [M1, M2],
+      })
       expect(recommendations2).toBeDefined()
       expect(Array.isArray(recommendations2)).toBe(true)
       expect(recommendations2[0].recommendation_type).toBe('social_collaborative_fallback')

@@ -248,10 +248,10 @@ describe('分頁功能測試', () => {
 
     it('應該支援自定義排序', () => {
       const sortOptions = {
-        'created_at': { created_at: -1 },
-        'likes': { like_count: -1 },
-        'views': { view_count: -1 },
-        'hot': { hot_score: -1 },
+        created_at: { created_at: -1 },
+        likes: { like_count: -1 },
+        views: { view_count: -1 },
+        hot: { hot_score: -1 },
       }
 
       const sortBy = 'likes'
@@ -280,10 +280,12 @@ describe('分頁功能測試', () => {
         created_at: new Date('2024-01-01'),
       }
 
-      const cursor = Buffer.from(JSON.stringify({
-        _id: lastItem._id,
-        created_at: lastItem.created_at,
-      })).toString('base64')
+      const cursor = Buffer.from(
+        JSON.stringify({
+          _id: lastItem._id,
+          created_at: lastItem.created_at,
+        }),
+      ).toString('base64')
 
       expect(cursor).toBeDefined()
       expect(typeof cursor).toBe('string')
@@ -307,7 +309,7 @@ describe('分頁功能測試', () => {
         created_at: new Date('2024-01-01'),
       }
 
-      const query = {
+      const expectedQuery = {
         $or: [
           { created_at: { $lt: cursor.created_at } },
           {
@@ -317,19 +319,14 @@ describe('分頁功能測試', () => {
         ],
       }
 
-      expect(query.$or).toHaveLength(2)
-      expect(query.$or[0]).toHaveProperty('created_at')
-      expect(query.$or[1]).toHaveProperty('_id')
+      expect(expectedQuery.$or).toHaveLength(2)
+      expect(expectedQuery.$or[0]).toHaveProperty('created_at')
+      expect(expectedQuery.$or[1]).toHaveProperty('_id')
     })
   })
 
   describe('效能優化', () => {
     it('應該使用索引提示', () => {
-      const query = {
-        status: 'public',
-        created_at: { $gte: new Date('2024-01-01') },
-      }
-
       const hint = { status: 1, created_at: -1 }
 
       expect(hint).toEqual({
