@@ -1,6 +1,42 @@
 import EmailService from '../utils/emailService.js'
 import { StatusCodes } from 'http-status-codes'
 import { logger } from '../utils/logger.js'
+import axios from 'axios'
+
+// reCAPTCHA 驗證函數
+const verifyRecaptcha = async (recaptchaToken) => {
+  try {
+    console.log('🔍 reCAPTCHA 驗證開始...')
+    console.log('📝 收到的 token:', recaptchaToken ? '已提供' : '未提供')
+    console.log('🔑 是否有 SECRET_KEY:', !!process.env.RECAPTCHA_SECRET_KEY)
+
+    // 檢查是否有設定 reCAPTCHA 密鑰
+    if (!process.env.RECAPTCHA_SECRET_KEY) {
+      console.error('❌ reCAPTCHA 密鑰未設定，無法進行驗證')
+      return true // 開發環境允許通過
+    }
+
+    if (!recaptchaToken) {
+      console.error('❌ 未提供 reCAPTCHA token')
+      return false
+    }
+
+    console.log('🌐 開始向 Google reCAPTCHA API 發送驗證請求...')
+    const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
+      params: {
+        secret: process.env.RECAPTCHA_SECRET_KEY,
+        response: recaptchaToken,
+      },
+    })
+
+    const isValid = response.data.success && response.data.score >= 0.5
+    console.log('✅ reCAPTCHA 驗證結果:', isValid)
+    return isValid
+  } catch (error) {
+    console.error('❌ reCAPTCHA 驗證錯誤:', error)
+    return false
+  }
+}
 
 /**
  * Email Controller
@@ -240,13 +276,22 @@ class EmailController {
    */
   static async sendContactForm(req, res) {
     try {
-      const { fullName, email, topic, userType, message } = req.body
+      const { fullName, email, topic, userType, message, recaptchaToken } = req.body
 
       // 驗證必填欄位
-      if (!fullName || !email || !topic || !userType || !message) {
+      if (!fullName || !email || !topic || !userType || !message || !recaptchaToken) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           success: false,
-          message: '請填寫所有必填欄位',
+          message: '請填寫所有必填欄位，包括 reCAPTCHA 驗證',
+        })
+      }
+
+      // 驗證 reCAPTCHA
+      const isRecaptchaValid = await verifyRecaptcha(recaptchaToken)
+      if (!isRecaptchaValid) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: 'reCAPTCHA 驗證失敗，請重新驗證',
         })
       }
 

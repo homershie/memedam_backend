@@ -249,6 +249,9 @@ router.post('/password-reset', emailRateLimit, EmailController.sendPasswordReset
  *                 type: string
  *                 description: 訊息內容
  *                 minLength: 10
+ *               recaptchaToken:
+ *                 type: string
+ *                 description: reCAPTCHA 驗證 token
  *     responses:
  *       200:
  *         description: 聯絡表單發送成功

@@ -27,6 +27,7 @@
   "type": "module",
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",
+    "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
     "connect-redis": "^7.1.0",
