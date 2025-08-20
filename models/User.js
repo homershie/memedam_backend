@@ -34,6 +34,14 @@ const UserSchema = new mongoose.Schema(
         message: '顯示名稱不能超過50個字元',
       },
     },
+    // Privacy consent association
+    privacyConsentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'PrivacyConsent',
+    },
+    lastConsentUpdate: {
+      type: Date,
+    },
     email: {
       type: String,
       required: function () {
