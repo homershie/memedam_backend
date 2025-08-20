@@ -23,7 +23,7 @@ import {
 } from './collaborativeFiltering.js'
 import { calculateMultipleMemeSocialScores } from './socialScoreCalculator.js'
 import redisCache from '../config/redis.js'
-import { cacheProcessor, performanceMonitor } from './asyncProcessor.js'
+import { cacheProcessor, performanceMonitor } from '../services/asyncProcessor.js'
 import { logger } from './logger.js'
 import { sortByTotalScoreDesc } from './sortHelpers.js'
 
