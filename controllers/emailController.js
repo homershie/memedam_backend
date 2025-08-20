@@ -232,6 +232,89 @@ class EmailController {
       })
     }
   }
+
+  /**
+   * 發送聯絡表單 email
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async sendContactForm(req, res) {
+    try {
+      const { fullName, email, topic, userType, message } = req.body
+
+      // 驗證必填欄位
+      if (!fullName || !email || !topic || !userType || !message) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請填寫所有必填欄位',
+        })
+      }
+
+      // 驗證 email 格式（先 trim）
+      const trimmedEmail = email.trim()
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(trimmedEmail)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請提供有效的 email 地址',
+        })
+      }
+
+      // 驗證訊息長度
+      if (message.trim().length < 10) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '訊息內容至少需要10個字元',
+        })
+      }
+
+      // 發送聯絡表單 email
+      await EmailService.sendContactFormEmail({
+        fullName: fullName.trim(),
+        email: trimmedEmail,
+        topic,
+        userType,
+        message: message.trim(),
+      })
+
+      logger.info(`聯絡表單已發送: ${trimmedEmail} - ${topic}`)
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: '聯絡表單已成功送出，我們會盡快回覆您',
+        data: {
+          fullName: fullName.trim(),
+          email: trimmedEmail,
+          topic,
+          userType,
+          submittedAt: new Date().toISOString(),
+        },
+      })
+    } catch (error) {
+      logger.error('發送聯絡表單失敗:', error)
+
+      // 處理 SendGrid 錯誤
+      if (error.response) {
+        const { body } = error.response
+        logger.error('SendGrid 錯誤:', body)
+
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '發送聯絡表單失敗',
+          error: {
+            code: body?.errors?.[0]?.message || 'SENDGRID_ERROR',
+            details: body?.errors || [],
+          },
+        })
+      }
+
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: '發送聯絡表單時發生錯誤',
+        error: error.message,
+      })
+    }
+  }
 }
 
 export default EmailController

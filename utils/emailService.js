@@ -300,6 +300,130 @@ class EmailService {
       html,
     })
   }
+
+  /**
+   * 發送聯絡表單 email
+   * @param {Object} contactData - 聯絡表單資料
+   * @param {string} contactData.fullName - 姓名
+   * @param {string} contactData.email - 電子郵件
+   * @param {string} contactData.topic - 主題
+   * @param {string} contactData.userType - 用戶類型
+   * @param {string} contactData.message - 訊息內容
+   * @returns {Promise<Object>} 發送結果
+   */
+  static async sendContactFormEmail(contactData) {
+    const { fullName, email, topic, userType, message } = contactData
+
+    const subject = `MemeDam - 聯絡表單: ${topic}`
+    const text = `
+    新的聯絡表單提交
+
+    姓名: ${fullName}
+    電子郵件: ${email}
+    主題: ${topic}
+    用戶類型: ${userType}
+    
+    訊息內容:
+    ${message}
+    
+    提交時間: ${new Date().toLocaleString('zh-TW')}
+    `
+
+    const html = `
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <title>MemeDam - 聯絡表單</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body { margin:0; padding:0; background:#f6f7f9; -webkit-text-size-adjust:100%; padding:24px 0; }
+      table { border-collapse:collapse; }
+      .container { width:100%;}
+      .card { max-width:600px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; }
+      .header { padding:24px 32px; font-family:Arial, Helvetica, sans-serif; background:#111827; color:#fff;}
+      .brand { font-size:20px; font-weight:700; letter-spacing:.3px; color:white;}
+      .content { padding:28px 32px; font-family:Arial, Helvetica, sans-serif; color:#111827; line-height:1.6; }
+      .field { margin-bottom:20px; }
+      .field-label { font-weight:700; color:#374151; margin-bottom:8px; display:block; }
+      .field-value { background:#f9fafb; padding:12px; border-radius:8px; border-left:4px solid #ff3399; }
+      .message-content { background:#f9fafb; padding:16px; border-radius:8px; border-left:4px solid #ff3399; white-space:pre-wrap; }
+      .footer { padding:18px 32px 28px; font-family:Arial, Helvetica, sans-serif; color:#6b7280; font-size:12px; }
+      .timestamp { color:#6b7280; font-size:14px; margin-top:24px; padding-top:16px; border-top:1px solid #e5e7eb; }
+      @media (prefers-color-scheme: dark) {
+        body { background:#0b0c0f; }
+        .card { background:#111827; }
+        .content { color:#d1d5db; }
+        .field-label { color:#e5e7eb; }
+        .field-value, .message-content { background:#1f2937; color:#d1d5db; }
+        .header { background:#0b0c0f; }
+        .timestamp { color:#9ca3af; border-top-color:#1f2937; }
+      }
+    </style>
+  </head>
+  <body>
+    <table class="container" role="presentation" width="100%">
+      <tr><td>
+        <table class="card" role="presentation" width="100%">
+          <tr>
+            <td class="header">
+              <div class="brand">迷因典<br>MemeDam</div>
+            </td>
+          </tr>
+          <tr>
+            <td class="content">
+              <h2 style="margin-top:0; color:#ff3399;">📧 新的聯絡表單</h2>
+              
+              <div class="field">
+                <span class="field-label">👤 姓名</span>
+                <div class="field-value">${fullName}</div>
+              </div>
+              
+              <div class="field">
+                <span class="field-label">📧 電子郵件</span>
+                <div class="field-value">${email}</div>
+              </div>
+              
+              <div class="field">
+                <span class="field-label">📋 主題</span>
+                <div class="field-value">${topic}</div>
+              </div>
+              
+              <div class="field">
+                <span class="field-label">👥 用戶類型</span>
+                <div class="field-value">${userType}</div>
+              </div>
+              
+              <div class="field">
+                <span class="field-label">💬 訊息內容</span>
+                <div class="message-content">${message}</div>
+              </div>
+              
+              <div class="timestamp">
+                📅 提交時間: ${new Date().toLocaleString('zh-TW')}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="footer">
+              <div>此郵件來自 MemeDam 聯絡表單系統</div>
+              <div style="margin-top:10px;">© ${new Date().getFullYear()} MemeDam. All rights reserved.</div>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>
+    `
+
+    return this.sendEmail({
+      to: 'support@memedam.com',
+      subject,
+      text,
+      html,
+    })
+  }
 }
 
 export default EmailService

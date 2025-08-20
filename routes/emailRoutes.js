@@ -211,4 +211,76 @@ router.post('/verification', emailRateLimit, EmailController.sendVerificationEma
  */
 router.post('/password-reset', emailRateLimit, EmailController.sendPasswordResetEmail)
 
+/**
+ * @swagger
+ * /api/email/contact:
+ *   post:
+ *     summary: 發送聯絡表單 Email
+ *     tags: [Email]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fullName
+ *               - email
+ *               - topic
+ *               - userType
+ *               - message
+ *             properties:
+ *               fullName:
+ *                 type: string
+ *                 description: 聯絡人姓名
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: 聯絡人 email 地址
+ *               topic:
+ *                 type: string
+ *                 description: 聯絡主題
+ *                 enum: [general, technical, report, partnership, other]
+ *               userType:
+ *                 type: string
+ *                 description: 用戶類型
+ *                 enum: [general, creator, business, student, media, other]
+ *               message:
+ *                 type: string
+ *                 description: 訊息內容
+ *                 minLength: 10
+ *     responses:
+ *       200:
+ *         description: 聯絡表單發送成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     fullName:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     topic:
+ *                       type: string
+ *                     userType:
+ *                       type: string
+ *                     submittedAt:
+ *                       type: string
+ *       400:
+ *         description: 請求參數錯誤
+ *       429:
+ *         description: 發送頻率過高
+ *       500:
+ *         description: 伺服器錯誤
+ */
+router.post('/contact', emailRateLimit, EmailController.sendContactForm)
+
 export default router
