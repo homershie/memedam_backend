@@ -944,8 +944,8 @@ export const changePassword = async (req, res) => {
       })
     }
 
-    // 檢查用戶是否已有密碼（社群登入用戶可能沒有密碼）
-    const hasExistingPassword = user.password && user.password.trim() !== ''
+    // 檢查用戶是否已有密碼（使用 has_password 欄位判斷）
+    const hasExistingPassword = user.has_password
 
     // 如果用戶已有密碼，則需要驗證目前密碼
     if (hasExistingPassword) {
@@ -979,18 +979,25 @@ export const changePassword = async (req, res) => {
 
     // 更新密碼
     user.password = newPassword
+
+    // 如果是社群用戶設定密碼，將 has_password 設為 true
+    if (!hasExistingPassword) {
+      user.has_password = true
+    }
+
     await user.save({ session })
 
-    // 清除所有登入 token（強制重新登入）
-    user.tokens = []
-    await user.save({ session })
+    // 只有變更密碼時才清除 token（社群用戶第一次設定密碼不需要）
+    if (hasExistingPassword) {
+      // 清除所有登入 token（強制重新登入）
+      user.tokens = []
+      await user.save({ session })
+    }
 
     // 提交事務
     await session.commitTransaction()
 
-    const message = hasExistingPassword
-      ? '密碼已成功變更，請重新登入'
-      : '密碼已成功設定，請重新登入'
+    const message = hasExistingPassword ? '密碼已成功變更，請重新登入' : '密碼已成功設定'
 
     res.json({
       success: true,

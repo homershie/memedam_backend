@@ -193,17 +193,35 @@ const initializeOAuthStrategies = () => {
                   }
                 }
 
-                // 使用智能username生成器
-                const finalUsername = await generateUniqueUsername(profile, 'google')
+                // 檢查是否需要讓用戶選擇 username
+                const needsUsernameSelection = !profile.emails?.[0]?.value
 
-                user = new User({
-                  username: finalUsername,
-                  email: profile.emails?.[0]?.value || '',
-                  google_id: profile.id,
-                  display_name: profile.displayName || finalUsername,
-                  login_method: 'google',
-                  email_verified: !!profile.emails?.[0]?.verified,
-                })
+                if (needsUsernameSelection) {
+                  // 如果沒有 email，先創建一個臨時用戶，讓用戶選擇 username
+                  const tempUsername = `temp_${profile.id}_${Date.now()}`
+
+                  user = new User({
+                    username: tempUsername,
+                    email: '', // 空 email
+                    google_id: profile.id,
+                    display_name: profile.displayName || '新用戶',
+                    login_method: 'google',
+                    email_verified: false,
+                    needs_username_selection: true, // 標記需要選擇 username
+                  })
+                } else {
+                  // 有 email，使用智能username生成器
+                  const finalUsername = await generateUniqueUsername(profile, 'google')
+
+                  user = new User({
+                    username: finalUsername,
+                    email: profile.emails[0].value,
+                    google_id: profile.id,
+                    display_name: profile.displayName || finalUsername,
+                    login_method: 'google',
+                    email_verified: !!profile.emails[0].verified,
+                  })
+                }
 
                 try {
                   await user.save()
@@ -356,17 +374,35 @@ const initializeOAuthStrategies = () => {
                 }
               }
 
-              // 使用智能username生成器
-              const finalUsername = await generateUniqueUsername(profile, 'facebook')
+              // 檢查是否需要讓用戶選擇 username
+              const needsUsernameSelection = !profile.emails?.[0]?.value
 
-              user = new User({
-                username: finalUsername,
-                email: profile.emails?.[0]?.value || '',
-                facebook_id: profile.id,
-                display_name: profile.displayName || finalUsername,
-                login_method: 'facebook',
-                email_verified: !!profile.emails?.[0]?.verified,
-              })
+              if (needsUsernameSelection) {
+                // 如果沒有 email，先創建一個臨時用戶，讓用戶選擇 username
+                const tempUsername = `temp_${profile.id}_${Date.now()}`
+
+                user = new User({
+                  username: tempUsername,
+                  email: '', // 空 email
+                  facebook_id: profile.id,
+                  display_name: profile.displayName || '新用戶',
+                  login_method: 'facebook',
+                  email_verified: false,
+                  needs_username_selection: true, // 標記需要選擇 username
+                })
+              } else {
+                // 有 email，使用智能username生成器
+                const finalUsername = await generateUniqueUsername(profile, 'facebook')
+
+                user = new User({
+                  username: finalUsername,
+                  email: profile.emails[0].value,
+                  facebook_id: profile.id,
+                  display_name: profile.displayName || finalUsername,
+                  login_method: 'facebook',
+                  email_verified: !!profile.emails[0].verified,
+                })
+              }
 
               try {
                 await user.save()
@@ -537,17 +573,35 @@ const initializeOAuthStrategies = () => {
                   }
                 }
 
-                // 使用智能username生成器
-                const finalUsername = await generateUniqueUsername(profile, 'discord')
+                // 檢查是否需要讓用戶選擇 username
+                const needsUsernameSelection = !profile.email
 
-                user = new User({
-                  username: finalUsername,
-                  email: profile.email || '',
-                  discord_id: profile.id,
-                  display_name: profile.displayName || finalUsername,
-                  login_method: 'discord',
-                  email_verified: !!profile.verified,
-                })
+                if (needsUsernameSelection) {
+                  // 如果沒有 email，先創建一個臨時用戶，讓用戶選擇 username
+                  const tempUsername = `temp_${profile.id}_${Date.now()}`
+
+                  user = new User({
+                    username: tempUsername,
+                    email: '', // 空 email
+                    discord_id: profile.id,
+                    display_name: profile.displayName || '新用戶',
+                    login_method: 'discord',
+                    email_verified: false,
+                    needs_username_selection: true, // 標記需要選擇 username
+                  })
+                } else {
+                  // 有 email，使用智能username生成器
+                  const finalUsername = await generateUniqueUsername(profile, 'discord')
+
+                  user = new User({
+                    username: finalUsername,
+                    email: profile.email,
+                    discord_id: profile.id,
+                    display_name: profile.displayName || finalUsername,
+                    login_method: 'discord',
+                    email_verified: !!profile.verified,
+                  })
+                }
 
                 try {
                   await user.save()
@@ -724,17 +778,35 @@ const initializeOAuthStrategies = () => {
                   }
                 }
 
-                // 使用智能username生成器
-                const finalUsername = await generateUniqueUsername(profile, 'twitter')
+                // 檢查是否需要讓用戶選擇 username
+                const needsUsernameSelection = !profile.emails?.[0]?.value
 
-                user = new User({
-                  username: finalUsername,
-                  email: profile.emails?.[0]?.value || null,
-                  twitter_id: profile.id,
-                  display_name: profile.displayName || finalUsername,
-                  login_method: 'twitter',
-                  email_verified: !!profile.emails?.[0]?.verified,
-                })
+                if (needsUsernameSelection) {
+                  // 如果沒有 email，先創建一個臨時用戶，讓用戶選擇 username
+                  const tempUsername = `temp_${profile.id}_${Date.now()}`
+
+                  user = new User({
+                    username: tempUsername,
+                    email: '', // 空 email
+                    twitter_id: profile.id,
+                    display_name: profile.displayName || '新用戶',
+                    login_method: 'twitter',
+                    email_verified: false,
+                    needs_username_selection: true, // 標記需要選擇 username
+                  })
+                } else {
+                  // 有 email，使用智能username生成器
+                  const finalUsername = await generateUniqueUsername(profile, 'twitter')
+
+                  user = new User({
+                    username: finalUsername,
+                    email: profile.emails[0].value,
+                    twitter_id: profile.id,
+                    display_name: profile.displayName || finalUsername,
+                    login_method: 'twitter',
+                    email_verified: !!profile.emails[0].verified,
+                  })
+                }
 
                 try {
                   await user.save()

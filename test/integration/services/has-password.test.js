@@ -55,14 +55,15 @@ describe('has_password 功能測試', () => {
     expect(updatedUser2.has_password).toBe(false)
   })
 
-  it('應該在密碼變更時更新 has_password', async () => {
+  it('社群用戶即使有密碼，has_password 也應該保持為 false', async () => {
     // 為社群用戶設定密碼
     const user = await User.findOne({ username: 'test_social_user' })
     user.password = 'newpassword123'
     await user.save()
 
     const userAfterPasswordChange = await User.findOne({ username: 'test_social_user' })
-    expect(userAfterPasswordChange.has_password).toBe(true)
+    // 社群用戶即使有密碼（系統自動生成），has_password 也應該保持 false
+    expect(userAfterPasswordChange.has_password).toBe(false)
   })
 
   it('應該在移除密碼時更新 has_password', async () => {

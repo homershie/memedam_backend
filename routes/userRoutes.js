@@ -36,6 +36,7 @@ import passport from 'passport'
 import { signToken } from '../utils/jwt.js'
 import { logger } from '../utils/logger.js'
 import User from '../models/User.js' // 新增 User 模型導入
+import jwt from 'jsonwebtoken'
 
 const router = express.Router()
 
@@ -59,39 +60,7 @@ const generateOAuthState = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
 }
 
-// 驗證 OAuth state 參數
-const verifyOAuthState = (req, res, next) => {
-  const { state } = req.query
-
-  // 確保 session 存在
-  if (!req.session) {
-    console.error('Session not available in verifyOAuthState')
-    const frontendUrl = getFrontendUrl()
-    return res.redirect(`${frontendUrl}/login?error=session_unavailable`)
-  }
-
-  const sessionState = req.session.oauthState
-
-  // 清除 session 中的 state（無論驗證是否成功）
-  delete req.session.oauthState
-
-  if (!state || !sessionState || state !== sessionState) {
-    console.error('OAuth state verification failed:', { provided: state, expected: sessionState })
-    const frontendUrl = getFrontendUrl()
-    return res.redirect(`${frontendUrl}/login?error=invalid_state`)
-  }
-
-  // 保存 session 的變更
-  req.session.save((err) => {
-    if (err) {
-      console.error('Session save error in verifyOAuthState:', err)
-      const frontendUrl = getFrontendUrl()
-      return res.redirect(`${frontendUrl}/login?error=session_save_failed`)
-    }
-
-    next()
-  })
-}
+// 注意：verifyOAuthState 函數已移除，新的 OAuth 路由使用不同的驗證邏輯
 
 /**
  * @swagger
@@ -149,6 +118,10 @@ const verifyOAuthState = (req, res, next) => {
  *                 format: date-time
  *                 description: 變更時間
  *           description: 最近的 username 變更歷史（最多保留10筆）
+ *         needs_username_selection:
+ *           type: boolean
+ *           description: 是否需要選擇 username（社群登入用戶）
+ *           example: false
  *     LoginRequest:
  *       type: object
  *       required:
@@ -1089,122 +1062,8 @@ router.get('/password-status', token, isUser, checkPasswordStatus)
  *                   type: boolean
  *                 message:
  *                   type: string
- * /api/users/auth/google:
- *   get:
- *     summary: Google OAuth 登入
- *     tags: [OAuth]
- *     description: 重定向到 Google 授權頁面
- *     responses:
- *       302:
- *         description: 重定向到 Google 授權頁面
- * /api/users/auth/google/callback:
- *   get:
- *     summary: Google OAuth 回調
- *     tags: [OAuth]
- *     description: 處理 Google OAuth 授權回調
- *     parameters:
- *       - in: query
- *         name: code
- *         schema:
- *           type: string
- *         description: Google 授權碼
- *       - in: query
- *         name: state
- *         schema:
- *           type: string
- *         description: 狀態參數
- *     responses:
- *       302:
- *         description: 重定向到前端並帶上 token
- *       401:
- *         description: OAuth 認證失敗
- * /api/users/auth/facebook:
- *   get:
- *     summary: Facebook OAuth 登入
- *     tags: [OAuth]
- *     description: 重定向到 Facebook 授權頁面
- *     responses:
- *       302:
- *         description: 重定向到 Facebook 授權頁面
- * /api/users/auth/facebook/callback:
- *   get:
- *     summary: Facebook OAuth 回調
- *     tags: [OAuth]
- *     description: 處理 Facebook OAuth 授權回調
- *     parameters:
- *       - in: query
- *         name: code
- *         schema:
- *           type: string
- *         description: Facebook 授權碼
- *       - in: query
- *         name: state
- *         schema:
- *           type: string
- *         description: 狀態參數
- *     responses:
- *       302:
- *         description: 重定向到前端並帶上 token
- *       401:
- *         description: OAuth 認證失敗
- * /api/users/auth/discord:
- *   get:
- *     summary: Discord OAuth 登入
- *     tags: [OAuth]
- *     description: 重定向到 Discord 授權頁面
- *     responses:
- *       302:
- *         description: 重定向到 Discord 授權頁面
- * /api/users/auth/discord/callback:
- *   get:
- *     summary: Discord OAuth 回調
- *     tags: [OAuth]
- *     description: 處理 Discord OAuth 授權回調
- *     parameters:
- *       - in: query
- *         name: code
- *         schema:
- *           type: string
- *         description: Discord 授權碼
- *       - in: query
- *         name: state
- *         schema:
- *           type: string
- *         description: 狀態參數
- *     responses:
- *       302:
- *         description: 重定向到前端並帶上 token
- *       401:
- *         description: OAuth 認證失敗
- * /api/users/auth/twitter:
- *   get:
- *     summary: Twitter OAuth 登入
- *     tags: [OAuth]
- *     description: 重定向到 Twitter 授權頁面
- *     responses:
- *       302:
- *         description: 重定向到 Twitter 授權頁面
- * /api/users/auth/twitter/callback:
- *   get:
- *     summary: Twitter OAuth 回調
- *     tags: [OAuth]
- *     description: 處理 Twitter OAuth 授權回調
- *     parameters:
- *       - in: query
- *         name: code
- *         schema:
- *           type: string
- *         description: Twitter 授權碼
- *       - in: query
- *         name: state
- *         schema:
- *           type: string
- *         description: 狀態參數
- *     responses:
- *       302:
- *         description: 重定向到前端並帶上 token
- *       401:
- *         description: OAuth 認證失敗
+
+
  */
 router.post('/login', login)
 router.post('/logout', token, logout)
@@ -1228,6 +1087,70 @@ router.post('/change-password', token, changePassword)
 // 電子信箱變更
 router.post('/change-email', token, changeEmail)
 
+/**
+ * @swagger
+ * /api/users/validate-username/{username}:
+ *   get:
+ *     summary: 驗證 username 可用性
+ *     tags: [Authentication]
+ *     description: 檢查 username 是否符合格式要求且未被使用
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 要驗證的 username
+ *         example: myusername
+ *     responses:
+ *       200:
+ *         description: 驗證結果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 available:
+ *                   type: boolean
+ *                   description: username 是否可用
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   description: 驗證結果訊息
+ *                   example: 此 username 可以使用
+ *       400:
+ *         description: Username 格式不符合要求
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 available:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: username 格式或長度不符合（5-30，小寫英數、_、.）
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 伺服器錯誤
+ */
 // ===== Username 驗證與變更 =====
 // 驗證 username 是否可用（格式/長度/保留字/重複）
 router.get('/validate-username/:username', async (req, res) => {
@@ -1260,6 +1183,113 @@ router.get('/validate-username/:username', async (req, res) => {
   }
 })
 
+/**
+ * @swagger
+ * /api/users/change-username:
+ *   post:
+ *     summary: 變更 username
+ *     tags: [Authentication]
+ *     description: 變更用戶的 username（需要提供當前密碼驗證）
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - currentPassword
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: 新的 username
+ *                 example: newusername
+ *               currentPassword:
+ *                 type: string
+ *                 description: 當前密碼（用於驗證）
+ *                 example: mypassword123
+ *     responses:
+ *       200:
+ *         description: Username 變更成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: username 已成功變更
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       description: 用戶 ID
+ *                     username:
+ *                       type: string
+ *                       description: 新的 username
+ *                     username_changed_at:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Username 變更時間
+ *       400:
+ *         description: 參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 缺少必要參數
+ *       401:
+ *         description: 未授權或密碼錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 目前密碼不正確
+ *       409:
+ *         description: Username 已被使用
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 此 username 已被其他使用者使用
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 伺服器錯誤
+ */
 // 變更 username（需認證）
 router.post('/change-username', token, isUser, async (req, res) => {
   try {
@@ -1318,382 +1348,12 @@ router.post('/change-username', token, isUser, async (req, res) => {
   }
 })
 
-// 觸發 Google OAuth
-router.get('/auth/google', (req, res, next) => {
-  // 生成並儲存 state 參數
-  const state = generateOAuthState()
-
-  // 確保 session 存在
-  if (!req.session) {
-    console.error('Session not available in Google OAuth')
-    return res.status(500).json({
-      error: 'Session not available',
-      debug: {
-        sessionExists: !!req.session,
-        sessionStore: req.sessionStore?.constructor?.name || 'unknown',
-        environment: process.env.NODE_ENV,
-        hasSessionSecret: !!process.env.SESSION_SECRET,
-      },
-    })
-  }
-
-  req.session.oauthState = state
-
-  // 確保 session 被保存
-  req.session.save((err) => {
-    if (err) {
-      console.error('Session save error:', err)
-      return res.status(500).json({
-        error: 'Session save failed',
-        details: err.message,
-      })
-    }
-
-    passport.authenticate('google', {
-      scope: ['profile', 'email'],
-      state: state,
-    })(req, res, next)
-  })
-})
-
-// Google OAuth callback
-router.get(
-  '/auth/google/callback',
-  verifyOAuthState,
-  passport.authenticate('google', {
-    failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
-  }),
-  async (req, res) => {
-    try {
-      // 登入成功，產生 JWT token
-      const token = signToken({ _id: req.user._id })
-      req.user.tokens = req.user.tokens || []
-
-      // 檢查是否已達到 token 數量限制
-      if (req.user.tokens.length >= 3) {
-        req.user.tokens.shift() // 移除最舊的 token
-      }
-
-      req.user.tokens.push(token)
-
-      // 更新最後登入時間
-      req.user.last_login_at = new Date()
-
-      // 如果有提供 IP 地址，也更新 last_ip
-      if (req.ip) {
-        req.user.last_ip = req.ip
-      }
-
-      // 如果有提供 User-Agent，也更新 user_agent
-      if (req.headers['user-agent']) {
-        req.user.user_agent = req.headers['user-agent']
-      }
-
-      await req.user.save()
-
-      // 重定向到前端並帶上 token
-      const frontendUrl = getFrontendUrl()
-      res.redirect(`${frontendUrl}/?token=${token}`)
-    } catch (error) {
-      console.error('Google OAuth callback 錯誤:', error)
-      const frontendUrl = getFrontendUrl()
-      res.redirect(`${frontendUrl}/login?error=server_error`)
-    }
-  },
-)
+// 注意：舊的特定 OAuth 路由已移除，請使用通用的 /auth/:provider 路由
 
 // 觸發 Facebook OAuth
-router.get('/auth/facebook', (req, res, next) => {
-  // 生成並儲存 state 參數
-  const state = generateOAuthState()
+// 注意：舊的特定 OAuth 路由已移除，請使用通用的 /auth/:provider 路由
 
-  // 確保 session 存在
-  if (!req.session) {
-    console.error('Session not available in Facebook OAuth')
-    return res.status(500).json({
-      error: 'Session not available',
-      debug: {
-        sessionExists: !!req.session,
-        sessionStore: req.sessionStore?.constructor?.name || 'unknown',
-        environment: process.env.NODE_ENV,
-        hasSessionSecret: !!process.env.SESSION_SECRET,
-      },
-    })
-  }
-
-  req.session.oauthState = state
-
-  // 確保 session 被保存
-  req.session.save((err) => {
-    if (err) {
-      console.error('Session save error:', err)
-      return res.status(500).json({ error: 'Session save failed' })
-    }
-
-    passport.authenticate('facebook', {
-      scope: ['email'],
-      state: state,
-    })(req, res, next)
-  })
-})
-
-// Facebook OAuth callback
-router.get(
-  '/auth/facebook/callback',
-  verifyOAuthState,
-  passport.authenticate('facebook', {
-    failureRedirect: `${getFrontendUrl()}/login?error=oauth_failed`,
-  }),
-  async (req, res) => {
-    try {
-      const token = signToken({ _id: req.user._id })
-      req.user.tokens = req.user.tokens || []
-
-      // 檢查是否已達到 token 數量限制
-      if (req.user.tokens.length >= 3) {
-        req.user.tokens.shift() // 移除最舊的 token
-      }
-
-      req.user.tokens.push(token)
-
-      // 更新最後登入時間
-      req.user.last_login_at = new Date()
-
-      // 如果有提供 IP 地址，也更新 last_ip
-      if (req.ip) {
-        req.user.last_ip = req.ip
-      }
-
-      // 如果有提供 User-Agent，也更新 user_agent
-      if (req.headers['user-agent']) {
-        req.user.user_agent = req.headers['user-agent']
-      }
-
-      await req.user.save()
-
-      const frontendUrl = getFrontendUrl()
-      res.redirect(`${frontendUrl}/?token=${token}`)
-    } catch (error) {
-      console.error('Facebook OAuth callback 錯誤:', error)
-      const frontendUrl = getFrontendUrl()
-      res.redirect(`${frontendUrl}/login?error=server_error`)
-    }
-  },
-)
-
-// 觸發 Discord OAuth
-router.get('/auth/discord', (req, res, next) => {
-  // 生成並儲存 state 參數
-  const state = generateOAuthState()
-
-  // 確保 session 存在
-  if (!req.session) {
-    console.error('Session not available in Discord OAuth')
-    return res.status(500).json({
-      error: 'Session not available',
-      debug: {
-        sessionExists: !!req.session,
-        sessionStore: req.sessionStore?.constructor?.name || 'unknown',
-        environment: process.env.NODE_ENV,
-        hasSessionSecret: !!process.env.SESSION_SECRET,
-      },
-    })
-  }
-
-  req.session.oauthState = state
-
-  // 清除 req.user 以確保這被視為登入流程而不是綁定流程
-  req.user = undefined
-  req.session.isBindingFlow = false
-
-  // 保存 session
-  req.session.save((err) => {
-    if (err) {
-      console.error('Session save error:', err)
-      return res.status(500).json({ error: 'Session save failed' })
-    }
-
-    passport.authenticate('discord', {
-      scope: ['identify', 'email'],
-      state: state,
-    })(req, res, next)
-  })
-})
-
-// Discord OAuth callback
-router.get(
-  '/auth/discord/callback',
-  verifyOAuthState,
-  (req, res, next) => {
-    passport.authenticate('discord', (err, user) => {
-      if (err) {
-        console.error('Discord OAuth 錯誤:', err)
-        const frontendUrl = getFrontendUrl()
-
-        // 處理特定的錯誤類型
-        if (err.code === 'DISCORD_ID_ALREADY_BOUND') {
-          return res.status(409).json({
-            success: false,
-            error: 'discord_id 已存在',
-            details: err.message,
-            suggestion: '該 Discord 帳號已被其他用戶綁定，請使用其他帳號或聯繫客服',
-          })
-        }
-
-        return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
-      }
-
-      if (!user) {
-        console.error('Discord OAuth - no user returned')
-        const frontendUrl = getFrontendUrl()
-        return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
-      }
-
-      req.user = user
-      next()
-    })(req, res, next)
-  },
-  async (req, res) => {
-    try {
-      const token = signToken({ _id: req.user._id })
-      req.user.tokens = req.user.tokens || []
-
-      // 檢查是否已達到 token 數量限制
-      if (req.user.tokens.length >= 3) {
-        req.user.tokens.shift() // 移除最舊的 token
-      }
-
-      req.user.tokens.push(token)
-
-      // 更新最後登入時間
-      req.user.last_login_at = new Date()
-
-      // 如果有提供 IP 地址，也更新 last_ip
-      if (req.ip) {
-        req.user.last_ip = req.ip
-      }
-
-      // 如果有提供 User-Agent，也更新 user_agent
-      if (req.headers['user-agent']) {
-        req.user.user_agent = req.headers['user-agent']
-      }
-
-      await req.user.save()
-
-      const frontendUrl = getFrontendUrl()
-      res.redirect(`${frontendUrl}/?token=${token}`)
-    } catch (error) {
-      console.error('Discord OAuth callback error:', error)
-      const frontendUrl = getFrontendUrl()
-      res.redirect(`${frontendUrl}/login?error=server_error`)
-    }
-  },
-)
-
-// 觸發 Twitter OAuth
-router.get('/auth/twitter', (req, res, next) => {
-  // 生成並儲存 state 參數
-  const state = generateOAuthState()
-
-  // 確保 session 存在
-  if (!req.session) {
-    console.error('Session not available in Twitter OAuth')
-    return res.status(500).json({
-      error: 'Session not available',
-      debug: {
-        sessionExists: !!req.session,
-        sessionStore: req.sessionStore?.constructor?.name || 'unknown',
-        environment: process.env.NODE_ENV,
-        hasSessionSecret: !!process.env.SESSION_SECRET,
-      },
-    })
-  }
-
-  req.session.oauthState = state
-
-  // 清除 req.user 以確保這被視為登入流程而不是綁定流程
-  req.user = undefined
-  req.session.isBindingFlow = false
-
-  // 保存 session
-  req.session.save((err) => {
-    if (err) {
-      console.error('Session save error:', err)
-      return res.status(500).json({ error: 'Session save failed' })
-    }
-
-    passport.authenticate('twitter')(req, res, next)
-  })
-})
-
-// Twitter OAuth callback (OAuth 1.0a 不使用 state 參數)
-router.get(
-  '/auth/twitter/callback',
-  (req, res, next) => {
-    passport.authenticate('twitter', (err, user) => {
-      if (err) {
-        console.error('Twitter OAuth error:', err.message)
-        const frontendUrl = getFrontendUrl()
-
-        // 處理特定的錯誤類型
-        if (err.code === 'TWITTER_ID_ALREADY_BOUND') {
-          return res.status(409).json({
-            success: false,
-            error: 'twitter_id 已存在',
-            details: err.message,
-            suggestion: '該 Twitter 帳號已被其他用戶綁定，請使用其他帳號或聯繫客服',
-          })
-        }
-
-        return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
-      }
-
-      if (!user) {
-        console.error('Twitter OAuth - no user returned')
-        const frontendUrl = getFrontendUrl()
-        return res.redirect(`${frontendUrl}/login?error=oauth_failed`)
-      }
-
-      req.user = user
-      next()
-    })(req, res, next)
-  },
-  async (req, res) => {
-    try {
-      const token = signToken({ _id: req.user._id })
-      req.user.tokens = req.user.tokens || []
-
-      // 檢查是否已達到 token 數量限制
-      if (req.user.tokens.length >= 3) {
-        req.user.tokens.shift() // 移除最舊的 token
-      }
-
-      req.user.tokens.push(token)
-
-      // 更新最後登入時間
-      req.user.last_login_at = new Date()
-
-      // 如果有提供 IP 地址，也更新 last_ip
-      if (req.ip) {
-        req.user.last_ip = req.ip
-      }
-
-      // 如果有提供 User-Agent，也更新 user_agent
-      if (req.headers['user-agent']) {
-        req.user.user_agent = req.headers['user-agent']
-      }
-
-      await req.user.save()
-
-      const frontendUrl = getFrontendUrl()
-      res.redirect(`${frontendUrl}/?token=${token}`)
-    } catch (error) {
-      console.error('Twitter OAuth callback error:', error)
-      const frontendUrl = getFrontendUrl()
-      res.redirect(`${frontendUrl}/login?error=server_error`)
-    }
-  },
-)
+// 注意：舊的特定 OAuth 路由已移除，請使用通用的 /auth/:provider 路由
 
 // ========== OAuth 綁定專用端點 ==========
 
@@ -2108,5 +1768,483 @@ router.delete('/batch-delete', token, isManager, batchSoftDeleteUsers)
 
 // 檢查使用者是否已設定密碼狀態
 router.get('/password-status', token, checkPasswordStatus)
+
+/**
+ * @swagger
+ * /api/users/auth/{provider}:
+ *   get:
+ *     summary: 社群登入 (OAuth)
+ *     tags: [Authentication]
+ *     description: 開始社群平台 OAuth 登入流程
+ *     parameters:
+ *       - in: path
+ *         name: provider
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [google, facebook, discord, twitter]
+ *         description: 社群平台名稱
+ *     responses:
+ *       302:
+ *         description: 重定向到社群平台的授權頁面
+ *       400:
+ *         description: 不支援的社群平台
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 不支援的社群平台
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Session 保存失敗
+ */
+// OAuth 社群登入路由
+router.get('/auth/:provider', (req, res, next) => {
+  const { provider } = req.params
+  const validProviders = ['google', 'facebook', 'discord', 'twitter']
+
+  if (!validProviders.includes(provider)) {
+    return res.status(400).json({ success: false, message: '不支援的社群平台' })
+  }
+
+  // 生成 OAuth state 並存儲到 session
+  const state = generateOAuthState()
+  req.session.oauthState = state
+
+  // 保存 session
+  req.session.save((err) => {
+    if (err) {
+      logger.error('Session save error:', err)
+      return res.status(500).json({ success: false, message: 'Session 保存失敗' })
+    }
+
+    // 使用 Passport 進行 OAuth 認證
+    passport.authenticate(provider, { state })(req, res, next)
+  })
+})
+
+/**
+ * @swagger
+ * /api/users/auth/{provider}/callback:
+ *   get:
+ *     summary: OAuth 回調處理
+ *     tags: [Authentication]
+ *     description: 處理社群平台 OAuth 授權回調，完成登入或重定向到 username 選擇頁面
+ *     parameters:
+ *       - in: path
+ *         name: provider
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [google, facebook, discord, twitter]
+ *         description: 社群平台名稱
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: OAuth 授權碼
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: OAuth state 參數
+ *       - in: query
+ *         name: error
+ *         schema:
+ *           type: string
+ *         description: OAuth 錯誤訊息
+ *     responses:
+ *       302:
+ *         description: 重定向到前端頁面
+ *         headers:
+ *           Location:
+ *             description: 重定向 URL
+ *             schema:
+ *               type: string
+ *               example: https://memedam.com/oauth-callback?token=xxx&user=xxx
+ *       400:
+ *         description: 不支援的社群平台
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 不支援的社群平台
+ */
+// OAuth 回調處理
+router.get('/auth/:provider/callback', (req, res, next) => {
+  const { provider } = req.params
+  const validProviders = ['google', 'facebook', 'discord', 'twitter']
+
+  if (!validProviders.includes(provider)) {
+    return res.status(400).json({ success: false, message: '不支援的社群平台' })
+  }
+
+  passport.authenticate(provider, { session: false }, async (err, user, info) => {
+    try {
+      if (err) {
+        logger.error(`${provider} OAuth 回調錯誤:`, err)
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(
+          `${frontendUrl}/oauth-callback?error=${encodeURIComponent(err.message)}`,
+        )
+      }
+
+      if (!user) {
+        logger.error(`${provider} OAuth 認證失敗:`, info)
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(
+          `${frontendUrl}/oauth-callback?error=${encodeURIComponent(info?.message || '認證失敗')}`,
+        )
+      }
+
+      // 檢查是否需要選擇 username
+      const needsUsername = await checkIfNeedsUsername(user)
+
+      if (needsUsername) {
+        // 需要選擇 username，重定向到前端選擇頁面
+        const frontendUrl = getFrontendUrl()
+        const userData = encodeURIComponent(JSON.stringify(user))
+        const profile = encodeURIComponent(JSON.stringify(req.user?.profile || {}))
+
+        return res.redirect(
+          `${frontendUrl}/oauth-callback?needsUsername=true&provider=${provider}&user=${userData}&profile=${profile}`,
+        )
+      } else {
+        // 用戶已存在或不需要選擇 username，直接登入
+        const token = signToken({ _id: user._id })
+
+        // 更新用戶的 tokens
+        user.tokens = user.tokens || []
+        if (user.tokens.length >= 3) {
+          user.tokens.shift()
+        }
+        user.tokens.push(token)
+        user.last_login_at = new Date()
+
+        // 如果用戶之前需要選擇 username，現在已經完成，清除標記
+        if (user.needs_username_selection) {
+          user.needs_username_selection = false
+        }
+
+        await user.save()
+
+        const frontendUrl = getFrontendUrl()
+        const userData = encodeURIComponent(JSON.stringify(user))
+
+        return res.redirect(`${frontendUrl}/oauth-callback?token=${token}&user=${userData}`)
+      }
+    } catch (error) {
+      logger.error(`${provider} OAuth 回調處理錯誤:`, error)
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/oauth-callback?error=${encodeURIComponent('處理授權時發生錯誤')}`,
+      )
+    }
+  })(req, res, next)
+})
+
+// 檢查是否需要選擇 username 的輔助函數
+const checkIfNeedsUsername = async (user) => {
+  // 檢查用戶是否需要選擇 username
+  if (user.needs_username_selection) {
+    return true
+  }
+
+  // 如果用戶沒有 email 或 email 為空，且 username 看起來是自動生成的，則需要選擇 username
+  if (!user.email || user.email.trim() === '') {
+    // 檢查 username 是否看起來是自動生成的（包含隨機數字後綴等）
+    const isAutoGenerated =
+      /^\w+\d{2,}$/.test(user.username) ||
+      /^\w+_\w+$/.test(user.username) ||
+      /^\w+\d{6}$/.test(user.username) || // 時間戳後綴
+      /^temp_\w+_\d+$/.test(user.username) // 臨時 username
+
+    if (isAutoGenerated) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * @swagger
+ * /api/users/complete-social-registration:
+ *   post:
+ *     summary: 完成社群註冊
+ *     tags: [Authentication]
+ *     description: 完成社群登入用戶的 username 選擇，完成註冊流程
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - username
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: JWT token
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               username:
+ *                 type: string
+ *                 description: 選擇的 username
+ *                 example: myusername
+ *               provider:
+ *                 type: string
+ *                 enum: [google, facebook, discord, twitter]
+ *                 description: 社群平台名稱
+ *                 example: google
+ *               profile:
+ *                 type: object
+ *                 description: 社群平台用戶資料
+ *     responses:
+ *       200:
+ *         description: 註冊成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 token:
+ *                   type: string
+ *                   description: 新的 JWT token
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 userId:
+ *                   type: string
+ *                   description: 用戶 ID
+ *                   example: 507f1f77bcf86cd799439011
+ *                 role:
+ *                   type: string
+ *                   description: 用戶角色
+ *                   example: user
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: 缺少必要參數
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 缺少必要參數
+ *       404:
+ *         description: 用戶不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 用戶不存在
+ *       409:
+ *         description: Username 已被使用
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 此使用者名稱已被使用
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 完成註冊時發生錯誤
+ */
+// 完成社群註冊（選擇 username 後）
+router.post('/complete-social-registration', async (req, res) => {
+  try {
+    const { token, username } = req.body
+
+    if (!token || !username) {
+      return res.status(400).json({ success: false, message: '缺少必要參數' })
+    }
+
+    // 驗證 token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const user = await User.findById(decoded._id)
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: '用戶不存在' })
+    }
+
+    // 檢查 username 是否可用
+    const existingUser = await User.findOne({ username })
+    if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+      return res.status(409).json({ success: false, message: '此使用者名稱已被使用' })
+    }
+
+    // 更新用戶的 username 和清除需要選擇 username 的標記
+    user.username = username
+    user.needs_username_selection = false
+    await user.save()
+
+    // 生成新的 token
+    const newToken = signToken({ _id: user._id })
+
+    // 更新用戶的 tokens
+    user.tokens = user.tokens || []
+    if (user.tokens.length >= 3) {
+      user.tokens.shift()
+    }
+    user.tokens.push(newToken)
+    user.last_login_at = new Date()
+    await user.save()
+
+    res.json({
+      success: true,
+      token: newToken,
+      userId: user._id,
+      role: user.role,
+      user: user.toJSON(),
+    })
+  } catch (error) {
+    logger.error('完成社群註冊錯誤:', error)
+    res.status(500).json({ success: false, message: '完成註冊時發生錯誤' })
+  }
+})
+
+/**
+ * @swagger
+ * /api/users/username-suggestions/{provider}:
+ *   get:
+ *     summary: 獲取 username 建議
+ *     tags: [Authentication]
+ *     description: 根據社群平台用戶資料生成 username 建議列表
+ *     parameters:
+ *       - in: path
+ *         name: provider
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [google, facebook, discord, twitter]
+ *         description: 社群平台名稱
+ *       - in: query
+ *         name: profile
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 編碼後的社群平台用戶資料 JSON
+ *         example: %7B%22id%22%3A%22123456789%22%2C%22displayName%22%3A%22John%20Doe%22%7D
+ *     responses:
+ *       200:
+ *         description: 成功獲取 username 建議
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     suggestions:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       description: Username 建議列表
+ *                       example: ["johndoe", "john_doe", "johndoe123", "john_doe_2024", "johndoe_user"]
+ *       400:
+ *         description: 缺少 profile 參數
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 缺少 profile 參數
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 獲取建議時發生錯誤
+ */
+// 獲取 username 建議
+router.get('/username-suggestions/:provider', async (req, res) => {
+  try {
+    const { provider } = req.params
+    const { profile } = req.query
+
+    if (!profile) {
+      return res.status(400).json({ success: false, message: '缺少 profile 參數' })
+    }
+
+    const profileData = JSON.parse(decodeURIComponent(profile))
+    const { generateUsernameSuggestions } = await import('../utils/usernameGenerator.js')
+
+    const suggestions = await generateUsernameSuggestions(profileData, provider, 5)
+
+    res.json({
+      success: true,
+      data: { suggestions },
+    })
+  } catch (error) {
+    logger.error('獲取 username 建議錯誤:', error)
+    res.status(500).json({ success: false, message: '獲取建議時發生錯誤' })
+  }
+})
 
 export default router

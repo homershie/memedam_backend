@@ -205,6 +205,16 @@ const UserSchema = new mongoose.Schema(
         message: '登入方式只能是 local、google、facebook、discord 或 twitter',
       },
     },
+    needs_username_selection: {
+      type: Boolean,
+      default: false,
+      validate: {
+        validator(value) {
+          return typeof value === 'boolean'
+        },
+        message: 'needs_username_selection 必須是布林值',
+      },
+    },
     birthday: {
       type: Date,
       validate: {
@@ -493,7 +503,11 @@ UserSchema.pre('save', function (next) {
       // 使用 bcrypt 加密
       user.password = bcrypt.hashSync(user.password, 10)
       // 更新 has_password 欄位
-      user.has_password = true
+      // 只有非社群用戶才設定 has_password 為 true
+      // 社群用戶的 has_password 由外部邏輯控制（如 changePassword API）
+      if (!isSocialUser) {
+        user.has_password = true
+      }
     }
   }
 
