@@ -8,7 +8,7 @@ import NotificationReceipt from '../../../models/NotificationReceipt.js'
 import { createTestUser, createTestMeme, cleanupTestData } from '../../setup.js'
 
 describe('通知 API 測試', () => {
-  let testUser1, testUser2, testMeme, authToken1, authToken2
+  let testUser1, testUser2, testMeme, authToken1
 
   beforeAll(async () => {
     // 創建測試用戶
@@ -33,12 +33,6 @@ describe('通知 API 測試', () => {
       password: 'testpassword123',
     })
     authToken1 = login1.body.token
-
-    const login2 = await request(app).post('/api/users/login').send({
-      login: testUser2.email,
-      password: 'testpassword123',
-    })
-    authToken2 = login2.body.token
   })
 
   beforeEach(async () => {

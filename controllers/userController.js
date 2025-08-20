@@ -31,20 +31,64 @@ export const updateNotificationSettings = async (req, res) => {
       'weeklyDigest',
     ]
 
+    // 驗證輸入資料
+    if (!settings || typeof settings !== 'object') {
+      logger.warn('無效的設定資料格式:', { settings, type: typeof settings })
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '無效的設定資料',
+      })
+    }
+
+    // 檢查是否有有效的設定欄位
+    const hasValidSettings = Object.keys(settings).some((key) => validSettings.includes(key))
+
+    if (!hasValidSettings) {
+      logger.warn('沒有提供有效的通知設定:', { receivedKeys: Object.keys(settings), validSettings })
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '沒有提供有效的通知設定',
+      })
+    }
+
+    // 準備更新資料
     const updateData = {}
     for (const key of validSettings) {
       if (Object.prototype.hasOwnProperty.call(settings, key)) {
-        updateData[`notificationSettings.${key}`] = settings[key]
+        // 確保布林值正確
+        const value = settings[key]
+        if (typeof value === 'boolean') {
+          updateData[`notificationSettings.${key}`] = value
+        } else {
+          // 如果不是布林值，嘗試轉換
+          updateData[`notificationSettings.${key}`] = Boolean(value)
+        }
       }
     }
 
+    // 先檢查用戶是否存在並獲取當前設定
+    const existingUser = await User.findById(userId)
+    if (!existingUser) {
+      logger.warn('用戶不存在:', { userId: userId.toString() })
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    // 使用更安全的更新方式
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $set: updateData },
-      { new: true, runValidators: true },
+      {
+        new: true,
+        runValidators: true,
+        upsert: false, // 不允許創建新文檔
+      },
     ).select('notificationSettings')
 
     if (!updatedUser) {
+      logger.warn('更新後找不到用戶:', { userId: userId.toString() })
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
         message: '用戶不存在',
@@ -58,6 +102,24 @@ export const updateNotificationSettings = async (req, res) => {
     })
   } catch (error) {
     logger.error('更新通知設定失敗:', error)
+
+    // 更詳細的錯誤處理
+    if (error.name === 'ValidationError') {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '設定資料驗證失敗',
+        error: error.message,
+      })
+    }
+
+    if (error.name === 'CastError') {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '無效的資料格式',
+        error: error.message,
+      })
+    }
+
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '更新通知設定失敗',
