@@ -1,89 +1,106 @@
-# Pull Request 資訊
+# Pull Request Information
 
-## 🔗 PR 連結
-請訪問以下連結創建 PR：
+## 🔗 PR Link
+Please visit the following link to create the PR:
 https://github.com/homershie/memedam_backend/pull/new/cursor/migrate-utils-to-services-and-update-paths-cb30
 
-## 📋 PR 標題
+## 📋 PR Title
 ```
-refactor: 將服務層級檔案從 utils/ 遷移到 services/ 目錄
+refactor: migrate service-level files from utils/ to services/ directory
 ```
 
-## 📝 PR 描述（請複製貼上）
+## 📝 PR Description (Copy & Paste)
 
-### 變更摘要
+### Summary
 
-本 PR 重構了專案結構，將服務層級的功能從 `utils/` 目錄遷移到 `services/` 目錄，以提升程式碼組織性和可維護性。
+This PR refactors the project structure by migrating service-level functionality from the `utils/` directory to the `services/` directory to improve code organization and maintainability.
 
-### 遷移的檔案
+### Migrated Files
 
-| 原始路徑 | 新路徑 | 說明 |
-|---------|--------|------|
-| `utils/analyticsMonitor.js` | `services/analyticsMonitor.js` | 分析監控服務 |
-| `utils/asyncProcessor.js` | `services/asyncProcessor.js` | 非同步處理服務 |
-| `utils/googleTranslate.js` | `services/googleTranslate.js` | Google 翻譯 API |
-| `utils/maintenance.js` | `services/maintenanceScheduler.js` | 系統維護排程（已重命名） |
-| `utils/recommendationScheduler.js` | `services/recommendationScheduler.js` | 推薦系統排程 |
-| `utils/notificationScheduler.js` | `services/notificationScheduler.js` | 通知排程服務 |
-| `utils/userCleanupScheduler.js` | `services/userCleanupScheduler.js` | 用戶清理排程 |
+| Original Path | New Path | Description |
+|--------------|----------|-------------|
+| `utils/analyticsMonitor.js` | `services/analyticsMonitor.js` | Analytics monitoring service |
+| `utils/asyncProcessor.js` | `services/asyncProcessor.js` | Async processing service |
+| `utils/googleTranslate.js` | `services/googleTranslate.js` | Google Translate API service |
+| `utils/maintenance.js` | `services/maintenanceScheduler.js` | Maintenance scheduler (renamed) |
+| `utils/recommendationScheduler.js` | `services/recommendationScheduler.js` | Recommendation system scheduler |
+| `utils/notificationScheduler.js` | `services/notificationScheduler.js` | Notification scheduler service |
+| `utils/userCleanupScheduler.js` | `services/userCleanupScheduler.js` | User cleanup scheduler |
 
-### 主要變更
+### Changes Made
 
-- ✅ 成功遷移 7 個服務檔案
-- ✅ 更新所有相關的 import 路徑（10+ 個檔案）
-- ✅ 更新測試檔案的 mock 路徑
-- ✅ 新增完整的遷移文檔
-- ✅ 更新 README 加入專案結構說明
+- ✅ Successfully migrated 7 service files
+- ✅ Updated all related import paths (10+ files)
+- ✅ Updated test files and mock paths
+- ✅ Added comprehensive migration documentation
+- ✅ Updated README with new project structure
 
-### 測試結果
+### Test Results
 
-- ✅ 所有 import 路徑正確解析
-- ✅ 服務載入測試通過
-- ✅ 無循環依賴問題
-- ✅ 整合測試通過
-- ✅ 系統啟動測試通過
+- ✅ All import paths resolve correctly
+- ✅ Service loading tests pass
+- ✅ No circular dependency issues
+- ✅ Integration tests pass
+- ✅ System startup tests pass
 
-### 新的專案結構
+### New Project Structure
 
 ```
 services/
-├── analyticsMonitor.js      # 分析監控服務
-├── asyncProcessor.js        # 非同步處理服務
-├── emailService.js          # 電子郵件服務
-├── googleTranslate.js       # Google 翻譯服務
-├── logService.js            # 日誌服務
-├── maintenanceScheduler.js  # 系統維護排程
-├── notificationScheduler.js # 通知排程服務
-├── notificationService.js   # 通知服務
-├── recaptchaService.js      # reCAPTCHA 服務
-├── recommendationScheduler.js # 推薦系統排程
-└── userCleanupScheduler.js  # 用戶清理排程
+├── analyticsMonitor.js      # Analytics monitoring service
+├── asyncProcessor.js        # Async processing service
+├── emailService.js          # Email service
+├── googleTranslate.js       # Google Translate service
+├── logService.js            # Logging service
+├── maintenanceScheduler.js  # Maintenance scheduler
+├── notificationScheduler.js # Notification scheduler
+├── notificationService.js   # Notification service
+├── recaptchaService.js      # reCAPTCHA service
+├── recommendationScheduler.js # Recommendation scheduler
+└── userCleanupScheduler.js  # User cleanup scheduler
 
-utils/  # 現在只包含純工具函數和演算法實現
+utils/  # Now contains only pure utility functions and algorithms
 ```
 
-### 改進效果
+### Benefits
 
-1. **更清晰的專案結構** - 服務層和工具層分離明確
-2. **提高可維護性** - 符合單一職責原則
-3. **更好的程式碼組織** - 相關功能集中管理
-4. **無破壞性變更** - 所有功能保持正常運作
+1. **Clearer project structure** - Clear separation between service and utility layers
+2. **Improved maintainability** - Follows single responsibility principle
+3. **Better code organization** - Related functionality grouped together
+4. **No breaking changes** - All functionality remains intact
 
-### 相關文檔
+### Related Documentation
 
-- 詳細遷移文檔：`docs/system-docs/services-migration-summary.md`
-- 更新的 README：包含新的專案結構說明
+- Detailed migration documentation: `docs/system-docs/services-migration-summary.md`
+- Updated README: Includes new project structure section
 
-### 注意事項
+### Notes
 
-- 這是一個純重構 PR，不包含功能變更
-- 所有測試都已通過
-- 沒有破壞性變更
+- This is a pure refactoring PR with no functional changes
+- All tests pass
+- No breaking changes
 
-### 檢查清單
+### Checklist
 
-- [x] 程式碼已測試
-- [x] 文檔已更新
-- [x] 沒有破壞性變更
-- [x] 所有測試通過
-- [x] Import 路徑都已更新
+- [x] Code has been tested
+- [x] Documentation has been updated
+- [x] No breaking changes
+- [x] All tests pass
+- [x] All import paths have been updated
+
+### Type of Change
+
+- [x] Refactoring (non-breaking change that improves code structure)
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+### Testing
+
+The following tests have been performed:
+1. **Import path validation** - Verified all import paths resolve correctly
+2. **Service loading tests** - Confirmed all services load without errors
+3. **Circular dependency check** - No circular dependencies detected
+4. **Integration tests** - Service interactions work correctly
+5. **System startup test** - Application starts successfully with new structure
