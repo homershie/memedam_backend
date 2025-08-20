@@ -3,7 +3,7 @@
  * 提供隊列管理、批量操作和並行處理功能
  */
 
-import { logger } from './logger.js'
+import { logger } from '../utils/logger.js'
 import redisCache from '../config/redis.js'
 
 /**

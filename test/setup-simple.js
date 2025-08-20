@@ -40,31 +40,31 @@ vi.mock('@sendgrid/mail', () => ({
 }))
 
 // Mock 其他可能造成問題的模組
-vi.mock('../utils/analyticsMonitor.js', () => ({
+vi.mock('../services/analyticsMonitor.js', () => ({
   performanceMonitor: {
     startMonitoring: vi.fn().mockResolvedValue({}),
     stopMonitoring: vi.fn().mockResolvedValue({}),
   },
 }))
 
-vi.mock('../utils/maintenance.js', () => ({
+vi.mock('../services/maintenanceScheduler.js', () => ({
   default: {
     startAllTasks: vi.fn(),
     stopAllTasks: vi.fn(),
   },
 }))
 
-vi.mock('../utils/notificationScheduler.js', () => ({
+vi.mock('../services/notificationScheduler.js', () => ({
   startNotificationScheduler: vi.fn(),
   stopNotificationScheduler: vi.fn(),
 }))
 
-vi.mock('../utils/userCleanupScheduler.js', () => ({
+vi.mock('../services/userCleanupScheduler.js', () => ({
   startUserCleanupScheduler: vi.fn(),
   stopUserCleanupScheduler: vi.fn(),
 }))
 
-vi.mock('../utils/recommendationScheduler.js', () => ({
+vi.mock('../services/recommendationScheduler.js', () => ({
   startRecommendationScheduler: vi.fn(),
   stopRecommendationScheduler: vi.fn(),
 }))

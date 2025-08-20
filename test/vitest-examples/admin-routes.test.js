@@ -39,7 +39,7 @@ vi.mock('../../utils/collaborativeFilteringScheduler.js', () => ({
   updateCollaborativeFilteringConfig: vi.fn().mockResolvedValue({ success: true }),
 }))
 
-vi.mock('../../utils/maintenance.js', () => ({
+vi.mock('../../services/maintenanceScheduler.js', () => ({
   default: {
     getMaintenanceStatus: vi.fn().mockResolvedValue({
       isInMaintenance: false,
@@ -49,7 +49,7 @@ vi.mock('../../utils/maintenance.js', () => ({
   },
 }))
 
-vi.mock('../../utils/notificationScheduler.js', () => ({
+vi.mock('../../services/notificationScheduler.js', () => ({
   manualTriggers: {
     sendHotContentNotifications: vi.fn().mockResolvedValue({ sent: 15 }),
     sendWeeklySummaryNotifications: vi.fn().mockResolvedValue({ sent: 25 }),
@@ -57,7 +57,7 @@ vi.mock('../../utils/notificationScheduler.js', () => ({
   },
 }))
 
-vi.mock('../../utils/recommendationScheduler.js', () => ({
+vi.mock('../../services/recommendationScheduler.js', () => ({
   updateAllRecommendationSystems: vi.fn().mockResolvedValue({ updated: 'all' }),
   getRecommendationSystemStatus: vi.fn().mockResolvedValue({
     status: 'active',

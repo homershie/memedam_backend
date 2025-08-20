@@ -24,12 +24,12 @@ vi.mock('../../../utils/collaborativeFilteringScheduler.js', () => ({
   getCollaborativeFilteringStats: vi.fn().mockResolvedValue({ totalUsers: 40 }),
   updateCollaborativeFilteringConfig: vi.fn().mockResolvedValue({ success: true }),
 }))
-vi.mock('../../../utils/maintenance.js', () => ({
+vi.mock('../../../services/maintenanceScheduler.js', () => ({
   default: {
     getTasksStatus: vi.fn().mockReturnValue({ tasks: [], lastRun: new Date() }),
   },
 }))
-vi.mock('../../../utils/notificationScheduler.js', () => ({
+vi.mock('../../../services/notificationScheduler.js', () => ({
   manualTriggers: {
     sendHotContentNotifications: vi.fn().mockResolvedValue({ sent: 15 }),
     sendWeeklySummaryNotifications: vi.fn().mockResolvedValue({ sent: 25 }),

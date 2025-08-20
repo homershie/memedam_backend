@@ -30,7 +30,7 @@ import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
 import swaggerSpecs from './config/swagger.js'
 import swaggerUi from 'swagger-ui-express'
-import { performanceMonitor } from './utils/asyncProcessor.js'
+import { performanceMonitor } from './services/asyncProcessor.js'
 import { logger } from './utils/logger.js'
 import {
   apiLimiter,
@@ -42,20 +42,20 @@ import {
   resendVerificationLimiter,
 } from './middleware/rateLimit.js'
 import errorHandler, { notFound } from './middleware/errorHandler.js'
-import maintenanceScheduler from './utils/maintenance.js'
-import analyticsMonitor from './utils/analyticsMonitor.js'
+import maintenanceScheduler from './services/maintenanceScheduler.js'
+import analyticsMonitor from './services/analyticsMonitor.js'
 import {
   startNotificationScheduler,
   stopNotificationScheduler,
-} from './utils/notificationScheduler.js'
+} from './services/notificationScheduler.js'
 import {
   startUserCleanupScheduler,
   stopUserCleanupScheduler,
-} from './utils/userCleanupScheduler.js'
+} from './services/userCleanupScheduler.js'
 import {
   startRecommendationScheduler,
   stopRecommendationScheduler,
-} from './utils/recommendationScheduler.js'
+} from './services/recommendationScheduler.js'
 
 import './config/passport.js'
 
