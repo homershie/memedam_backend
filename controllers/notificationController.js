@@ -71,7 +71,7 @@ export const getNotifications = async (req, res) => {
       archivedAt: receipt.archived_at,
       createdAt: receipt.createdAt,
       updatedAt: receipt.updatedAt,
-      isRead: receipt.isRead,
+      is_read: receipt.isRead,
       isDeleted: receipt.isDeleted,
       isArchived: receipt.isArchived,
       // 通知事件資料
@@ -133,7 +133,7 @@ export const getNotificationById = async (req, res) => {
       archivedAt: receipt.archived_at,
       createdAt: receipt.createdAt,
       updatedAt: receipt.updatedAt,
-      isRead: receipt.isRead,
+      is_read: receipt.isRead,
       isDeleted: receipt.isDeleted,
       isArchived: receipt.isArchived,
       // 通知事件資料
@@ -277,11 +277,11 @@ export const markNotificationRead = async (req, res) => {
 export const markAllNotificationsRead = async (req, res) => {
   try {
     const userId = req.user._id
-    const query = getUserReceiptQuery(userId, { readAt: null })
+    const query = getUserReceiptQuery(userId, { read_at: null })
 
     const result = await NotificationReceipt.updateMany(query, {
       $set: {
-        readAt: new Date(),
+        read_at: new Date(),
         updatedAt: new Date(),
       },
     })

@@ -58,6 +58,8 @@ process.env.SKIP_SERVER = process.env.SKIP_SERVER || 'true'
 process.env.REDIS_ENABLED = 'false'
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-session-secret'
 process.env.SKIP_REDIS = 'true'
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-key-for-testing-only'
+process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h'
 
 // 全域 mock 郵件，避免外部 I/O
 vi.mock('@sendgrid/mail', () => ({
@@ -134,11 +136,14 @@ export const createTestUser = async (User, userData = {}) => {
     password: 'testpassword123',
     role: 'user',
     status: 'active',
-    is_verified: true,
+    email_verified: true,
     ...userData,
   }
 
-  return await User.create(defaultData)
+  // 創建用戶實例，確保中間件正確執行
+  const user = new User(defaultData)
+  await user.save()
+  return user
 }
 
 // 檢查是否為測試資料
