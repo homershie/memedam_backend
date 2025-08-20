@@ -1,5 +1,5 @@
 import { sgMail, DEFAULT_FROM_EMAIL, DEFAULT_FROM_NAME } from '../config/sendgrid.js'
-import { logger } from './logger.js'
+import { logger } from '../utils/logger.js'
 
 /**
  * Email 服務類別

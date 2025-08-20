@@ -10,7 +10,7 @@ import {
   manualDeleteUnverifiedUsers,
 } from '../utils/userCleanupScheduler.js'
 import { logger } from '../utils/logger.js'
-import EmailService from '../utils/emailService.js'
+import EmailService from '../services/emailService.js'
 import VerificationController from './verificationController.js'
 import { deleteCloudinaryImage } from '../utils/deleteImg.js'
 

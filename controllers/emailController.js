@@ -1,42 +1,7 @@
-import EmailService from '../utils/emailService.js'
+import EmailService from '../services/emailService.js'
 import { StatusCodes } from 'http-status-codes'
 import { logger } from '../utils/logger.js'
-import axios from 'axios'
-
-// reCAPTCHA 驗證函數
-const verifyRecaptcha = async (recaptchaToken) => {
-  try {
-    console.log('🔍 reCAPTCHA 驗證開始...')
-    console.log('📝 收到的 token:', recaptchaToken ? '已提供' : '未提供')
-    console.log('🔑 是否有 SECRET_KEY:', !!process.env.RECAPTCHA_SECRET_KEY)
-
-    // 檢查是否有設定 reCAPTCHA 密鑰
-    if (!process.env.RECAPTCHA_SECRET_KEY) {
-      console.error('❌ reCAPTCHA 密鑰未設定，無法進行驗證')
-      return true // 開發環境允許通過
-    }
-
-    if (!recaptchaToken) {
-      console.error('❌ 未提供 reCAPTCHA token')
-      return false
-    }
-
-    console.log('🌐 開始向 Google reCAPTCHA API 發送驗證請求...')
-    const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
-      params: {
-        secret: process.env.RECAPTCHA_SECRET_KEY,
-        response: recaptchaToken,
-      },
-    })
-
-    const isValid = response.data.success && response.data.score >= 0.5
-    console.log('✅ reCAPTCHA 驗證結果:', isValid)
-    return isValid
-  } catch (error) {
-    console.error('❌ reCAPTCHA 驗證錯誤:', error)
-    return false
-  }
-}
+import RecaptchaService from '../services/recaptchaService.js'
 
 /**
  * Email Controller
@@ -287,7 +252,7 @@ class EmailController {
       }
 
       // 驗證 reCAPTCHA
-      const isRecaptchaValid = await verifyRecaptcha(recaptchaToken)
+      const isRecaptchaValid = await RecaptchaService.quickVerify(recaptchaToken)
       if (!isRecaptchaValid) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           success: false,

@@ -1,51 +1,7 @@
-import axios from 'axios'
 import crypto from 'crypto'
 import Feedback from '../models/Feedback.js'
 import { logger } from '../utils/logger.js'
-
-// reCAPTCHA 驗證函數
-const verifyRecaptcha = async (recaptchaToken) => {
-  try {
-    console.log('🔍 reCAPTCHA 驗證開始...')
-    console.log('📝 收到的 token:', recaptchaToken ? '已提供' : '未提供')
-    console.log('🔑 是否有 SECRET_KEY:', !!process.env.RECAPTCHA_SECRET_KEY)
-    console.log('🌍 當前環境:', process.env.NODE_ENV || 'development')
-
-    // 檢查是否有設定 reCAPTCHA 密鑰
-    if (!process.env.RECAPTCHA_SECRET_KEY) {
-      console.error('❌ reCAPTCHA 密鑰未設定，無法進行驗證')
-      return false
-    }
-
-    // 檢查是否有提供 token
-    if (!recaptchaToken) {
-      console.error('❌ 未提供 reCAPTCHA token')
-      return false
-    }
-
-    console.log('🌐 開始向 Google reCAPTCHA API 發送驗證請求...')
-    const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
-      params: {
-        secret: process.env.RECAPTCHA_SECRET_KEY,
-        response: recaptchaToken,
-      },
-    })
-
-    console.log('📊 Google API 回應:', response.data)
-    const isValid = response.data.success
-    console.log('✅ reCAPTCHA 驗證結果:', isValid)
-
-    return isValid
-  } catch (error) {
-    console.error('❌ reCAPTCHA 驗證錯誤:', error)
-    console.error('🔍 錯誤詳情:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    })
-    return false
-  }
-}
+import RecaptchaService from '../services/recaptchaService.js'
 
 // 提交意見
 export const submitFeedback = async (req, res) => {
@@ -55,6 +11,21 @@ export const submitFeedback = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: '請先登入才能提交意見',
+      })
+    }
+
+    // 驗證使用者是否有信箱且已驗證
+    if (!req.user.email) {
+      return res.status(400).json({
+        success: false,
+        message: '您需要先設定並驗證信箱才能提交意見',
+      })
+    }
+
+    if (!req.user.email_verified) {
+      return res.status(400).json({
+        success: false,
+        message: '請先驗證您的信箱才能提交意見',
       })
     }
 
@@ -103,7 +74,7 @@ export const submitFeedback = async (req, res) => {
     }
 
     // 驗證 reCAPTCHA
-    const isRecaptchaValid = await verifyRecaptcha(recaptchaToken)
+    const isRecaptchaValid = await RecaptchaService.quickVerify(recaptchaToken)
     if (!isRecaptchaValid) {
       return res.status(400).json({
         success: false,

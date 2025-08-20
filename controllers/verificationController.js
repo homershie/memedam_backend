@@ -3,7 +3,7 @@ import VerificationToken from '../models/VerificationToken.js'
 import { StatusCodes } from 'http-status-codes'
 import crypto from 'crypto'
 import { logger } from '../utils/logger.js'
-import EmailService from '../utils/emailService.js'
+import EmailService from '../services/emailService.js'
 import mongoose from 'mongoose'
 
 /**
