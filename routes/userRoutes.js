@@ -125,16 +125,21 @@ const generateOAuthState = () => {
  *     LoginRequest:
  *       type: object
  *       required:
- *         - email
+ *         - login
  *         - password
  *       properties:
- *         email:
+ *         login:
  *           type: string
- *           format: email
- *           description: 電子郵件
+ *           description: 帳號或電子郵件
+ *           example: "user@example.com"
  *         password:
  *           type: string
  *           description: 密碼
+ *           example: "password123"
+ *         recaptchaToken:
+ *           type: string
+ *           description: reCAPTCHA 驗證 token（如果已設定 reCAPTCHA）
+ *           example: "03AFcWeA..."
  *     RegisterRequest:
  *       type: object
  *       required:
@@ -561,6 +566,7 @@ router.get('/password-status', token, isUser, checkPasswordStatus)
  *   post:
  *     summary: 用戶登入
  *     tags: [Authentication]
+ *     description: 本地帳號密碼登入，支援 reCAPTCHA 驗證防護
  *     requestBody:
  *       required: true
  *       content:
@@ -575,17 +581,46 @@ router.get('/password-status', token, isUser, checkPasswordStatus)
  *             schema:
  *               type: object
  *               properties:
- *                 message:
- *                   type: string
+ *                 success:
+ *                   type: boolean
+ *                   example: true
  *                 token:
  *                   type: string
  *                   description: JWT Token
+ *                 userId:
+ *                   type: string
+ *                   description: 用戶 ID
+ *                 role:
+ *                   type: string
+ *                   description: 用戶角色
  *                 user:
  *                   $ref: '#/components/schemas/User'
  *       400:
- *         description: 請求參數錯誤
+ *         description: 請求參數錯誤或 reCAPTCHA 驗證失敗
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "請完成 reCAPTCHA 驗證"
  *       401:
- *         description: 登入失敗
+ *         description: 登入失敗（帳號密碼錯誤）
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "帳號、信箱或密碼錯誤"
  * /api/users/logout:
  *   post:
  *     summary: 用戶登出

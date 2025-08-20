@@ -3,10 +3,11 @@ import { logger } from '../utils/logger.js'
 import { StatusCodes } from 'http-status-codes'
 import bcrypt from 'bcrypt'
 import { signToken } from '../utils/jwt.js'
+import RecaptchaService from '../services/recaptchaService.js'
 
 // 本地帳密登入
 export const login = async (req, res) => {
-  const { login, password } = req.body
+  const { login, password, recaptchaToken } = req.body
 
   const enableSession = process.env.NODE_ENV !== 'test'
   let session = null
@@ -16,6 +17,26 @@ export const login = async (req, res) => {
   }
 
   try {
+    // 驗證 reCAPTCHA（如果已設定）
+    if (process.env.RECAPTCHA_SECRET_KEY) {
+      if (!recaptchaToken) {
+        if (session) await session.abortTransaction()
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: '請完成 reCAPTCHA 驗證',
+        })
+      }
+
+      const isRecaptchaValid = await RecaptchaService.quickVerify(recaptchaToken)
+      if (!isRecaptchaValid) {
+        if (session) await session.abortTransaction()
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: 'reCAPTCHA 驗證失敗，請重新驗證',
+        })
+      }
+    }
+
     // 支援帳號或信箱登入
     let query = User.findOne({
       $or: [{ username: login }, { email: login }],
