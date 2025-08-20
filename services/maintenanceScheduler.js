@@ -1,6 +1,6 @@
 import cron from 'node-cron'
-import { checkAndFixCounts, checkAndFixUserCounts } from './checkCounts.js'
-import { logger } from './logger.js'
+import { checkAndFixCounts, checkAndFixUserCounts } from '../utils/checkCounts.js'
+import { logger } from '../utils/logger.js'
 
 /**
  * 定期維護任務配置

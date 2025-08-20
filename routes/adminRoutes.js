@@ -5,7 +5,7 @@ import {
   getCountStatistics,
   checkAndFixUserCounts,
 } from '../utils/checkCounts.js'
-import maintenanceScheduler from '../utils/maintenance.js'
+import maintenanceScheduler from '../services/maintenanceScheduler.js'
 import {
   batchUpdateHotScores,
   scheduledHotScoreUpdate,
@@ -15,7 +15,7 @@ import {
   updateAllRecommendationSystems,
   getRecommendationSystemStatus,
   updateRecommendationConfig,
-} from '../utils/recommendationScheduler.js'
+} from '../services/recommendationScheduler.js'
 import {
   batchUpdateUserPreferences,
   scheduledContentBasedUpdate,
@@ -28,7 +28,7 @@ import {
   getCollaborativeFilteringStats,
   updateCollaborativeFilteringConfig,
 } from '../utils/collaborativeFilteringScheduler.js'
-import { manualTriggers } from '../utils/notificationScheduler.js'
+import { manualTriggers } from '../services/notificationScheduler.js'
 import { token, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()

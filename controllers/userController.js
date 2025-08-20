@@ -8,7 +8,7 @@ import crypto from 'crypto'
 import {
   manualSendDeletionReminders,
   manualDeleteUnverifiedUsers,
-} from '../utils/userCleanupScheduler.js'
+} from '../services/userCleanupScheduler.js'
 import { logger } from '../utils/logger.js'
 import EmailService from '../services/emailService.js'
 import VerificationController from './verificationController.js'

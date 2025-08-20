@@ -9,7 +9,7 @@ import Follow from '../../../models/Follow.js'
 import Notification from '../../../models/Notification.js'
 import VerificationToken from '../../../models/VerificationToken.js'
 import { cleanupTestData } from '../../setup.js'
-import { userCleanupScheduler } from '../../../utils/userCleanupScheduler.js'
+import { userCleanupScheduler } from '../../../services/userCleanupScheduler.js'
 
 describe('用戶清理系統測試', () => {
   let verifiedUser, inactiveUser, activeUser

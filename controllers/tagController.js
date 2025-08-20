@@ -2,7 +2,7 @@ import Tag from '../models/Tag.js'
 import MemeTag from '../models/MemeTag.js'
 import Meme from '../models/Meme.js'
 import mongoose from 'mongoose'
-import { translateToEnglish } from '../utils/googleTranslate.js'
+import { translateToEnglish } from '../services/googleTranslate.js'
 import { toSlug, toSlugOrNull } from '../utils/slugify.js'
 
 // 建立標籤

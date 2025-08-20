@@ -4,13 +4,13 @@
  */
 
 import cron from 'node-cron'
-import { logger } from './logger.js'
-import { batchUpdateHotScores } from './hotScoreScheduler.js'
-import { batchUpdateUserPreferences } from './contentBasedScheduler.js'
+import { logger } from '../utils/logger.js'
+import { batchUpdateHotScores } from '../utils/hotScoreScheduler.js'
+import { batchUpdateUserPreferences } from '../utils/contentBasedScheduler.js'
 import {
   batchUpdateCollaborativeFilteringCache,
   batchUpdateSocialCollaborativeFilteringCache,
-} from './collaborativeFilteringScheduler.js'
+} from '../utils/collaborativeFilteringScheduler.js'
 
 /**
  * 更新配置

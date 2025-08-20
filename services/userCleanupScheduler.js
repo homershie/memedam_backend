@@ -1,6 +1,6 @@
 import cron from 'node-cron'
 import User from '../models/User.js'
-import { logger } from './logger.js'
+import { logger } from '../utils/logger.js'
 import EmailService from '../services/emailService.js'
 
 /**
