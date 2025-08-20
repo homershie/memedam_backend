@@ -38,7 +38,7 @@ const privacyConsentSchema = new mongoose.Schema({
   },
   consentSource: {
     type: String,
-    enum: ['initial', 'settings', 'reconsent'],
+    enum: ['initial', 'settings', 'reconsent', 'sync'],
     required: true,
   },
   ipAddress: {

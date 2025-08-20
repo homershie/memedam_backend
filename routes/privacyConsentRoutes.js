@@ -41,7 +41,7 @@ const router = express.Router()
  *                 default: "1.0"
  *               consentSource:
  *                 type: string
- *                 enum: [initial, settings, reconsent]
+ *                 enum: [initial, settings, reconsent, sync]
  *     responses:
  *       201:
  *         description: Consent record created successfully
