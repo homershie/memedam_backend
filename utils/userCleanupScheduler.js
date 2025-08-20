@@ -1,7 +1,7 @@
 import cron from 'node-cron'
 import User from '../models/User.js'
 import { logger } from './logger.js'
-import EmailService from './emailService.js'
+import EmailService from '../services/emailService.js'
 
 /**
  * 獲取需要發送提醒的用戶（註冊超過11個月但未驗證的用戶）

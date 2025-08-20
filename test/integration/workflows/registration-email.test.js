@@ -6,7 +6,7 @@ import VerificationToken from '../../../models/VerificationToken.js'
 import { createTestUser, cleanupTestData } from '../../setup.js'
 
 // Mock email service
-vi.mock('../../../utils/emailService.js', () => ({
+vi.mock('../../../services/emailService.js', () => ({
   sendVerificationEmail: vi.fn(() => Promise.resolve(true)),
   sendPasswordResetEmail: vi.fn(() => Promise.resolve(true)),
 }))
@@ -40,12 +40,12 @@ describe('註冊驗證功能', () => {
     expect(response.status).toBe(201)
     expect(response.body.success).toBe(true)
     expect(response.body.message).toContain('註冊成功')
-    
+
     // 檢查回應中的 emailSent 欄位（如果存在）
     if (response.body.emailSent !== undefined) {
       expect(response.body.emailSent).toBe(true)
     }
-    
+
     expect(response.body.user).toBeDefined()
     expect(response.body.user.email_verified).toBe(false)
 
@@ -73,7 +73,7 @@ describe('註冊驗證功能', () => {
     }
 
     const response = await request(app).post('/api/users').send(testUser)
-    
+
     // 應該返回 400 錯誤
     expect(response.status).toBe(400)
     expect(response.body.success).toBe(false)

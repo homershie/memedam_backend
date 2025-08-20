@@ -28,7 +28,7 @@ vi.mock('jsonwebtoken', () => ({
   },
 }))
 
-vi.mock('../../../utils/emailService.js', () => ({
+vi.mock('../../../services/emailService.js', () => ({
   sendVerificationEmail: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
 }))

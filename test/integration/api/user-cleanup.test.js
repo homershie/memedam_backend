@@ -161,7 +161,7 @@ describe('用戶清理系統測試', () => {
 
     it('應該發送重新激活通知', async () => {
       const sendEmailMock = vi.fn()
-      vi.mock('../../../utils/emailService.js', () => ({
+      vi.mock('../../../services/emailService.js', () => ({
         sendReactivationEmail: sendEmailMock,
       }))
 
