@@ -179,6 +179,16 @@ const initializeOAuthStrategies = () => {
               return done(null, req.user)
             } else {
               let user = await User.findOne({ google_id: profile.id })
+              if (user) {
+                // 如果用戶已存在且不需要選擇 username，直接返回用戶進行登入
+                if (!user.needs_username_selection) {
+                  user.last_login_at = new Date()
+                  await user.save()
+                  return done(null, user)
+                }
+                // 如果用戶仍需要選擇 username，繼續處理
+              }
+
               if (!user) {
                 // 檢查 email 是否已被其他用戶使用
                 if (profile.emails?.[0]?.value) {
@@ -215,11 +225,11 @@ const initializeOAuthStrategies = () => {
 
                   user = new User({
                     username: finalUsername,
-                    email: profile.emails[0].value,
+                    email: profile.emails?.[0]?.value || '',
                     google_id: profile.id,
                     display_name: profile.displayName || finalUsername,
                     login_method: 'google',
-                    email_verified: !!profile.emails[0].verified,
+                    email_verified: !!profile.emails?.[0]?.verified,
                   })
                 }
 
@@ -355,9 +365,14 @@ const initializeOAuthStrategies = () => {
               // 首先檢查是否已存在該 Facebook ID 的用戶
               let user = await User.findOne({ facebook_id: profile.id })
               if (user) {
-                // 用戶已存在，直接返回
-                logger.info('Facebook 用戶已存在，直接登入:', profile.id)
-                return done(null, user)
+                // 如果用戶已存在且不需要選擇 username，直接返回用戶進行登入
+                if (!user.needs_username_selection) {
+                  logger.info('Facebook 用戶已存在，直接登入:', profile.id)
+                  user.last_login_at = new Date()
+                  await user.save()
+                  return done(null, user)
+                }
+                // 如果用戶仍需要選擇 username，繼續處理
               }
 
               // 用戶不存在，需要創建新用戶
@@ -396,11 +411,11 @@ const initializeOAuthStrategies = () => {
 
                 user = new User({
                   username: finalUsername,
-                  email: profile.emails[0].value,
+                  email: profile.emails?.[0]?.value || '',
                   facebook_id: profile.id,
                   display_name: profile.displayName || finalUsername,
                   login_method: 'facebook',
-                  email_verified: !!profile.emails[0].verified,
+                  email_verified: !!profile.emails?.[0]?.verified,
                 })
               }
 
@@ -561,6 +576,16 @@ const initializeOAuthStrategies = () => {
             } else {
               // 登入流程
               let user = await User.findOne({ discord_id: profile.id })
+              if (user) {
+                // 如果用戶已存在且不需要選擇 username，直接返回用戶進行登入
+                if (!user.needs_username_selection) {
+                  user.last_login_at = new Date()
+                  await user.save()
+                  return done(null, user)
+                }
+                // 如果用戶仍需要選擇 username，繼續處理
+              }
+
               if (!user) {
                 // 檢查 email 是否已被其他用戶使用
                 if (profile.email) {
@@ -764,6 +789,16 @@ const initializeOAuthStrategies = () => {
             } else {
               // 登入流程
               let user = await User.findOne({ twitter_id: profile.id })
+              if (user) {
+                // 如果用戶已存在且不需要選擇 username，直接返回用戶進行登入
+                if (!user.needs_username_selection) {
+                  user.last_login_at = new Date()
+                  await user.save()
+                  return done(null, user)
+                }
+                // 如果用戶仍需要選擇 username，繼續處理
+              }
+
               if (!user) {
                 // 檢查 email 是否已被其他用戶使用
                 if (profile.emails?.[0]?.value) {
@@ -800,11 +835,11 @@ const initializeOAuthStrategies = () => {
 
                   user = new User({
                     username: finalUsername,
-                    email: profile.emails[0].value,
+                    email: profile.emails?.[0]?.value || '',
                     twitter_id: profile.id,
                     display_name: profile.displayName || finalUsername,
                     login_method: 'twitter',
-                    email_verified: !!profile.emails[0].verified,
+                    email_verified: !!profile.emails?.[0]?.verified,
                   })
                 }
 
@@ -823,6 +858,12 @@ const initializeOAuthStrategies = () => {
                   }
                 }
               }
+
+              // 保存 profile 資料到 session 中，供 OAuth 回調處理使用
+              if (req.session) {
+                req.session.oauthProfile = profile
+              }
+
               return done(null, user)
             }
           } catch (err) {

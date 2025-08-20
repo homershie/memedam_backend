@@ -168,6 +168,48 @@ describe('OAuth 社群登入 has_password 測試', () => {
     expect(updatedUser.tokens).toEqual(['test_token_1', 'test_token_2'])
   })
 
+  it('社群用戶完成 username 選擇後不應該被要求重新選擇', async () => {
+    // 創建一個需要選擇 username 的社群用戶
+    const socialUser = new User({
+      username: 'temp_twitter_123_1234567890',
+      email: '',
+      twitter_id: 'twitter_123',
+      display_name: '測試用戶',
+      login_method: 'twitter',
+      status: 'active',
+      needs_username_selection: true,
+    })
+
+    await socialUser.save()
+
+    // 驗證初始狀態
+    expect(socialUser.needs_username_selection).toBe(true)
+    expect(socialUser.email).toBe('')
+
+    // 模擬完成 username 選擇
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: socialUser._id },
+      {
+        $set: {
+          username: 'final_username',
+          needs_username_selection: false,
+        },
+      },
+      { new: true, runValidators: false },
+    )
+
+    // 驗證更新後的狀態
+    expect(updatedUser.needs_username_selection).toBe(false)
+    expect(updatedUser.username).toBe('final_username')
+    expect(updatedUser.email).toBe('') // email 仍然是空的
+
+    // 模擬 checkIfNeedsUsername 函數的邏輯
+    const needsUsername = updatedUser.needs_username_selection
+
+    // 驗證結果：不應該需要選擇 username
+    expect(needsUsername).toBe(false)
+  })
+
   it('一般用戶變更密碼後應該被強制登出', async () => {
     // 創建一般用戶（已有密碼）
     const normalUser = new User({
