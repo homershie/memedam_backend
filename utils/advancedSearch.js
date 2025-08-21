@@ -277,25 +277,54 @@ export const processAdvancedSearchResults = (
 
   // 根據排序方式排序
   let sortedResults = [...results]
-  switch (sortBy) {
+
+  // 解析排序參數
+  let sortField = sortBy
+  let sortOrder = 'desc'
+
+  if (sortBy && sortBy.includes('_')) {
+    const parts = sortBy.split('_')
+    sortField = parts[0]
+    sortOrder = parts[1] || 'desc'
+  }
+
+  switch (sortField) {
     case 'relevance':
-      sortedResults.sort((a, b) => b.relevanceScore - a.relevanceScore)
+      sortedResults.sort((a, b) => {
+        const diff = b.relevanceScore - a.relevanceScore
+        return sortOrder === 'asc' ? -diff : diff
+      })
       break
     case 'quality':
-      sortedResults.sort((a, b) => b.qualityScore - a.qualityScore)
+      sortedResults.sort((a, b) => {
+        const diff = b.qualityScore - a.qualityScore
+        return sortOrder === 'asc' ? -diff : diff
+      })
       break
     case 'freshness':
-      sortedResults.sort((a, b) => b.freshnessScore - a.freshnessScore)
+      sortedResults.sort((a, b) => {
+        const diff = b.freshnessScore - a.freshnessScore
+        return sortOrder === 'asc' ? -diff : diff
+      })
       break
     case 'popularity':
-      sortedResults.sort((a, b) => (b.views || 0) - (a.views || 0))
+      sortedResults.sort((a, b) => {
+        const diff = (b.views || 0) - (a.views || 0)
+        return sortOrder === 'asc' ? -diff : diff
+      })
       break
     case 'createdAt':
-      sortedResults.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      sortedResults.sort((a, b) => {
+        const diff = new Date(b.createdAt) - new Date(a.createdAt)
+        return sortOrder === 'asc' ? -diff : diff
+      })
       break
     case 'comprehensive':
     default:
-      sortedResults.sort((a, b) => b.comprehensiveScore - a.comprehensiveScore)
+      sortedResults.sort((a, b) => {
+        const diff = b.comprehensiveScore - a.comprehensiveScore
+        return sortOrder === 'asc' ? -diff : diff
+      })
       break
   }
 

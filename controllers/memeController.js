@@ -8,6 +8,7 @@ import {
   processAdvancedSearchResults,
   combineAdvancedSearchFilters,
   getSearchStats,
+  advancedFuzzySearch,
 } from '../utils/advancedSearch.js'
 import Tag from '../models/Tag.js'
 import User from '../models/User.js'
@@ -338,12 +339,18 @@ export const getMemes = async (req, res) => {
 
       const filteredMemes = combineAdvancedSearchFilters(memesWithFlattenedAuthor, searchParams)
 
-      // 處理進階搜尋結果的排序和分頁
+      // 確保即使沒有搜尋詞也會計算各項分數，讓排序（comprehensive/quality 等）生效
+      const resultsWithScores = advancedFuzzySearch(filteredMemes, searchVal || '')
+
+      // 處理進階搜尋結果的排序和分頁（支援 asc/desc）。
+      // 注意：前端會將 sort/newest 之類透過 memeService 轉成 sort=field, order=asc|desc。
+      // 進階排序只讀取單一 sortBy 參數，因此這裡將 order 合併回 sort 供排序器解析。
+      const combinedSort = order ? `${sort}_${order}` : sort
       const {
         results: memes,
         pagination: searchPagination,
         scoring,
-      } = processAdvancedSearchResults(filteredMemes, { page, limit }, sort)
+      } = processAdvancedSearchResults(resultsWithScores, { page, limit }, combinedSort)
 
       // 取得搜尋統計資訊
       const searchStats = getSearchStats(filteredMemes)
