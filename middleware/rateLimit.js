@@ -17,6 +17,26 @@ const getRedisStore = (prefix = 'rl:') => {
   return undefined // 使用預設的 MemoryStore
 }
 
+// 用戶相關 API 寬鬆限流：每 15 分鐘，已登入用戶 5000 次，未登入 1000 次
+const userApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 分鐘
+  max: (req) => (req.user ? 5000 : 1000), // 用戶相關 API 更寬鬆的限制
+  message: {
+    success: false,
+    error: '用戶相關請求太多次，請稍後再試。',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: getRedisStore('rl:user:'),
+  skip: (req) => {
+    // 跳過用戶狀態檢查端點
+    if (req.path === '/api/users/me') {
+      return true
+    }
+    return false
+  },
+})
+
 // 迷因相關 API 寬鬆限流：每 15 分鐘，已登入用戶 10000 次，未登入 2000 次
 const memeApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 分鐘
@@ -209,6 +229,7 @@ const authLimiter = rateLimit({
 
 export {
   apiLimiter,
+  userApiLimiter,
   memeApiLimiter,
   reportSubmissionLimiter,
   reportWeeklyLimiter,

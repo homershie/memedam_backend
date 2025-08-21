@@ -384,6 +384,11 @@ export const getMemes = async (req, res) => {
         mongoQuery.status = 'public'
       }
 
+      // 作者篩選條件
+      if (authorVal) {
+        mongoQuery.author_id = authorVal
+      }
+
       // 搜尋和標籤條件
       const orConditions = []
 

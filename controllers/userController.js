@@ -2419,3 +2419,50 @@ export const checkPasswordStatus = async (req, res) => {
     res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 }
+
+// 獲取用戶統計資訊
+export const getStats = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // 檢查 ID 是否有效
+    if (!id || id === '[object Object]' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '無效的用戶ID',
+        debug: { receivedId: id, type: typeof id },
+      })
+    }
+
+    const user = await User.findById(
+      id,
+      'follower_count following_count meme_count collection_count total_likes_received comment_count share_count',
+    )
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到用戶',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: {
+        follower_count: user.follower_count || 0,
+        following_count: user.following_count || 0,
+        meme_count: user.meme_count || 0,
+        collection_count: user.collection_count || 0,
+        total_likes_received: user.total_likes_received || 0,
+        comment_count: user.comment_count || 0,
+        share_count: user.share_count || 0,
+      },
+    })
+  } catch (error) {
+    logger.error('獲取用戶統計錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+    })
+  }
+}

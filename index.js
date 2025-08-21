@@ -35,6 +35,7 @@ import { performanceMonitor } from './services/asyncProcessor.js'
 import { logger } from './utils/logger.js'
 import {
   apiLimiter,
+  userApiLimiter,
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,
@@ -238,7 +239,7 @@ app.use((req, res, next) => {
 // app.use('/api/analytics', memeApiLimiter)
 
 // 其他 API 使用標準限制（排除迷因相關路徑）
-app.use('/api/users', apiLimiter)
+app.use('/api/users', userApiLimiter)
 app.use('/api/admin', apiLimiter)
 app.use('/api/email', apiLimiter)
 app.use('/api/verification', apiLimiter)

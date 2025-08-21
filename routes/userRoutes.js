@@ -28,6 +28,7 @@ import {
   exportUsersCsv, // 新增匯出 CSV
   updateNotificationSettings, // 新增通知設定更新
   getNotificationSettings, // 新增通知設定獲取
+  getStats, // 新增用戶統計
   // 功能 Cookie 相關偏好設定
   setTheme,
   setLanguage,
@@ -1810,6 +1811,7 @@ router.get('/admin/unverified-stats', token, getUnverifiedUsersStats)
 
 // 基本 CRUD 操作（必須在最後）
 router.get('/:id', getUser)
+router.get('/:id/stats', getStats) // 新增用戶統計路由（公開端點）
 router.put('/:id', token, isManager, uploadAvatar, updateUser)
 router.delete('/:id', token, isManager, deleteUser)
 
