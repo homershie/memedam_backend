@@ -8,6 +8,7 @@ import {
   validateCreateAnnouncement,
 } from '../controllers/announcementController.js'
 import { token, isAdmin, isUser } from '../middleware/auth.js'
+import uploadService from '../services/uploadService.js'
 
 const router = express.Router()
 
@@ -285,13 +286,24 @@ const router = express.Router()
  */
 
 // 建立公告
-router.post('/', token, isUser, validateCreateAnnouncement, createAnnouncement)
+router.post(
+  '/',
+  token,
+  isUser,
+  uploadService.uploadImage,
+  validateCreateAnnouncement,
+  createAnnouncement,
+)
 // 取得所有公告（公開的公告不需要驗證，管理員可查看所有狀態）
 router.get('/', getAnnouncements)
+// 取得所有公告（管理員專用，需要驗證）
+router.get('/admin/all', token, isAdmin, getAnnouncements)
+// 取得單一公告（管理員專用，需要驗證）
+router.get('/admin/:id', token, isAdmin, getAnnouncementById)
 // 取得單一公告（公開的公告不需要驗證）
 router.get('/:id', getAnnouncementById)
 // 更新公告
-router.put('/:id', token, isAdmin, updateAnnouncement)
+router.put('/:id', token, isAdmin, uploadService.uploadImage, updateAnnouncement)
 // 刪除公告
 router.delete('/:id', token, isAdmin, deleteAnnouncement)
 
