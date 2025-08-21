@@ -12,7 +12,7 @@ import {
 import { logger } from '../utils/logger.js'
 import EmailService from '../services/emailService.js'
 import VerificationController from './verificationController.js'
-import { deleteCloudinaryImage } from '../utils/deleteImg.js'
+import { deleteImageByUrl } from '../services/uploadService.js'
 
 // 通知設定相關方法
 export const updateNotificationSettings = async (req, res) => {
@@ -1089,7 +1089,7 @@ export const updateUser = async (req, res) => {
     // 如果更新了頭像且有舊的頭像 URL，刪除舊的 Cloudinary 圖片
     if (isUpdatingAvatar && oldAvatarUrl && oldAvatarUrl !== user.avatar) {
       try {
-        await deleteCloudinaryImage(oldAvatarUrl)
+        await deleteImageByUrl(oldAvatarUrl)
         logger.info('成功刪除舊頭像:', oldAvatarUrl)
       } catch (deleteError) {
         logger.error('刪除舊頭像失敗:', deleteError)
@@ -1170,7 +1170,7 @@ export const deleteUser = async (req, res) => {
     // 如果用戶有頭像，刪除 Cloudinary 圖片
     if (user.avatar) {
       try {
-        await deleteCloudinaryImage(user.avatar)
+        await deleteImageByUrl(user.avatar)
         logger.info('成功刪除用戶頭像:', user.avatar)
       } catch (deleteError) {
         logger.error('刪除用戶頭像失敗:', deleteError)
@@ -1320,7 +1320,7 @@ export const updateMe = async (req, res) => {
     // 如果更新了頭像且有舊的頭像 URL，刪除舊的 Cloudinary 圖片
     if (isUpdatingAvatar && oldAvatarUrl && oldAvatarUrl !== user.avatar) {
       try {
-        await deleteCloudinaryImage(oldAvatarUrl)
+        await deleteImageByUrl(oldAvatarUrl)
         logger.info('成功刪除舊頭像:', oldAvatarUrl)
       } catch (deleteError) {
         logger.error('刪除舊頭像失敗:', deleteError)
@@ -1401,7 +1401,7 @@ export const deleteMe = async (req, res) => {
     // 如果用戶有頭像，刪除 Cloudinary 圖片
     if (user.avatar) {
       try {
-        await deleteCloudinaryImage(user.avatar)
+        await deleteImageByUrl(user.avatar)
         logger.info('成功刪除用戶頭像:', user.avatar)
       } catch (deleteError) {
         logger.error('刪除用戶頭像失敗:', deleteError)

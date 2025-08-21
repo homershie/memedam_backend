@@ -31,7 +31,7 @@ vi.mock('../../../models/Follow.js', () => ({
   },
 }))
 
-vi.mock('../../../utils/deleteImg.js', () => ({
+vi.mock('../../../services/uploadService.js', () => ({
   deleteImage: vi.fn(),
 }))
 

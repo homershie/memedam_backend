@@ -1,7 +1,10 @@
 import express from 'express'
-import { singleUpload } from '../middleware/upload.js'
+import { uploadImage, uploadAvatar } from '../services/uploadService.js'
 import { token, isUser, blockBannedUser } from '../middleware/auth.js'
-import { uploadImage } from '../controllers/uploadController.js'
+import {
+  uploadImage as uploadImageController,
+  uploadImages,
+} from '../controllers/uploadController.js'
 
 const router = express.Router()
 
@@ -101,7 +104,8 @@ const router = express.Router()
  *         description: 不支援的檔案類型
  */
 
-router.post('/image', token, isUser, blockBannedUser, singleUpload('image'), uploadImage)
-router.post('/avatar', token, isUser, blockBannedUser, singleUpload('avatar'), uploadImage)
+router.post('/image', token, isUser, blockBannedUser, uploadImage, uploadImageController)
+router.post('/avatar', token, isUser, blockBannedUser, uploadAvatar, uploadImageController)
+router.post('/images', token, isUser, blockBannedUser, uploadImages, uploadImages)
 
 export default router

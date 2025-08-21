@@ -1,15 +1,15 @@
 import { StatusCodes } from 'http-status-codes'
+import { logger } from '../utils/logger.js'
 
 export const uploadImage = async (req, res) => {
   try {
-    console.log('=== 上傳控制器開始 ===')
-    console.log('req.file:', req.file)
-    console.log('req.body:', req.body)
-    console.log('req.files:', req.files)
-    console.log('請求標頭:', req.headers)
+    logger.info('=== 上傳控制器開始 ===')
+    logger.info('req.file:', req.file)
+    logger.info('req.files:', req.files)
+    logger.info('請求標頭:', req.headers)
 
     if (!req.file) {
-      console.log('req.file 不存在')
+      logger.warn('req.file 不存在')
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '沒有收到圖片檔案',
@@ -23,7 +23,7 @@ export const uploadImage = async (req, res) => {
     }
 
     if (!req.file.path) {
-      console.log('req.file.path 不存在')
+      logger.warn('req.file.path 不存在')
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '檔案路徑不存在',
@@ -34,9 +34,9 @@ export const uploadImage = async (req, res) => {
       })
     }
 
-    console.log('=== 上傳成功 ===')
-    console.log('送出前的 image_url:', req.file.path)
-    console.log('檔案資訊:', {
+    logger.info('=== 上傳成功 ===')
+    logger.info('送出前的 image_url:', req.file.path)
+    logger.info('檔案資訊:', {
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
@@ -51,15 +51,83 @@ export const uploadImage = async (req, res) => {
         originalname: req.file.originalname,
         mimetype: req.file.mimetype,
         size: req.file.size,
+        path: req.file.path,
       },
     })
   } catch (error) {
-    console.log('=== 上傳控制器錯誤 ===')
-    console.log('錯誤:', error)
-    console.log('錯誤堆疊:', error.stack)
+    logger.error('=== 上傳控制器錯誤 ===')
+    logger.error('錯誤:', error)
+    logger.error('錯誤堆疊:', error.stack)
+
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      message: error.message,
+      message: '上傳處理時發生錯誤',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    })
+  }
+}
+
+// 多檔案上傳處理
+export const uploadImages = async (req, res) => {
+  try {
+    logger.info('=== 多檔案上傳控制器開始 ===')
+    logger.info('req.files:', req.files)
+
+    if (!req.files || req.files.length === 0) {
+      logger.warn('req.files 不存在或為空')
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '沒有收到圖片檔案',
+        debug: {
+          hasFiles: !!req.files,
+          filesLength: req.files ? req.files.length : 0,
+          bodyKeys: Object.keys(req.body || {}),
+          contentType: req.get('Content-Type'),
+        },
+      })
+    }
+
+    // 檢查所有檔案是否有路徑
+    const invalidFiles = req.files.filter((file) => !file.path)
+    if (invalidFiles.length > 0) {
+      logger.warn('部分檔案路徑不存在:', invalidFiles)
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '部分檔案路徑不存在',
+        debug: {
+          invalidFiles: invalidFiles.map((f) => ({
+            originalname: f.originalname,
+            mimetype: f.mimetype,
+          })),
+        },
+      })
+    }
+
+    logger.info('=== 多檔案上傳成功 ===')
+    logger.info('上傳檔案數量:', req.files.length)
+
+    // 回傳所有檔案的資訊
+    const fileInfos = req.files.map((file) => ({
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path,
+    }))
+
+    return res.json({
+      success: true,
+      files: fileInfos,
+      count: req.files.length,
+    })
+  } catch (error) {
+    logger.error('=== 多檔案上傳控制器錯誤 ===')
+    logger.error('錯誤:', error)
+    logger.error('錯誤堆疊:', error.stack)
+
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '多檔案上傳處理時發生錯誤',
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     })

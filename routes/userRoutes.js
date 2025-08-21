@@ -39,7 +39,7 @@ import {
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
-import { singleUpload } from '../middleware/upload.js'
+import { uploadAvatar } from '../services/uploadService.js'
 import passport from 'passport'
 import { signToken } from '../utils/jwt.js'
 import { logger } from '../utils/logger.js'
@@ -555,7 +555,7 @@ router.get('/search', searchUsers)
 
 // 用戶個人資料相關路由（必須在 /:id 之前）
 router.get('/me', token, isUser, getMe)
-router.put('/me', token, isUser, singleUpload('avatar'), updateMe)
+router.put('/me', token, isUser, uploadAvatar, updateMe)
 router.delete('/me', token, isUser, deleteMe)
 
 // 通知設定相關路由
@@ -1810,7 +1810,7 @@ router.get('/admin/unverified-stats', token, getUnverifiedUsersStats)
 
 // 基本 CRUD 操作（必須在最後）
 router.get('/:id', getUser)
-router.put('/:id', token, isManager, singleUpload('avatar'), updateUser)
+router.put('/:id', token, isManager, uploadAvatar, updateUser)
 router.delete('/:id', token, isManager, deleteUser)
 
 // 管理端：封禁/解封/批次軟刪除（放在最後通用路由下方，避免與 /:id 衝突）

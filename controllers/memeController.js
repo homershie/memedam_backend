@@ -11,7 +11,7 @@ import {
 } from '../utils/advancedSearch.js'
 import Tag from '../models/Tag.js'
 import User from '../models/User.js'
-import { deleteCloudinaryImage } from '../utils/deleteImg.js'
+import { deleteImageByUrl } from '../services/uploadService.js'
 import {
   calculateMemeHotScore,
   getHotScoreLevel,
@@ -524,7 +524,7 @@ export const updateMeme = async (req, res) => {
         // 刪除舊圖片（如果存在且與新圖片不同）
         if (originalMeme.image_url && originalMeme.image_url !== newImageUrl) {
           try {
-            await deleteCloudinaryImage(originalMeme.image_url)
+            await deleteImageByUrl(originalMeme.image_url)
             logger.info('已刪除舊圖片:', originalMeme.image_url)
           } catch (deleteError) {
             logger.error('刪除舊圖片失敗:', deleteError)
@@ -539,7 +539,7 @@ export const updateMeme = async (req, res) => {
       // 如果是透過 body 傳入新的圖片 URL（非上傳檔案）
       if (originalMeme.image_url) {
         try {
-          await deleteCloudinaryImage(originalMeme.image_url)
+          await deleteImageByUrl(originalMeme.image_url)
           logger.info('已刪除舊圖片:', originalMeme.image_url)
         } catch (deleteError) {
           logger.error('刪除舊圖片失敗:', deleteError)
@@ -553,7 +553,7 @@ export const updateMeme = async (req, res) => {
       if (originalMeme.type === 'image' && updateData.type !== 'image') {
         if (originalMeme.image_url) {
           try {
-            await deleteCloudinaryImage(originalMeme.image_url)
+            await deleteImageByUrl(originalMeme.image_url)
             logger.info('類型變更，已刪除舊圖片:', originalMeme.image_url)
           } catch (deleteError) {
             logger.error('類型變更時刪除舊圖片失敗:', deleteError)
@@ -656,7 +656,7 @@ export const deleteMeme = async (req, res) => {
     // 刪除 Cloudinary 上的圖片（如果存在）
     if (meme.image_url) {
       try {
-        await deleteCloudinaryImage(meme.image_url)
+        await deleteImageByUrl(meme.image_url)
         logger.info('已刪除迷因圖片:', meme.image_url)
       } catch (deleteError) {
         logger.error('刪除迷因圖片失敗:', deleteError)

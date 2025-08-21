@@ -96,7 +96,7 @@ memedam_backend/
 ### 純工具函數
 - `slugify.js` - URL slug 生成
 - `jwt.js` - JWT token 處理
-- `deleteImg.js` - 圖片刪除工具
+- `uploadService.js` - 整合的上傳服務（包含圖片刪除功能）
 - `sortHelpers.js` - 排序輔助函數
 - `logger.js` - 日誌工具
 - `transaction.js` - 資料庫事務處理

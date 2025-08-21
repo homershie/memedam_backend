@@ -33,7 +33,7 @@ import {
   blockBannedUser,
 } from '../middleware/auth.js'
 import { validateCreateMeme } from '../controllers/memeController.js'
-import { arrayUpload } from '../middleware/upload.js'
+import { uploadImages } from '../services/uploadService.js'
 
 const router = express.Router()
 
@@ -318,15 +318,7 @@ const router = express.Router()
  *                   type: string
  *                   description: 使用的搜尋演算法
  */
-router.post(
-  '/',
-  token,
-  isUser,
-  blockBannedUser,
-  arrayUpload('images', 5),
-  validateCreateMeme,
-  createMeme,
-)
+router.post('/', token, isUser, blockBannedUser, uploadImages, validateCreateMeme, createMeme)
 // 允許帶 Bearer token 辨識管理者（匿名亦可存取）
 router.get('/', optionalToken, getMemes)
 
@@ -1155,7 +1147,7 @@ router.put(
   token,
   blockBannedUser,
   canEditMeme,
-  arrayUpload('images', 5),
+  uploadImages,
   validateUpdateMeme,
   updateMeme,
 )
