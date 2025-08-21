@@ -1,5 +1,6 @@
 import Announcement from '../models/Announcement.js'
 import { body, validationResult } from 'express-validator'
+import uploadService from '../services/uploadService.js'
 
 // 建立公告
 export const validateCreateAnnouncement = [
@@ -25,6 +26,8 @@ export const createAnnouncement = async (req, res) => {
       status,
       category,
       author_id: req.user?._id,
+      // 如果有上傳圖片，加入圖片 URL
+      ...(req.file && { image: req.file.path }),
     })
     await announcement.save({ session })
 
@@ -111,14 +114,14 @@ export const getAnnouncementById = async (req, res) => {
     const announcement = await Announcement.findById(req.params.id)
     if (!announcement)
       return res.status(404).json({ success: false, data: null, error: '找不到公告' })
-    
+
     // 非管理員用戶只能查看公開的公告
     if (!req.user || req.user.role !== 'admin') {
       if (announcement.status !== 'public') {
         return res.status(404).json({ success: false, data: null, error: '找不到公告' })
       }
     }
-    
+
     res.json({ success: true, data: announcement, error: null })
   } catch (err) {
     res.status(500).json({ success: false, data: null, error: err.message })
@@ -132,7 +135,27 @@ export const updateAnnouncement = async (req, res) => {
   session.startTransaction()
 
   try {
-    const announcement = await Announcement.findByIdAndUpdate(req.params.id, req.body, {
+    const updateData = { ...req.body }
+
+    // 如果有上傳新圖片，加入圖片 URL
+    if (req.file) {
+      updateData.image = req.file.path
+
+      // 如果有舊圖片，刪除舊圖片
+      const existingAnnouncement = await Announcement.findById(req.params.id)
+      if (existingAnnouncement && existingAnnouncement.image) {
+        try {
+          // 從 URL 中提取 public_id
+          const urlParts = existingAnnouncement.image.split('/')
+          const publicId = urlParts[urlParts.length - 1].split('.')[0]
+          await uploadService.deleteImage(publicId)
+        } catch (error) {
+          console.warn('刪除舊圖片失敗:', error)
+        }
+      }
+    }
+
+    const announcement = await Announcement.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
       session,
@@ -183,11 +206,25 @@ export const deleteAnnouncement = async (req, res) => {
   session.startTransaction()
 
   try {
-    const announcement = await Announcement.findByIdAndDelete(req.params.id).session(session)
+    const announcement = await Announcement.findById(req.params.id)
     if (!announcement) {
       await session.abortTransaction()
       return res.status(404).json({ success: false, data: null, error: '找不到公告' })
     }
+
+    // 如果有圖片，刪除圖片
+    if (announcement.image) {
+      try {
+        // 從 URL 中提取 public_id
+        const urlParts = announcement.image.split('/')
+        const publicId = urlParts[urlParts.length - 1].split('.')[0]
+        await uploadService.deleteImage(publicId)
+      } catch (error) {
+        console.warn('刪除圖片失敗:', error)
+      }
+    }
+
+    await Announcement.findByIdAndDelete(req.params.id).session(session)
 
     // 提交事務
     await session.commitTransaction()

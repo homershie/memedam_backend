@@ -8,7 +8,7 @@ import {
   validateCreateAnnouncement,
 } from '../controllers/announcementController.js'
 import { token, isAdmin, isUser } from '../middleware/auth.js'
-import uploadService from '../services/uploadService.js'
+import { uploadAnnouncementImage } from '../services/uploadService.js'
 
 const router = express.Router()
 
@@ -290,7 +290,7 @@ router.post(
   '/',
   token,
   isUser,
-  uploadService.uploadImage,
+  uploadAnnouncementImage,
   validateCreateAnnouncement,
   createAnnouncement,
 )
@@ -303,7 +303,7 @@ router.get('/admin/:id', token, isAdmin, getAnnouncementById)
 // 取得單一公告（公開的公告不需要驗證）
 router.get('/:id', getAnnouncementById)
 // 更新公告
-router.put('/:id', token, isAdmin, uploadService.uploadImage, updateAnnouncement)
+router.put('/:id', token, isAdmin, uploadAnnouncementImage, updateAnnouncement)
 // 刪除公告
 router.delete('/:id', token, isAdmin, deleteAnnouncement)
 

@@ -69,6 +69,20 @@ const AnnouncementSchema = new mongoose.Schema(
         message: '分類必須是 system、activity、update、other',
       },
     },
+    // 公告主圖
+    image: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function (v) {
+          if (v && !v.match(/^https:\/\/res\.cloudinary\.com\/.*\/image\/upload\/.*$/)) {
+            return false
+          }
+          return true
+        },
+        message: '圖片必須是有效的 Cloudinary URL',
+      },
+    },
   },
   {
     collection: 'announcements',
