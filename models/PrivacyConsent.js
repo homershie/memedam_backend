@@ -101,7 +101,28 @@ privacyConsentSchema.methods.toJSON = function () {
 
 // Static methods
 privacyConsentSchema.statics.findActiveByUserId = function (userId) {
-  return this.findOne({ userId, isActive: true }).sort({ createdAt: -1 })
+  const { logger } = require('../utils/logger.js')
+
+  // 確保 userId 是 ObjectId 類型
+  let queryUserId = userId
+  if (userId && typeof userId === 'string') {
+    try {
+      queryUserId = new mongoose.Types.ObjectId(userId)
+    } catch (e) {
+      logger.error(`無效的 userId 格式: ${userId}`, e)
+      return Promise.resolve(null)
+    }
+  } else if (userId && !(userId instanceof mongoose.Types.ObjectId)) {
+    try {
+      queryUserId = new mongoose.Types.ObjectId(userId.toString())
+    } catch (e) {
+      logger.error(`無效的 userId 格式: ${userId}`, e)
+      return Promise.resolve(null)
+    }
+  }
+
+  const query = { userId: queryUserId, isActive: true }
+  return this.findOne(query).sort({ createdAt: -1 })
 }
 
 privacyConsentSchema.statics.findActiveBySessionId = function (sessionId) {

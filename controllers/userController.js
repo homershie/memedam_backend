@@ -202,7 +202,7 @@ export const setTheme = async (req, res) => {
     res.cookie('theme', theme, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 365 * 24 * 60 * 60 * 1000, // 1 年
       path: '/',
     })
@@ -270,7 +270,7 @@ export const setLanguage = async (req, res) => {
     res.cookie('language', language, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 365 * 24 * 60 * 60 * 1000, // 1 年
       path: '/',
     })
@@ -343,7 +343,7 @@ export const setPersonalization = async (req, res) => {
     res.cookie('personalization', JSON.stringify(personalization), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 365 * 24 * 60 * 60 * 1000, // 1 年
       path: '/',
     })
@@ -427,7 +427,7 @@ export const setSearchPreferences = async (req, res) => {
     res.cookie('searchPreferences', JSON.stringify(searchPreferences), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 365 * 24 * 60 * 60 * 1000, // 1 年
       path: '/',
     })
@@ -453,7 +453,14 @@ export const setSearchPreferences = async (req, res) => {
  */
 export const getFunctionalPreferences = async (req, res) => {
   try {
-    const userId = req.user._id
+    // 根據 ObjectId-CastError-Fix-Summary.md 的修復方案
+    // 確保 userId 是 ObjectId 類型
+    const ObjectId = (await import('mongoose')).default.Types.ObjectId
+    const userId = req.user._id instanceof ObjectId ? req.user._id : new ObjectId(req.user._id)
+
+    logger.info(`原始 req.user._id: ${req.user._id}, 類型: ${typeof req.user._id}`)
+    logger.info(`轉換後的 userId: ${userId}, 類型: ${typeof userId}`)
+    logger.info(`userId 是否為 ObjectId 實例: ${userId instanceof ObjectId}`)
 
     const user = await User.findById(userId).select('functionalPreferences')
     if (!user) {
@@ -463,8 +470,66 @@ export const getFunctionalPreferences = async (req, res) => {
       })
     }
 
+    // 判斷功能 Cookie 是否可用：優先用全域中介層判定，否則以 session/user 同意作為後援
+    let canUseFunctional = Boolean(req.canUseFunctionalCookies)
+    let effectiveConsent = req.privacyConsent || null
+
+    const getSessionIdFromRequest = () => {
+      if (req.sessionID) return req.sessionID
+      const sidCookie = req.cookies?.['memedam.sid']
+      if (sidCookie) {
+        try {
+          const decoded = decodeURIComponent(sidCookie)
+          const raw = decoded.startsWith('s:') ? decoded.slice(2) : decoded
+          const sid = raw.split('.')[0]
+          if (sid && sid.length > 0) return sid
+        } catch {
+          // 忽略解析錯誤
+        }
+      }
+      if (req.headers['x-session-id']) return req.headers['x-session-id']
+      if (req.cookies?.sessionId) return req.cookies.sessionId
+      return null
+    }
+
+    if (!canUseFunctional) {
+      try {
+        const PrivacyConsent = (await import('../models/PrivacyConsent.js')).default
+        // 先以 userId 查（已在上方嘗試過），再以 sessionId 查
+        if (!effectiveConsent) {
+          const sessionId = getSessionIdFromRequest()
+          if (sessionId) {
+            effectiveConsent = await PrivacyConsent.findActiveBySessionId(sessionId)
+          }
+        }
+        if (effectiveConsent?.functional) {
+          canUseFunctional = true
+          // 嘗試補綁 userId（遷移）
+          if (!effectiveConsent.userId && req.user?._id) {
+            try {
+              effectiveConsent.userId = req.user._id
+              effectiveConsent.updatedAt = new Date()
+              await effectiveConsent.save()
+              logger.info('在 getFunctionalPreferences 中遷移 session 同意記錄到 userId 成功')
+            } catch (e) {
+              logger.warn('在 getFunctionalPreferences 遷移同意記錄失敗（忽略）', {
+                message: e?.message,
+                stack: e?.stack,
+              })
+            }
+          }
+        }
+      } catch (fallbackErr) {
+        logger.warn('偏好判定後援流程失敗（忽略）', {
+          message: fallbackErr?.message,
+          stack: fallbackErr?.stack,
+        })
+      }
+    }
+
     // 如果使用者不同意功能 Cookie，返回預設值
-    if (req.skipFunctionalCookies || !req.canUseFunctionalCookies) {
+    if (!canUseFunctional) {
+      logger.info('功能 Cookie 已停用，返回預設設定')
       const defaultPreferences = {
         theme: 'auto',
         language: 'zh-TW',
@@ -501,7 +566,28 @@ export const getFunctionalPreferences = async (req, res) => {
         theme: req.cookies?.theme || user.functionalPreferences?.theme || 'auto',
         language: req.cookies?.language || user.functionalPreferences?.language || 'zh-TW',
         personalization: req.cookies?.personalization
-          ? JSON.parse(req.cookies.personalization)
+          ? (() => {
+              try {
+                return JSON.parse(req.cookies.personalization)
+              } catch (e) {
+                logger.warn('解析 personalization cookie 失敗:', e)
+                return (
+                  user.functionalPreferences?.personalization || {
+                    autoPlay: true,
+                    showNSFW: false,
+                    compactMode: false,
+                    infiniteScroll: true,
+                    notificationPreferences: {
+                      email: true,
+                      push: true,
+                      mentions: true,
+                      likes: true,
+                      comments: true,
+                    },
+                  }
+                )
+              }
+            })()
           : user.functionalPreferences?.personalization || {
               autoPlay: true,
               showNSFW: false,
@@ -516,7 +602,21 @@ export const getFunctionalPreferences = async (req, res) => {
               },
             },
         searchPreferences: req.cookies?.searchPreferences
-          ? JSON.parse(req.cookies.searchPreferences)
+          ? (() => {
+              try {
+                return JSON.parse(req.cookies.searchPreferences)
+              } catch (e) {
+                logger.warn('解析 searchPreferences cookie 失敗:', e)
+                return (
+                  user.functionalPreferences?.searchPreferences || {
+                    searchHistory: true,
+                    searchSuggestions: true,
+                    defaultSort: 'hot',
+                    defaultFilter: 'all',
+                  }
+                )
+              }
+            })()
           : user.functionalPreferences?.searchPreferences || {
               searchHistory: true,
               searchSuggestions: true,
@@ -532,7 +632,7 @@ export const getFunctionalPreferences = async (req, res) => {
       })
     }
   } catch (error) {
-    logger.error('取得功能偏好設定失敗:', error)
+    logger.error('取得功能偏好設定失敗:', { message: error?.message, stack: error?.stack })
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '取得功能偏好設定失敗',
@@ -564,7 +664,7 @@ export const clearFunctionalPreferences = async (req, res) => {
       res.clearCookie(cookieName, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         path: '/',
       })
     })

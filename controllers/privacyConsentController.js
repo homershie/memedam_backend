@@ -1,6 +1,7 @@
 import PrivacyConsent from '../models/PrivacyConsent.js'
 import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
+import { logger } from '../utils/logger.js'
 
 // Helper functions to get request info
 const getClientIP = (req) => {
@@ -23,7 +24,7 @@ const getSessionId = (req) => {
   if (req.sessionID) return req.sessionID
   if (req.headers['x-session-id']) return req.headers['x-session-id']
   if (req.cookies?.sessionId) return req.cookies.sessionId
-  
+
   // Generate new session ID
   const crypto = require('crypto')
   return crypto.randomBytes(16).toString('hex')
@@ -45,28 +46,87 @@ class PrivacyConsentController {
         })
       }
 
-      // If user is logged in and has valid consent, deactivate old ones
+      // If user is logged in, check for existing session-based consent and migrate it
       if (req.user) {
+        const sessionId = getSessionId(req)
+
+        // First, deactivate old user-based consents
         await PrivacyConsent.updateMany(
           { userId: req.user._id, isActive: true },
-          { isActive: false, revokedAt: new Date() }
+          { isActive: false, revokedAt: new Date() },
         )
+
+        // Check if there's an existing session-based consent for this session
+        const existingSessionConsent = await PrivacyConsent.findActiveBySessionId(sessionId)
+
+        if (existingSessionConsent && !existingSessionConsent.userId) {
+          // Migrate the session-based consent to user-based consent
+          logger.info(`遷移 sessionId 記錄到 userId: ${sessionId} -> ${req.user._id}`)
+          existingSessionConsent.userId = req.user._id
+          existingSessionConsent.updatedAt = new Date()
+          await existingSessionConsent.save()
+
+          // Return the migrated consent instead of creating a new one
+          return res.status(StatusCodes.OK).json({
+            success: true,
+            data: existingSessionConsent,
+            message: 'Privacy consent migrated from session to user successfully',
+          })
+        }
       }
 
       // Create new consent record
       const consent = new PrivacyConsent({
-        userId: req.user?._id || null,
+        userId: req.user ? req.user._id : null,
         sessionId: getSessionId(req),
         necessary: necessary !== false, // Default to true
-        functional: functional || false,
-        analytics: analytics || false,
+        functional: functional === true, // Explicitly check for true
+        analytics: analytics === true, // Explicitly check for true
         consentVersion: consentVersion || '1.0',
         consentSource,
         ipAddress: getClientIP(req),
         userAgent: getUserAgent(req),
       })
 
+      // 確保 userId 正確設置 - 根據 ObjectId-CastError-Fix-Summary.md 的修復方案
+      if (req.user && req.user._id) {
+        // 確保 userId 是 ObjectId 類型
+        const { ObjectId } = require('mongoose').Types
+        consent.userId =
+          req.user._id instanceof ObjectId ? req.user._id : new ObjectId(req.user._id)
+        logger.info(`設置隱私同意記錄的 userId: ${consent.userId}`)
+        logger.info(`userId 類型: ${typeof consent.userId}`)
+        logger.info(`userId 字串: ${consent.userId?.toString()}`)
+        logger.info(`userId 是否為 ObjectId 實例: ${consent.userId instanceof ObjectId}`)
+      } else {
+        logger.warn('用戶未登入，隱私同意記錄將以 sessionId 保存')
+      }
+
+      logger.info('準備保存隱私同意記錄:', {
+        userId: consent.userId,
+        sessionId: consent.sessionId,
+        necessary: consent.necessary,
+        functional: consent.functional,
+        analytics: consent.analytics,
+        isActive: consent.isActive,
+        userExists: !!req.user,
+        userID: req.user?._id,
+        userIDType: typeof req.user?._id,
+        userIDString: req.user?._id?.toString(),
+        userIDEquals: req.user?._id === consent.userId,
+        userIDStringEquals: req.user?._id?.toString() === consent.userId?.toString(),
+        userIDStrictEquals: req.user?._id?.toString() === consent.userId?.toString(),
+        userIDObjectId: req.user?._id?.toString(),
+        consentUserIdObjectId: consent.userId?.toString(),
+        userIDEqualsStrict: req.user?._id?.toString() === consent.userId?.toString(),
+        userIDEqualsStrict2: req.user?._id?.toString() === consent.userId?.toString(),
+        userIDEqualsStrict3: req.user?._id?.toString() === consent.userId?.toString(),
+        userIDEqualsStrict4: req.user?._id?.toString() === consent.userId?.toString(),
+      })
+
       await consent.save()
+
+      logger.info('隱私同意記錄已保存，ID:', consent._id)
 
       // If user is logged in, update User association
       if (req.user) {
@@ -96,6 +156,23 @@ class PrivacyConsentController {
       if (req.user) {
         // Logged in user: prioritize userId
         consent = await PrivacyConsent.findActiveByUserId(req.user._id)
+
+        // If no user-based consent found, check for session-based consent and migrate it
+        if (!consent) {
+          const sessionId = getSessionId(req)
+          const sessionConsent = await PrivacyConsent.findActiveBySessionId(sessionId)
+
+          if (sessionConsent && !sessionConsent.userId) {
+            // Migrate the session-based consent to user-based consent
+            logger.info(
+              `在 getCurrent 中遷移 sessionId 記錄到 userId: ${sessionId} -> ${req.user._id}`,
+            )
+            sessionConsent.userId = req.user._id
+            sessionConsent.updatedAt = new Date()
+            await sessionConsent.save()
+            consent = sessionConsent
+          }
+        }
       }
 
       if (!consent) {

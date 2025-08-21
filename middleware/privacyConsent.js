@@ -9,11 +9,25 @@ import { logger } from '../utils/logger.js'
 // Helper functions
 const getSessionId = (req) => {
   if (req.sessionID) return req.sessionID
+
+  // 支援從 express-session cookie 解析（格式: s:<sid>.<sig>）
+  const sidCookie = req.cookies?.['memedam.sid']
+  if (sidCookie) {
+    try {
+      const decoded = decodeURIComponent(sidCookie)
+      const raw = decoded.startsWith('s:') ? decoded.slice(2) : decoded
+      const sid = raw.split('.')[0]
+      if (sid && sid.length > 0) return sid
+    } catch {
+      // 忽略解析錯誤，繼續使用其他方式
+    }
+  }
+
   if (req.headers['x-session-id']) return req.headers['x-session-id']
   if (req.cookies?.sessionId) return req.cookies.sessionId
 
   const crypto = require('crypto')
-  return crypto.randomBytes(16).toString('hex')
+  return crypto.randomBytes(32).toString('hex')
 }
 
 /**
@@ -25,18 +39,40 @@ const checkPrivacyConsent = async (req) => {
 
     // 優先檢查登入使用者的同意
     if (req.user) {
-      consent = await PrivacyConsent.findActiveByUserId(req.user._id)
+      // 確保 userId 是 ObjectId 類型
+      const { ObjectId } = require('mongoose').Types
+      const userId =
+        req.user._id instanceof ObjectId ? req.user._id : new ObjectId(String(req.user._id))
+      consent = await PrivacyConsent.findActiveByUserId(userId)
     }
 
     // 如果沒有登入使用者或沒有同意記錄，檢查 session
     if (!consent) {
       const sessionId = getSessionId(req)
       consent = await PrivacyConsent.findActiveBySessionId(sessionId)
+
+      // 如果已登入且找到的同意記錄是基於 session、且尚未綁定 userId，則進行遷移
+      if (req.user && consent && !consent.userId) {
+        try {
+          const { ObjectId } = require('mongoose').Types
+          const migratedUserId =
+            req.user._id instanceof ObjectId ? req.user._id : new ObjectId(req.user._id)
+          logger.info(`遷移 session 同意記錄到 userId: ${consent.sessionId} -> ${migratedUserId}`)
+          consent.userId = migratedUserId
+          consent.updatedAt = new Date()
+          await consent.save()
+        } catch (migrateError) {
+          logger.error('遷移 session 同意記錄失敗:', {
+            message: migrateError?.message,
+            stack: migrateError?.stack,
+          })
+        }
+      }
     }
 
     return consent
   } catch (error) {
-    logger.error('檢查隱私同意失敗:', error)
+    logger.error('檢查隱私同意失敗:', { message: error?.message, stack: error?.stack })
     return null
   }
 }
@@ -60,7 +96,7 @@ export const checkAnalyticsConsent = async (req, res, next) => {
 
     next()
   } catch (error) {
-    logger.error('Analytics 同意檢查失敗:', error)
+    logger.error('Analytics 同意檢查失敗:', { message: error?.message, stack: error?.stack })
     req.skipAnalytics = true
     next()
   }
@@ -85,7 +121,10 @@ export const checkFunctionalConsent = async (req, res, next) => {
 
     next()
   } catch (error) {
-    logger.error('Functional cookies 同意檢查失敗:', error)
+    logger.error('Functional cookies 同意檢查失敗:', {
+      message: error?.message,
+      stack: error?.stack,
+    })
     req.skipFunctionalCookies = true
     next()
   }
@@ -114,7 +153,7 @@ export const attachPrivacyConsent = async (req, res, next) => {
 
     next()
   } catch (error) {
-    logger.error('附加隱私同意資訊失敗:', error)
+    logger.error('附加隱私同意資訊失敗:', { message: error?.message, stack: error?.stack })
     req.hasPrivacyConsent = false
     req.canTrackAnalytics = false
     req.canUseFunctionalCookies = false

@@ -20,6 +20,7 @@ import helmet from 'helmet'
 import hpp from 'hpp'
 import mongoSanitize from './utils/mongoSanitize.js'
 import compression from 'compression'
+import cookieParser from 'cookie-parser'
 import pinoHttp from 'pino-http'
 import passport from 'passport'
 import mongoose from 'mongoose'
@@ -43,6 +44,7 @@ import {
 } from './middleware/rateLimit.js'
 import errorHandler, { notFound } from './middleware/errorHandler.js'
 import { attachPrivacyConsent } from './middleware/privacyConsent.js'
+import { optionalToken } from './middleware/auth.js'
 import maintenanceScheduler from './services/maintenanceScheduler.js'
 import analyticsMonitor from './services/analyticsMonitor.js'
 import {
@@ -109,6 +111,7 @@ app.use(
         : callback(new Error('Not allowed by CORS'))
     },
     credentials: true,
+    exposedHeaders: ['Set-Cookie'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   }),
@@ -117,6 +120,7 @@ app.use(
 app.use(hpp())
 app.use(mongoSanitize())
 app.use(compression())
+app.use(cookieParser())
 
 // 開發環境立即配置 session 中間件（使用 MemoryStore）
 if (process.env.NODE_ENV === 'development') {
@@ -306,7 +310,8 @@ app.get('/api-docs.json', (req, res) => {
   res.send(swaggerSpecs)
 })
 
-// 全域隱私同意檢查 middleware
+// 先嘗試解析 JWT（不強制），再附加隱私同意資訊
+app.use(optionalToken)
 app.use(attachPrivacyConsent)
 
 // 路由
