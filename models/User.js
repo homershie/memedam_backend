@@ -345,6 +345,70 @@ const UserSchema = new mongoose.Schema(
         message: '偏好設定必須是物件格式',
       },
     },
+    // 功能 Cookie 相關偏好設定
+    functionalPreferences: {
+      theme: {
+        type: String,
+        enum: ['light', 'dark', 'auto'],
+        default: 'auto',
+        validate: {
+          validator(value) {
+            return ['light', 'dark', 'auto'].includes(value)
+          },
+          message: '主題設定只能是 light、dark 或 auto',
+        },
+      },
+      language: {
+        type: String,
+        enum: ['zh-TW', 'en-US', 'ja-JP'],
+        default: 'zh-TW',
+        validate: {
+          validator(value) {
+            return ['zh-TW', 'en-US', 'ja-JP'].includes(value)
+          },
+          message: '語言設定只能是 zh-TW、en-US 或 ja-JP',
+        },
+      },
+      personalization: {
+        autoPlay: { type: Boolean, default: true },
+        showNSFW: { type: Boolean, default: false },
+        compactMode: { type: Boolean, default: false },
+        infiniteScroll: { type: Boolean, default: true },
+        notificationPreferences: {
+          email: { type: Boolean, default: true },
+          push: { type: Boolean, default: true },
+          mentions: { type: Boolean, default: true },
+          likes: { type: Boolean, default: true },
+          comments: { type: Boolean, default: true },
+        },
+      },
+      searchPreferences: {
+        searchHistory: { type: Boolean, default: true },
+        searchSuggestions: { type: Boolean, default: true },
+        defaultSort: {
+          type: String,
+          enum: ['hot', 'new', 'top', 'rising'],
+          default: 'hot',
+          validate: {
+            validator(value) {
+              return ['hot', 'new', 'top', 'rising'].includes(value)
+            },
+            message: '預設排序只能是 hot、new、top 或 rising',
+          },
+        },
+        defaultFilter: {
+          type: String,
+          enum: ['all', 'sfw', 'nsfw'],
+          default: 'all',
+          validate: {
+            validator(value) {
+              return ['all', 'sfw', 'nsfw'].includes(value)
+            },
+            message: '預設篩選只能是 all、sfw 或 nsfw',
+          },
+        },
+      },
+    },
     // 追隨功能相關統計
     follower_count: {
       type: Number,

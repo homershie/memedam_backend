@@ -42,6 +42,7 @@ import {
   resendVerificationLimiter,
 } from './middleware/rateLimit.js'
 import errorHandler, { notFound } from './middleware/errorHandler.js'
+import { attachPrivacyConsent } from './middleware/privacyConsent.js'
 import maintenanceScheduler from './services/maintenanceScheduler.js'
 import analyticsMonitor from './services/analyticsMonitor.js'
 import {
@@ -304,6 +305,9 @@ app.get('/api-docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json')
   res.send(swaggerSpecs)
 })
+
+// 全域隱私同意檢查 middleware
+app.use(attachPrivacyConsent)
 
 // 路由
 import userRoutes from './routes/userRoutes.js'

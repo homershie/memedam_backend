@@ -152,6 +152,474 @@ export const getNotificationSettings = async (req, res) => {
   }
 }
 
+// 功能 Cookie 相關偏好設定方法
+
+/**
+ * 設定主題偏好
+ * 只有當使用者同意功能 Cookie 時才設定
+ */
+export const setTheme = async (req, res) => {
+  try {
+    // 檢查功能 Cookie 同意
+    if (req.skipFunctionalCookies || !req.canUseFunctionalCookies) {
+      logger.debug('跳過主題設定：使用者未同意功能 Cookie')
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: '主題設定已跳過（隱私設定）',
+        skipped: true,
+        reason: 'functional_cookies_disabled',
+      })
+    }
+
+    const { theme } = req.body
+    const userId = req.user._id
+
+    // 驗證主題選項
+    const validThemes = ['light', 'dark', 'auto']
+    if (!validThemes.includes(theme)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: '無效的主題選項',
+        validOptions: validThemes,
+      })
+    }
+
+    // 更新用戶的主題偏好
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { 'functionalPreferences.theme': theme },
+      { new: true, runValidators: true },
+    ).select('functionalPreferences.theme')
+
+    if (!updatedUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    // 同時設定功能 Cookie
+    res.cookie('theme', theme, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 1 年
+      path: '/',
+    })
+
+    logger.info(`使用者 ${userId} 設定主題: ${theme}`)
+
+    res.json({
+      success: true,
+      message: '主題偏好已儲存',
+      data: { theme: updatedUser.functionalPreferences.theme },
+    })
+  } catch (error) {
+    logger.error('設定主題偏好失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '設定主題偏好失敗',
+    })
+  }
+}
+
+/**
+ * 設定語言偏好
+ */
+export const setLanguage = async (req, res) => {
+  try {
+    // 檢查功能 Cookie 同意
+    if (req.skipFunctionalCookies || !req.canUseFunctionalCookies) {
+      logger.debug('跳過語言設定：使用者未同意功能 Cookie')
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: '語言設定已跳過（隱私設定）',
+        skipped: true,
+        reason: 'functional_cookies_disabled',
+      })
+    }
+
+    const { language } = req.body
+    const userId = req.user._id
+
+    // 驗證語言選項
+    const validLanguages = ['zh-TW', 'en-US', 'ja-JP']
+    if (!validLanguages.includes(language)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: '無效的語言選項',
+        validOptions: validLanguages,
+      })
+    }
+
+    // 更新用戶的語言偏好
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { 'functionalPreferences.language': language },
+      { new: true, runValidators: true },
+    ).select('functionalPreferences.language')
+
+    if (!updatedUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    // 同時設定功能 Cookie
+    res.cookie('language', language, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 1 年
+      path: '/',
+    })
+
+    logger.info(`使用者 ${userId} 設定語言: ${language}`)
+
+    res.json({
+      success: true,
+      message: '語言偏好已儲存',
+      data: { language: updatedUser.functionalPreferences.language },
+    })
+  } catch (error) {
+    logger.error('設定語言偏好失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '設定語言偏好失敗',
+    })
+  }
+}
+
+/**
+ * 設定個人化偏好
+ */
+export const setPersonalization = async (req, res) => {
+  try {
+    // 檢查功能 Cookie 同意
+    if (req.skipFunctionalCookies || !req.canUseFunctionalCookies) {
+      logger.debug('跳過個人化設定：使用者未同意功能 Cookie')
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: '個人化設定已跳過（隱私設定）',
+        skipped: true,
+        reason: 'functional_cookies_disabled',
+      })
+    }
+
+    const { autoPlay, showNSFW, compactMode, infiniteScroll, notificationPreferences } = req.body
+    const userId = req.user._id
+
+    // 建立個人化設定物件
+    const personalization = {
+      autoPlay: autoPlay !== undefined ? autoPlay : true,
+      showNSFW: showNSFW !== undefined ? showNSFW : false,
+      compactMode: compactMode !== undefined ? compactMode : false,
+      infiniteScroll: infiniteScroll !== undefined ? infiniteScroll : true,
+      notificationPreferences: notificationPreferences || {
+        email: true,
+        push: true,
+        mentions: true,
+        likes: true,
+        comments: true,
+      },
+    }
+
+    // 更新用戶的個人化偏好
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { 'functionalPreferences.personalization': personalization },
+      { new: true, runValidators: true },
+    ).select('functionalPreferences.personalization')
+
+    if (!updatedUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    // 同時設定功能 Cookie
+    res.cookie('personalization', JSON.stringify(personalization), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 1 年
+      path: '/',
+    })
+
+    logger.info(`使用者 ${userId} 更新個人化設定`)
+
+    res.json({
+      success: true,
+      message: '個人化偏好已儲存',
+      data: updatedUser.functionalPreferences.personalization,
+    })
+  } catch (error) {
+    logger.error('設定個人化偏好失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '設定個人化偏好失敗',
+    })
+  }
+}
+
+/**
+ * 設定搜尋偏好
+ */
+export const setSearchPreferences = async (req, res) => {
+  try {
+    // 檢查功能 Cookie 同意
+    if (req.skipFunctionalCookies || !req.canUseFunctionalCookies) {
+      logger.debug('跳過搜尋偏好設定：使用者未同意功能 Cookie')
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: '搜尋偏好設定已跳過（隱私設定）',
+        skipped: true,
+        reason: 'functional_cookies_disabled',
+      })
+    }
+
+    const { searchHistory, searchSuggestions, defaultSort, defaultFilter } = req.body
+    const userId = req.user._id
+
+    // 驗證排序選項
+    if (defaultSort && !['hot', 'new', 'top', 'rising'].includes(defaultSort)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: '無效的排序選項',
+        validOptions: ['hot', 'new', 'top', 'rising'],
+      })
+    }
+
+    // 驗證篩選選項
+    if (defaultFilter && !['all', 'sfw', 'nsfw'].includes(defaultFilter)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: '無效的篩選選項',
+        validOptions: ['all', 'sfw', 'nsfw'],
+      })
+    }
+
+    // 建立搜尋偏好物件
+    const searchPreferences = {
+      searchHistory: searchHistory !== undefined ? searchHistory : true,
+      searchSuggestions: searchSuggestions !== undefined ? searchSuggestions : true,
+      defaultSort: defaultSort || 'hot',
+      defaultFilter: defaultFilter || 'all',
+    }
+
+    // 更新用戶的搜尋偏好
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { 'functionalPreferences.searchPreferences': searchPreferences },
+      { new: true, runValidators: true },
+    ).select('functionalPreferences.searchPreferences')
+
+    if (!updatedUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    // 同時設定功能 Cookie
+    res.cookie('searchPreferences', JSON.stringify(searchPreferences), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 1 年
+      path: '/',
+    })
+
+    logger.info(`使用者 ${userId} 更新搜尋偏好`)
+
+    res.json({
+      success: true,
+      message: '搜尋偏好已儲存',
+      data: updatedUser.functionalPreferences.searchPreferences,
+    })
+  } catch (error) {
+    logger.error('設定搜尋偏好失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '設定搜尋偏好失敗',
+    })
+  }
+}
+
+/**
+ * 取得當前偏好設定
+ */
+export const getFunctionalPreferences = async (req, res) => {
+  try {
+    const userId = req.user._id
+
+    const user = await User.findById(userId).select('functionalPreferences')
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    // 如果使用者不同意功能 Cookie，返回預設值
+    if (req.skipFunctionalCookies || !req.canUseFunctionalCookies) {
+      const defaultPreferences = {
+        theme: 'auto',
+        language: 'zh-TW',
+        personalization: {
+          autoPlay: true,
+          showNSFW: false,
+          compactMode: false,
+          infiniteScroll: true,
+          notificationPreferences: {
+            email: true,
+            push: true,
+            mentions: true,
+            likes: true,
+            comments: true,
+          },
+        },
+        searchPreferences: {
+          searchHistory: true,
+          searchSuggestions: true,
+          defaultSort: 'hot',
+          defaultFilter: 'all',
+        },
+      }
+
+      res.json({
+        success: true,
+        message: '功能 Cookie 已停用，使用預設設定',
+        data: defaultPreferences,
+        functionalCookiesEnabled: false,
+      })
+    } else {
+      // 合併資料庫中的設定和 Cookie 中的設定
+      const preferences = {
+        theme: req.cookies?.theme || user.functionalPreferences?.theme || 'auto',
+        language: req.cookies?.language || user.functionalPreferences?.language || 'zh-TW',
+        personalization: req.cookies?.personalization
+          ? JSON.parse(req.cookies.personalization)
+          : user.functionalPreferences?.personalization || {
+              autoPlay: true,
+              showNSFW: false,
+              compactMode: false,
+              infiniteScroll: true,
+              notificationPreferences: {
+                email: true,
+                push: true,
+                mentions: true,
+                likes: true,
+                comments: true,
+              },
+            },
+        searchPreferences: req.cookies?.searchPreferences
+          ? JSON.parse(req.cookies.searchPreferences)
+          : user.functionalPreferences?.searchPreferences || {
+              searchHistory: true,
+              searchSuggestions: true,
+              defaultSort: 'hot',
+              defaultFilter: 'all',
+            },
+      }
+
+      res.json({
+        success: true,
+        data: preferences,
+        functionalCookiesEnabled: true,
+      })
+    }
+  } catch (error) {
+    logger.error('取得功能偏好設定失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '取得功能偏好設定失敗',
+    })
+  }
+}
+
+/**
+ * 清除所有偏好設定
+ */
+export const clearFunctionalPreferences = async (req, res) => {
+  try {
+    const userId = req.user._id
+
+    // 清除資料庫中的功能偏好設定
+    await User.findByIdAndUpdate(userId, {
+      $unset: {
+        'functionalPreferences.theme': 1,
+        'functionalPreferences.language': 1,
+        'functionalPreferences.personalization': 1,
+        'functionalPreferences.searchPreferences': 1,
+      },
+    })
+
+    // 清除所有功能 Cookie
+    const cookiesToClear = ['theme', 'language', 'personalization', 'searchPreferences']
+
+    cookiesToClear.forEach((cookieName) => {
+      res.clearCookie(cookieName, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+      })
+    })
+
+    logger.info(`使用者 ${userId} 清除所有功能偏好設定`)
+
+    res.json({
+      success: true,
+      message: '所有功能偏好設定已清除',
+      clearedCookies: cookiesToClear,
+    })
+  } catch (error) {
+    logger.error('清除功能偏好設定失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '清除功能偏好設定失敗',
+    })
+  }
+}
+
+/**
+ * 取得隱私設定狀態
+ */
+export const getPrivacyStatus = async (req, res) => {
+  try {
+    const privacyStatus = {
+      hasPrivacyConsent: req.hasPrivacyConsent,
+      canUseFunctionalCookies: req.canUseFunctionalCookies,
+      canTrackAnalytics: req.canTrackAnalytics,
+      canUseNecessaryCookies: req.canUseNecessaryCookies,
+      currentConsent: req.privacyConsent
+        ? {
+            necessary: req.privacyConsent.necessary,
+            functional: req.privacyConsent.functional,
+            analytics: req.privacyConsent.analytics,
+            consentVersion: req.privacyConsent.consentVersion,
+            consentSource: req.privacyConsent.consentSource,
+            createdAt: req.privacyConsent.createdAt,
+          }
+        : null,
+    }
+
+    res.json({
+      success: true,
+      data: privacyStatus,
+    })
+  } catch (error) {
+    logger.error('取得隱私設定狀態失敗:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '取得隱私設定狀態失敗',
+    })
+  }
+}
+
 // 建立新使用者
 export const createUser = async (req, res) => {
   // 使用 session 來確保原子性操作

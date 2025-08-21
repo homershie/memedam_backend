@@ -16,6 +16,16 @@ import { logger } from '../utils/logger.js'
  */
 export const trackRecommendation = async (req, res) => {
   try {
+    // 檢查隱私同意設定
+    if (req.skipAnalytics || !req.canTrackAnalytics) {
+      logger.debug('跳過 analytics 追蹤：使用者未同意 analytics')
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: 'Analytics 追蹤已跳過（隱私設定）',
+        skipped: true,
+      })
+    }
+
     const {
       meme_id,
       algorithm,

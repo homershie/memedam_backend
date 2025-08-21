@@ -28,6 +28,14 @@ import {
   exportUsersCsv, // 新增匯出 CSV
   updateNotificationSettings, // 新增通知設定更新
   getNotificationSettings, // 新增通知設定獲取
+  // 功能 Cookie 相關偏好設定
+  setTheme,
+  setLanguage,
+  setPersonalization,
+  setSearchPreferences,
+  getFunctionalPreferences,
+  clearFunctionalPreferences,
+  getPrivacyStatus,
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
@@ -553,6 +561,15 @@ router.delete('/me', token, isUser, deleteMe)
 // 通知設定相關路由
 router.get('/notification-settings', token, isUser, getNotificationSettings)
 router.patch('/notification-settings', token, isUser, updateNotificationSettings)
+
+// 功能 Cookie 相關偏好設定路由
+router.post('/preferences/theme', token, isUser, setTheme)
+router.post('/preferences/language', token, isUser, setLanguage)
+router.post('/preferences/personalization', token, isUser, setPersonalization)
+router.post('/preferences/search', token, isUser, setSearchPreferences)
+router.get('/preferences', token, isUser, getFunctionalPreferences)
+router.delete('/preferences', token, isUser, clearFunctionalPreferences)
+router.get('/privacy-status', token, isUser, getPrivacyStatus)
 
 // OAuth 綁定相關路由（必須在 /:id 之前）
 router.get('/bind-status', token, getBindStatus)

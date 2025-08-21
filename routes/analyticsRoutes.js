@@ -16,6 +16,7 @@ import {
   getAnalyticsDashboard,
 } from '../controllers/analyticsController.js'
 import { token } from '../middleware/auth.js'
+import { checkAnalyticsConsent, attachPrivacyConsent } from '../middleware/privacyConsent.js'
 
 const router = express.Router()
 
@@ -167,7 +168,13 @@ const router = express.Router()
  *       401:
  *         description: 未授權
  */
-router.post('/track-recommendation', token, trackRecommendation)
+router.post(
+  '/track-recommendation',
+  token,
+  attachPrivacyConsent,
+  checkAnalyticsConsent,
+  trackRecommendation,
+)
 
 /**
  * @swagger
