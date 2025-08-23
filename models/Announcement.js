@@ -75,12 +75,13 @@ const AnnouncementSchema = new mongoose.Schema(
       trim: true,
       validate: {
         validator: function (v) {
-          if (v && !v.match(/^https:\/\/res\.cloudinary\.com\/.*\/image\/upload\/.*$/)) {
-            return false
-          }
-          return true
+          if (!v) return true // 允許空值
+          // 允許 Cloudinary URL 或一般圖片 URL
+          const cloudinaryPattern = /^https:\/\/res\.cloudinary\.com\/.*\/image\/upload\/.*$/
+          const imageUrlPattern = /^https?:\/\/.*\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i
+          return cloudinaryPattern.test(v) || imageUrlPattern.test(v)
         },
-        message: '圖片必須是有效的 Cloudinary URL',
+        message: '圖片必須是有效的 Cloudinary URL 或圖片連結',
       },
     },
   },

@@ -141,9 +141,13 @@ export const updateAnnouncement = async (req, res) => {
     if (req.file) {
       updateData.image = req.file.path
 
-      // 如果有舊圖片，刪除舊圖片
+      // 如果有舊圖片且是 Cloudinary 圖片，刪除舊圖片
       const existingAnnouncement = await Announcement.findById(req.params.id)
-      if (existingAnnouncement && existingAnnouncement.image) {
+      if (
+        existingAnnouncement &&
+        existingAnnouncement.image &&
+        existingAnnouncement.image.includes('cloudinary.com')
+      ) {
         try {
           // 從 URL 中提取 public_id
           const urlParts = existingAnnouncement.image.split('/')
@@ -212,8 +216,8 @@ export const deleteAnnouncement = async (req, res) => {
       return res.status(404).json({ success: false, data: null, error: '找不到公告' })
     }
 
-    // 如果有圖片，刪除圖片
-    if (announcement.image) {
+    // 如果有圖片且是 Cloudinary 圖片，刪除圖片
+    if (announcement.image && announcement.image.includes('cloudinary.com')) {
       try {
         // 從 URL 中提取 public_id
         const urlParts = announcement.image.split('/')

@@ -16,14 +16,19 @@ const storage = new CloudinaryStorage({
   params: async (req, file) => {
     let folder = 'others'
 
+    // 確保 req.body 存在（在 multer 處理過程中可能為 undefined）
+    if (!req.body) {
+      req.body = {}
+    }
+
     // 根據檔案欄位名稱決定資料夾
     if (file.fieldname === 'avatar') {
       folder = 'avatars'
     } else if (file.fieldname === 'image' || file.fieldname === 'images') {
       // 判斷是否為詳細頁圖片
-      if (req.body && req.body.isDetailImage === 'true') {
+      if (req.body.isDetailImage === 'true') {
         folder = 'memes_detail'
-      } else if (req.body && req.body.type === 'announcement') {
+      } else if (req.body.type === 'announcement') {
         folder = 'announcements'
       } else {
         folder = 'memes'
@@ -86,9 +91,31 @@ export const uploadImages = arrayUpload('images', 5)
 
 // 上傳公告圖片
 export const uploadAnnouncementImage = (req, res, next) => {
-  // 設定請求體中的類型為公告
+  // 在 multer 處理之前確保 req.body 存在
+  if (!req.body) {
+    req.body = {}
+  }
+
+  // 設定類型為公告
   req.body.type = 'announcement'
-  return singleUpload('image')(req, res, next)
+
+  // 使用 multer 處理檔案上傳
+  return singleUpload('image')(req, res, (err) => {
+    if (err) {
+      logger.error('公告圖片上傳錯誤:', err)
+      return next(err)
+    }
+
+    // multer 處理完成後，再次確保 req.body 存在
+    if (!req.body) {
+      req.body = {}
+    }
+
+    // 重新設定類型（因為 multer 可能會重置 req.body）
+    req.body.type = 'announcement'
+
+    next()
+  })
 }
 
 // 刪除圖片
