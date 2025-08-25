@@ -62,6 +62,7 @@ import {
 } from './services/recommendationScheduler.js'
 
 import './config/passport.js'
+import logService from './services/logService.js'
 
 const app = express()
 

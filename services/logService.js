@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js'
+import util from 'util'
 
 class LogService {
   constructor() {
@@ -15,17 +16,17 @@ class LogService {
     const originalConsoleWarn = console.warn
 
     console.log = (...args) => {
-      this.addToBuffer('info', args.join(' '), 'console')
+      this.addToBuffer('info', this.formatLogArgs(args), 'console')
       originalConsoleLog(...args)
     }
 
     console.error = (...args) => {
-      this.addToBuffer('error', args.join(' '), 'console')
+      this.addToBuffer('error', this.formatLogArgs(args), 'console')
       originalConsoleError(...args)
     }
 
     console.warn = (...args) => {
-      this.addToBuffer('warn', args.join(' '), 'console')
+      this.addToBuffer('warn', this.formatLogArgs(args), 'console')
       originalConsoleWarn(...args)
     }
 
@@ -57,9 +58,23 @@ class LogService {
   }
 
   formatLogArgs(args) {
-    return args
-      .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-      .join(' ')
+    try {
+      const parts = args.map((arg) => {
+        try {
+          if (typeof arg === 'string') return arg
+          if (typeof arg === 'number' || typeof arg === 'boolean' || arg == null) return String(arg)
+          if (typeof arg === 'symbol') return String(arg)
+          if (typeof arg === 'function') return `[Function ${arg.name || 'anonymous'}]`
+          // 安全處理物件（含循環引用）
+          return util.inspect(arg, { depth: 3, maxArrayLength: 50, breakLength: 120 })
+        } catch {
+          return '[Unserializable]'
+        }
+      })
+      return parts.join(' ')
+    } catch {
+      return '[Log formatting error]'
+    }
   }
 
   addToBuffer(level, message, context) {
