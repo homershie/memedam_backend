@@ -138,6 +138,19 @@ const UserSchema = new mongoose.Schema(
         message: '頭像必須是有效的URL地址',
       },
     },
+    cover_image: {
+      type: String,
+      default: '',
+      validate: {
+        validator(value) {
+          if (value && value.trim().length > 0) {
+            return validator.isURL(value, { protocols: ['http', 'https'] })
+          }
+          return true
+        },
+        message: '封面圖片必須是有效的URL地址',
+      },
+    },
     bio: {
       type: String,
       default: '',

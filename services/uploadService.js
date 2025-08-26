@@ -24,6 +24,8 @@ const storage = new CloudinaryStorage({
     // 根據檔案欄位名稱決定資料夾
     if (file.fieldname === 'avatar') {
       folder = 'avatars'
+    } else if (file.fieldname === 'cover_image') {
+      folder = 'cover_images'
     } else if (file.fieldname === 'image' || file.fieldname === 'images') {
       // 判斷是否為詳細頁圖片
       if (req.body.isDetailImage === 'true') {
@@ -85,6 +87,9 @@ export const uploadImage = singleUpload('image')
 
 // 上傳頭像
 export const uploadAvatar = singleUpload('avatar')
+
+// 上傳封面圖片
+export const uploadCoverImage = singleUpload('cover_image')
 
 // 上傳多張圖片
 export const uploadImages = arrayUpload('images', 5)
@@ -262,6 +267,7 @@ export default {
   arrayUpload,
   uploadImage,
   uploadAvatar,
+  uploadCoverImage,
   uploadImages,
   uploadAnnouncementImage,
   deleteImage,

@@ -40,7 +40,7 @@ import {
 } from '../controllers/userController.js'
 import { login, logout, refresh } from '../controllers/authController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
-import { uploadAvatar } from '../services/uploadService.js'
+import { uploadAvatar, uploadCoverImage } from '../services/uploadService.js'
 import passport from 'passport'
 import { signToken } from '../utils/jwt.js'
 import { logger } from '../utils/logger.js'
@@ -94,6 +94,9 @@ const generateOAuthState = () => {
  *         avatar:
  *           type: string
  *           description: 頭像URL
+ *         cover_image:
+ *           type: string
+ *           description: 封面圖片URL
  *         bio:
  *           type: string
  *           description: 個人簡介
@@ -558,6 +561,131 @@ router.get('/search', searchUsers)
 router.get('/me', token, isUser, getMe)
 router.put('/me', token, isUser, uploadAvatar, updateMe)
 router.delete('/me', token, isUser, deleteMe)
+
+/**
+ * @swagger
+ * /api/users/me/cover-image:
+ *   post:
+ *     summary: 上傳用戶封面圖片
+ *     tags: [User Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     description: 上傳用戶的封面圖片，支援 JPG、PNG、GIF、WebP 格式，最大 5MB，建議尺寸 1920x242 像素
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               cover_image:
+ *                 type: string
+ *                 format: binary
+ *                 description: 封面圖片檔案
+ *             required:
+ *               - cover_image
+ *     responses:
+ *       200:
+ *         description: 封面圖片上傳成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "封面圖片上傳成功"
+ *                 url:
+ *                   type: string
+ *                   description: 上傳後的圖片 URL
+ *                   example: "https://res.cloudinary.com/xxx/image/upload/v1234567890/cover_images/xxx.jpg"
+ *       400:
+ *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "請選擇要上傳的封面圖片"
+ *       401:
+ *         description: 未授權
+ *       404:
+ *         description: 用戶不存在
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "封面圖片上傳失敗"
+ *                 error:
+ *                   type: string
+ *                   description: 錯誤詳情
+ */
+
+// 封面圖片上傳路由
+router.post('/me/cover-image', token, isUser, uploadCoverImage, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: '請選擇要上傳的封面圖片',
+      })
+    }
+
+    // 更新用戶的封面圖片
+    const userId = req.user.id
+    const user = await User.findById(userId)
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: '用戶不存在',
+      })
+    }
+
+    // 如果用戶已有封面圖片，刪除舊的
+    if (user.cover_image) {
+      try {
+        const { deleteImageByUrl } = await import('../services/uploadService.js')
+        await deleteImageByUrl(user.cover_image)
+      } catch (error) {
+        logger.warn('刪除舊封面圖片失敗:', error)
+      }
+    }
+
+    // 更新用戶的封面圖片
+    user.cover_image = req.file.path
+    await user.save()
+
+    res.json({
+      success: true,
+      message: '封面圖片上傳成功',
+      url: req.file.path,
+    })
+  } catch (error) {
+    logger.error('封面圖片上傳失敗:', error)
+    res.status(500).json({
+      success: false,
+      message: '封面圖片上傳失敗',
+      error: error.message,
+    })
+  }
+})
 
 // 通知設定相關路由
 router.get('/notification-settings', token, isUser, getNotificationSettings)
