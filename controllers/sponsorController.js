@@ -210,3 +210,128 @@ export const deleteSponsor = async (req, res) => {
     session.endSession()
   }
 }
+
+// Buy Me a Coffee 回調處理
+export const handleBuyMeACoffeeCallback = async (req, res) => {
+  try {
+    const {
+      transaction_id,
+      amount,
+      message,
+      payment_method,
+      user_id, // 從 URL 參數傳遞的用戶ID
+    } = req.body
+
+    // 驗證必要參數
+    if (!transaction_id || !amount || !user_id) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '缺少必要參數',
+      })
+    }
+
+    // 檢查是否已存在相同交易ID的贊助
+    const existingSponsor = await Sponsor.findOne({ transaction_id })
+    if (existingSponsor) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: '此交易已存在',
+      })
+    }
+
+    // 建立新的贊助記錄
+    const sponsor = new Sponsor({
+      user_id,
+      amount: parseFloat(amount),
+      message: message || '',
+      payment_method: payment_method || 'buy_me_a_coffee',
+      transaction_id,
+      status: 'success',
+      created_ip: req.ip || req.headers['x-forwarded-for'] || '',
+    })
+
+    await sponsor.save()
+
+    // 重定向到成功頁面
+    res.redirect(`/sponsor/success?transaction_id=${transaction_id}`)
+  } catch (error) {
+    console.error('Buy Me a Coffee 回調錯誤:', error)
+
+    // 重定向到錯誤頁面
+    res.redirect('/sponsor/error?message=處理贊助時發生錯誤')
+  }
+}
+
+// 根據交易ID取得贊助資訊
+export const getSponsorByTransactionId = async (req, res) => {
+  try {
+    const { transaction_id } = req.params
+
+    if (!transaction_id) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '缺少交易ID',
+      })
+    }
+
+    const sponsor = await Sponsor.findOne({ transaction_id }).populate('user_id', 'nickname avatar')
+
+    if (!sponsor) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: '找不到此交易記錄',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: sponsor,
+      error: null,
+    })
+  } catch (error) {
+    console.error('取得贊助資訊錯誤:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}
+
+// 記錄贊助頁面訪問
+export const logSponsorPageAccess = async (req, res) => {
+  try {
+    const { pageType, transactionId, message, userAgent, referrer } = req.body
+
+    // 記錄訪問日誌
+    console.log('贊助頁面訪問記錄:', {
+      pageType,
+      transactionId,
+      message,
+      userAgent,
+      referrer,
+      ip: req.ip || req.headers['x-forwarded-for'] || '',
+      timestamp: new Date().toISOString(),
+    })
+
+    // 這裡可以將記錄儲存到資料庫或發送到分析服務
+    // 例如：await SponsorAccessLog.create({ ... })
+
+    res.json({
+      success: true,
+      message: '訪問記錄已記錄',
+      error: null,
+    })
+  } catch (error) {
+    console.error('記錄贊助頁面訪問錯誤:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}

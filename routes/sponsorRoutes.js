@@ -5,6 +5,9 @@ import {
   getSponsorById,
   updateSponsor,
   deleteSponsor,
+  handleBuyMeACoffeeCallback,
+  getSponsorByTransactionId,
+  logSponsorPageAccess,
 } from '../controllers/sponsorController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
 
@@ -278,5 +281,11 @@ router.get('/:id', token, isUser, getSponsorById)
 router.put('/:id', token, isUser, updateSponsor)
 // 刪除贊助
 router.delete('/:id', token, isManager, deleteSponsor)
+// Buy Me a Coffee 回調處理（無需認證）
+router.post('/callback/buy-me-a-coffee', handleBuyMeACoffeeCallback)
+// 根據交易ID取得贊助資訊（無需認證）
+router.get('/transaction/:transaction_id', getSponsorByTransactionId)
+// 記錄贊助頁面訪問（無需認證）
+router.post('/log-access', logSponsorPageAccess)
 
 export default router
