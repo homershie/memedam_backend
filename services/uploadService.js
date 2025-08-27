@@ -10,6 +10,84 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
+// 橫式圖片尺寸轉換設定
+export const IMAGE_SIZES = {
+  s: {
+    width: 320,
+    height: 240,
+    crop: 'limit',
+    quality: 'auto',
+    format: 'auto',
+    dpr: 'auto',
+    name: '小',
+    description: '適合插圖或內嵌小圖',
+  },
+  m: {
+    width: 640,
+    height: 480,
+    crop: 'limit',
+    quality: 'auto',
+    format: 'auto',
+    dpr: 'auto',
+    name: '中',
+    description: '一般內容圖，清楚又不撐版',
+  },
+  l: {
+    width: 960,
+    height: 720,
+    crop: 'limit',
+    quality: 'auto',
+    format: 'auto',
+    dpr: 'auto',
+    name: '大',
+    description: '接近滿欄寬，適合重點圖',
+  },
+  full: {
+    width: '100%',
+    height: 'auto',
+    crop: 'limit',
+    quality: 'auto',
+    format: 'auto',
+    dpr: 'auto',
+    name: '滿版',
+    description: '自適應容器寬度',
+  },
+}
+
+// 直式圖片尺寸設定
+export const IMAGE_SIZES_PORTRAIT = {
+  s: {
+    width: 240,
+    height: 320,
+    crop: 'limit',
+    quality: 'auto',
+    format: 'auto',
+    dpr: 'auto',
+    name: '小',
+    description: '240×320，適合手機',
+  },
+  m: {
+    width: 480,
+    height: 640,
+    crop: 'limit',
+    quality: 'auto',
+    format: 'auto',
+    dpr: 'auto',
+    name: '中',
+    description: '480×640，一般內容',
+  },
+  l: {
+    width: 720,
+    height: 960,
+    crop: 'limit',
+    quality: 'auto',
+    format: 'auto',
+    dpr: 'auto',
+    name: '大',
+    description: '720×960，重點圖片',
+  },
+}
+
 // 配置 Cloudinary 儲存
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
@@ -180,6 +258,46 @@ export const getImageUrl = (publicId, options = {}) => {
 
   const finalOptions = { ...defaultOptions, ...options }
   return cloudinary.url(publicId, finalOptions)
+}
+
+// 根據尺寸和方向取得圖片 URL
+export const getImageUrlBySize = (publicId, size = 'm', orientation = 'landscape') => {
+  const sizeConfig =
+    orientation === 'portrait'
+      ? IMAGE_SIZES_PORTRAIT[size] || IMAGE_SIZES_PORTRAIT.m
+      : IMAGE_SIZES[size] || IMAGE_SIZES.m
+
+  // 如果是滿版且是橫式，直接返回原始 URL
+  if (size === 'full' && orientation === 'landscape') {
+    return cloudinary.url(publicId, {
+      quality: 'auto',
+      format: 'auto',
+      dpr: 'auto',
+    })
+  }
+
+  return cloudinary.url(publicId, {
+    width: sizeConfig.width,
+    height: sizeConfig.height,
+    crop: sizeConfig.crop,
+    quality: sizeConfig.quality,
+    format: sizeConfig.format,
+    dpr: sizeConfig.dpr,
+  })
+}
+
+// 取得圖片 srcset（支援響應式）
+export const getImageSrcset = (publicId) => {
+  const sizes = ['s', 'm', 'l']
+  const srcset = sizes
+    .map((size) => {
+      const url = getImageUrlBySize(publicId, size)
+      const width = IMAGE_SIZES[size].width
+      return `${url} ${width}w`
+    })
+    .join(', ')
+
+  return srcset
 }
 
 // 輔助函數：從 Cloudinary URL 提取 public_id
