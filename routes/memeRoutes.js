@@ -5,6 +5,7 @@ import {
   getMemeById,
   updateMeme,
   deleteMeme,
+  batchDeleteMemes,
   exportMemesCsv,
   addEditor,
   removeEditor,
@@ -1139,6 +1140,80 @@ router.post(
  *               $ref: '#/components/schemas/Error'
  */
 router.put('/:id/hot-score', token, blockBannedUser, updateMemeHotScore)
+
+/**
+ * @swagger
+ * /api/memes/batch-delete:
+ *   delete:
+ *     summary: 批量刪除迷因
+ *     tags: [Memes]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - ids
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 要刪除的迷因ID陣列
+ *     responses:
+ *       200:
+ *         description: 批量刪除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 deletedCount:
+ *                   type: number
+ *                 cloudinaryErrors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       memeId:
+ *                         type: string
+ *                       imageUrl:
+ *                         type: string
+ *                       error:
+ *                         type: string
+ *       400:
+ *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授權
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: 權限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 找不到指定的迷因
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.delete('/batch-delete', token, isManager, batchDeleteMemes)
 
 // 基本 CRUD 操作（必須在最後）
 router.get('/:id', getMemeById)

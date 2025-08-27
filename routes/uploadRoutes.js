@@ -8,6 +8,24 @@ import {
 
 const router = express.Router()
 
+// 中間件：預先解析 FormData 中的文字欄位
+const parseFormDataFields = (req, res, next) => {
+  // 確保 req.body 存在
+  if (!req.body) {
+    req.body = {}
+  }
+
+  // 將查詢參數複製到 req.body，確保 multer 能訪問到
+  if (req.query.isDetailImage) {
+    req.body.isDetailImage = req.query.isDetailImage
+  }
+  if (req.query.memeId) {
+    req.body.memeId = req.query.memeId
+  }
+
+  next()
+}
+
 /**
  * @swagger
  * components:
@@ -104,7 +122,15 @@ const router = express.Router()
  *         description: 不支援的檔案類型
  */
 
-router.post('/image', token, isUser, blockBannedUser, uploadImage, uploadImageController)
+router.post(
+  '/image',
+  token,
+  isUser,
+  blockBannedUser,
+  parseFormDataFields,
+  uploadImage,
+  uploadImageController,
+)
 router.post('/avatar', token, isUser, blockBannedUser, uploadAvatar, uploadImageController)
 router.post('/images', token, isUser, blockBannedUser, uploadImages, uploadImages)
 

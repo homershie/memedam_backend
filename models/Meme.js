@@ -294,10 +294,36 @@ const MemeSchema = new mongoose.Schema(
       },
       // 彈性補充欄位，存未來特殊需求/備註
     },
-    detail_markdown: {
-      type: String,
-      default: '',
-      maxlength: [20000, '詳細介紹內容不能超過20000字元'],
+    // 詳細介紹內容 (TipTap JSON 格式)
+    detail_content: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+      validate: {
+        validator: function (v) {
+          if (v === null || v === '') return true // 允許空值
+          return typeof v === 'object' && v !== null
+        },
+        message: '詳細介紹內容必須是有效的 JSON 物件',
+      },
+    },
+    // 詳細介紹中使用的圖片連結陣列
+    detail_images: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: function (v) {
+          if (!Array.isArray(v)) return false
+          return v.every((url) => {
+            if (typeof url !== 'string') return false
+            if (!url) return false
+            // 驗證是否為有效的 Cloudinary URL
+            return /^https:\/\/res\.cloudinary\.com\/.*\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(
+              url,
+            )
+          })
+        },
+        message: '詳細介紹圖片必須是有效的 Cloudinary URL 陣列',
+      },
     },
     // 側邊欄模板系統
     sidebar_template: {
@@ -403,7 +429,8 @@ MemeSchema.methods.markAsModified = function (updateFields = {}) {
     'image_url',
     'video_url',
     'audio_url',
-    'detail_markdown',
+    'detail_content',
+    'detail_images',
   ]
   const hasSubstantialChange = substantialFields.some((field) =>
     Object.prototype.hasOwnProperty.call(updateFields, field),

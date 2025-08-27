@@ -21,6 +21,10 @@ const storage = new CloudinaryStorage({
       req.body = {}
     }
 
+    // 優先從 req.body 獲取參數，如果沒有則從 req.query 獲取
+    const isDetailImage = req.body.isDetailImage || req.query.isDetailImage
+    const memeId = req.body.memeId || req.query.memeId
+
     // 根據檔案欄位名稱決定資料夾
     if (file.fieldname === 'avatar') {
       folder = 'avatars'
@@ -28,8 +32,13 @@ const storage = new CloudinaryStorage({
       folder = 'cover_images'
     } else if (file.fieldname === 'image' || file.fieldname === 'images') {
       // 判斷是否為詳細頁圖片
-      if (req.body.isDetailImage === 'true') {
-        folder = 'memes_detail'
+      if (isDetailImage === 'true') {
+        // 如果有 memeId，則使用子資料夾結構
+        if (memeId) {
+          folder = `memes_detail/${memeId}`
+        } else {
+          folder = 'memes_detail'
+        }
       } else if (req.body.type === 'announcement') {
         folder = 'announcements'
       } else {
@@ -47,13 +56,6 @@ const storage = new CloudinaryStorage({
 
 // 檔案過濾器
 const fileFilter = (req, file, callback) => {
-  logger.info('上傳檔案資訊:', {
-    fieldname: file.fieldname,
-    originalname: file.originalname,
-    mimetype: file.mimetype,
-    size: file.size,
-  })
-
   // 檢查檔案類型
   if (file.mimetype.startsWith('image/')) {
     callback(null, true)
@@ -183,14 +185,20 @@ export const getImageUrl = (publicId, options = {}) => {
 // 輔助函數：從 Cloudinary URL 提取 public_id
 function extractPublicIdFromUrl(url) {
   // 例如：https://res.cloudinary.com/xxx/image/upload/v1234567890/folder/image.jpg
+  // 或者：https://res.cloudinary.com/xxx/image/upload/folder/image.jpg
   const parts = url.split('/')
   const uploadIndex = parts.indexOf('upload')
-  if (uploadIndex !== -1 && uploadIndex + 2 < parts.length) {
-    // 跳過版本號，取得 public_id
-    return parts
-      .slice(uploadIndex + 2)
-      .join('/')
-      .replace(/\.[^/.]+$/, '')
+  if (uploadIndex !== -1 && uploadIndex + 1 < parts.length) {
+    // 檢查下一個部分是否為版本號（以 v 開頭）
+    const nextPart = parts[uploadIndex + 1]
+    const startIndex = nextPart && nextPart.startsWith('v') ? uploadIndex + 2 : uploadIndex + 1
+
+    if (startIndex < parts.length) {
+      return parts
+        .slice(startIndex)
+        .join('/')
+        .replace(/\.[^/.]+$/, '')
+    }
   }
   return null
 }
@@ -198,21 +206,9 @@ function extractPublicIdFromUrl(url) {
 // 上傳處理中間件（包含錯誤處理）
 export const uploadMiddleware = (uploadFunction) => {
   return (req, res, next) => {
-    logger.info('=== 上傳中間件開始 ===')
-    logger.info('請求方法:', req.method)
-    logger.info('請求路徑:', req.path)
-    logger.info('Content-Type:', req.get('Content-Type'))
-
     uploadFunction(req, res, (err) => {
-      logger.info('=== multer 處理完成 ===')
-      logger.info('錯誤:', err)
-      logger.info('處理後的 req.file:', req.file)
-      logger.info('處理後的 req.files:', req.files)
-
       if (err) {
-        logger.error('=== 上傳錯誤詳情 ===')
-        logger.error('錯誤類型:', err.code)
-        logger.error('錯誤訊息:', err.message)
+        logger.error('上傳錯誤:', err.message)
 
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
@@ -247,13 +243,6 @@ export const uploadMiddleware = (uploadFunction) => {
           error: err.message,
           code: err.code,
         })
-      }
-
-      logger.info('=== 上傳成功 ===')
-      if (req.file) {
-        logger.info('上傳圖片成功:', req.file.path)
-      } else if (req.files) {
-        logger.info('上傳多張圖片成功:', req.files.length, '張')
       }
 
       next()

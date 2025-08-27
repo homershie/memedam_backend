@@ -537,7 +537,6 @@ export const updateMeme = async (req, res) => {
         if (originalMeme.image_url && originalMeme.image_url !== newImageUrl) {
           try {
             await deleteImageByUrl(originalMeme.image_url)
-            logger.info('已刪除舊圖片:', originalMeme.image_url)
           } catch (deleteError) {
             logger.error('刪除舊圖片失敗:', deleteError)
             // 不中斷更新流程，只記錄錯誤
@@ -552,7 +551,6 @@ export const updateMeme = async (req, res) => {
       if (originalMeme.image_url) {
         try {
           await deleteImageByUrl(originalMeme.image_url)
-          logger.info('已刪除舊圖片:', originalMeme.image_url)
         } catch (deleteError) {
           logger.error('刪除舊圖片失敗:', deleteError)
         }
@@ -566,7 +564,6 @@ export const updateMeme = async (req, res) => {
         if (originalMeme.image_url) {
           try {
             await deleteImageByUrl(originalMeme.image_url)
-            logger.info('類型變更，已刪除舊圖片:', originalMeme.image_url)
           } catch (deleteError) {
             logger.error('類型變更時刪除舊圖片失敗:', deleteError)
           }
@@ -665,13 +662,57 @@ export const deleteMeme = async (req, res) => {
 
     const author_id = meme.author_id
 
-    // 刪除 Cloudinary 上的圖片（如果存在）
+    // 刪除主要圖片（如果存在）
     if (meme.image_url) {
       try {
         await deleteImageByUrl(meme.image_url)
-        logger.info('已刪除迷因圖片:', meme.image_url)
       } catch (deleteError) {
-        logger.error('刪除迷因圖片失敗:', deleteError)
+        logger.error('刪除迷因主要圖片失敗:', deleteError)
+        // 不中斷刪除流程，只記錄錯誤
+      }
+    }
+
+    // 刪除詳細介紹中的圖片（如果存在）
+    if (meme.detail_images && meme.detail_images.length > 0) {
+      for (const detailImageUrl of meme.detail_images) {
+        try {
+          await deleteImageByUrl(detailImageUrl)
+        } catch (deleteError) {
+          logger.error('刪除詳細介紹圖片失敗:', {
+            imageUrl: detailImageUrl,
+            error: deleteError.message,
+          })
+          // 不中斷刪除流程，只記錄錯誤
+        }
+      }
+    }
+
+    // 刪除影片檔案（如果存在且為 Cloudinary URL）
+    if (meme.video_url && meme.video_url.includes('cloudinary.com')) {
+      try {
+        await deleteImageByUrl(meme.video_url)
+      } catch (deleteError) {
+        logger.error('刪除迷因影片失敗:', deleteError)
+        // 不中斷刪除流程，只記錄錯誤
+      }
+    }
+
+    // 刪除音訊檔案（如果存在且為 Cloudinary URL）
+    if (meme.audio_url && meme.audio_url.includes('cloudinary.com')) {
+      try {
+        await deleteImageByUrl(meme.audio_url)
+      } catch (deleteError) {
+        logger.error('刪除迷因音訊失敗:', deleteError)
+        // 不中斷刪除流程，只記錄錯誤
+      }
+    }
+
+    // 刪除來源檔案（如果存在且為 Cloudinary URL）
+    if (meme.source_url && meme.source_url.includes('cloudinary.com')) {
+      try {
+        await deleteImageByUrl(meme.source_url)
+      } catch (deleteError) {
+        logger.error('刪除迷因來源檔案失敗:', deleteError)
         // 不中斷刪除流程，只記錄錯誤
       }
     }
@@ -684,6 +725,155 @@ export const deleteMeme = async (req, res) => {
 
     res.json({ success: true, message: '迷因已刪除', error: null })
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
+// 批量刪除迷因
+export const batchDeleteMemes = async (req, res) => {
+  try {
+    const { ids } = req.body
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '請提供有效的迷因ID陣列',
+      })
+    }
+
+    logger.info('開始批量刪除迷因，數量:', ids.length)
+
+    // 先獲取所有要刪除的迷因資料
+    const memes = await Meme.find({ _id: { $in: ids } })
+
+    if (memes.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: '找不到指定的迷因',
+      })
+    }
+
+    // 統計各作者的迷因數量，用於後續更新
+    const authorCounts = {}
+    let deletedCount = 0
+    const cloudinaryErrors = []
+
+    // 逐一處理每個迷因
+    for (const meme of memes) {
+      try {
+        // 刪除主要圖片（如果存在）
+        if (meme.image_url) {
+          try {
+            await deleteImageByUrl(meme.image_url)
+          } catch (deleteError) {
+            logger.error('刪除迷因主要圖片失敗:', deleteError)
+            cloudinaryErrors.push({
+              memeId: meme._id,
+              imageUrl: meme.image_url,
+              error: deleteError.message,
+            })
+            // 不中斷刪除流程，只記錄錯誤
+          }
+        }
+
+        // 刪除詳細介紹中的圖片（如果存在）
+        if (meme.detail_images && meme.detail_images.length > 0) {
+          for (const detailImageUrl of meme.detail_images) {
+            try {
+              await deleteImageByUrl(detailImageUrl)
+            } catch (deleteError) {
+              logger.error('刪除詳細介紹圖片失敗:', {
+                imageUrl: detailImageUrl,
+                error: deleteError.message,
+              })
+              cloudinaryErrors.push({
+                memeId: meme._id,
+                imageUrl: detailImageUrl,
+                error: deleteError.message,
+              })
+              // 不中斷刪除流程，只記錄錯誤
+            }
+          }
+        }
+
+        // 刪除影片檔案（如果存在且為 Cloudinary URL）
+        if (meme.video_url && meme.video_url.includes('cloudinary.com')) {
+          try {
+            await deleteImageByUrl(meme.video_url)
+          } catch (deleteError) {
+            logger.error('刪除迷因影片失敗:', deleteError)
+            cloudinaryErrors.push({
+              memeId: meme._id,
+              imageUrl: meme.video_url,
+              error: deleteError.message,
+            })
+            // 不中斷刪除流程，只記錄錯誤
+          }
+        }
+
+        // 刪除音訊檔案（如果存在且為 Cloudinary URL）
+        if (meme.audio_url && meme.audio_url.includes('cloudinary.com')) {
+          try {
+            await deleteImageByUrl(meme.audio_url)
+          } catch (deleteError) {
+            logger.error('刪除迷因音訊失敗:', deleteError)
+            cloudinaryErrors.push({
+              memeId: meme._id,
+              imageUrl: meme.audio_url,
+              error: deleteError.message,
+            })
+            // 不中斷刪除流程，只記錄錯誤
+          }
+        }
+
+        // 刪除來源檔案（如果存在且為 Cloudinary URL）
+        if (meme.source_url && meme.source_url.includes('cloudinary.com')) {
+          try {
+            await deleteImageByUrl(meme.source_url)
+          } catch (deleteError) {
+            logger.error('刪除迷因來源檔案失敗:', deleteError)
+            cloudinaryErrors.push({
+              memeId: meme._id,
+              imageUrl: meme.source_url,
+              error: deleteError.message,
+            })
+            // 不中斷刪除流程，只記錄錯誤
+          }
+        }
+
+        // 統計作者迷因數量
+        const authorId = meme.author_id.toString()
+        authorCounts[authorId] = (authorCounts[authorId] || 0) + 1
+
+        // 刪除迷因記錄
+        await Meme.findByIdAndDelete(meme._id)
+        deletedCount++
+      } catch (error) {
+        logger.error('刪除迷因失敗:', { memeId: meme._id, error: error.message })
+        // 繼續處理其他迷因
+      }
+    }
+
+    // 批量更新用戶迷因數量統計
+    for (const [authorId, count] of Object.entries(authorCounts)) {
+      try {
+        await User.findByIdAndUpdate(authorId, { $inc: { meme_count: -count } })
+      } catch (error) {
+        logger.error('更新用戶迷因數量失敗:', { authorId, error: error.message })
+      }
+    }
+
+    logger.info('批量刪除完成，成功刪除:', deletedCount, '個迷因')
+
+    res.json({
+      success: true,
+      message: `成功刪除 ${deletedCount} 個迷因`,
+      deletedCount,
+      cloudinaryErrors: cloudinaryErrors.length > 0 ? cloudinaryErrors : undefined,
+      error: null,
+    })
+  } catch (err) {
+    logger.error('批量刪除迷因錯誤:', err)
     res.status(500).json({ success: false, error: err.message })
   }
 }
