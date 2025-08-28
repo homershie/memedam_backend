@@ -426,9 +426,11 @@ export const getSimilarRecommendations = async (req, res) => {
 
     // 建立基礎查詢條件
     const baseFilter = {
-      _id: { $ne: memeId },
       status: 'public',
     }
+
+    // 排除當前迷因 ID
+    const excludeCurrentMeme = new mongoose.Types.ObjectId(memeId)
 
     // 確保 tags_cache 是陣列且不為空
     if (
@@ -436,7 +438,16 @@ export const getSimilarRecommendations = async (req, res) => {
       Array.isArray(targetMeme.tags_cache) &&
       targetMeme.tags_cache.length > 0
     ) {
-      baseFilter.tags_cache = { $in: targetMeme.tags_cache }
+      // 確保所有標籤都是字串類型
+      const validTags = targetMeme.tags_cache
+        .filter((tag) => typeof tag === 'string' && tag.trim().length > 0)
+        .map((tag) => tag.trim())
+
+      if (validTags.length > 0) {
+        // 暫時不使用標籤篩選，避免類型轉換錯誤
+        // baseFilter.tags_cache = mongoose.trusted({ $in: validTags })
+        logger.info('跳過標籤篩選以避免類型轉換錯誤，validTags:', validTags)
+      }
     }
 
     // 處理類型篩選
@@ -457,11 +468,16 @@ export const getSimilarRecommendations = async (req, res) => {
 
     // 建立完整查詢條件（含排除ID）
     const filter = { ...baseFilter }
+
+    // 建立排除ID列表
+    const excludeIdList = [excludeCurrentMeme]
     if (excludeIds.length > 0) {
-      filter._id = mongoose.trusted({
-        $ne: memeId,
-        $nin: excludeIds,
-      })
+      excludeIdList.push(...excludeIds)
+    }
+
+    // 添加排除條件
+    if (excludeIdList.length > 0) {
+      filter._id = mongoose.trusted({ $nin: excludeIdList })
     }
 
     // 計算分頁
@@ -475,13 +491,16 @@ export const getSimilarRecommendations = async (req, res) => {
       .skip(skip)
       .limit(totalLimit)
       .populate('author_id', 'username display_name avatar')
+      .lean()
+
+    logger.info('查詢條件:', JSON.stringify(filter, null, 2))
+    logger.info('返回的迷因數量:', similarMemes.length)
 
     const recommendations = similarMemes.map((meme) => {
-      const memeObj = meme.toObject()
-      const commonTags = memeObj.tags_cache.filter((tag) => targetMeme.tags_cache.includes(tag))
+      const commonTags = meme.tags_cache.filter((tag) => targetMeme.tags_cache.includes(tag))
 
       return {
-        ...memeObj,
+        ...meme,
         recommendation_score: commonTags.length / Math.max(targetMeme.tags_cache.length, 1),
         recommendation_type: 'similar',
         common_tags: commonTags,

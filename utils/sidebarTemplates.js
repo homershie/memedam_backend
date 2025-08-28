@@ -557,7 +557,7 @@ const renderBaseTemplate = (data) => {
           ${aliasesHtml}
           <tr><td class="label">首次出現日期</td><td>${data.first_appearance_date || '未知'}</td></tr>
                      <tr><td class="label">首次來源</td><td>${data.first_source || '未知'}</td></tr>
-          <tr><td class="label">起源連結</td><td><a href="${data.origin_url}" target="_blank" class="text-blue-600 hover:underline">查看來源</a></td></tr>
+          <tr><td class="label">起源連結</td><td><a href="${data.origin_url}" target="_blank" class="text-primary-600 hover:underline">查看來源</a></td></tr>
                      ${authorHtml}
            ${languagesHtml}
            ${relatedMemesHtml}
