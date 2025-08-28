@@ -49,7 +49,7 @@ export const getHotRecommendations = async (req, res) => {
     const {
       limit = 20,
       type = 'all',
-      days = 30, // 預設改為30天
+      days = 'all', // 改為預設 'all' 表示不限制時間
       exclude_viewed = 'false',
       tags,
       types, // 新增：支援多個類型篩選
@@ -59,15 +59,19 @@ export const getHotRecommendations = async (req, res) => {
     } = req.query
 
     const userId = req.user?._id
-    const parsedDays = parseInt(days)
-    const validDays = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 30
-    const dateLimit = new Date()
-    dateLimit.setDate(dateLimit.getDate() - validDays)
 
-    // 建立查詢條件
-    const filter = {
+    // 建立基礎查詢條件（不含排除ID）
+    const baseFilter = {
       status: 'public',
-      createdAt: mongoose.trusted({ $gte: dateLimit }),
+    }
+
+    // 只有在指定時間範圍時才加入時間篩選
+    if (days !== 'all' && days !== '0') {
+      const parsedDays = parseInt(days)
+      const validDays = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 30
+      const dateLimit = new Date()
+      dateLimit.setDate(dateLimit.getDate() - validDays)
+      baseFilter.createdAt = mongoose.trusted({ $gte: dateLimit })
     }
 
     // 處理類型篩選
@@ -76,22 +80,22 @@ export const getHotRecommendations = async (req, res) => {
       const typeArray = Array.isArray(types) ? types : types.split(',').map((t) => t.trim())
       if (typeArray.length > 0) {
         if (typeArray.length === 1) {
-          filter.type = typeArray[0] // 單一類型直接設置
+          baseFilter.type = typeArray[0] // 單一類型直接設置
         } else {
           // 多個類型使用$in查詢，使用 mongoose.trusted 避免 CastError
-          filter.type = mongoose.trusted({ $in: typeArray })
+          baseFilter.type = mongoose.trusted({ $in: typeArray })
         }
       }
     } else if (type !== 'all') {
       // 向後相容：單一類型篩選
-      filter.type = type
+      baseFilter.type = type
     }
 
     // 如果有標籤篩選，加入標籤條件
     if (tags) {
       const tagArray = Array.isArray(tags) ? tags : tags.split(',').map((tag) => tag.trim())
       if (tagArray.length > 0) {
-        filter.tags_cache = { $in: tagArray }
+        baseFilter.tags_cache = { $in: tagArray }
       }
     }
 
@@ -128,7 +132,8 @@ export const getHotRecommendations = async (req, res) => {
         .filter((id) => id !== null)
     }
 
-    // 如果有排除ID，加入查詢條件
+    // 建立完整查詢條件（含排除ID）
+    const filter = { ...baseFilter }
     if (excludeIds.length > 0) {
       filter._id = mongoose.trusted({ $nin: excludeIds })
     }
@@ -139,9 +144,10 @@ export const getHotRecommendations = async (req, res) => {
       // 暫時先不實作，因為需要 View 模型
     }
 
-    // 計算分頁
-    const skip = (parseInt(page) - 1) * parseInt(limit)
+    // 計算分頁，排除已載入的ID
     const totalLimit = parseInt(limit)
+    const skipBase = (parseInt(page) - 1) * totalLimit
+    const skip = Math.max(skipBase - excludeIds.length, 0)
 
     const memes = await Meme.find(filter)
       .sort({ hot_score: -1 })
@@ -160,8 +166,11 @@ export const getHotRecommendations = async (req, res) => {
       }
     })
 
-    // 計算總數（用於分頁資訊）
-    const totalCount = await Meme.countDocuments(filter)
+    // 計算總數（用於分頁資訊，不包含排除ID）
+    const totalCount = await Meme.countDocuments(baseFilter)
+
+    // 判斷是否有更多內容
+    const hasMore = excludeIds.length + skip + memes.length < totalCount
 
     res.json({
       success: true,
@@ -181,7 +190,7 @@ export const getHotRecommendations = async (req, res) => {
           limit: parseInt(limit),
           skip,
           total: totalCount,
-          hasMore: skip + totalLimit < totalCount,
+          hasMore,
           totalPages: Math.ceil(totalCount / parseInt(limit)),
         },
       },
