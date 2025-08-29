@@ -68,6 +68,79 @@ const MemeSchema = new mongoose.Schema(
       },
       // 音樂/音效迷因的檔案連結，僅 type 為 audio 時用
     },
+    // ===== 三層模型架構欄位 =====
+    // 來源/片段關聯（B：三層模型的關鍵）
+    source_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Source',
+      index: true,
+      default: null,
+      validate: {
+        validator: function (v) {
+          if (!v) return true // 允許空值
+          return mongoose.Types.ObjectId.isValid(v)
+        },
+        message: '來源ID必須是有效的ObjectId',
+      },
+      // 關聯的作品來源ID
+    },
+    scene_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Scene',
+      index: true,
+      default: null,
+      validate: {
+        validator: function (v) {
+          if (!v) return true // 允許空值
+          return mongoose.Types.ObjectId.isValid(v)
+        },
+        message: '片段ID必須是有效的ObjectId',
+      },
+      // 關聯的片段ID（可選）
+    },
+    // 變體系譜（A：迷因對迷因的關係）
+    variant_of: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Meme',
+      index: true,
+      default: null,
+      validate: {
+        validator: function (v) {
+          if (!v) return true // 允許空值
+          return mongoose.Types.ObjectId.isValid(v)
+        },
+        message: '變體來源ID必須是有效的ObjectId',
+      },
+      // 此迷因是哪個迷因的變體
+    },
+    lineage: {
+      root: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Meme',
+        index: true,
+        validate: {
+          validator: function (v) {
+            if (!v) return true // 允許空值
+            return mongoose.Types.ObjectId.isValid(v)
+          },
+          message: '系譜根源ID必須是有效的ObjectId',
+        },
+        // 變體系譜的根源迷因
+      },
+      depth: {
+        type: Number,
+        default: 0,
+        min: [0, '系譜深度不能為負數'],
+        // 在變體系譜中的深度（0表示是根源）
+      },
+    },
+    // 梗點解析（獨特的迷因解釋）
+    body: {
+      type: String,
+      trim: true,
+      maxlength: [5000, '梗點解析長度不能超過5000個字元'],
+      // 你的梗點解析（務必獨特）- 解釋這個迷因為什麼好笑/有趣
+    },
     author_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -364,9 +437,86 @@ const MemeSchema = new mongoose.Schema(
   },
 )
 
-// 自動更新 updated_at 欄位
-MemeSchema.pre('save', function (next) {
+// 自動更新 updated_at 欄位 & 處理三層模型資料一致性
+MemeSchema.pre('save', async function (next) {
   this.updated_at = new Date()
+  
+  // 資料一致性：若 scene_id 存在，自動覆蓋 source_id = scene.source_id
+  if (this.scene_id && (!this.source_id || this.isModified('scene_id'))) {
+    try {
+      const Scene = mongoose.model('Scene')
+      const scene = await Scene.findById(this.scene_id).select('source_id').lean()
+      if (scene) {
+        this.source_id = scene.source_id
+      }
+    } catch (error) {
+      console.error('Error fetching scene for source_id sync:', error)
+    }
+  }
+  
+  // lineage 自動計算
+  if (this.isModified('variant_of')) {
+    if (this.variant_of) {
+      try {
+        const Meme = mongoose.model('Meme')
+        let root = this.variant_of
+        let depth = 1
+        const seen = new Set([String(this._id)])
+        
+        // 向上追溯找到根源
+        while (root) {
+          if (seen.has(String(root))) {
+            // 避免循環引用
+            console.warn('Circular reference detected in variant lineage')
+            break
+          }
+          seen.add(String(root))
+          
+          const parent = await Meme.findById(root)
+            .select('variant_of lineage.root')
+            .lean()
+          
+          if (!parent) break
+          
+          // 如果父節點已有 lineage.root，直接使用
+          if (parent.lineage?.root) {
+            root = parent.lineage.root
+            depth = (parent.lineage.depth || 0) + 1
+            break
+          }
+          
+          // 否則繼續向上追溯
+          if (parent.variant_of) {
+            root = parent.variant_of
+            depth++
+          } else {
+            // parent 就是根源
+            root = parent._id
+            break
+          }
+        }
+        
+        this.lineage = {
+          root: root || this.variant_of,
+          depth: depth,
+        }
+      } catch (error) {
+        console.error('Error calculating lineage:', error)
+        // 發生錯誤時的預設值
+        this.lineage = {
+          root: this.variant_of,
+          depth: 1,
+        }
+      }
+    } else {
+      // 沒有 variant_of，自己就是根源
+      this.lineage = {
+        root: this._id,
+        depth: 0,
+      }
+    }
+  }
+  
   next()
 })
 
@@ -486,6 +636,77 @@ MemeSchema.statics.getTrendingMemes = async function (limit = 50, hours = 24) {
     .sort({ hot_score: -1, views: -1 })
     .limit(limit)
     .populate('author_id', 'username display_name avatar')
+}
+
+// ===== 三層模型相關的靜態方法 =====
+
+// 取得同一系譜的所有變體
+MemeSchema.statics.getVariants = async function (memeId, options = {}) {
+  const { limit = 60, excludeSelf = true } = options
+  
+  // 先找到這個迷因的 lineage.root
+  const meme = await this.findById(memeId).select('lineage.root').lean()
+  if (!meme) return []
+  
+  const rootId = meme.lineage?.root || memeId
+  
+  const query = {
+    'lineage.root': rootId,
+    status: 'public',
+  }
+  
+  if (excludeSelf) {
+    query._id = { $ne: memeId }
+  }
+  
+  return this.find(query)
+    .select('title slug image_url video_url variant_of lineage like_count view_count author_id')
+    .sort({ 'lineage.depth': 1, like_count: -1, createdAt: -1 })
+    .limit(limit)
+    .populate('author_id', 'username display_name avatar')
+}
+
+// 取得同一來源的其他迷因
+MemeSchema.statics.getMemesFromSameSource = async function (memeId, options = {}) {
+  const { limit = 30, excludeSelf = true } = options
+  
+  // 先找到這個迷因的 source_id
+  const meme = await this.findById(memeId).select('source_id scene_id').lean()
+  if (!meme || !meme.source_id) return []
+  
+  const query = {
+    source_id: meme.source_id,
+    status: 'public',
+  }
+  
+  if (excludeSelf) {
+    query._id = { $ne: memeId }
+  }
+  
+  return this.find(query)
+    .select('title slug image_url video_url like_count view_count scene_id lineage author_id')
+    .sort({ like_count: -1, createdAt: -1 })
+    .limit(limit)
+    .populate('author_id', 'username display_name avatar')
+    .populate('scene_id', 'title quote start_time end_time')
+}
+
+// 批次更新來源的統計數據
+MemeSchema.statics.updateSourceCounts = async function (sourceId) {
+  const Source = mongoose.model('Source')
+  const source = await Source.findById(sourceId)
+  if (source) {
+    await source.updateCounts()
+  }
+}
+
+// 批次更新片段的統計數據
+MemeSchema.statics.updateSceneCounts = async function (sceneId) {
+  const Scene = mongoose.model('Scene')
+  const scene = await Scene.findById(sceneId)
+  if (scene) {
+    await scene.updateCounts()
+  }
 }
 
 export default mongoose.models.Meme || mongoose.model('Meme', MemeSchema)

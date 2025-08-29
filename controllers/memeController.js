@@ -1,6 +1,8 @@
 import mongoose from 'mongoose'
 import { logger } from '../utils/logger.js'
 import Meme from '../models/Meme.js'
+import Source from '../models/Source.js'
+import Scene from '../models/Scene.js'
 import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
 import MemeTag from '../models/MemeTag.js' // Added import for MemeTag
@@ -1833,5 +1835,236 @@ export const getRandomMeme = async (req, res) => {
       error: '取得隨機迷因時發生錯誤',
       data: null,
     })
+  }
+}
+
+// ===== 三層模型 Bundle API =====
+
+// 取得迷因 bundle（包含來源、片段、變體等資料）
+export const getMemeBundle = async (req, res, next) => {
+  try {
+    const { idOrSlug } = req.params
+    const include = (req.query.include || '').split(',').filter(Boolean)
+
+    // 查詢迷因
+    const match = mongoose.Types.ObjectId.isValid(idOrSlug)
+      ? { _id: new mongoose.Types.ObjectId(idOrSlug) }
+      : { slug: idOrSlug }
+
+    const meme = await Meme.findOne(match)
+      .populate('author_id', 'username display_name avatar')
+      .lean()
+
+    if (!meme) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '迷因不存在',
+      })
+    }
+
+    const result = { meme }
+
+    // 並行取得所需資料
+    const promises = []
+
+    // scene/source 資料
+    if (include.includes('scene') && meme.scene_id) {
+      promises.push(
+        Scene.findById(meme.scene_id).lean().then(scene => {
+          result.scene = scene
+        })
+      )
+    }
+
+    if (include.includes('source') && (meme.source_id || result.scene?.source_id)) {
+      const sourceId = meme.source_id || result.scene?.source_id
+      if (sourceId) {
+        promises.push(
+          Source.findById(sourceId).lean().then(source => {
+            result.source = source
+          })
+        )
+      }
+    }
+
+    // 同 lineage（變體/混剪族譜）
+    if (include.includes('variants')) {
+      const rootId = meme.lineage?.root || meme._id
+      promises.push(
+        Meme.find({ 
+          'lineage.root': rootId, 
+          status: 'public',
+          _id: { $ne: meme._id } // 排除自己
+        })
+          .select('title slug image_url video_url variant_of lineage like_count view_count author_id source_id scene_id createdAt')
+          .sort({ 'lineage.depth': 1, like_count: -1, createdAt: -1 })
+          .limit(60)
+          .populate('author_id', 'username display_name avatar')
+          .lean()
+          .then(variants => {
+            result.variants = variants
+          })
+      )
+    }
+
+    // 同來源其他迷因（排除自己）
+    if (include.includes('from_source') && (meme.source_id || result.scene?.source_id)) {
+      const sourceId = meme.source_id || result.scene?.source_id
+      if (sourceId) {
+        promises.push(
+          Meme.find({
+            source_id: sourceId,
+            _id: { $ne: meme._id },
+            status: 'public'
+          })
+            .select('title slug image_url video_url like_count view_count author_id scene_id lineage createdAt')
+            .sort({ like_count: -1, createdAt: -1 })
+            .limit(30)
+            .populate('author_id', 'username display_name avatar')
+            .populate('scene_id', 'title quote start_time end_time')
+            .lean()
+            .then(fromSource => {
+              result.from_source = fromSource
+            })
+        )
+      }
+    }
+
+    // 執行所有並行查詢
+    await Promise.all(promises)
+
+    // 如果之前沒有取得 source 但現在有 scene，補充取得 source
+    if (!result.source && result.scene?.source_id && include.includes('source')) {
+      result.source = await Source.findById(result.scene.source_id).lean()
+    }
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    })
+  } catch (error) {
+    logger.error('取得迷因 bundle 時發生錯誤:', error)
+    next(error)
+  }
+}
+
+// 取得同一系譜的變體迷因
+export const getMemeVariants = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { limit = 60, page = 1 } = req.query
+
+    const meme = await Meme.findById(id).select('lineage').lean()
+    if (!meme) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '迷因不存在',
+      })
+    }
+
+    const rootId = meme.lineage?.root || id
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    const [variants, total] = await Promise.all([
+      Meme.find({
+        'lineage.root': rootId,
+        status: 'public',
+        _id: { $ne: id }
+      })
+        .select('title slug image_url video_url variant_of lineage like_count view_count author_id createdAt')
+        .sort({ 'lineage.depth': 1, like_count: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate('author_id', 'username display_name avatar')
+        .lean(),
+      Meme.countDocuments({
+        'lineage.root': rootId,
+        status: 'public',
+        _id: { $ne: id }
+      })
+    ])
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: variants,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    })
+  } catch (error) {
+    logger.error('取得變體迷因時發生錯誤:', error)
+    next(error)
+  }
+}
+
+// 取得同一來源的其他迷因
+export const getMemesFromSameSource = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { limit = 30, page = 1 } = req.query
+
+    const meme = await Meme.findById(id).select('source_id scene_id').lean()
+    if (!meme) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '迷因不存在',
+      })
+    }
+
+    // 如果有 scene_id，先取得對應的 source_id
+    let sourceId = meme.source_id
+    if (!sourceId && meme.scene_id) {
+      const scene = await Scene.findById(meme.scene_id).select('source_id').lean()
+      if (scene) {
+        sourceId = scene.source_id
+      }
+    }
+
+    if (!sourceId) {
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        data: [],
+        message: '此迷因沒有關聯的來源',
+      })
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    const [memes, total] = await Promise.all([
+      Meme.find({
+        source_id: sourceId,
+        status: 'public',
+        _id: { $ne: id }
+      })
+        .select('title slug image_url video_url like_count view_count scene_id lineage author_id createdAt')
+        .sort({ like_count: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate('author_id', 'username display_name avatar')
+        .populate('scene_id', 'title quote start_time end_time')
+        .lean(),
+      Meme.countDocuments({
+        source_id: sourceId,
+        status: 'public',
+        _id: { $ne: id }
+      })
+    ])
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: memes,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    })
+  } catch (error) {
+    logger.error('取得同來源迷因時發生錯誤:', error)
+    next(error)
   }
 }
