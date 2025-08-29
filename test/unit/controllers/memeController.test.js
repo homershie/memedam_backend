@@ -11,6 +11,7 @@ vi.mock('../../../models/Meme.js', () => ({
     create: vi.fn(),
     countDocuments: vi.fn(),
     aggregate: vi.fn(),
+    findOne: vi.fn(), // Added findOne to Meme mock
   },
 }))
 
@@ -589,6 +590,188 @@ describe('Meme Controller', () => {
           pagination: expect.any(Object),
         }),
       )
+    })
+  })
+
+  describe('checkSlugAvailable', () => {
+    it('應該檢查 slug 是否可用', async () => {
+      const req = {
+        query: { slug: 'test-slug' }
+      }
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis()
+      }
+
+      // Mock Meme.findOne 返回 null（表示 slug 可用）
+      Meme.findOne.mockResolvedValue(null)
+
+      await memeController.checkSlugAvailable(req, res)
+
+      expect(Meme.findOne).toHaveBeenCalledWith({ slug: 'test-slug' })
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          slug: 'test-slug',
+          available: true,
+          existing_meme: null
+        },
+        error: null
+      })
+    })
+
+    it('應該返回 slug 不可用當迷因已存在', async () => {
+      const req = {
+        query: { slug: 'existing-slug' }
+      }
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis()
+      }
+
+      // Mock Meme.findOne 返回現有迷因
+      Meme.findOne.mockResolvedValue({
+        _id: 'existing-id',
+        title: 'Existing Meme'
+      })
+
+      await memeController.checkSlugAvailable(req, res)
+
+      expect(Meme.findOne).toHaveBeenCalledWith({ slug: 'existing-slug' })
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          slug: 'existing-slug',
+          available: false,
+          existing_meme: {
+            id: 'existing-id',
+            title: 'Existing Meme'
+          }
+        },
+        error: null
+      })
+    })
+
+    it('應該返回錯誤當沒有提供 slug', async () => {
+      const req = {
+        query: {}
+      }
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis()
+      }
+
+      await memeController.checkSlugAvailable(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(400)
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: '請提供 slug 參數'
+      })
+    })
+  })
+
+  describe('getMemeById', () => {
+    it('應該通過 ObjectId 取得迷因', async () => {
+      const req = {
+        params: { id: '507f1f77bcf86cd799439011' },
+        query: {},
+        user: null
+      }
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis()
+      }
+
+      const mockMeme = {
+        _id: '507f1f77bcf86cd799439011',
+        title: 'Test Meme',
+        author_id: {
+          _id: 'user-id',
+          username: 'testuser',
+          display_name: 'Test User',
+          avatar: 'avatar.jpg'
+        }
+      }
+
+      Meme.findOne.mockResolvedValue(mockMeme)
+
+      await memeController.getMemeById(req, res)
+
+      expect(Meme.findOne).toHaveBeenCalledWith({ _id: expect.any(Object) })
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          meme: expect.objectContaining({
+            _id: '507f1f77bcf86cd799439011',
+            title: 'Test Meme'
+          })
+        },
+        error: null
+      })
+    })
+
+    it('應該通過 slug 取得迷因', async () => {
+      const req = {
+        params: { id: 'test-slug' },
+        query: {},
+        user: null
+      }
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis()
+      }
+
+      const mockMeme = {
+        _id: '507f1f77bcf86cd799439011',
+        title: 'Test Meme',
+        slug: 'test-slug',
+        author_id: {
+          _id: 'user-id',
+          username: 'testuser',
+          display_name: 'Test User',
+          avatar: 'avatar.jpg'
+        }
+      }
+
+      Meme.findOne.mockResolvedValue(mockMeme)
+
+      await memeController.getMemeById(req, res)
+
+      expect(Meme.findOne).toHaveBeenCalledWith({ slug: 'test-slug' })
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          meme: expect.objectContaining({
+            _id: '507f1f77bcf86cd799439011',
+            title: 'Test Meme',
+            slug: 'test-slug'
+          })
+        },
+        error: null
+      })
+    })
+
+    it('應該返回 404 當迷因不存在', async () => {
+      const req = {
+        params: { id: '507f1f77bcf86cd799439011' },
+        query: {},
+        user: null
+      }
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis()
+      }
+
+      Meme.findOne.mockResolvedValue(null)
+
+      await memeController.getMemeById(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(404)
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: '找不到指定的迷因'
+      })
     })
   })
 })

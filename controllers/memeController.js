@@ -473,14 +473,112 @@ export const getMemes = async (req, res) => {
   }
 }
 
-// 取得單一迷因
+// 取得單一迷因（支援 ID 或 slug）
 export const getMemeById = async (req, res) => {
   try {
-    const meme = await Meme.findById(req.params.id)
-    if (!meme) return res.status(404).json({ error: '找不到迷因' })
-    res.json(meme)
+    const { id } = req.params
+    const { include } = req.query
+
+    // 檢查是否為有效的 ObjectId
+    const isObjectId = mongoose.Types.ObjectId.isValid(id)
+    
+    // 建立查詢條件
+    const query = isObjectId 
+      ? { _id: new mongoose.Types.ObjectId(id) }
+      : { slug: id }
+
+    // 權限：僅 admin/manager 可檢視非 public 項目
+    const isPrivilegedUser = Boolean(req.user && ['admin', 'manager'].includes(req.user.role))
+    
+    if (!isPrivilegedUser) {
+      query.status = 'public'
+    }
+
+    const meme = await Meme.findOne(query)
+      .populate('author_id', 'username display_name avatar')
+      .lean()
+
+    if (!meme) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到指定的迷因',
+      })
+    }
+
+    // 計算各種分數
+    const hotScore = calculateMemeHotScore(meme)
+    const hotLevel = getHotScoreLevel(hotScore)
+    const engagementScore = calculateEngagementScore(meme)
+    const qualityScore = calculateQualityScore(meme)
+
+    // 組織作者資訊
+    const author = meme.author_id
+      ? {
+          _id: meme.author_id._id,
+          username: meme.author_id.username,
+          display_name: meme.author_id.display_name,
+          avatar: meme.author_id.avatar,
+        }
+      : null
+
+    const memeWithScores = {
+      ...meme,
+      author,
+      hot_score: hotScore,
+      hot_level: hotLevel,
+      engagement_score: engagementScore,
+      quality_score: qualityScore,
+    }
+
+    res.json({
+      success: true,
+      data: {
+        meme: memeWithScores,
+      },
+      error: null,
+    })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    logger.error('取得迷因時發生錯誤:', err)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: '取得迷因時發生錯誤',
+    })
+  }
+}
+
+// 檢查 slug 是否可用
+export const checkSlugAvailable = async (req, res) => {
+  try {
+    const { slug } = req.query
+
+    if (!slug) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: '請提供 slug 參數',
+      })
+    }
+
+    // 檢查 slug 是否已存在
+    const existingMeme = await Meme.findOne({ slug }).select('_id title').lean()
+
+    res.json({
+      success: true,
+      data: {
+        slug,
+        available: !existingMeme,
+        existing_meme: existingMeme ? {
+          id: existingMeme._id,
+          title: existingMeme.title,
+        } : null,
+      },
+      error: null,
+    })
+  } catch (err) {
+    logger.error('檢查 slug 可用性時發生錯誤:', err)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: '檢查 slug 可用性時發生錯誤',
+    })
   }
 }
 

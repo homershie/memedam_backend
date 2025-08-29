@@ -21,6 +21,7 @@ import {
   getMemeBundle,
   getMemeVariants,
   getMemesFromSameSource,
+  checkSlugAvailable,
 } from '../controllers/memeController.js'
 import {
   proposeEdit,
@@ -587,6 +588,38 @@ router.get('/export', token, blockBannedUser, isManager, exportMemesCsv)
 router.get('/search-suggestions', getSearchSuggestions)
 router.get('/by-tags', getMemesByTags)
 router.get('/random', getRandomMeme)
+/**
+ * @swagger
+ * /api/memes/slug-available:
+ *   get:
+ *     summary: 檢查迷因網址是否可用
+ *     tags: [Memes]
+ *     parameters:
+ *       - in: query
+ *         name: slug
+ *         schema:
+ *           type: string
+ *         description: 要檢查的網址
+ *     responses:
+ *       200:
+ *         description: 網址可用
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 available:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/slug-available', checkSlugAvailable)
 /**
  * @swagger
  * /api/memes/batch-update-hot-scores:
@@ -1217,6 +1250,48 @@ router.put('/:id/hot-score', token, blockBannedUser, updateMemeHotScore)
  *               $ref: '#/components/schemas/Error'
  */
 router.delete('/batch-delete', token, isManager, batchDeleteMemes)
+
+// ===== 特殊路由（必須在參數路由之前）=====
+/**
+ * @swagger
+ * /api/memes/slug-available:
+ *   get:
+ *     summary: 檢查迷因網址是否可用
+ *     tags: [Memes]
+ *     parameters:
+ *       - in: query
+ *         name: slug
+ *         schema:
+ *           type: string
+ *         description: 要檢查的網址
+ *     responses:
+ *       200:
+ *         description: 網址可用性檢查結果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     slug:
+ *                       type: string
+ *                     available:
+ *                       type: boolean
+ *                     existing_meme:
+ *                       type: object
+ *                       nullable: true
+ *       400:
+ *         description: 請求參數錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/slug-available', checkSlugAvailable)
 
 // ===== 三層模型 Bundle API 路由 =====
 // Bundle API - 取得迷因及相關資料
