@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  mongodb:
+    image: mongo:latest
+    container_name: memedam-mongodb
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_DATABASE=memedam
+
   redis:
     image: redis:latest
     container_name: memedam-redis
@@ -20,10 +31,12 @@ services:
       - NODE_ENV=development
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - MONGO_URI=mongodb://host.docker.internal:27017/memedam
+      - MONGO_URI=mongodb://mongodb:27017/memedam
     depends_on:
+      - mongodb
       - redis
     restart: unless-stopped
 
 volumes:
+  mongodb_data:
   redis_data:

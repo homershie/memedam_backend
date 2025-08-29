@@ -2,10 +2,10 @@
 
 /**
  * 資料遷移腳本：導入三層來源結構（Source/Scene/Meme）
- * 
+ *
  * 執行方式：
  * node scripts/migrations/2025-01-hybrid-meme-source.js
- * 
+ *
  * 功能：
  * 1. 在 memes 集合加入新欄位：source_id, scene_id, variant_of, lineage, body
  * 2. 計算並更新所有迷因的 lineage（系譜）
@@ -32,13 +32,38 @@ import Scene from '../../models/Scene.js'
 // 連接資料庫
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/memedam', {
+    let mongoUri =
+      process.env.MONGODB_URI || process.env.MONGO_DEV_URI || 'mongodb://localhost:27017/memedam'
+
+    // 如果沒有設定環境變數，嘗試使用記憶體資料庫進行測試
+    if (!process.env.MONGODB_URI && !process.env.MONGO_DEV_URI) {
+      console.log('⚠️  未設定 MongoDB 連接字串，嘗試使用記憶體資料庫...')
+      try {
+        const { MongoMemoryServer } = await import('mongodb-memory-server')
+        const mongoServer = await MongoMemoryServer.create()
+        mongoUri = mongoServer.getUri()
+        console.log('✅ 使用記憶體資料庫進行測試')
+      } catch (memoryError) {
+        console.error('❌ 無法啟動記憶體資料庫:', memoryError)
+        console.log('\n📌 請選擇以下其中一個解決方案：')
+        console.log('1. 設定環境變數 MONGO_DEV_URI 或 MONGODB_URI')
+        console.log('2. 啟動本地 MongoDB 服務')
+        console.log('3. 使用 Docker Compose 啟動服務：docker-compose up mongodb')
+        process.exit(1)
+      }
+    }
+
+    await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     })
     console.log('✅ 資料庫連接成功')
   } catch (error) {
     console.error('❌ 資料庫連接失敗:', error)
+    console.log('\n📌 請檢查：')
+    console.log('1. MongoDB 服務是否正在運行')
+    console.log('2. 環境變數設定是否正確')
+    console.log('3. 網路連接是否正常')
     process.exit(1)
   }
 }
@@ -58,10 +83,10 @@ class ProgressTracker {
     const elapsed = (Date.now() - this.startTime) / 1000
     const rate = this.current / elapsed
     const remaining = (this.total - this.current) / rate
-    
+
     process.stdout.write(
       `\r${this.taskName}: ${this.current}/${this.total} (${percentage}%) ` +
-      `- 已用時: ${elapsed.toFixed(1)}s, 預計剩餘: ${remaining.toFixed(1)}s`
+        `- 已用時: ${elapsed.toFixed(1)}s, 預計剩餘: ${remaining.toFixed(1)}s`,
     )
   }
 
@@ -74,7 +99,7 @@ class ProgressTracker {
 // 步驟 1：為 memes 集合添加新欄位
 const addNewFieldsToMemes = async () => {
   console.log('\n📝 步驟 1：為 memes 集合添加新欄位...')
-  
+
   try {
     // 檢查是否已有這些欄位
     const sampleMeme = await Meme.findOne().lean()
@@ -132,12 +157,14 @@ const addNewFieldsToMemes = async () => {
 // 步驟 2：計算並更新 lineage（系譜）
 const calculateLineage = async () => {
   console.log('\n🌳 步驟 2：計算並更新 lineage（系譜）...')
-  
+
   try {
     // 找出所有有 variant_of 的迷因
-    const variantMemes = await Meme.find({ 
-      variant_of: { $ne: null } 
-    }).select('_id variant_of').lean()
+    const variantMemes = await Meme.find({
+      variant_of: { $ne: null },
+    })
+      .select('_id variant_of')
+      .lean()
 
     if (variantMemes.length === 0) {
       console.log('⚠️  沒有變體迷因，跳過此步驟')
@@ -160,9 +187,7 @@ const calculateLineage = async () => {
         }
         seen.add(String(root))
 
-        const parent = await Meme.findById(root)
-          .select('variant_of lineage.root')
-          .lean()
+        const parent = await Meme.findById(root).select('variant_of lineage.root').lean()
 
         if (!parent) break
 
@@ -222,10 +247,10 @@ const calculateLineage = async () => {
 // 步驟 3：更新來源的統計數據
 const updateSourceStats = async () => {
   console.log('\n📊 步驟 3：更新來源的統計數據...')
-  
+
   try {
     const sources = await Source.find({ status: { $ne: 'deleted' } }).select('_id')
-    
+
     if (sources.length === 0) {
       console.log('⚠️  沒有來源資料，跳過此步驟')
       return
@@ -289,10 +314,10 @@ const updateSourceStats = async () => {
 // 步驟 4：更新片段的統計數據
 const updateSceneStats = async () => {
   console.log('\n📊 步驟 4：更新片段的統計數據...')
-  
+
   try {
     const scenes = await Scene.find({ status: { $ne: 'deleted' } }).select('_id')
-    
+
     if (scenes.length === 0) {
       console.log('⚠️  沒有片段資料，跳過此步驟')
       return
@@ -344,7 +369,7 @@ const updateSceneStats = async () => {
 // 步驟 5：建立索引
 const createIndexes = async () => {
   console.log('\n🔍 步驟 5：建立索引...')
-  
+
   try {
     // Meme 索引
     console.log('  建立 Meme 索引...')
@@ -381,7 +406,7 @@ const createIndexes = async () => {
 const main = async () => {
   console.log('🚀 開始執行三層模型資料遷移...')
   console.log('================================')
-  
+
   try {
     // 連接資料庫
     await connectDB()
@@ -400,7 +425,6 @@ const main = async () => {
     console.log('2. 手動建立片段（Scene）資料')
     console.log('3. 逐步為熱門迷因關聯 source_id 和 scene_id')
     console.log('4. 為變體迷因設定 variant_of 關係')
-    
   } catch (error) {
     console.error('\n❌ 遷移失敗:', error)
     process.exit(1)
