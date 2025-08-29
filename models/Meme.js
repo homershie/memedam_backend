@@ -134,12 +134,12 @@ const MemeSchema = new mongoose.Schema(
         // 在變體系譜中的深度（0表示是根源）
       },
     },
-    // 梗點解析（獨特的迷因解釋）
+    // 笑點解析（獨特的迷因解釋）
     body: {
       type: String,
       trim: true,
-      maxlength: [5000, '梗點解析長度不能超過5000個字元'],
-      // 你的梗點解析（務必獨特）- 解釋這個迷因為什麼好笑/有趣
+      maxlength: [5000, '笑點解析長度不能超過5000個字元'],
+      // 你的笑點解析（務必獨特）- 解釋這個迷因為什麼好笑/有趣
     },
     author_id: {
       type: mongoose.Schema.Types.ObjectId,
@@ -440,7 +440,7 @@ const MemeSchema = new mongoose.Schema(
 // 自動更新 updated_at 欄位 & 處理三層模型資料一致性
 MemeSchema.pre('save', async function (next) {
   this.updated_at = new Date()
-  
+
   // 資料一致性：若 scene_id 存在，自動覆蓋 source_id = scene.source_id
   if (this.scene_id && (!this.source_id || this.isModified('scene_id'))) {
     try {
@@ -453,7 +453,7 @@ MemeSchema.pre('save', async function (next) {
       console.error('Error fetching scene for source_id sync:', error)
     }
   }
-  
+
   // lineage 自動計算
   if (this.isModified('variant_of')) {
     if (this.variant_of) {
@@ -462,7 +462,7 @@ MemeSchema.pre('save', async function (next) {
         let root = this.variant_of
         let depth = 1
         const seen = new Set([String(this._id)])
-        
+
         // 向上追溯找到根源
         while (root) {
           if (seen.has(String(root))) {
@@ -471,20 +471,18 @@ MemeSchema.pre('save', async function (next) {
             break
           }
           seen.add(String(root))
-          
-          const parent = await Meme.findById(root)
-            .select('variant_of lineage.root')
-            .lean()
-          
+
+          const parent = await Meme.findById(root).select('variant_of lineage.root').lean()
+
           if (!parent) break
-          
+
           // 如果父節點已有 lineage.root，直接使用
           if (parent.lineage?.root) {
             root = parent.lineage.root
             depth = (parent.lineage.depth || 0) + 1
             break
           }
-          
+
           // 否則繼續向上追溯
           if (parent.variant_of) {
             root = parent.variant_of
@@ -495,7 +493,7 @@ MemeSchema.pre('save', async function (next) {
             break
           }
         }
-        
+
         this.lineage = {
           root: root || this.variant_of,
           depth: depth,
@@ -516,7 +514,7 @@ MemeSchema.pre('save', async function (next) {
       }
     }
   }
-  
+
   next()
 })
 
@@ -643,22 +641,22 @@ MemeSchema.statics.getTrendingMemes = async function (limit = 50, hours = 24) {
 // 取得同一系譜的所有變體
 MemeSchema.statics.getVariants = async function (memeId, options = {}) {
   const { limit = 60, excludeSelf = true } = options
-  
+
   // 先找到這個迷因的 lineage.root
   const meme = await this.findById(memeId).select('lineage.root').lean()
   if (!meme) return []
-  
+
   const rootId = meme.lineage?.root || memeId
-  
+
   const query = {
     'lineage.root': rootId,
     status: 'public',
   }
-  
+
   if (excludeSelf) {
     query._id = { $ne: memeId }
   }
-  
+
   return this.find(query)
     .select('title slug image_url video_url variant_of lineage like_count view_count author_id')
     .sort({ 'lineage.depth': 1, like_count: -1, createdAt: -1 })
@@ -669,20 +667,20 @@ MemeSchema.statics.getVariants = async function (memeId, options = {}) {
 // 取得同一來源的其他迷因
 MemeSchema.statics.getMemesFromSameSource = async function (memeId, options = {}) {
   const { limit = 30, excludeSelf = true } = options
-  
+
   // 先找到這個迷因的 source_id
   const meme = await this.findById(memeId).select('source_id scene_id').lean()
   if (!meme || !meme.source_id) return []
-  
+
   const query = {
     source_id: meme.source_id,
     status: 'public',
   }
-  
+
   if (excludeSelf) {
     query._id = { $ne: memeId }
   }
-  
+
   return this.find(query)
     .select('title slug image_url video_url like_count view_count scene_id lineage author_id')
     .sort({ like_count: -1, createdAt: -1 })

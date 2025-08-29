@@ -1,6 +1,7 @@
 # 三層模型前端組件架構文件
 
 ## 概述
+
 本文件說明如何在前端實作 Source/Scene/Meme 三層模型的組件架構，包含詳情頁組件拆分、資料流程和 SEO 處理。
 
 ## 組件結構
@@ -12,45 +13,36 @@
 <template>
   <div class="meme-detail-page">
     <!-- 主要迷因展示區 -->
-    <MemeHero 
-      :meme="meme"
-      @like="handleLike"
-      @share="handleShare"
-      @collect="handleCollect"
-    />
-    
-    <!-- 梗點解析 -->
-    <MemeAnalysis 
-      v-if="meme.body"
-      :content="meme.body"
-      :author="meme.author_id"
-    />
-    
+    <MemeHero :meme="meme" @like="handleLike" @share="handleShare" @collect="handleCollect" />
+
+    <!-- 笑點解析 -->
+    <MemeAnalysis v-if="meme.body" :content="meme.body" :author="meme.author_id" />
+
     <!-- 出處資訊卡片（可展開） -->
-    <SourceCard 
+    <SourceCard
       v-if="source || scene"
       :source="source"
       :scene="scene"
       :expandable="true"
       :default-expanded="false"
     />
-    
+
     <!-- 變體/混剪族譜 -->
-    <VariantGallery 
+    <VariantGallery
       v-if="variants && variants.length > 0"
       :variants="variants"
       :current-meme-id="meme._id"
       :lineage="meme.lineage"
     />
-    
+
     <!-- 同來源的其他迷因 -->
-    <RelatedFromSource 
+    <RelatedFromSource
       v-if="fromSource && fromSource.length > 0"
       :memes="fromSource"
       :source="source"
       :current-meme-id="meme._id"
     />
-    
+
     <!-- 留言區 -->
     <CommentSection :meme-id="meme._id" />
   </div>
@@ -72,13 +64,13 @@ const fromSource = ref([])
 
 onMounted(async () => {
   const { idOrSlug } = route.params
-  
+
   // 使用 bundle API 一次取得所有資料
   const response = await fetch(
-    `/api/memes/${idOrSlug}/bundle?include=scene,source,variants,from_source`
+    `/api/memes/${idOrSlug}/bundle?include=scene,source,variants,from_source`,
   )
   const data = await response.json()
-  
+
   if (data.success) {
     meme.value = data.data.meme
     source.value = data.data.source
@@ -92,7 +84,7 @@ onMounted(async () => {
 const canonicalUrl = computed(() => {
   // 如果是近似重複（媒體相同且正文極短），指向 root
   if (shouldUseRootCanonical()) {
-    const rootMeme = variants.value.find(v => v._id === meme.value.lineage?.root)
+    const rootMeme = variants.value.find((v) => v._id === meme.value.lineage?.root)
     return rootMeme ? `/meme/${rootMeme.slug}` : `/meme/${meme.value.slug}`
   }
   // 否則使用自己的 canonical
@@ -103,11 +95,10 @@ const shouldUseRootCanonical = () => {
   if (!meme.value.variant_of) return false
   if (!meme.value.body || meme.value.body.length < 50) {
     // 檢查是否與原始迷因媒體相同
-    const rootMeme = variants.value.find(v => v._id === meme.value.lineage?.root)
+    const rootMeme = variants.value.find((v) => v._id === meme.value.lineage?.root)
     if (rootMeme) {
       return (
-        rootMeme.image_url === meme.value.image_url &&
-        rootMeme.video_url === meme.value.video_url
+        rootMeme.image_url === meme.value.image_url && rootMeme.video_url === meme.value.video_url
       )
     }
   }
@@ -123,7 +114,7 @@ const shouldUseRootCanonical = () => {
 <template>
   <div class="meme-hero">
     <h1 class="meme-title">{{ meme.title }}</h1>
-    
+
     <!-- 主媒體展示 -->
     <div class="meme-media">
       <img v-if="meme.type === 'image'" :src="meme.image_url" :alt="meme.title" />
@@ -131,7 +122,7 @@ const shouldUseRootCanonical = () => {
       <audio v-else-if="meme.type === 'audio'" :src="meme.audio_url" controls />
       <div v-else class="text-content">{{ meme.content }}</div>
     </div>
-    
+
     <!-- 互動按鈕 -->
     <div class="meme-actions">
       <button @click="$emit('like')" class="btn-like">
@@ -147,7 +138,7 @@ const shouldUseRootCanonical = () => {
         收藏
       </button>
     </div>
-    
+
     <!-- 作者資訊 -->
     <div class="meme-author">
       <Avatar :user="meme.author_id" />
@@ -174,15 +165,13 @@ const shouldUseRootCanonical = () => {
       <h3>出處資訊</h3>
       <Icon :name="expanded ? 'chevron-up' : 'chevron-down'" />
     </div>
-    
+
     <transition name="expand">
       <div v-show="expanded" class="source-content">
         <!-- 片段資訊 -->
         <div v-if="scene" class="scene-info">
           <h4>片段資訊</h4>
-          <div v-if="scene.episode" class="scene-episode">
-            集數：{{ scene.episode }}
-          </div>
+          <div v-if="scene.episode" class="scene-episode">集數：{{ scene.episode }}</div>
           <div v-if="scene.quote" class="scene-quote">
             <Icon name="quote" />
             {{ scene.quote }}
@@ -192,40 +181,40 @@ const shouldUseRootCanonical = () => {
             <span v-if="scene.end_time"> - {{ formatTime(scene.end_time) }}</span>
           </div>
           <div v-if="scene.images?.length" class="scene-screenshots">
-            <img 
-              v-for="(img, idx) in scene.images.slice(0, 3)" 
+            <img
+              v-for="(img, idx) in scene.images.slice(0, 3)"
               :key="idx"
               :src="img"
               @click="openLightbox(img)"
             />
           </div>
         </div>
-        
+
         <!-- 作品資訊 -->
         <div v-if="source" class="source-info">
           <h4>作品資訊</h4>
           <router-link :to="`/source/${source.slug}`" class="source-title">
             {{ source.title }}
           </router-link>
-          
+
           <div class="source-meta">
             <span v-if="source.year">{{ source.year }}年</span>
             <span v-if="source.origin_country">{{ source.origin_country }}</span>
             <span class="source-type">{{ getTypeLabel(source.type) }}</span>
           </div>
-          
+
           <div v-if="source.synopsis" class="source-synopsis">
             {{ truncate(source.synopsis, 200) }}
           </div>
-          
+
           <div v-if="source.context" class="source-context">
             <h5>背景說明</h5>
             {{ truncate(source.context, 300) }}
           </div>
-          
+
           <div v-if="source.links?.length" class="source-links">
-            <a 
-              v-for="link in source.links" 
+            <a
+              v-for="link in source.links"
               :key="link.url"
               :href="link.url"
               target="_blank"
@@ -247,7 +236,7 @@ const props = defineProps({
   source: Object,
   scene: Object,
   expandable: { type: Boolean, default: true },
-  defaultExpanded: { type: Boolean, default: false }
+  defaultExpanded: { type: Boolean, default: false },
 })
 
 const expanded = ref(props.defaultExpanded)
@@ -262,7 +251,7 @@ const formatTime = (seconds) => {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
-  
+
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
@@ -277,7 +266,7 @@ const getTypeLabel = (type) => {
     ad: '廣告',
     web: '網路影片',
     article: '文章',
-    other: '其他'
+    other: '其他',
   }
   return labels[type] || type
 }
@@ -294,20 +283,16 @@ const getTypeLabel = (type) => {
       <h3>變體與混剪</h3>
       <span class="variant-count">共 {{ variants.length }} 個變體</span>
     </div>
-    
+
     <!-- 系譜樹狀圖（可選） -->
     <div v-if="showLineageTree" class="lineage-tree">
-      <LineageTree 
-        :variants="variants"
-        :current-id="currentMemeId"
-        :root-id="lineage?.root"
-      />
+      <LineageTree :variants="variants" :current-id="currentMemeId" :root-id="lineage?.root" />
     </div>
-    
+
     <!-- 變體列表 -->
     <div class="variants-grid">
-      <div 
-        v-for="variant in sortedVariants" 
+      <div
+        v-for="variant in sortedVariants"
         :key="variant._id"
         class="variant-card"
         :class="{ 'is-parent': variant._id === meme.variant_of }"
@@ -318,16 +303,12 @@ const getTypeLabel = (type) => {
             <video v-else-if="variant.video_url" :src="variant.video_url" />
             <div v-else class="text-preview">{{ variant.title }}</div>
           </div>
-          
+
           <div class="variant-info">
             <h4>{{ variant.title }}</h4>
             <div class="variant-meta">
-              <span class="depth-badge">
-                第 {{ variant.lineage.depth }} 代
-              </span>
-              <span class="stats">
-                <Icon name="thumb-up" /> {{ variant.like_count }}
-              </span>
+              <span class="depth-badge"> 第 {{ variant.lineage.depth }} 代 </span>
+              <span class="stats"> <Icon name="thumb-up" /> {{ variant.like_count }} </span>
             </div>
             <div class="variant-author">
               by {{ variant.author_id.display_name || variant.author_id.username }}
@@ -336,10 +317,8 @@ const getTypeLabel = (type) => {
         </router-link>
       </div>
     </div>
-    
-    <button v-if="hasMore" @click="loadMore" class="btn-load-more">
-      載入更多變體
-    </button>
+
+    <button v-if="hasMore" @click="loadMore" class="btn-load-more">載入更多變體</button>
   </div>
 </template>
 
@@ -349,7 +328,7 @@ import { ref, computed } from 'vue'
 const props = defineProps({
   variants: Array,
   currentMemeId: String,
-  lineage: Object
+  lineage: Object,
 })
 
 const sortedVariants = computed(() => {
@@ -372,36 +351,28 @@ const sortedVariants = computed(() => {
   <div class="related-from-source">
     <div class="section-header">
       <h3>同來源迷因</h3>
-      <router-link 
-        v-if="source" 
-        :to="`/source/${source.slug}`"
-        class="view-all-link"
-      >
+      <router-link v-if="source" :to="`/source/${source.slug}`" class="view-all-link">
         查看全部 →
       </router-link>
     </div>
-    
+
     <div class="memes-carousel">
-      <div 
-        v-for="meme in memes" 
-        :key="meme._id"
-        class="related-meme-card"
-      >
+      <div v-for="meme in memes" :key="meme._id" class="related-meme-card">
         <router-link :to="`/meme/${meme.slug}`">
           <div class="meme-thumbnail">
             <img v-if="meme.image_url" :src="meme.image_url" />
             <video v-else-if="meme.video_url" :src="meme.video_url" />
           </div>
-          
+
           <div class="meme-info">
             <h4>{{ meme.title }}</h4>
-            
+
             <!-- 顯示片段資訊 -->
             <div v-if="meme.scene_id" class="scene-badge">
               <Icon name="film" />
               {{ meme.scene_id.quote || formatTime(meme.scene_id.start_time) }}
             </div>
-            
+
             <div class="meme-stats">
               <span><Icon name="eye" /> {{ meme.view_count }}</span>
               <span><Icon name="thumb-up" /> {{ meme.like_count }}</span>
@@ -426,22 +397,22 @@ async function fetchMemeBundle(idOrSlug) {
     {
       headers: {
         'Content-Type': 'application/json',
-      }
-    }
+      },
+    },
   )
-  
+
   const data = await response.json()
-  
+
   if (data.success) {
     return {
       meme: data.data.meme,
       source: data.data.source,
       scene: data.data.scene,
       variants: data.data.variants || [],
-      fromSource: data.data.from_source || []
+      fromSource: data.data.from_source || [],
     }
   }
-  
+
   throw new Error(data.message || '載入失敗')
 }
 ```
@@ -451,25 +422,22 @@ async function fetchMemeBundle(idOrSlug) {
 ```javascript
 // 取得來源及相關資料
 async function fetchSourceBundle(slug) {
-  const response = await fetch(
-    `/api/sources/${slug}?include=scenes,memes`,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    }
-  )
-  
+  const response = await fetch(`/api/sources/${slug}?include=scenes,memes`, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+
   const data = await response.json()
-  
+
   if (data.success) {
     return {
       source: data.data.source,
       scenes: data.data.scenes || [],
-      memes: data.data.memes || []
+      memes: data.data.memes || [],
     }
   }
-  
+
   throw new Error(data.message || '載入失敗')
 }
 ```
@@ -485,65 +453,49 @@ async function fetchSourceBundle(slug) {
       <label>標題</label>
       <input v-model="form.title" required />
     </div>
-    
+
     <!-- 來源選擇 -->
     <div class="form-group">
       <label>選擇來源作品</label>
-      <SourceSelector 
-        v-model="form.source_id"
-        @change="onSourceChange"
-      />
-      <button type="button" @click="showCreateSource = true">
-        找不到？新增來源
-      </button>
+      <SourceSelector v-model="form.source_id" @change="onSourceChange" />
+      <button type="button" @click="showCreateSource = true">找不到？新增來源</button>
     </div>
-    
+
     <!-- 片段選擇（可選） -->
     <div v-if="form.source_id" class="form-group">
       <label>選擇片段（可選）</label>
-      <SceneSelector 
-        v-model="form.scene_id"
-        :source-id="form.source_id"
-      />
-      <button type="button" @click="showCreateScene = true">
-        新增片段
-      </button>
+      <SceneSelector v-model="form.scene_id" :source-id="form.source_id" />
+      <button type="button" @click="showCreateScene = true">新增片段</button>
     </div>
-    
+
     <!-- 變體關係 -->
     <div class="form-group">
       <label>
         <input type="checkbox" v-model="isVariant" />
         這是其他迷因的變體/混剪
       </label>
-      
+
       <div v-if="isVariant">
-        <MemeSelector 
-          v-model="form.variant_of"
-          placeholder="搜尋原始迷因..."
-        />
+        <MemeSelector v-model="form.variant_of" placeholder="搜尋原始迷因..." />
       </div>
     </div>
-    
-    <!-- 梗點解析（重要！） -->
+
+    <!-- 笑點解析（重要！） -->
     <div class="form-group">
-      <label>梗點解析 *</label>
-      <textarea 
+      <label>笑點解析 *</label>
+      <textarea
         v-model="form.body"
         placeholder="解釋這個迷因為什麼好笑/有趣（請寫出獨特的見解）"
         rows="5"
         required
       />
     </div>
-    
+
     <!-- 媒體上傳 -->
     <div class="form-group">
-      <MediaUploader 
-        v-model="form.media"
-        :type="form.type"
-      />
+      <MediaUploader v-model="form.media" :type="form.type" />
     </div>
-    
+
     <button type="submit">發布迷因</button>
   </form>
 </template>
@@ -558,7 +510,7 @@ const form = ref({
   source_id: null,
   scene_id: null,
   variant_of: null,
-  media: null
+  media: null,
 })
 
 const isVariant = ref(false)
@@ -575,11 +527,11 @@ const handleSubmit = async () => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(form.value)
+    body: JSON.stringify(form.value),
   })
-  
+
   if (response.ok) {
     // 成功處理
   }
@@ -595,7 +547,7 @@ const handleSubmit = async () => {
 // composables/useSEO.js
 export function useMemeSEO(meme, source, scene) {
   const { $meta } = useNuxtApp()
-  
+
   // 設定標題
   const title = computed(() => {
     let t = meme.value.title
@@ -604,7 +556,7 @@ export function useMemeSEO(meme, source, scene) {
     }
     return t
   })
-  
+
   // 設定描述
   const description = computed(() => {
     if (meme.value.body) {
@@ -615,7 +567,7 @@ export function useMemeSEO(meme, source, scene) {
     }
     return meme.value.content || meme.value.title
   })
-  
+
   // 設定 canonical URL
   const canonical = computed(() => {
     // 檢查是否應該使用 root 的 canonical
@@ -624,7 +576,7 @@ export function useMemeSEO(meme, source, scene) {
     }
     return `https://www.memedam.com/meme/${meme.value.slug || meme.value._id}`
   })
-  
+
   // 設定 structured data
   const structuredData = computed(() => ({
     '@context': 'https://schema.org',
@@ -634,19 +586,21 @@ export function useMemeSEO(meme, source, scene) {
     image: meme.value.image_url,
     author: {
       '@type': 'Person',
-      name: meme.value.author_id.display_name
+      name: meme.value.author_id.display_name,
     },
-    isBasedOn: source.value ? {
-      '@type': 'CreativeWork',
-      name: source.value.title
-    } : undefined
+    isBasedOn: source.value
+      ? {
+          '@type': 'CreativeWork',
+          name: source.value.title,
+        }
+      : undefined,
   }))
-  
+
   return {
     title,
     description,
     canonical,
-    structuredData
+    structuredData,
   }
 }
 ```
