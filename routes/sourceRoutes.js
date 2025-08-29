@@ -9,7 +9,7 @@ import {
   searchSourcesAutocomplete,
   getPopularSources,
 } from '../controllers/sourceController.js'
-import { authenticateToken, isAdmin } from '../middleware/auth.js'
+import { token, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -20,9 +20,9 @@ router.get('/', getSources) // 取得來源列表
 router.get('/:slug', getSourceBundle) // 取得單一來源及相關資料
 
 // 需要管理員權限的路由
-router.post('/', authenticateToken, isAdmin, createSource) // 建立新來源
-router.put('/:id', authenticateToken, isAdmin, updateSource) // 更新來源
-router.delete('/:id', authenticateToken, isAdmin, deleteSource) // 刪除來源
-router.post('/:id/update-stats', authenticateToken, isAdmin, updateSourceStats) // 更新統計
+router.post('/', token, isAdmin, createSource) // 建立新來源
+router.put('/:id', token, isAdmin, updateSource) // 更新來源
+router.delete('/:id', token, isAdmin, deleteSource) // 刪除來源
+router.post('/:id/update-stats', token, isAdmin, updateSourceStats) // 更新統計
 
 export default router

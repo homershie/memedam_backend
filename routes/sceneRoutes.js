@@ -9,7 +9,7 @@ import {
   searchScenes,
   getPopularScenes,
 } from '../controllers/sceneController.js'
-import { authenticateToken, isAdmin } from '../middleware/auth.js'
+import { token, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -20,9 +20,9 @@ router.get('/source/:sourceId', getSourceScenes) // 取得來源的所有片段
 router.get('/:idOrSlug', getSceneBundle) // 取得單一片段及相關資料
 
 // 需要管理員權限的路由
-router.post('/', authenticateToken, isAdmin, createScene) // 建立新片段
-router.put('/:id', authenticateToken, isAdmin, updateScene) // 更新片段
-router.delete('/:id', authenticateToken, isAdmin, deleteScene) // 刪除片段
-router.post('/:id/update-stats', authenticateToken, isAdmin, updateSceneStats) // 更新統計
+router.post('/', token, isAdmin, createScene) // 建立新片段
+router.put('/:id', token, isAdmin, updateScene) // 更新片段
+router.delete('/:id', token, isAdmin, deleteScene) // 刪除片段
+router.post('/:id/update-stats', token, isAdmin, updateSceneStats) // 更新統計
 
 export default router

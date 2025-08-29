@@ -318,8 +318,8 @@ app.use(attachPrivacyConsent)
 // 路由
 import userRoutes from './routes/userRoutes.js'
 import memeRoutes from './routes/memeRoutes.js'
-import sourceRoutes from './routes/sources.js'
-import sceneRoutes from './routes/scenes.js'
+import sourceRoutes from './routes/sourceRoutes.js'
+import sceneRoutes from './routes/sceneRoutes.js'
 import likeRoutes from './routes/likeRoutes.js'
 import commentRoutes from './routes/commentRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
