@@ -18,6 +18,9 @@ import {
   getTrendingMemes,
   getMemeScoreAnalysis,
   getRandomMeme,
+  getMemeBundle,
+  getMemeVariants,
+  getMemesFromSameSource,
 } from '../controllers/memeController.js'
 import {
   proposeEdit,
@@ -1214,6 +1217,16 @@ router.put('/:id/hot-score', token, blockBannedUser, updateMemeHotScore)
  *               $ref: '#/components/schemas/Error'
  */
 router.delete('/batch-delete', token, isManager, batchDeleteMemes)
+
+// ===== 三層模型 Bundle API 路由 =====
+// Bundle API - 取得迷因及相關資料
+router.get('/:idOrSlug/bundle', getMemeBundle)
+
+// 取得同一系譜的變體迷因
+router.get('/:id/variants', getMemeVariants)
+
+// 取得同一來源的其他迷因
+router.get('/:id/from-source', getMemesFromSameSource)
 
 // 基本 CRUD 操作（必須在最後）
 router.get('/:id', getMemeById)

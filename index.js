@@ -318,6 +318,8 @@ app.use(attachPrivacyConsent)
 // 路由
 import userRoutes from './routes/userRoutes.js'
 import memeRoutes from './routes/memeRoutes.js'
+import sourceRoutes from './routes/sources.js'
+import sceneRoutes from './routes/scenes.js'
 import likeRoutes from './routes/likeRoutes.js'
 import commentRoutes from './routes/commentRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
@@ -348,6 +350,8 @@ import privacyConsentRoutes from './routes/privacyConsentRoutes.js'
 
 app.use('/api/users', userRoutes)
 app.use('/api/memes', memeRoutes)
+app.use('/api/sources', sourceRoutes)
+app.use('/api/scenes', sceneRoutes)
 app.use('/api/likes', likeRoutes)
 app.use('/api/comments', commentRoutes)
 app.use('/api/shares', shareRoutes)
