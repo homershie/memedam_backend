@@ -457,6 +457,7 @@ import SourceScenePicker from '@/components/SourceScenePicker.vue'
 import MemeRemoteSelect from '@/components/MemeRemoteSelect.vue'
 
 // API 服務
+import apiService from '@/services/apiService'
 import memeService from '@/services/memeService'
 import tagService from '@/services/tagService'
 import memeTagService from '@/services/memeTagService'
@@ -566,10 +567,12 @@ const checkSlugAvailable = async (slug) => {
 
   slug_checking.value = true
   try {
-    const response = await fetch(`/api/memes/slug-available?slug=${encodeURIComponent(slug)}`)
-    const result = await response.json()
-    slug_ok.value = result.ok
-    slug_error.value = result.ok ? '' : (result.reason || '此 slug 已被使用')
+    // 使用 apiService 的風格
+    const { data } = await apiService.http.get('/api/memes/slug-available', {
+      params: { slug }
+    })
+    slug_ok.value = data.ok
+    slug_error.value = data.ok ? '' : (data.reason || '此 slug 已被使用')
   } catch (error) {
     slug_ok.value = false
     slug_error.value = '無法驗證 slug 的唯一性'
@@ -850,15 +853,11 @@ const handleSubmit = async () => {
       const formData = new FormData()
       formData.append('image', uploadedImageFile.value) // key 必須是 'image'
 
-      const res = await fetch('/api/upload/image', {
-        method: 'POST',
+      const { data } = await apiService.httpAuth.post('/api/upload/image', formData, {
         headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-        // 不要加 headers: Content-Type
+          'Content-Type': 'multipart/form-data'
+        }
       })
-      const data = await res.json()
       if (
         data.success &&
         data.url &&
@@ -958,17 +957,15 @@ const handleSubmit = async () => {
           formData.append('image', file)
 
           // 使用 URL 查詢參數來傳遞這些值，因為 multer 可能無法正確解析 FormData 中的文字欄位
-          const uploadUrl = `/api/upload/image?isDetailImage=true&memeId=${meme._id}`
-
-          const res = await fetch(uploadUrl, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
+          const { data } = await apiService.httpAuth.post('/api/upload/image', formData, {
+            params: {
+              isDetailImage: true,
+              memeId: meme._id
             },
-            body: formData,
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
           })
-
-          const data = await res.json()
           if (
             data.success &&
             data.url &&

@@ -62,6 +62,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import AutoComplete from 'primevue/autocomplete'
+import apiService from '@/services/apiService'
 
 const props = defineProps({
   modelValue: {
@@ -87,8 +88,9 @@ const searchMemes = async (event) => {
   }
 
   try {
-    const response = await fetch(`/api/memes/search?q=${encodeURIComponent(query)}&limit=10`)
-    const data = await response.json()
+    const { data } = await apiService.http.get('/api/memes/search', {
+      params: { q: query, limit: 10 }
+    })
     
     if (data.success) {
       memeSuggestions.value = data.data || []

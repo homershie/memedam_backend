@@ -422,7 +422,7 @@ const searchSources = async (event) => {
   }
 
   try {
-    const data = await sourceService.search(query, 10)
+    const { data } = await sourceService.search(query, 10)
     sourceSuggestions.value = data.data || []
   } catch (error) {
     console.error('搜尋來源失敗:', error)
@@ -450,7 +450,7 @@ const searchScenes = async (event) => {
 
   const query = event.query
   try {
-    const data = await sourceService.getScenes(props.source_id, query, 1)
+    const { data } = await sourceService.getScenes(props.source_id, query, 1)
     sceneSuggestions.value = data.data || []
   } catch (error) {
     console.error('搜尋場景失敗:', error)
@@ -483,9 +483,9 @@ const checkSourceSlugAvailable = useDebounceFn(async (slug) => {
   }
 
   try {
-    const result = await sourceService.checkSlugAvailable(slug)
-    sourceSlugOk.value = result.ok
-    sourceSlugError.value = result.ok ? '' : result.reason
+    const { data } = await sourceService.checkSlugAvailable(slug)
+    sourceSlugOk.value = data.ok
+    sourceSlugError.value = data.ok ? '' : data.reason
   } catch (error) {
     sourceSlugOk.value = false
     sourceSlugError.value = '無法驗證 slug 的唯一性'
@@ -528,12 +528,12 @@ const createSource = async () => {
       synopsis: newSource.value.synopsis?.trim() || undefined
     }
 
-    const result = await sourceService.create(sourceData)
+    const { data } = await sourceService.create(sourceData)
     
-    if (result.data && result.data._id) {
+    if (data.data && data.data._id) {
       // 設定選中的來源
-      emit('update:source_id', result.data._id)
-      selectedSource.value = result.data.title
+      emit('update:source_id', data.data._id)
+      selectedSource.value = data.data.title
       sourceError.value = ''
       
       // 關閉對話框
@@ -600,12 +600,12 @@ const createScene = async () => {
       images: newScene.value.images.filter(img => img.trim())
     }
 
-    const result = await sceneService.create(sceneData)
+    const { data } = await sceneService.create(sceneData)
     
-    if (result.data && result.data._id) {
+    if (data.data && data.data._id) {
       // 設定選中的場景
-      emit('update:scene_id', result.data._id)
-      selectedScene.value = result.data.title || result.data.quote || formatTime(result.data.start_time)
+      emit('update:scene_id', data.data._id)
+      selectedScene.value = data.data.title || data.data.quote || formatTime(data.data.start_time)
       
       // 關閉對話框
       showCreateSceneDialog.value = false
