@@ -42,6 +42,19 @@ const MemeSchema = new mongoose.Schema(
       },
       // 圖片迷因的圖片連結，僅 type 為 image 時用
     },
+    cover_image: {
+      type: String,
+      default: '',
+      trim: true,
+      validate: {
+        validator: function (v) {
+          if (!v) return true // 允許空值
+          return validator.isURL(v, { protocols: ['http', 'https'] })
+        },
+        message: '主圖連結必須是有效的URL',
+      },
+      // 迷因主圖連結，所有類型都可選填，用於卡片顯示
+    },
     video_url: {
       type: String,
       default: '',
