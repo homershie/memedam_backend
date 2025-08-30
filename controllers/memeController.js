@@ -477,19 +477,16 @@ export const getMemes = async (req, res) => {
 export const getMemeById = async (req, res) => {
   try {
     const { id } = req.params
-    const { include } = req.query
 
     // 檢查是否為有效的 ObjectId
     const isObjectId = mongoose.Types.ObjectId.isValid(id)
-    
+
     // 建立查詢條件
-    const query = isObjectId 
-      ? { _id: new mongoose.Types.ObjectId(id) }
-      : { slug: id }
+    const query = isObjectId ? { _id: new mongoose.Types.ObjectId(id) } : { slug: id }
 
     // 權限：僅 admin/manager 可檢視非 public 項目
     const isPrivilegedUser = Boolean(req.user && ['admin', 'manager'].includes(req.user.role))
-    
+
     if (!isPrivilegedUser) {
       query.status = 'public'
     }
@@ -566,10 +563,12 @@ export const checkSlugAvailable = async (req, res) => {
       data: {
         slug,
         available: !existingMeme,
-        existing_meme: existingMeme ? {
-          id: existingMeme._id,
-          title: existingMeme.title,
-        } : null,
+        existing_meme: existingMeme
+          ? {
+              id: existingMeme._id,
+              title: existingMeme.title,
+            }
+          : null,
       },
       error: null,
     })
@@ -1968,9 +1967,11 @@ export const getMemeBundle = async (req, res, next) => {
     // scene/source 資料
     if (include.includes('scene') && meme.scene_id) {
       promises.push(
-        Scene.findById(meme.scene_id).lean().then(scene => {
-          result.scene = scene
-        })
+        Scene.findById(meme.scene_id)
+          .lean()
+          .then((scene) => {
+            result.scene = scene
+          }),
       )
     }
 
@@ -1978,9 +1979,11 @@ export const getMemeBundle = async (req, res, next) => {
       const sourceId = meme.source_id || result.scene?.source_id
       if (sourceId) {
         promises.push(
-          Source.findById(sourceId).lean().then(source => {
-            result.source = source
-          })
+          Source.findById(sourceId)
+            .lean()
+            .then((source) => {
+              result.source = source
+            }),
         )
       }
     }
@@ -1989,19 +1992,21 @@ export const getMemeBundle = async (req, res, next) => {
     if (include.includes('variants')) {
       const rootId = meme.lineage?.root || meme._id
       promises.push(
-        Meme.find({ 
-          'lineage.root': rootId, 
+        Meme.find({
+          'lineage.root': rootId,
           status: 'public',
-          _id: { $ne: meme._id } // 排除自己
+          _id: { $ne: meme._id }, // 排除自己
         })
-          .select('title slug image_url video_url variant_of lineage like_count view_count author_id source_id scene_id createdAt')
+          .select(
+            'title slug image_url video_url variant_of lineage like_count view_count author_id source_id scene_id createdAt',
+          )
           .sort({ 'lineage.depth': 1, like_count: -1, createdAt: -1 })
           .limit(60)
           .populate('author_id', 'username display_name avatar')
           .lean()
-          .then(variants => {
+          .then((variants) => {
             result.variants = variants
-          })
+          }),
       )
     }
 
@@ -2013,17 +2018,19 @@ export const getMemeBundle = async (req, res, next) => {
           Meme.find({
             source_id: sourceId,
             _id: { $ne: meme._id },
-            status: 'public'
+            status: 'public',
           })
-            .select('title slug image_url video_url like_count view_count author_id scene_id lineage createdAt')
+            .select(
+              'title slug image_url video_url like_count view_count author_id scene_id lineage createdAt',
+            )
             .sort({ like_count: -1, createdAt: -1 })
             .limit(30)
             .populate('author_id', 'username display_name avatar')
             .populate('scene_id', 'title quote start_time end_time')
             .lean()
-            .then(fromSource => {
+            .then((fromSource) => {
               result.from_source = fromSource
-            })
+            }),
         )
       }
     }
@@ -2067,9 +2074,11 @@ export const getMemeVariants = async (req, res, next) => {
       Meme.find({
         'lineage.root': rootId,
         status: 'public',
-        _id: { $ne: id }
+        _id: { $ne: id },
       })
-        .select('title slug image_url video_url variant_of lineage like_count view_count author_id createdAt')
+        .select(
+          'title slug image_url video_url variant_of lineage like_count view_count author_id createdAt',
+        )
         .sort({ 'lineage.depth': 1, like_count: -1, createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
@@ -2078,8 +2087,8 @@ export const getMemeVariants = async (req, res, next) => {
       Meme.countDocuments({
         'lineage.root': rootId,
         status: 'public',
-        _id: { $ne: id }
-      })
+        _id: { $ne: id },
+      }),
     ])
 
     res.status(StatusCodes.OK).json({
@@ -2135,9 +2144,11 @@ export const getMemesFromSameSource = async (req, res, next) => {
       Meme.find({
         source_id: sourceId,
         status: 'public',
-        _id: { $ne: id }
+        _id: { $ne: id },
       })
-        .select('title slug image_url video_url like_count view_count scene_id lineage author_id createdAt')
+        .select(
+          'title slug image_url video_url like_count view_count scene_id lineage author_id createdAt',
+        )
         .sort({ like_count: -1, createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
@@ -2147,8 +2158,8 @@ export const getMemesFromSameSource = async (req, res, next) => {
       Meme.countDocuments({
         source_id: sourceId,
         status: 'public',
-        _id: { $ne: id }
-      })
+        _id: { $ne: id },
+      }),
     ])
 
     res.status(StatusCodes.OK).json({

@@ -248,18 +248,52 @@ const MemeSchema = new mongoose.Schema(
       },
       // 主要標籤名稱快取（正式標籤關聯請用 MemeTag 表）
     },
-    source_url: {
-      type: String,
-      default: '',
-      trim: true,
+    sources: {
+      type: [
+        {
+          name: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 100,
+            validate: {
+              validator: function (v) {
+                return typeof v === 'string' && v.trim().length > 0 && v.trim().length <= 100
+              },
+              message: '來源名稱不能為空且長度不能超過100個字元',
+            },
+          },
+          url: {
+            type: String,
+            required: true,
+            trim: true,
+            validate: {
+              validator: function (v) {
+                return validator.isURL(v, { protocols: ['http', 'https'] })
+              },
+              message: '來源網址必須是有效的URL',
+            },
+          },
+        },
+      ],
+      default: [],
       validate: {
         validator: function (v) {
-          if (!v) return true // 允許空值
-          return validator.isURL(v, { protocols: ['http', 'https'] })
+          if (!Array.isArray(v)) return false
+          return v.every(
+            (source) =>
+              source &&
+              typeof source === 'object' &&
+              source.name &&
+              source.url &&
+              source.name.trim().length > 0 &&
+              source.name.trim().length <= 100 &&
+              validator.isURL(source.url, { protocols: ['http', 'https'] }),
+          )
         },
-        message: '來源網址必須是有效的URL',
+        message: '來源資料格式不正確',
       },
-      // 來源網址或原圖連結（有引用時用）
+      // 引用來源清單，包含名稱和網址
     },
 
     last_report_at: {
