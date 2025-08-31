@@ -11,9 +11,7 @@ export const getSceneBundle = async (req, res, next) => {
     const include = (req.query.include || '').split(',').filter(Boolean)
 
     // 查詢片段
-    const query = mongoose.Types.ObjectId.isValid(idOrSlug)
-      ? { _id: idOrSlug }
-      : { slug: idOrSlug }
+    const query = mongoose.Types.ObjectId.isValid(idOrSlug) ? { _id: idOrSlug } : { slug: idOrSlug }
 
     const scene = await Scene.findOne(query).lean()
 
@@ -59,7 +57,7 @@ export const getSceneBundle = async (req, res, next) => {
 export const getSourceScenes = async (req, res, next) => {
   try {
     const { sourceId } = req.params
-    const { sortBy = 'time' } = req.query
+    const { sortBy = 'time', query, page = 1, limit = 20 } = req.query
 
     // 驗證來源是否存在
     const source = await Source.findById(sourceId)
@@ -70,6 +68,27 @@ export const getSourceScenes = async (req, res, next) => {
       })
     }
 
+    // 如果有查詢參數，使用搜尋功能
+    if (query) {
+      const scenes = await Scene.searchScenes(query, {
+        sourceId,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        sortBy,
+      })
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        data: scenes.data,
+        pagination: scenes.pagination,
+        source: {
+          title: source.title,
+          slug: source.slug,
+          type: source.type,
+        },
+      })
+    }
+
+    // 否則取得所有片段
     const scenes = await Scene.getSourceScenes(sourceId, { sortBy })
 
     res.status(StatusCodes.OK).json({
@@ -186,18 +205,18 @@ export const updateScene = async (req, res, next) => {
     delete updateData.updatedAt
 
     // 驗證時間邏輯
-    if (updateData.end_time && updateData.start_time && updateData.end_time <= updateData.start_time) {
+    if (
+      updateData.end_time &&
+      updateData.start_time &&
+      updateData.end_time <= updateData.start_time
+    ) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '結束時間必須大於開始時間',
       })
     }
 
-    const scene = await Scene.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    )
+    const scene = await Scene.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
 
     if (!scene) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -243,7 +262,7 @@ export const deleteScene = async (req, res, next) => {
     const scene = await Scene.findByIdAndUpdate(
       id,
       { status: 'deleted', deleted_at: new Date() },
-      { new: true }
+      { new: true },
     )
 
     if (!scene) {
@@ -295,13 +314,7 @@ export const updateSceneStats = async (req, res, next) => {
 // 搜尋片段
 export const searchScenes = async (req, res, next) => {
   try {
-    const {
-      q,
-      sourceId,
-      tags,
-      page = 1,
-      limit = 20,
-    } = req.query
+    const { q, sourceId, tags, page = 1, limit = 20 } = req.query
 
     const options = {
       sourceId,

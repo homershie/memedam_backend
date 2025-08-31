@@ -197,28 +197,26 @@ SceneSchema.index({ 'counts.memes': -1 })
 // 格式化時間為 MM:SS 或 HH:MM:SS
 SceneSchema.methods.formatTime = function (seconds) {
   if (!seconds && seconds !== 0) return ''
-  
+
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
-  
+
   if (hours > 0) {
     return `${hours.toString().padStart(2, '0')}:${minutes
       .toString()
       .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
-  return `${minutes.toString().padStart(2, '0')}:${secs
-    .toString()
-    .padStart(2, '0')}`
+  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
 // 取得時間範圍字串
 SceneSchema.methods.getTimeRange = function () {
   if (this.start_time === null || this.start_time === undefined) return ''
-  
+
   const start = this.formatTime(this.start_time)
   const end = this.end_time ? this.formatTime(this.end_time) : ''
-  
+
   return end ? `${start} - ${end}` : start
 }
 
@@ -308,12 +306,7 @@ SceneSchema.statics.getPopularScenes = async function (limit = 50, sourceId = nu
 
 // 靜態方法：搜尋片段
 SceneSchema.statics.searchScenes = async function (query, options = {}) {
-  const {
-    sourceId = null,
-    tags = [],
-    limit = 20,
-    skip = 0,
-  } = options
+  const { sourceId = null, tags = [], limit = 20, page = 1, sortBy = 'popular' } = options
 
   const searchQuery = { status: 'active' }
 
@@ -324,11 +317,12 @@ SceneSchema.statics.searchScenes = async function (query, options = {}) {
 
   // 文字搜尋
   if (query) {
+    const searchRegex = new RegExp(query, 'i')
     searchQuery.$or = [
-      { title: { $regex: query, $options: 'i' } },
-      { quote: { $regex: query, $options: 'i' } },
-      { transcript: { $regex: query, $options: 'i' } },
-      { description: { $regex: query, $options: 'i' } },
+      { title: searchRegex },
+      { quote: searchRegex },
+      { transcript: searchRegex },
+      { description: searchRegex },
     ]
   }
 
@@ -337,18 +331,45 @@ SceneSchema.statics.searchScenes = async function (query, options = {}) {
     searchQuery.tags = { $in: tags }
   }
 
-  return this.find(searchQuery)
-    .sort({ 'counts.memes': -1, 'counts.views': -1 })
-    .skip(skip)
-    .limit(limit)
-    .populate('source_id', 'title slug type')
-    .select('title episode quote images start_time end_time counts slug')
+  const skip = (parseInt(page) - 1) * parseInt(limit)
+
+  // 排序選項
+  let sortOption = {}
+  switch (sortBy) {
+    case 'time':
+      sortOption = { start_time: 1, createdAt: 1 }
+      break
+    case 'popular':
+    default:
+      sortOption = { 'counts.memes': -1, 'counts.views': -1 }
+  }
+
+  const [scenes, total] = await Promise.all([
+    this.find(searchQuery)
+      .sort(sortOption)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('source_id', 'title slug type')
+      .select('title episode quote images start_time end_time counts slug')
+      .lean(),
+    this.countDocuments(searchQuery),
+  ])
+
+  return {
+    data: scenes,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit)),
+    },
+  }
 }
 
 // 虛擬屬性：取得完整的時間碼 URL
 SceneSchema.virtual('timecodedUrl').get(function () {
   if (!this.video_url || !this.start_time) return this.video_url
-  
+
   // YouTube 時間碼範例
   if (this.video_url.includes('youtube.com') || this.video_url.includes('youtu.be')) {
     const url = new URL(this.video_url)
@@ -358,7 +379,7 @@ SceneSchema.virtual('timecodedUrl').get(function () {
     }
     return url.toString()
   }
-  
+
   return this.video_url
 })
 

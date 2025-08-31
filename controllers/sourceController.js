@@ -11,11 +11,8 @@ export const getSourceBundle = async (req, res, next) => {
     const include = (req.query.include || '').split(',').filter(Boolean)
 
     // 查詢來源
-    const source = await Source.findOne({ 
-      $or: [
-        { slug },
-        mongoose.Types.ObjectId.isValid(slug) ? { _id: slug } : null
-      ].filter(Boolean)
+    const source = await Source.findOne({
+      $or: [{ slug }, mongoose.Types.ObjectId.isValid(slug) ? { _id: slug } : null].filter(Boolean),
     }).lean()
 
     if (!source) {
@@ -37,11 +34,13 @@ export const getSourceBundle = async (req, res, next) => {
 
     // 包含迷因資料
     if (include.includes('memes')) {
-      result.memes = await Meme.find({ 
-        source_id: source._id, 
-        status: 'public' 
+      result.memes = await Meme.find({
+        source_id: source._id,
+        status: 'public',
       })
-        .select('title slug image_url video_url like_count view_count scene_id lineage author_id createdAt')
+        .select(
+          'title slug image_url video_url like_count view_count scene_id lineage author_id createdAt',
+        )
         .sort({ like_count: -1, createdAt: -1 })
         .limit(90)
         .populate('author_id', 'username display_name avatar')
@@ -55,12 +54,12 @@ export const getSourceBundle = async (req, res, next) => {
         Scene.countDocuments({ source_id: source._id, status: 'active' }),
         Meme.aggregate([
           { $match: { source_id: source._id, status: 'public' } },
-          { $group: { _id: null, total: { $sum: '$views' } } }
-        ]).then(r => r[0]?.total || 0),
+          { $group: { _id: null, total: { $sum: '$views' } } },
+        ]).then((r) => r[0]?.total || 0),
         Meme.aggregate([
           { $match: { source_id: source._id, status: 'public' } },
-          { $group: { _id: null, total: { $sum: '$like_count' } } }
-        ]).then(r => r[0]?.total || 0)
+          { $group: { _id: null, total: { $sum: '$like_count' } } },
+        ]).then((r) => r[0]?.total || 0),
       ])
 
       result.stats = {
@@ -101,11 +100,8 @@ export const getSources = async (req, res, next) => {
 
     // 搜尋
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { alt_titles: { $regex: search, $options: 'i' } },
-        { synopsis: { $regex: search, $options: 'i' } },
-      ]
+      const searchRegex = new RegExp(search, 'i')
+      query.$or = [{ title: searchRegex }, { alt_titles: searchRegex }, { synopsis: searchRegex }]
     }
 
     // 標籤篩選
@@ -231,11 +227,10 @@ export const updateSource = async (req, res, next) => {
     delete updateData.createdAt
     delete updateData.updatedAt
 
-    const source = await Source.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    )
+    const source = await Source.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    })
 
     if (!source) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -266,9 +261,9 @@ export const deleteSource = async (req, res, next) => {
     const { id } = req.params
 
     // 檢查是否有相關的迷因
-    const memeCount = await Meme.countDocuments({ 
-      source_id: id, 
-      status: { $ne: 'deleted' } 
+    const memeCount = await Meme.countDocuments({
+      source_id: id,
+      status: { $ne: 'deleted' },
     })
 
     if (memeCount > 0) {
@@ -279,9 +274,9 @@ export const deleteSource = async (req, res, next) => {
     }
 
     // 檢查是否有相關的片段
-    const sceneCount = await Scene.countDocuments({ 
+    const sceneCount = await Scene.countDocuments({
       source_id: id,
-      status: { $ne: 'deleted' }
+      status: { $ne: 'deleted' },
     })
 
     if (sceneCount > 0) {
@@ -294,7 +289,7 @@ export const deleteSource = async (req, res, next) => {
     const source = await Source.findByIdAndUpdate(
       id,
       { status: 'deleted', deleted_at: new Date() },
-      { new: true }
+      { new: true },
     )
 
     if (!source) {
@@ -350,14 +345,12 @@ export const searchSourcesAutocomplete = async (req, res, next) => {
       })
     }
 
+    const searchRegex = new RegExp(q, 'i')
     const sources = await Source.find({
       status: 'active',
-      $or: [
-        { title: { $regex: q, $options: 'i' } },
-        { alt_titles: { $regex: q, $options: 'i' } },
-      ],
+      $or: [{ title: searchRegex }, { alt_titles: searchRegex }],
     })
-      .select('title slug type thumbnails')
+      .select('title slug type year thumbnails')
       .limit(10)
       .lean()
 
@@ -383,5 +376,43 @@ export const getPopularSources = async (req, res, next) => {
     })
   } catch (error) {
     next(error)
+  }
+}
+
+// 檢查 slug 是否可用
+export const checkSlugAvailable = async (req, res) => {
+  try {
+    const { slug } = req.query
+
+    if (!slug) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: '請提供 slug 參數',
+      })
+    }
+
+    // 檢查 slug 是否已存在
+    const existingSource = await Source.findOne({ slug }).select('_id title').lean()
+
+    res.json({
+      success: true,
+      data: {
+        slug,
+        available: !existingSource,
+        existing_source: existingSource
+          ? {
+              id: existingSource._id,
+              title: existingSource.title,
+            }
+          : null,
+      },
+      error: null,
+    })
+  } catch (err) {
+    console.error('檢查來源 slug 可用性時發生錯誤:', err)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: '檢查 slug 可用性時發生錯誤',
+    })
   }
 }
