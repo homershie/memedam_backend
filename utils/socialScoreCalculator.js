@@ -185,6 +185,28 @@ export const buildSocialGraph = async (userIds = []) => {
       return {}
     }
 
+    // 額外驗證：確保所有ID都是有效的ObjectId
+    const validObjectIds = targetUserIds.filter((id) => {
+      const isValid = mongoose.Types.ObjectId.isValid(id)
+      if (!isValid) {
+        console.error(`發現無效的ObjectId: ${id}, 類型: ${typeof id}`)
+      }
+      return isValid
+    })
+
+    if (validObjectIds.length !== targetUserIds.length) {
+      console.warn(`過濾掉 ${targetUserIds.length - validObjectIds.length} 個無效的ObjectId`)
+      targetUserIds = validObjectIds
+    }
+
+    // 如果過濾後沒有有效的用戶ID，返回空的社交圖譜
+    if (targetUserIds.length === 0) {
+      console.log('過濾後沒有有效的用戶ID，返回空的社交圖譜')
+      return {}
+    }
+
+    console.log(`準備查詢 ${targetUserIds.length} 個有效用戶ID的關注關係`)
+
     // 取得所有關注關係
     // 確保使用正確的查詢格式，避免 CastError
     const follows = await Follow.find({

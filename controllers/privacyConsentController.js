@@ -2,6 +2,8 @@ import PrivacyConsent from '../models/PrivacyConsent.js'
 import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { logger } from '../utils/logger.js'
+import crypto from 'crypto'
+import mongoose from 'mongoose'
 
 // Helper functions to get request info
 const getClientIP = (req) => {
@@ -26,7 +28,6 @@ const getSessionId = (req) => {
   if (req.cookies?.sessionId) return req.cookies.sessionId
 
   // Generate new session ID
-  const crypto = require('crypto')
   return crypto.randomBytes(16).toString('hex')
 }
 
@@ -91,7 +92,7 @@ class PrivacyConsentController {
       // 確保 userId 正確設置 - 根據 ObjectId-CastError-Fix-Summary.md 的修復方案
       if (req.user && req.user._id) {
         // 確保 userId 是 ObjectId 類型
-        const { ObjectId } = require('mongoose').Types
+        const { ObjectId } = mongoose.Types
         consent.userId =
           req.user._id instanceof ObjectId ? req.user._id : new ObjectId(req.user._id)
         logger.info(`設置隱私同意記錄的 userId: ${consent.userId}`)
