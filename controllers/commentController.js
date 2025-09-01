@@ -5,7 +5,7 @@ import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
 import {
   createNewCommentNotification,
-  createMentionNotifications,
+  notifyMentionedUsers,
 } from '../services/notificationService.js'
 
 // 從內容中提取被提及的用戶名
@@ -33,30 +33,30 @@ export const createComment = async (req, res) => {
   try {
     const { content, meme_id, parent_id } = req.body // 僅允許這三個欄位
 
+    // 先檢查迷因是否存在，若不存在回傳 404
+    const meme = await Meme.findById(meme_id)
+    if (!meme) {
+      return res.status(404).json({ success: false, data: null, error: '找不到迷因' })
+    }
+
     // 提取被提及的用戶名
     const mentioned_users = extractMentionedUsers(content)
 
-    // 使用事務處理
+    // 使用事務處理建立留言並更新計數
     const result = await executeTransaction(async (session) => {
-      // 檢查迷因是否存在
-      const meme = await Meme.findById(meme_id).session(session)
-      if (!meme) {
-        throw new Error('迷因不存在')
-      }
+      const comment = await Comment.create(
+        {
+          content,
+          meme_id,
+          parent_id,
+          user_id: req.user?._id,
+          mentioned_users, // 保存提及的用戶名
+        },
+        { session },
+      )
 
-      const comment = new Comment({
-        content,
-        meme_id,
-        parent_id,
-        user_id: req.user?._id,
-        mentioned_users, // 保存提及的用戶名
-      })
-      await comment.save({ session })
-
-      // 更新迷因的留言數
       await Meme.findByIdAndUpdate(meme_id, { $inc: { comment_count: 1 } }, { session })
 
-      // 更新用戶的評論數
       await User.findByIdAndUpdate(req.user._id, { $inc: { comment_count: 1 } }, { session })
 
       return comment
@@ -68,7 +68,7 @@ export const createComment = async (req, res) => {
     })
 
     // 檢查並創建提及通知（在事務外執行）
-    createMentionNotifications(content, req.user._id, meme_id, 'comment').catch((error) => {
+    notifyMentionedUsers(content, req.user._id, meme_id, 'comment').catch((error) => {
       console.error('發送提及通知失敗:', error)
     })
 

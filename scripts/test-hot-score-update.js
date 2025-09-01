@@ -4,7 +4,6 @@
  */
 
 import { batchUpdateHotScores } from '../utils/hotScoreScheduler.js'
-import { logger } from '../utils/logger.js'
 import { checkDatabaseConnection } from '../utils/dbHealthCheck.js'
 
 /**

@@ -594,6 +594,14 @@ export const createMentionNotifications = async (
   }
 }
 
+// 向後相容的別名，舊程式仍可呼叫 notifyMentionedUsers
+export const notifyMentionedUsers = (
+  content,
+  mentionerUserId,
+  memeId = null,
+  contextType = 'comment',
+) => createMentionNotifications(content, mentionerUserId, memeId, contextType)
+
 /**
  * 熱門內容通知（批量發送）
  * @param {Array} hotMemes - 熱門迷因陣列
