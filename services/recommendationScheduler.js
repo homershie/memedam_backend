@@ -191,7 +191,9 @@ class RecommendationCronScheduler {
           console.log('✅ 社交協同過濾推薦更新完成')
         } catch (error) {
           console.error('❌ 社交協同過濾推薦更新失敗:', error)
-          logger.error('Daily social collaborative filtering update failed', { error: error.message })
+          logger.error('Daily social collaborative filtering update failed', {
+            error: error.message,
+          })
         }
       },
       {
@@ -237,6 +239,8 @@ export const stopRecommendationScheduler = () => {
 
 /**
  * 更新 Hot Score
+ * @param {Object} options - 更新選項
+ * @returns {Promise<Object>} 更新結果
  */
 export const updateHotScores = async (options = {}) => {
   const config = { ...UPDATE_CONFIG.hotScore, ...(options || {}) }
@@ -250,26 +254,62 @@ export const updateHotScores = async (options = {}) => {
     logger.info('開始更新 Hot Score...')
     const startTime = Date.now()
 
-    const result = await batchUpdateHotScores({
-      limit: config.batchSize,
-      force: config.force,
-    })
+    // 添加重試機制
+    let retryCount = 0
+    const maxRetries = 3
+    let result
+
+    while (retryCount < maxRetries) {
+      try {
+        result = await batchUpdateHotScores({
+          limit: config.batchSize,
+          force: config.force,
+        })
+        break // 成功則跳出重試迴圈
+      } catch (error) {
+        retryCount++
+        logger.warn(`Hot Score 更新重試 ${retryCount}/${maxRetries}:`, {
+          error: error.message,
+          stack: error.stack,
+        })
+
+        if (retryCount >= maxRetries) {
+          throw error // 重試次數用完，拋出錯誤
+        }
+
+        // 等待一段時間後重試
+        await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount))
+      }
+    }
 
     const processingTime = Date.now() - startTime
-    logger.info(`Hot Score 更新完成，處理時間: ${processingTime}ms`)
+    logger.info(`Hot Score 更新完成，處理時間: ${processingTime}ms`, {
+      result: {
+        success: result.success,
+        updated_count: result.updated_count,
+        error_count: result.error_count,
+      },
+    })
 
     return {
       success: true,
       algorithm: 'hot_score',
       processingTime,
       result,
+      retry_count: retryCount,
     }
   } catch (error) {
-    logger.error('Hot Score 更新失敗:', error.message)
+    logger.error('Hot Score 更新失敗:', {
+      error: error.message,
+      stack: error.stack,
+      options: config,
+    })
     return {
       success: false,
       algorithm: 'hot_score',
       error: error.message,
+      stack: error.stack,
+      retry_count: retryCount || 0,
     }
   }
 }

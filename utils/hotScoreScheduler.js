@@ -6,6 +6,7 @@
 import Meme from '../models/Meme.js'
 import { calculateMemeHotScore, getHotScoreLevel } from './hotScore.js'
 import { logger } from './logger.js'
+import { preOperationHealthCheck } from './dbHealthCheck.js'
 
 /**
  * 批次更新熱門分數任務
@@ -20,6 +21,12 @@ export const batchUpdateHotScores = async (options = {}) => {
 
   try {
     logger.info('開始批次更新熱門分數...')
+
+    // 執行資料庫健康檢查
+    const healthCheck = await preOperationHealthCheck('批次更新熱門分數')
+    if (!healthCheck) {
+      throw new Error('資料庫健康檢查失敗，無法執行熱門分數更新')
+    }
 
     // 建立查詢條件
     const query = { status: { $ne: 'deleted' } }
@@ -53,34 +60,82 @@ export const batchUpdateHotScores = async (options = {}) => {
 
     // 分批處理
     for (let skip = 0; skip < Math.min(totalCount, limit); skip += batchSize) {
-      const memes = await Meme.find(query).skip(skip).limit(batchSize).sort({ updatedAt: -1 })
+      try {
+        const memes = await Meme.find(query).skip(skip).limit(batchSize).sort({ updatedAt: -1 })
 
-      logger.info(
-        `處理批次 ${Math.floor(skip / batchSize) + 1}/${Math.ceil(Math.min(totalCount, limit) / batchSize)}`,
-      )
+        logger.info(
+          `處理批次 ${Math.floor(skip / batchSize) + 1}/${Math.ceil(Math.min(totalCount, limit) / batchSize)}`,
+        )
 
-      for (const meme of memes) {
-        try {
-          const hotScore = calculateMemeHotScore(meme)
+        for (const meme of memes) {
+          try {
+            // 驗證迷因資料完整性
+            if (!meme._id || !meme.createdAt) {
+              logger.warn(`迷因資料不完整，跳過: ${meme._id || 'unknown'}`)
+              continue
+            }
 
-          // 更新熱門分數
-          meme.hot_score = hotScore
-          await meme.save()
+            const hotScore = calculateMemeHotScore(meme)
 
-          updatedCount++
-          processedCount++
+            // 驗證計算結果
+            if (typeof hotScore !== 'number' || isNaN(hotScore)) {
+              logger.warn(`迷因 ${meme._id} 熱門分數計算結果無效: ${hotScore}`)
+              continue
+            }
 
-          // 每處理100個迷因記錄一次進度
-          if (processedCount % 100 === 0) {
-            logger.info(`已處理 ${processedCount}/${Math.min(totalCount, limit)} 個迷因`)
+            // 更新熱門分數
+            meme.hot_score = hotScore
+            await meme.save()
+
+            updatedCount++
+            processedCount++
+
+            // 每處理100個迷因記錄一次進度
+            if (processedCount % 100 === 0) {
+              logger.info(`已處理 ${processedCount}/${Math.min(totalCount, limit)} 個迷因`)
+            }
+          } catch (error) {
+            logger.error(`更新迷因 ${meme._id} 熱門分數失敗:`, {
+              error: error.message,
+              stack: error.stack,
+              meme_id: meme._id,
+              meme_data: {
+                like_count: meme.like_count,
+                dislike_count: meme.dislike_count,
+                views: meme.views,
+                comment_count: meme.comment_count,
+                collection_count: meme.collection_count,
+                share_count: meme.share_count,
+                createdAt: meme.createdAt,
+                modified_at: meme.modified_at,
+              },
+            })
+            errors.push({
+              meme_id: meme._id,
+              error: error.message,
+              stack: error.stack,
+            })
           }
-        } catch (error) {
-          logger.error(`更新迷因 ${meme._id} 熱門分數失敗:`, error.message)
-          errors.push({
-            meme_id: meme._id,
-            error: error.message,
-          })
         }
+
+        // 批次處理完成後稍作休息，避免資料庫壓力過大
+        if (skip + batchSize < Math.min(totalCount, limit)) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+      } catch (batchError) {
+        logger.error(`批次 ${Math.floor(skip / batchSize) + 1} 處理失敗:`, {
+          error: batchError.message,
+          stack: batchError.stack,
+          skip,
+          batchSize,
+        })
+        errors.push({
+          batch_error: true,
+          skip,
+          batchSize,
+          error: batchError.message,
+          stack: batchError.stack,
+        })
       }
     }
 
@@ -94,7 +149,11 @@ export const batchUpdateHotScores = async (options = {}) => {
       message: `成功更新 ${updatedCount} 個迷因的熱門分數`,
     }
   } catch (error) {
-    logger.error('批次更新熱門分數失敗:', error.message)
+    logger.error('批次更新熱門分數失敗:', {
+      error: error.message,
+      stack: error.stack,
+      options,
+    })
     throw error
   }
 }

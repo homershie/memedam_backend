@@ -57,53 +57,98 @@ export const calculateHNHotScore = (upvotes, createdAt, now = new Date()) => {
  * @returns {number} 熱門分數
  */
 export const calculateMemeHotScore = (memeData, now = new Date()) => {
-  const {
-    like_count = 0,
-    dislike_count = 0,
-    views = 0,
-    comment_count = 0,
-    collection_count = 0,
-    share_count = 0,
-    createdAt,
-    modified_at,
-  } = memeData
+  try {
+    // 驗證輸入參數
+    if (!memeData || typeof memeData !== 'object') {
+      throw new Error('無效的迷因資料')
+    }
 
-  // 權重設定
-  const weights = {
-    like: 1.0,
-    dislike: -0.5, // 噓數會降低分數
-    view: 0.1, // 瀏覽數權重較低
-    comment: 2.0, // 留言權重較高
-    collection: 3.0, // 收藏權重最高
-    share: 2.5, // 分享權重很高
+    if (!(now instanceof Date) || isNaN(now.getTime())) {
+      now = new Date()
+    }
+
+    // 安全地提取數值，確保都是數字類型
+    const like_count = Math.max(0, parseInt(memeData.like_count) || 0)
+    const dislike_count = Math.max(0, parseInt(memeData.dislike_count) || 0)
+    const views = Math.max(0, parseInt(memeData.views) || 0)
+    const comment_count = Math.max(0, parseInt(memeData.comment_count) || 0)
+    const collection_count = Math.max(0, parseInt(memeData.collection_count) || 0)
+    const share_count = Math.max(0, parseInt(memeData.share_count) || 0)
+
+    // 驗證時間欄位
+    let createdAt = memeData.createdAt
+    let modified_at = memeData.modified_at
+
+    if (!(createdAt instanceof Date) || isNaN(createdAt.getTime())) {
+      throw new Error('無效的創建時間')
+    }
+
+    if (modified_at && (!(modified_at instanceof Date) || isNaN(modified_at.getTime()))) {
+      // 如果修改時間無效，忽略它
+      modified_at = null
+    }
+
+    // 權重設定
+    const weights = {
+      like: 1.0,
+      dislike: -0.5, // 噓數會降低分數
+      view: 0.1, // 瀏覽數權重較低
+      comment: 2.0, // 留言權重較高
+      collection: 3.0, // 收藏權重最高
+      share: 2.5, // 分享權重很高
+    }
+
+    // 計算基礎分數
+    const baseScore =
+      like_count * weights.like +
+      dislike_count * weights.dislike +
+      views * weights.view +
+      comment_count * weights.comment +
+      collection_count * weights.collection +
+      share_count * weights.share
+
+    // 使用有效時間（優先使用修改時間，提升更新內容的排名）
+    const effectiveDate = modified_at || createdAt
+    const timeDiff = Math.max(0, (now - effectiveDate) / (1000 * 60 * 60 * 24)) // 轉換為天
+
+    // 時間衰減因子（使用對數衰減）
+    let timeDecay = 1 / (1 + Math.log(timeDiff + 1))
+
+    // 如果內容曾被修改，給予額外的新鮮度加成
+    if (modified_at && modified_at !== createdAt) {
+      const freshnesBonus = 1.2 // 20% 新鮮度加成
+      timeDecay *= freshnesBonus
+    }
+
+    // 最終熱門分數
+    const hotScore = baseScore * timeDecay
+
+    // 驗證計算結果
+    if (typeof hotScore !== 'number' || isNaN(hotScore) || !isFinite(hotScore)) {
+      throw new Error(`熱門分數計算結果無效: ${hotScore}`)
+    }
+
+    return Math.max(hotScore, 0)
+  } catch (error) {
+    // 記錄錯誤並返回預設值
+    console.error('計算熱門分數時發生錯誤:', {
+      error: error.message,
+      memeData: {
+        _id: memeData._id,
+        like_count: memeData.like_count,
+        dislike_count: memeData.dislike_count,
+        views: memeData.views,
+        comment_count: memeData.comment_count,
+        collection_count: memeData.collection_count,
+        share_count: memeData.share_count,
+        createdAt: memeData.createdAt,
+        modified_at: memeData.modified_at,
+      },
+    })
+
+    // 返回預設分數而不是拋出錯誤
+    return 0
   }
-
-  // 計算基礎分數
-  const baseScore =
-    like_count * weights.like +
-    dislike_count * weights.dislike +
-    views * weights.view +
-    comment_count * weights.comment +
-    collection_count * weights.collection +
-    share_count * weights.share
-
-  // 使用有效時間（優先使用修改時間，提升更新內容的排名）
-  const effectiveDate = modified_at || createdAt
-  const timeDiff = (now - effectiveDate) / (1000 * 60 * 60 * 24) // 轉換為天
-
-  // 時間衰減因子（使用對數衰減）
-  let timeDecay = 1 / (1 + Math.log(timeDiff + 1))
-
-  // 如果內容曾被修改，給予額外的新鮮度加成
-  if (modified_at && modified_at !== createdAt) {
-    const freshnesBonus = 1.2 // 20% 新鮮度加成
-    timeDecay *= freshnesBonus
-  }
-
-  // 最終熱門分數
-  const hotScore = baseScore * timeDecay
-
-  return Math.max(hotScore, 0)
 }
 
 /**
