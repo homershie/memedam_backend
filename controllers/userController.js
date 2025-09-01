@@ -2128,15 +2128,35 @@ export const initBindAuth = async (req, res) => {
     const { provider } = req.params
     const userId = req.user._id
 
+    logger.info('🔐 開始初始化 OAuth 綁定:', {
+      provider,
+      userId: userId.toString(),
+      sessionExists: !!req.session,
+      sessionId: req.sessionID,
+      userAgent: req.get('User-Agent'),
+      remoteAddress: req.ip,
+    })
+
     // 支援的 provider
     const validProviders = ['google', 'facebook', 'discord', 'twitter']
     if (!validProviders.includes(provider)) {
+      logger.warn('⚠️ 不支援的社群平台:', { provider, validProviders })
       return res.status(400).json({ success: false, message: '不支援的社群平台' })
     }
 
     // 檢查用戶是否已經綁定了該平台
     const user = await User.findById(userId)
+    if (!user) {
+      logger.error('❌ 找不到用戶:', { userId: userId.toString() })
+      return res.status(404).json({ success: false, message: '找不到用戶' })
+    }
+
     if (user[`${provider}_id`]) {
+      logger.info('ℹ️ 用戶已綁定該平台:', {
+        userId: userId.toString(),
+        provider,
+        existingId: user[`${provider}_id`],
+      })
       return res.status(409).json({
         success: false,
         message: `您已經綁定了 ${provider} 帳號`,
@@ -2145,37 +2165,65 @@ export const initBindAuth = async (req, res) => {
 
     // 生成 state 參數
     const state = generateState()
+    logger.info('✅ 生成 state 參數:', { state: state.substring(0, 10) + '...' })
 
     // 將 state 和用戶 ID 存儲到 session 中
     if (!req.session) {
+      logger.warn('⚠️ 沒有 session，創建新的 session')
       req.session = {}
     }
+
     req.session.oauthState = state
     req.session.bindUserId = userId.toString()
     req.session.bindProvider = provider
 
     logger.info('設置 OAuth 會話狀態:', {
-      state,
+      state: state.substring(0, 10) + '...',
       userId: userId.toString(),
       provider,
       sessionId: req.sessionID,
+      sessionKeys: Object.keys(req.session),
     })
 
     // 強制保存會話以確保狀態持久化
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => {
-        if (err) {
-          logger.error('會話保存失敗:', err)
-          reject(err)
-        } else {
-          logger.info('✅ 會話保存成功')
-          resolve()
-        }
+    try {
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            logger.error('❌ 會話保存失敗:', {
+              error: err.message,
+              stack: err.stack,
+              sessionId: req.sessionID,
+              provider,
+              userId: userId.toString(),
+            })
+            reject(err)
+          } else {
+            logger.info('✅ 會話保存成功')
+            resolve()
+          }
+        })
       })
-    })
+    } catch (sessionError) {
+      logger.error('❌ 會話保存過程中發生錯誤:', {
+        error: sessionError.message,
+        stack: sessionError.stack,
+        sessionId: req.sessionID,
+        provider,
+        userId: userId.toString(),
+      })
+      // 即使 session 保存失敗，也繼續嘗試綁定流程
+    }
 
     // 重定向到 OAuth 授權頁面
     const authUrl = `/api/users/bind-auth/${provider}/init?state=${state}`
+    logger.info('✅ OAuth 綁定初始化成功:', {
+      provider,
+      userId: userId.toString(),
+      authUrl,
+      state: state.substring(0, 10) + '...',
+    })
+
     res.json({
       success: true,
       authUrl,
@@ -2183,7 +2231,14 @@ export const initBindAuth = async (req, res) => {
       message: `正在初始化 ${provider} 綁定流程`,
     })
   } catch (error) {
-    logger.error('初始化 OAuth 綁定錯誤:', error)
+    logger.error('❌ 初始化 OAuth 綁定錯誤:', {
+      error: error.message,
+      stack: error.stack,
+      provider: req.params?.provider,
+      userId: req.user?._id?.toString(),
+      sessionExists: !!req.session,
+      sessionId: req.sessionID,
+    })
     res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 }
