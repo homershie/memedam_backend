@@ -346,6 +346,15 @@ const initializeOAuthStrategies = () => {
 
   // Facebook - 登入用
   if (process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET) {
+    logger.info('🔧 初始化 Facebook OAuth 策略:', {
+      hasClientId: !!process.env.FACEBOOK_CLIENT_ID,
+      hasClientSecret: !!process.env.FACEBOOK_CLIENT_SECRET,
+      clientIdLength: process.env.FACEBOOK_CLIENT_ID?.length || 0,
+      clientSecretLength: process.env.FACEBOOK_CLIENT_SECRET?.length || 0,
+      bindRedirectUri: process.env.FACEBOOK_BIND_REDIRECT_URI,
+      redirectUri: process.env.FACEBOOK_REDIRECT_URI,
+    })
+
     passport.use(
       'facebook',
       new FacebookStrategy(
@@ -445,6 +454,7 @@ const initializeOAuthStrategies = () => {
     )
 
     // Facebook - 綁定用
+    logger.info('🔧 初始化 Facebook 綁定策略...')
     passport.use(
       'facebook-bind',
       new FacebookStrategy(
@@ -462,6 +472,10 @@ const initializeOAuthStrategies = () => {
               hasAccessToken: !!accessToken,
               queryState: req.query.state,
               sessionState: req.session?.oauthState,
+              clientId: process.env.FACEBOOK_CLIENT_ID ? '已設定' : '未設定',
+              clientSecret: process.env.FACEBOOK_CLIENT_SECRET ? '已設定' : '未設定',
+              callbackURL:
+                process.env.FACEBOOK_BIND_REDIRECT_URI || process.env.FACEBOOK_REDIRECT_URI,
             })
 
             const oauthState = req.query.state || req.session?.oauthState
@@ -571,6 +585,8 @@ const initializeOAuthStrategies = () => {
         },
       ),
     )
+
+    logger.info('✅ Facebook OAuth 策略初始化完成')
   } else {
     logger.warn('⚠️ Facebook OAuth 環境變數未設定，跳過 Facebook 策略初始化')
   }
@@ -1181,3 +1197,6 @@ passport.deserializeUser(async (data, done) => {
 // 立即初始化所有策略
 initializeJWTStrategy()
 initializeOAuthStrategies()
+
+// 導出函數供測試使用
+export { initializeOAuthStrategies, initializeJWTStrategy }
