@@ -13,7 +13,6 @@ import * as CF from '../../../utils/collaborativeFiltering.js'
 vi.spyOn(CF, 'getCollaborativeFilteringRecommendations')
 vi.mock('../../../utils/collaborativeFiltering.js', async (orig) => {
   const actual = await orig()
-  const safeToObjectIdPatched = (id) => ({ toString: () => String(id) })
   // 暴露 calculateSocialInfluenceScore? 原模塊是內部函式，不覆蓋
   return {
     ...actual,
