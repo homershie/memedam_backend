@@ -1705,6 +1705,26 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
   }
 
   try {
+    // 將狀態從會話同步到臨時存儲
+    if (req.session && req.session.bindUserId) {
+      const { storeBindState } = await import('../utils/oauthTempStore.js')
+      const stored = storeBindState(state, req.session.bindUserId, provider)
+
+      if (stored) {
+        logger.info('✅ 狀態已同步到臨時存儲:', {
+          state: state.substring(0, 10) + '...',
+          userId: req.session.bindUserId,
+          provider,
+        })
+      } else {
+        logger.error('❌ 狀態同步到臨時存儲失敗')
+        const frontendUrl = getFrontendUrl()
+        return res.redirect(
+          `${frontendUrl}/settings?error=state_sync_failed&message=${encodeURIComponent('狀態同步失敗，請重試')}`,
+        )
+      }
+    }
+
     // 在會話中設置用戶 ID，供 OAuth 回調使用
     if (req.session) {
       req.session.userId = req.session.bindUserId
@@ -1834,7 +1854,6 @@ router.get(
   '/bind-auth/google/callback',
   passport.authenticate('google-bind', {
     scope: ['openid', 'email', 'profile'],
-    state: (req) => req.query.state,
   }),
   async (req, res) => {
     try {
@@ -1857,7 +1876,6 @@ router.get(
 router.get(
   '/bind-auth/facebook/callback',
   passport.authenticate('facebook-bind', {
-    state: (req) => req.query.state,
     failureRedirect: `${getFrontendUrl()}/settings?error=bind_failed&provider=facebook`,
   }),
   async (req, res) => {
@@ -1880,7 +1898,6 @@ router.get(
 router.get(
   '/bind-auth/discord/callback',
   passport.authenticate('discord-bind', {
-    state: (req) => req.query.state,
     failureRedirect: `${getFrontendUrl()}/settings?error=bind_failed&provider=discord`,
   }),
   async (req, res) => {
