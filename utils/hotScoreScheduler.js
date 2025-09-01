@@ -63,9 +63,11 @@ export const batchUpdateHotScores = async (options = {}) => {
       try {
         const memes = await Meme.find(query).skip(skip).limit(batchSize).sort({ updatedAt: -1 })
 
-        logger.info(
-          `處理批次 ${Math.floor(skip / batchSize) + 1}/${Math.ceil(Math.min(totalCount, limit) / batchSize)}`,
-        )
+        // 確保批次編號計算正確
+        const currentBatchNumber = Math.floor(skip / batchSize) + 1
+        const totalBatches = Math.ceil(Math.min(totalCount, limit) / batchSize)
+
+        logger.info(`處理批次 ${currentBatchNumber}/${totalBatches}`)
 
         for (const meme of memes) {
           try {
@@ -123,16 +125,19 @@ export const batchUpdateHotScores = async (options = {}) => {
           await new Promise((resolve) => setTimeout(resolve, 100))
         }
       } catch (batchError) {
-        logger.error(`批次 ${Math.floor(skip / batchSize) + 1} 處理失敗:`, {
+        const currentBatchNumber = Math.floor(skip / batchSize) + 1
+        logger.error(`批次 ${currentBatchNumber} 處理失敗:`, {
           error: batchError.message,
           stack: batchError.stack,
           skip,
           batchSize,
+          batch_number: currentBatchNumber,
         })
         errors.push({
           batch_error: true,
           skip,
           batchSize,
+          batch_number: currentBatchNumber,
           error: batchError.message,
           stack: batchError.stack,
         })

@@ -13,6 +13,7 @@ import View from '../models/View.js'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import Follow from '../models/Follow.js'
+import { handleQueryError, validateObjectIdArray } from './errorHandler.js'
 
 /**
  * 互動權重配置
@@ -928,15 +929,24 @@ export const buildSocialGraph = async (userIds = []) => {
     try {
       const queryTimeout = 30000 // 30秒超時
 
-      // 確保所有用戶ID都是純ObjectId格式
-      const cleanUserIds = validatedUserIds.map((id) =>
-        id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id.toString()),
-      )
+      // 使用新的錯誤處理工具驗證 ObjectId
+      const cleanUserIds = validateObjectIdArray(validatedUserIds, 'targetUserIds')
 
-      follows = await Follow.find({
+      if (cleanUserIds.length === 0) {
+        console.log('沒有有效的用戶ID，返回空的社交圖譜')
+        return {}
+      }
+
+      // 構建查詢條件，確保類型正確
+      const query = {
         $or: [{ follower_id: { $in: cleanUserIds } }, { following_id: { $in: cleanUserIds } }],
         status: 'active',
-      })
+      }
+
+      // 記錄查詢條件以便調試（只記錄ID數量，避免序列化問題）
+      console.log(`執行查詢，用戶ID數量: ${cleanUserIds.length}`)
+
+      follows = await Follow.find(query)
         .select('follower_id following_id createdAt')
         .maxTimeMS(queryTimeout)
         .lean()
@@ -944,7 +954,18 @@ export const buildSocialGraph = async (userIds = []) => {
 
       console.log(`查詢到 ${follows.length} 個追隨關係`)
     } catch (error) {
-      console.error('查詢追隨關係失敗:', error)
+      // 使用新的錯誤處理工具
+      const errorResult = handleQueryError(error, { userIdCount: validatedUserIds.length })
+
+      console.error('查詢追隨關係失敗:', {
+        error: error.message,
+        stack: error.stack,
+        userIdCount: validatedUserIds.length,
+        errorType: errorResult.type,
+        recoverable: errorResult.recoverable,
+        suggestion: errorResult.suggestion,
+      })
+
       // 如果查詢失敗，返回空的社交圖譜而不是拋出錯誤
       follows = []
     }

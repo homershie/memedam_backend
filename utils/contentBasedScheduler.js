@@ -58,9 +58,12 @@ export const batchUpdateUserPreferences = async (options = {}) => {
     for (let i = 0; i < userIds.length; i += config.batchSize) {
       const batchUserIds = userIds.slice(i, i + config.batchSize)
 
-      logger.info(
-        `處理批次 ${Math.floor(i / config.batchSize) + 1}/${Math.ceil(userIds.length / config.batchSize)}`,
-      )
+      // 確保 batchSize 有有效值，避免 NaN
+      const currentBatchSize = config.batchSize || 10
+      const currentBatchNumber = Math.floor(i / currentBatchSize) + 1
+      const totalBatches = Math.ceil(userIds.length / currentBatchSize)
+
+      logger.info(`處理批次 ${currentBatchNumber}/${totalBatches}`)
 
       const updatePromises = batchUserIds.map(async (userId) => {
         try {
@@ -88,9 +91,8 @@ export const batchUpdateUserPreferences = async (options = {}) => {
       await Promise.all(updatePromises)
 
       // 每處理一個批次記錄一次進度
-      logger.info(
-        `已處理 ${Math.min(i + config.batchSize, userIds.length)}/${userIds.length} 個用戶`,
-      )
+      const processedCount = Math.min(i + currentBatchSize, userIds.length)
+      logger.info(`已處理 ${processedCount}/${userIds.length} 個用戶`)
     }
 
     const processingTime = Date.now() - startTime
