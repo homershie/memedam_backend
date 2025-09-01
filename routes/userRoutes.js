@@ -1663,11 +1663,41 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
 
   const { id: clientIdEnv, secret: clientSecretEnv } = envVars[provider]
   if (!process.env[clientIdEnv] || !process.env[clientSecretEnv]) {
-    logger.error(`❌ ${provider} OAuth 環境變數未設定: ${clientIdEnv}, ${clientSecretEnv}`)
+    logger.error(`❌ ${provider} OAuth 環境變數未設定:`, {
+      provider,
+      clientIdEnv,
+      clientSecretEnv,
+      hasClientId: !!process.env[clientIdEnv],
+      hasClientSecret: !!process.env[clientSecretEnv],
+      allEnvVars: Object.keys(process.env).filter((key) => key.includes(provider.toUpperCase())),
+    })
     const frontendUrl = getFrontendUrl()
     return res.redirect(
       `${frontendUrl}/settings?error=config_error&message=${encodeURIComponent('OAuth 配置錯誤，請聯繫管理員')}`,
     )
+  }
+
+  // 檢查 Facebook 特定的環境變數
+  if (provider === 'facebook') {
+    const bindRedirectUri = process.env.FACEBOOK_BIND_REDIRECT_URI
+    if (!bindRedirectUri) {
+      logger.error('❌ Facebook 綁定回調 URI 未設定:', {
+        FACEBOOK_BIND_REDIRECT_URI: bindRedirectUri,
+        FACEBOOK_REDIRECT_URI: process.env.FACEBOOK_REDIRECT_URI,
+      })
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/settings?error=config_error&message=${encodeURIComponent('Facebook OAuth 配置錯誤，請聯繫管理員')}`,
+      )
+    }
+
+    logger.info('✅ Facebook OAuth 環境變數檢查通過:', {
+      hasClientId: !!process.env.FACEBOOK_CLIENT_ID,
+      hasClientSecret: !!process.env.FACEBOOK_CLIENT_SECRET,
+      bindRedirectUri,
+      clientIdLength: process.env.FACEBOOK_CLIENT_ID?.length || 0,
+      clientSecretLength: process.env.FACEBOOK_CLIENT_SECRET?.length || 0,
+    })
   }
 
   try {
