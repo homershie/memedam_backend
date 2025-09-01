@@ -1617,7 +1617,7 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
   }
 
   // 為 Twitter OAuth 1.0a 特殊處理
-  if (provider === 'twitter') {
+  if (provider === 'twitter' && req.session) {
     // 確保 Twitter OAuth session 存在
     if (!req.session['oauth:twitter:bind']) {
       req.session['oauth:twitter:bind'] = {}
@@ -1632,15 +1632,19 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
     req.session['oauth:twitter:bind'].bindProvider = provider
 
     // 強制保存會話
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve()
-        }
+    try {
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            reject(err)
+          } else {
+            resolve()
+          }
+        })
       })
-    })
+    } catch (sessionError) {
+      logger.warn('Twitter session 保存失敗，但將繼續流程:', sessionError.message)
+    }
   }
 
   // 兼容性檢查：若 session 存在但資料不完整，只記錄警告，不中斷流程
@@ -1702,30 +1706,36 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
 
   try {
     // 在會話中設置用戶 ID，供 OAuth 回調使用
-    req.session.userId = req.session.bindUserId
+    if (req.session) {
+      req.session.userId = req.session.bindUserId
 
-    // 為 Twitter OAuth 1.0a 特殊處理
-    if (provider === 'twitter') {
-      // 確保 Twitter OAuth session 存在
-      if (!req.session['oauth:twitter:bind']) {
-        req.session['oauth:twitter:bind'] = {}
+      // 為 Twitter OAuth 1.0a 特殊處理
+      if (provider === 'twitter') {
+        // 確保 Twitter OAuth session 存在
+        if (!req.session['oauth:twitter:bind']) {
+          req.session['oauth:twitter:bind'] = {}
+        }
+
+        // 在 Twitter OAuth session 中保存用戶 ID
+        req.session['oauth:twitter:bind'].bindUserId = req.session.bindUserId
+        req.session['oauth:twitter:bind'].bindProvider = provider
       }
 
-      // 在 Twitter OAuth session 中保存用戶 ID
-      req.session['oauth:twitter:bind'].bindUserId = req.session.bindUserId
-      req.session['oauth:twitter:bind'].bindProvider = provider
+      // 強制保存會話狀態，確保在 OAuth 重定向前保存
+      try {
+        await new Promise((resolve, reject) => {
+          req.session.save((err) => {
+            if (err) {
+              reject(err)
+            } else {
+              resolve()
+            }
+          })
+        })
+      } catch (sessionError) {
+        logger.warn('Session 保存失敗，但將繼續流程:', sessionError.message)
+      }
     }
-
-    // 強制保存會話狀態，確保在 OAuth 重定向前保存
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve()
-        }
-      })
-    })
 
     // 根據不同的 provider 設定不同的 scope
     let scope = []

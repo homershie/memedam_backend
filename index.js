@@ -636,6 +636,36 @@ const startServer = async () => {
       // Passport 初始化（在 session 配置之後）
       app.use(passport.initialize())
       app.use(passport.session())
+    } else if (process.env.NODE_ENV !== 'development') {
+      // 非開發環境且非生產環境（如 staging）也配置 session
+      const sessionStore = new session.MemoryStore()
+      app.use(
+        session({
+          store: sessionStore,
+          secret: process.env.SESSION_SECRET || 'your-session-secret',
+          name: 'memedam.sid',
+          resave: true,
+          saveUninitialized: true,
+          cookie: {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: false,
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            path: '/',
+          },
+          rolling: false,
+          unset: 'keep',
+          proxy: false,
+          genid: () => {
+            return crypto.randomBytes(32).toString('hex')
+          },
+          touchAfter: 0,
+        }),
+      )
+
+      // Passport 初始化（在 session 配置之後）
+      app.use(passport.initialize())
+      app.use(passport.session())
     }
 
     // 記錄 session 配置狀態
