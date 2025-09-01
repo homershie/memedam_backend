@@ -137,7 +137,7 @@ if (process.env.NODE_ENV === 'development') {
         httpOnly: true,
         sameSite: 'lax', // 支援 OAuth 跨域流程
         secure: false, // 開發環境設為 false
-        maxAge: 1000 * 60 * 60 * 2, // 2 小時
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天，支援長時間的 OAuth 流程
         path: '/',
       },
       rolling: false, // 避免 OAuth 流程中 session ID 變化
@@ -619,8 +619,8 @@ const startServer = async () => {
           cookie: {
             httpOnly: true,
             sameSite: 'lax', // 支援 OAuth 跨域流程
-            secure: true, // 生產環境使用 HTTPS
-            maxAge: 1000 * 60 * 60 * 2, // 2 小時
+            secure: process.env.NODE_ENV === 'production' && process.env.FORCE_HTTPS !== 'false', // 動態設定 HTTPS
+            maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天，支援長時間的 OAuth 流程
             path: '/',
           },
           rolling: false, // 避免 OAuth 流程中 session ID 變化

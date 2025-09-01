@@ -250,13 +250,14 @@ export const updateHotScores = async (options = {}) => {
     return { success: false, message: 'Hot Score 更新已停用' }
   }
 
+  // 初始化重試計數器
+  let retryCount = 0
+  const maxRetries = 3
+
   try {
     logger.info('開始更新 Hot Score...')
     const startTime = Date.now()
 
-    // 添加重試機制
-    let retryCount = 0
-    const maxRetries = 3
     let result
 
     while (retryCount < maxRetries) {
@@ -309,7 +310,7 @@ export const updateHotScores = async (options = {}) => {
       algorithm: 'hot_score',
       error: error.message,
       stack: error.stack,
-      retry_count: retryCount || 0,
+      retry_count: retryCount,
     }
   }
 }
