@@ -454,137 +454,140 @@ const initializeOAuthStrategies = () => {
     )
 
     // Facebook - 綁定用
-    logger.info('🔧 初始化 Facebook 綁定策略...')
-    passport.use(
-      'facebook-bind',
-      new FacebookStrategy(
-        {
-          clientID: process.env.FACEBOOK_CLIENT_ID,
-          clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-          callbackURL: process.env.FACEBOOK_BIND_REDIRECT_URI || process.env.FACEBOOK_REDIRECT_URI,
-          passReqToCallback: true,
-        },
-        async (req, accessToken, refreshToken, profile, done) => {
-          try {
-            logger.info('🔐 Facebook 綁定策略開始執行:', {
-              profileId: profile.id,
-              profileEmail: profile.emails?.[0]?.value,
-              hasAccessToken: !!accessToken,
-              queryState: req.query.state,
-              sessionState: req.session?.oauthState,
-              clientId: process.env.FACEBOOK_CLIENT_ID ? '已設定' : '未設定',
-              clientSecret: process.env.FACEBOOK_CLIENT_SECRET ? '已設定' : '未設定',
-              callbackURL:
-                process.env.FACEBOOK_BIND_REDIRECT_URI || process.env.FACEBOOK_REDIRECT_URI,
-            })
-
-            const oauthState = req.query.state || req.session?.oauthState
-
-            if (!oauthState) {
-              logger.error('❌ Facebook 綁定回調缺少 state 參數', {
+    if (process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET) {
+      logger.info('🔧 初始化 Facebook 綁定策略...')
+      passport.use(
+        'facebook-bind',
+        new FacebookStrategy(
+          {
+            clientID: process.env.FACEBOOK_CLIENT_ID,
+            clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+            callbackURL:
+              process.env.FACEBOOK_BIND_REDIRECT_URI || process.env.FACEBOOK_REDIRECT_URI,
+            passReqToCallback: true,
+          },
+          async (req, accessToken, refreshToken, profile, done) => {
+            try {
+              logger.info('🔐 Facebook 綁定策略開始執行:', {
+                profileId: profile.id,
+                profileEmail: profile.emails?.[0]?.value,
+                hasAccessToken: !!accessToken,
                 queryState: req.query.state,
                 sessionState: req.session?.oauthState,
-                sessionExists: !!req.session,
+                clientId: process.env.FACEBOOK_CLIENT_ID ? '已設定' : '未設定',
+                clientSecret: process.env.FACEBOOK_CLIENT_SECRET ? '已設定' : '未設定',
+                callbackURL:
+                  process.env.FACEBOOK_BIND_REDIRECT_URI || process.env.FACEBOOK_REDIRECT_URI,
               })
-              return done(new Error('缺少 state 參數'), false)
-            }
 
-            const { getBindState, removeBindState } = await import('../utils/oauthTempStore.js')
-            const storedBindState = getBindState(oauthState)
+              const oauthState = req.query.state || req.session?.oauthState
 
-            if (!storedBindState) {
-              logger.error('❌ Facebook 綁定狀態無效或已過期:', {
+              if (!oauthState) {
+                logger.error('❌ Facebook 綁定回調缺少 state 參數', {
+                  queryState: req.query.state,
+                  sessionState: req.session?.oauthState,
+                  sessionExists: !!req.session,
+                })
+                return done(new Error('缺少 state 參數'), false)
+              }
+
+              const { getBindState, removeBindState } = await import('../utils/oauthTempStore.js')
+              const storedBindState = getBindState(oauthState)
+
+              if (!storedBindState) {
+                logger.error('❌ Facebook 綁定狀態無效或已過期:', {
+                  oauthState: oauthState.substring(0, 10) + '...',
+                  totalStates: (await import('../utils/oauthTempStore.js')).getBindStateStats()
+                    .totalStates,
+                })
+                return done(new Error('綁定狀態無效或已過期，請重新嘗試'), false)
+              }
+
+              const bindUserId = storedBindState.userId
+              const bindProvider = storedBindState.provider
+
+              logger.info('✅ 成功從臨時緩存中獲取綁定狀態:', {
                 oauthState: oauthState.substring(0, 10) + '...',
-                totalStates: (await import('../utils/oauthTempStore.js')).getBindStateStats()
-                  .totalStates,
-              })
-              return done(new Error('綁定狀態無效或已過期，請重新嘗試'), false)
-            }
-
-            const bindUserId = storedBindState.userId
-            const bindProvider = storedBindState.provider
-
-            logger.info('✅ 成功從臨時緩存中獲取綁定狀態:', {
-              oauthState: oauthState.substring(0, 10) + '...',
-              bindUserId,
-              bindProvider,
-              expectedProvider: 'facebook',
-            })
-
-            // 清理臨時緩存中的狀態
-            removeBindState(oauthState)
-
-            if (!bindUserId || bindProvider !== 'facebook') {
-              logger.error('❌ Facebook 綁定回調中綁定資訊無效:', {
                 bindUserId,
                 bindProvider,
                 expectedProvider: 'facebook',
               })
-              return done(new Error('用戶認證失效，請重新登錄後綁定'), false)
-            }
 
-            const user = await User.findById(bindUserId)
-            if (!user) {
-              logger.error('❌ 綁定用戶不存在:', {
-                bindUserId,
-                oauthState: oauthState.substring(0, 10) + '...',
-              })
-              return done(new Error('綁定用戶不存在'), false)
-            }
+              // 清理臨時緩存中的狀態
+              removeBindState(oauthState)
 
-            logger.info('✅ 找到綁定用戶:', {
-              userId: user._id,
-              username: user.username,
-              email: user.email,
-              existingFacebookId: user.facebook_id,
-            })
+              if (!bindUserId || bindProvider !== 'facebook') {
+                logger.error('❌ Facebook 綁定回調中綁定資訊無效:', {
+                  bindUserId,
+                  bindProvider,
+                  expectedProvider: 'facebook',
+                })
+                return done(new Error('用戶認證失效，請重新登錄後綁定'), false)
+              }
 
-            if (user.facebook_id) {
-              logger.warn('⚠️ Facebook 帳號已綁定:', {
+              const user = await User.findById(bindUserId)
+              if (!user) {
+                logger.error('❌ 綁定用戶不存在:', {
+                  bindUserId,
+                  oauthState: oauthState.substring(0, 10) + '...',
+                })
+                return done(new Error('綁定用戶不存在'), false)
+              }
+
+              logger.info('✅ 找到綁定用戶:', {
                 userId: user._id,
-                facebookId: user.facebook_id,
-                newFacebookId: profile.id,
+                username: user.username,
+                email: user.email,
+                existingFacebookId: user.facebook_id,
               })
-              return done(null, user, { message: '此 Facebook 帳號已綁定到您的帳戶' })
-            }
 
-            const existingUserWithFacebookId = await User.findOne({ facebook_id: profile.id })
-            if (
-              existingUserWithFacebookId &&
-              existingUserWithFacebookId._id.toString() !== bindUserId
-            ) {
-              logger.error('❌ Facebook ID 已被其他用戶綁定:', {
+              if (user.facebook_id) {
+                logger.warn('⚠️ Facebook 帳號已綁定:', {
+                  userId: user._id,
+                  facebookId: user.facebook_id,
+                  newFacebookId: profile.id,
+                })
+                return done(null, user, { message: '此 Facebook 帳號已綁定到您的帳戶' })
+              }
+
+              const existingUserWithFacebookId = await User.findOne({ facebook_id: profile.id })
+              if (
+                existingUserWithFacebookId &&
+                existingUserWithFacebookId._id.toString() !== bindUserId
+              ) {
+                logger.error('❌ Facebook ID 已被其他用戶綁定:', {
+                  facebookId: profile.id,
+                  existingUserId: existingUserWithFacebookId._id,
+                  existingUsername: existingUserWithFacebookId.username,
+                  bindUserId,
+                  bindUsername: user.username,
+                })
+                return done(new Error('此 Facebook 帳號已被其他用戶綁定'), false)
+              }
+
+              // 更新用戶的 Facebook ID
+              user.facebook_id = profile.id
+              await user.save()
+
+              logger.info('✅ Facebook 帳號綁定成功:', {
+                userId: user._id,
                 facebookId: profile.id,
-                existingUserId: existingUserWithFacebookId._id,
-                existingUsername: existingUserWithFacebookId.username,
-                bindUserId,
-                bindUsername: user.username,
+                profileEmail: profile.emails?.[0]?.value,
               })
-              return done(new Error('此 Facebook 帳號已被其他用戶綁定'), false)
+              return done(null, user, { message: 'Facebook 帳號綁定成功' })
+            } catch (err) {
+              logger.error('❌ Facebook 綁定失敗:', {
+                error: err.message,
+                stack: err.stack,
+                profileId: profile?.id,
+                bindUserId: req.query.state || req.session?.oauthState,
+              })
+              return done(err, null)
             }
-
-            // 更新用戶的 Facebook ID
-            user.facebook_id = profile.id
-            await user.save()
-
-            logger.info('✅ Facebook 帳號綁定成功:', {
-              userId: user._id,
-              facebookId: profile.id,
-              profileEmail: profile.emails?.[0]?.value,
-            })
-            return done(null, user, { message: 'Facebook 帳號綁定成功' })
-          } catch (err) {
-            logger.error('❌ Facebook 綁定失敗:', {
-              error: err.message,
-              stack: err.stack,
-              profileId: profile?.id,
-              bindUserId: req.query.state || req.session?.oauthState,
-            })
-            return done(err, null)
-          }
-        },
-      ),
-    )
+          },
+        ),
+      )
+    }
 
     logger.info('✅ Facebook OAuth 策略初始化完成')
   } else {
