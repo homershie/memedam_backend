@@ -123,37 +123,68 @@ app.use(mongoSanitize())
 app.use(compression())
 app.use(cookieParser())
 
-// 開發環境立即配置 session 中間件（使用 MemoryStore）
-if (process.env.NODE_ENV === 'development') {
-  const sessionStore = new session.MemoryStore()
-  app.use(
-    session({
-      store: sessionStore,
-      secret: process.env.SESSION_SECRET || 'your-session-secret',
-      name: 'memedam.sid',
-      resave: true, // Twitter OAuth 1.0a 必須設為 true
-      saveUninitialized: true, // Twitter OAuth 1.0a 必須設為 true
-      cookie: {
-        httpOnly: true,
-        sameSite: 'lax', // 支援 OAuth 跨域流程
-        secure: false, // 開發環境設為 false
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天，支援長時間的 OAuth 流程
-        path: '/',
-      },
-      rolling: false, // 避免 OAuth 流程中 session ID 變化
-      unset: 'keep', // 保持 session 資料不被清除
-      proxy: false,
-      genid: () => {
-        return crypto.randomBytes(32).toString('hex')
-      },
-      touchAfter: 0, // 每次請求都更新，確保 OAuth 流程中狀態同步
-    }),
-  )
+// 立即配置 session 中間件（所有環境）
+const configureSession = () => {
+  let sessionStore
 
-  // Passport 初始化（在 session 配置之後）
-  app.use(passport.initialize())
-  app.use(passport.session())
+  if (process.env.NODE_ENV === 'development') {
+    // 開發環境使用 MemoryStore
+    sessionStore = new session.MemoryStore()
+    logger.info('開發環境：使用 MemoryStore')
+  } else if (process.env.NODE_ENV === 'production') {
+    // 生產環境檢查 Redis 可用性
+    if (redisCache.isEnabled && redisCache.client && redisCache.isConnected) {
+      sessionStore = new RedisStore({
+        client: redisCache.client,
+        prefix: 'sess:',
+        ttl: 86400 * 7, // 7 天
+      })
+      logger.info('生產環境：Redis 可用，使用 RedisStore')
+    } else {
+      sessionStore = new session.MemoryStore()
+      logger.warn('⚠️ 生產環境：Redis 不可用，使用 MemoryStore')
+    }
+  } else {
+    // 其他環境使用 MemoryStore
+    sessionStore = new session.MemoryStore()
+    logger.info('其他環境：使用 MemoryStore')
+  }
+
+  // 確保 sessionStore 已正確初始化
+  if (!sessionStore) {
+    logger.error('❌ Session store 初始化失敗，使用預設 MemoryStore')
+    sessionStore = new session.MemoryStore()
+  }
+
+  return session({
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET || 'your-session-secret',
+    name: 'memedam.sid',
+    resave: true, // Twitter OAuth 1.0a 必須設為 true
+    saveUninitialized: true, // Twitter OAuth 1.0a 必須設為 true
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax', // 支援 OAuth 跨域流程
+      secure: process.env.NODE_ENV === 'production' && process.env.FORCE_HTTPS !== 'false', // 動態設定 HTTPS
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天，支援長時間的 OAuth 流程
+      path: '/',
+    },
+    rolling: false, // 避免 OAuth 流程中 session ID 變化
+    unset: 'keep', // 保持 session 資料不被清除
+    proxy: process.env.NODE_ENV === 'production',
+    genid: () => {
+      return crypto.randomBytes(32).toString('hex')
+    },
+    touchAfter: 0, // 每次請求都更新，確保 OAuth 流程中狀態同步
+  })
 }
+
+// 配置 session 中間件
+app.use(configureSession())
+
+// Passport 初始化（在 session 配置之後）
+app.use(passport.initialize())
+app.use(passport.session())
 
 // 其他中間件
 app.use(express.json({ limit: '10mb' }))
@@ -180,7 +211,7 @@ if (process.env.NODE_ENV !== 'test' && !process.env.SKIP_METRICS) {
   }
 }
 
-// Session 配置和 Passport 初始化將在 startServer 中進行
+// Session 配置和 Passport 初始化已完成
 
 // 結構化 HTTP 請求日誌中間件
 app.use(
@@ -580,92 +611,6 @@ const startServer = async () => {
       }
     } else {
       logger.info('跳過 Redis 連線 (SKIP_REDIS=true)')
-    }
-
-    // 生產環境配置 session 中間件（使用 RedisStore）
-    if (process.env.NODE_ENV === 'production') {
-      const isProd = process.env.NODE_ENV === 'production'
-      let sessionStore
-
-      // 確保 sessionStore 總是有一個有效的值
-      if (isProd && redisCache.isEnabled && redisCache.client && redisCache.isConnected) {
-        // 生產環境使用 Redis store
-        sessionStore = new RedisStore({
-          client: redisCache.client,
-          prefix: 'sess:',
-          ttl: 86400 * 7, // 7 天
-        })
-        logger.info('生產環境：Redis 可用，session 將使用 Redis store')
-      } else {
-        // Redis 不可用時使用 MemoryStore
-        sessionStore = new session.MemoryStore()
-        logger.warn('⚠️  生產環境使用 MemoryStore，建議檢查 Redis 配置')
-      }
-
-      // 確保 sessionStore 已正確初始化
-      if (!sessionStore) {
-        logger.error('❌ Session store 初始化失敗，使用預設 MemoryStore')
-        sessionStore = new session.MemoryStore()
-      }
-
-      // 設定 session 中間件
-      app.use(
-        session({
-          store: sessionStore,
-          secret: process.env.SESSION_SECRET || 'your-session-secret',
-          name: 'memedam.sid',
-          resave: true, // Twitter OAuth 1.0a 必須設為 true
-          saveUninitialized: true, // Twitter OAuth 1.0a 必須設為 true
-          cookie: {
-            httpOnly: true,
-            sameSite: 'lax', // 支援 OAuth 跨域流程
-            secure: process.env.NODE_ENV === 'production' && process.env.FORCE_HTTPS !== 'false', // 動態設定 HTTPS
-            maxAge: 1000 * 60 * 60 * 24 * 7, // 7 天，支援長時間的 OAuth 流程
-            path: '/',
-          },
-          rolling: false, // 避免 OAuth 流程中 session ID 變化
-          unset: 'keep', // 保持 session 資料不被清除
-          proxy: true,
-          genid: () => {
-            return crypto.randomBytes(32).toString('hex')
-          },
-          touchAfter: 0, // 每次請求都更新，確保 OAuth 流程中狀態同步
-        }),
-      )
-
-      // Passport 初始化（在 session 配置之後）
-      app.use(passport.initialize())
-      app.use(passport.session())
-    } else if (process.env.NODE_ENV !== 'development') {
-      // 非開發環境且非生產環境（如 staging）也配置 session
-      const sessionStore = new session.MemoryStore()
-      app.use(
-        session({
-          store: sessionStore,
-          secret: process.env.SESSION_SECRET || 'your-session-secret',
-          name: 'memedam.sid',
-          resave: true,
-          saveUninitialized: true,
-          cookie: {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: false,
-            maxAge: 1000 * 60 * 60 * 24 * 7,
-            path: '/',
-          },
-          rolling: false,
-          unset: 'keep',
-          proxy: false,
-          genid: () => {
-            return crypto.randomBytes(32).toString('hex')
-          },
-          touchAfter: 0,
-        }),
-      )
-
-      // Passport 初始化（在 session 配置之後）
-      app.use(passport.initialize())
-      app.use(passport.session())
     }
 
     // 記錄 session 配置狀態
