@@ -437,6 +437,7 @@ const initializeOAuthStrategies = () => {
               return done(null, user)
             }
           } catch (err) {
+            logger.error('❌ Facebook 登入策略錯誤:', err)
             return done(err, null)
           }
         },
@@ -570,6 +571,8 @@ const initializeOAuthStrategies = () => {
         },
       ),
     )
+  } else {
+    logger.warn('⚠️ Facebook OAuth 環境變數未設定，跳過 Facebook 策略初始化')
   }
 
   // Discord - 登入用

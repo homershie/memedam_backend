@@ -1761,18 +1761,57 @@ router.get('/bind-auth/:provider/init', async (req, res) => {
       authOptions.state = state
     }
 
+    logger.info(`🚀 開始 ${provider} OAuth 認證流程:`, {
+      strategyName,
+      scope,
+      authOptions,
+      callbackURL:
+        process.env[`${provider.toUpperCase()}_BIND_REDIRECT_URI`] ||
+        process.env[`${provider.toUpperCase()}_REDIRECT_URI`],
+      hasStrategy: !!passport._strategies[strategyName],
+      availableStrategies: Object.keys(passport._strategies),
+    })
+
+    // 檢查策略是否存在
+    if (!passport._strategies[strategyName]) {
+      logger.error(`❌ ${provider} OAuth 策略不存在:`, {
+        strategyName,
+        availableStrategies: Object.keys(passport._strategies),
+        provider,
+      })
+      const frontendUrl = getFrontendUrl()
+      return res.redirect(
+        `${frontendUrl}/settings?error=strategy_not_found&message=${encodeURIComponent('OAuth 策略未配置')}`,
+      )
+    }
+
     passport.authenticate(strategyName, authOptions)(req, res, (error) => {
       if (error) {
-        logger.error(`❌ ${provider} OAuth 認證錯誤:`, error)
+        logger.error(`❌ ${provider} OAuth 認證錯誤:`, {
+          error: error.message,
+          stack: error.stack,
+          provider,
+          strategyName,
+          authOptions,
+        })
         const frontendUrl = getFrontendUrl()
         return res.redirect(
           `${frontendUrl}/settings?error=oauth_error&message=${encodeURIComponent('OAuth 認證失敗')}`,
         )
       }
       // 如果沒有錯誤，passport.authenticate 會自動處理重定向
+      logger.info(`✅ ${provider} OAuth 認證流程啟動成功`)
     })
   } catch (error) {
-    logger.error(`❌ ${provider} OAuth 初始化錯誤:`, error)
+    logger.error(`❌ ${provider} OAuth 初始化錯誤:`, {
+      error: error.message,
+      stack: error.stack,
+      provider,
+      bindUserId,
+      state,
+      hasToken: !!token,
+      hasSession: !!req.session,
+    })
     const frontendUrl = getFrontendUrl()
     return res.redirect(
       `${frontendUrl}/settings?error=init_failed&message=${encodeURIComponent('OAuth 初始化失敗')}`,
