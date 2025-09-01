@@ -929,8 +929,8 @@ export const buildSocialGraph = async (userIds = []) => {
     try {
       const queryTimeout = 30000 // 30秒超時
 
-      // 使用新的錯誤處理工具驗證 ObjectId
-      const cleanUserIds = validateObjectIdArray(validatedUserIds, 'targetUserIds')
+      // 直接使用已驗證的 ObjectId 實例，不需要再次驗證
+      const cleanUserIds = validatedUserIds
 
       if (cleanUserIds.length === 0) {
         console.log('沒有有效的用戶ID，返回空的社交圖譜')

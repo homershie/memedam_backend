@@ -60,6 +60,9 @@ export const batchUpdateHotScores = async (options = {}) => {
 
     // 分批處理
     for (let skip = 0; skip < Math.min(totalCount, limit); skip += batchSize) {
+      let batchUpdatedCount = 0
+      let batchProcessedCount = 0
+
       try {
         const memes = await Meme.find(query).skip(skip).limit(batchSize).sort({ updatedAt: -1 })
 
@@ -91,6 +94,8 @@ export const batchUpdateHotScores = async (options = {}) => {
 
             updatedCount++
             processedCount++
+            batchUpdatedCount++
+            batchProcessedCount++
 
             // 每處理100個迷因記錄一次進度
             if (processedCount % 100 === 0) {
@@ -117,8 +122,14 @@ export const batchUpdateHotScores = async (options = {}) => {
               error: error.message,
               stack: error.stack,
             })
+            batchProcessedCount++
           }
         }
+
+        // 記錄批次處理結果
+        logger.info(
+          `批次 ${currentBatchNumber} 完成: 成功 ${batchUpdatedCount} 個, 處理 ${batchProcessedCount} 個`,
+        )
 
         // 批次處理完成後稍作休息，避免資料庫壓力過大
         if (skip + batchSize < Math.min(totalCount, limit)) {
@@ -132,12 +143,16 @@ export const batchUpdateHotScores = async (options = {}) => {
           skip,
           batchSize,
           batch_number: currentBatchNumber,
+          batch_updated: batchUpdatedCount,
+          batch_processed: batchProcessedCount,
         })
         errors.push({
           batch_error: true,
           skip,
           batchSize,
           batch_number: currentBatchNumber,
+          batch_updated: batchUpdatedCount,
+          batch_processed: batchProcessedCount,
           error: batchError.message,
           stack: batchError.stack,
         })
