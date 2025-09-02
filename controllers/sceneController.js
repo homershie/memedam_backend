@@ -3,6 +3,8 @@ import Source from '../models/Source.js'
 import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
 import mongoose from 'mongoose'
+import { translateToEnglish } from '../services/googleTranslate.js'
+import { toSlug, toSlugOrNull } from '../utils/slugify.js'
 
 // 取得單一片段及相關資料
 export const getSceneBundle = async (req, res, next) => {
@@ -133,9 +135,45 @@ export const createScene = async (req, res, next) => {
       })
     }
 
+    // 處理 slug 自動生成
+    let finalSlug = slug
+    if (!finalSlug && title) {
+      try {
+        // 嘗試翻譯標題為英文後生成 slug
+        const englishTitle = await translateToEnglish(title, 'zh')
+        let baseSlug = toSlug(englishTitle)
+
+        // 如果翻譯失敗或結果為空，直接使用原標題生成 slug
+        if (!baseSlug) {
+          baseSlug = toSlug(title)
+        }
+
+        if (baseSlug) {
+          // 檢查 slug 唯一性，如果重複則加上數字後綴
+          finalSlug = baseSlug
+          let counter = 1
+
+          while (true) {
+            const existingSlugScene = await Scene.findOne({ slug: finalSlug })
+
+            if (!existingSlugScene) {
+              break
+            }
+
+            finalSlug = `${baseSlug}-${counter}`
+            counter++
+          }
+        }
+      } catch (error) {
+        console.warn('自動生成 slug 失敗，使用原標題:', error.message)
+        // 如果翻譯失敗，嘗試直接從標題生成 slug
+        finalSlug = toSlugOrNull(title)
+      }
+    }
+
     // 檢查 slug 是否已存在
-    if (slug) {
-      const existingScene = await Scene.findOne({ slug })
+    if (finalSlug) {
+      const existingScene = await Scene.findOne({ slug: finalSlug })
       if (existingScene) {
         return res.status(StatusCodes.CONFLICT).json({
           success: false,
@@ -164,7 +202,7 @@ export const createScene = async (req, res, next) => {
       images,
       video_url,
       audio_url,
-      slug,
+      slug: finalSlug,
       tags,
     })
 

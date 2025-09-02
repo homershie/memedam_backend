@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import validator from 'validator'
 import { calculateMemeHotScore, getHotScoreLevel } from '../utils/hotScore.js'
+import { toSlug } from '../utils/slugify.js'
 
 const MemeSchema = new mongoose.Schema(
   {
@@ -599,6 +600,14 @@ MemeSchema.pre('validate', function (next) {
     return next(new Error(errors.join(', ')))
   }
 
+  next()
+})
+
+// 自動生成 slug
+MemeSchema.pre('validate', function (next) {
+  if (!this.slug && this.title) {
+    this.slug = toSlug(this.title).substring(0, 100)
+  }
   next()
 })
 

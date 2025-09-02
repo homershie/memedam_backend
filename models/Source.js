@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import validator from 'validator'
+import { toSlug } from '../utils/slugify.js'
 
 const SourceSchema = new mongoose.Schema(
   {
@@ -73,7 +74,16 @@ const SourceSchema = new mongoose.Schema(
       type: {
         type: String,
         enum: {
-          values: ['copyright', 'cc-by', 'cc-by-sa', 'cc-by-nc', 'cc-by-nc-sa', 'cc0', 'public-domain', 'other'],
+          values: [
+            'copyright',
+            'cc-by',
+            'cc-by-sa',
+            'cc-by-nc',
+            'cc-by-nc-sa',
+            'cc0',
+            'public-domain',
+            'other',
+          ],
           message: '授權類型必須是有效的授權方式',
         },
         // 授權類型
@@ -220,13 +230,8 @@ SourceSchema.index({ createdAt: -1 })
 // 自動生成 slug
 SourceSchema.pre('validate', function (next) {
   if (!this.slug && this.title) {
-    // 簡單的 slug 生成，實際應用可能需要更複雜的邏輯
-    this.slug = this.title
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '') // 移除特殊字元
-      .replace(/\s+/g, '-') // 空格改為連字號
-      .replace(/-+/g, '-') // 多個連字號合併
-      .substring(0, 100)
+    // 使用 slugify 工具生成 slug
+    this.slug = toSlug(this.title)
   }
   next()
 })
@@ -297,13 +302,7 @@ SourceSchema.statics.getPopularSources = async function (limit = 50) {
 
 // 靜態方法：搜尋來源
 SourceSchema.statics.searchSources = async function (query, options = {}) {
-  const {
-    type = null,
-    tags = [],
-    limit = 20,
-    skip = 0,
-    sortBy = 'relevance',
-  } = options
+  const { type = null, tags = [], limit = 20, skip = 0, sortBy = 'relevance' } = options
 
   const searchQuery = { status: 'active' }
 

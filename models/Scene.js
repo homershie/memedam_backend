@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import validator from 'validator'
+import { toSlug } from '../utils/slugify.js'
 
 const SceneSchema = new mongoose.Schema(
   {
@@ -193,6 +194,14 @@ SceneSchema.index({ source_id: 1, start_time: 1 })
 SceneSchema.index({ source_id: 1, status: 1 })
 SceneSchema.index({ slug: 1 })
 SceneSchema.index({ 'counts.memes': -1 })
+
+// 自動生成 slug
+SceneSchema.pre('validate', function (next) {
+  if (!this.slug && this.title) {
+    this.slug = toSlug(this.title).substring(0, 100)
+  }
+  next()
+})
 
 // 格式化時間為 MM:SS 或 HH:MM:SS
 SceneSchema.methods.formatTime = function (seconds) {

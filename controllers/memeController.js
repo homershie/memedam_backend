@@ -21,6 +21,8 @@ import {
   calculateEngagementScore,
   calculateQualityScore,
 } from '../utils/hotScore.js'
+import { translateToEnglish } from '../services/googleTranslate.js'
+import { toSlug, toSlugOrNull } from '../utils/slugify.js'
 
 // 匯出 CSV（管理端）
 export const exportMemesCsv = async (req, res) => {
@@ -151,6 +153,7 @@ export const createMeme = async (req, res) => {
       source_url = '',
       video_url = '',
       audio_url = '',
+      slug,
     } = req.body
 
     // 從認證中間件獲取用戶ID
@@ -166,6 +169,42 @@ export const createMeme = async (req, res) => {
       }
     }
 
+    // 處理 slug 自動生成
+    let finalSlug = slug
+    if (!finalSlug && title) {
+      try {
+        // 嘗試翻譯標題為英文後生成 slug
+        const englishTitle = await translateToEnglish(title, 'zh')
+        let baseSlug = toSlug(englishTitle)
+
+        // 如果翻譯失敗或結果為空，直接使用原標題生成 slug
+        if (!baseSlug) {
+          baseSlug = toSlug(title)
+        }
+
+        if (baseSlug) {
+          // 檢查 slug 唯一性，如果重複則加上數字後綴
+          finalSlug = baseSlug
+          let counter = 1
+
+          while (true) {
+            const existingSlugMeme = await Meme.findOne({ slug: finalSlug }).session(session)
+
+            if (!existingSlugMeme) {
+              break
+            }
+
+            finalSlug = `${baseSlug}-${counter}`
+            counter++
+          }
+        }
+      } catch (error) {
+        logger.warn('自動生成 slug 失敗，使用原標題:', error.message)
+        // 如果翻譯失敗，嘗試直接從標題生成 slug
+        finalSlug = toSlugOrNull(title)
+      }
+    }
+
     const meme = new Meme({
       title,
       content,
@@ -177,6 +216,7 @@ export const createMeme = async (req, res) => {
       detail_markdown,
       tags_cache: tagsArr,
       source_url,
+      slug: finalSlug,
     })
 
     // 使用 session 保存迷因
