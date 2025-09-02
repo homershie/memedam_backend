@@ -21,13 +21,13 @@ Table users {
   avatar varchar [note: '頭像URL']
   cover_image varchar [note: '封面圖片URL']
   bio varchar(500)
-  gender varchar [enum: 'male, female, other', note: '可為空字串']
+  gender varchar [note: '可選值: male, female, other，可為空字串']
   location varchar(100)
-  role varchar [default: 'user', enum: 'user, admin, auditor, manager']
-  status varchar [default: 'active', enum: 'active, banned, pending, deleted, suspended']
+  role varchar [default: 'user', note: '可選值: user, admin, auditor, manager']
+  status varchar [default: 'active', note: '可選值: active, banned, pending, deleted, suspended']
   ban_reason varchar(200)
   email_verified boolean [default: false]
-  login_method varchar [default: 'local', enum: 'local, google, facebook, discord, twitter']
+  login_method varchar [default: 'local', note: '可選值: local, google, facebook, discord, twitter']
   needs_username_selection boolean [default: false]
   birthday date
   last_login_at timestamp
@@ -37,7 +37,7 @@ Table users {
   exp int [default: 0, note: '經驗值']
   verified_at timestamp
   deactivate_at timestamp
-  register_from varchar [default: 'web', enum: 'web, mobile, api']
+  register_from varchar [default: 'web', note: '可選值: web, mobile, api']
   preferences json [note: '用戶偏好設定']
   functionalPreferences json [note: '功能偏好設定：theme, language, personalization, searchPreferences']
   follower_count int [default: 0]
@@ -50,7 +50,7 @@ Table users {
   notificationSettings json [note: '通知設定：browser, newFollower, newComment, newLike, newMention, trendingContent, weeklyDigest']
   username_changed_at timestamp
   previous_usernames json[] [note: '用戶名變更歷史：username, changed_at']
-  privacyConsentId ObjectId [ref: > privacy_consents._id]
+  privacyConsentId ObjectId
   lastConsentUpdate timestamp
   createdAt timestamp [default: `now()`]
   updatedAt timestamp [default: `now()`]
@@ -59,16 +59,16 @@ Table users {
 // 隱私權同意
 Table privacy_consents {
   _id ObjectId [pk]
-  userId ObjectId [ref: > users._id, note: '可為空，支援匿名用戶']
-  sessionId varchar [not null, index]
+  userId ObjectId [note: '可為空，支援匿名用戶']
+  sessionId varchar [not null, note: '索引欄位']
   necessary boolean [default: true, not null]
   functional boolean [default: false, not null]
   analytics boolean [default: false, not null]
   consentVersion varchar [default: '1.0', not null]
-  consentSource varchar [enum: 'initial, settings, reconsent, sync', not null]
+  consentSource varchar [not null, note: '可選值: initial, settings, reconsent, sync']
   ipAddress varchar [not null]
   userAgent varchar [not null]
-  isActive boolean [default: true, index]
+  isActive boolean [default: true, note: '索引欄位']
   revokedAt timestamp
   createdAt timestamp [default: `now()`]
   updatedAt timestamp [default: `now()`]
@@ -80,20 +80,20 @@ Table privacy_consents {
 Table memes {
   _id ObjectId [pk]
   title varchar(200) [not null]
-  type varchar [not null, enum: 'text, image, video, audio']
+  type varchar [not null, note: '可選值: text, image, video, audio']
   content varchar(5000) [not null]
   image_url varchar [note: '圖片迷因的圖片連結']
   cover_image varchar [note: '迷因主圖連結，所有類型都可選填']
   video_url varchar [note: '影片迷因的影片連結']
   audio_url varchar [note: '音樂/音效迷因的檔案連結']
-  source_id ObjectId [ref: > sources._id, note: '三層模型：作品來源']
-  scene_id ObjectId [ref: > scenes._id, note: '三層模型：片段']
-  variant_of ObjectId [ref: > memes._id, note: '變體系譜：此迷因是哪個迷因的變體']
+  source_id ObjectId [note: '三層模型：作品來源']
+  scene_id ObjectId [note: '三層模型：片段']
+  variant_of ObjectId [note: '變體系譜：此迷因是哪個迷因的變體']
   lineage json [note: '變體系譜：root(根源), depth(深度)']
   body varchar(5000) [note: '笑點解析']
-  author_id ObjectId [ref: > users._id, not null]
-  editors ObjectId[] [ref: > users._id]
-  status varchar [default: 'public', enum: 'public, deleted, banned, hidden, draft']
+  author_id ObjectId [not null]
+  editors ObjectId[]
+  status varchar [default: 'public', note: '可選值: public, deleted, banned, hidden, draft']
   slug varchar(100) [note: 'SEO友善網址，僅允許小寫字母、數字和連字號']
   nsfw boolean [default: false, note: '是否為成人/限制級']
   views int [default: 0, note: '瀏覽次數快取']
@@ -112,8 +112,8 @@ Table memes {
 // 作品來源 (三層模型)
 Table sources {
   _id ObjectId [pk]
-  type varchar [not null, enum: 'video, film, tv, ad, web, article, other']
-  title varchar(200) [not null, index]
+  type varchar [not null, note: '可選值: video, film, tv, ad, web, article, other']
+  title varchar(200) [not null, note: '索引欄位']
   alt_titles varchar[] [note: '別名、其他譯名']
   year int [note: '發行年份，1800-未來10年']
   origin_country varchar(100) [note: '來源國家/地區']
@@ -122,7 +122,7 @@ Table sources {
   context varchar(5000) [note: '背景/爭議/影響']
   license json [note: '授權資訊：type(類型), notes(說明)']
   links json[] [note: '相關連結陣列：label(標籤), url(網址)']
-  slug varchar [index]
+  slug varchar [note: '索引欄位']
   status varchar [default: 'active']
   counts json [note: '統計數據：memes(相關迷因數)']
   createdAt timestamp [default: `now()`]
@@ -132,7 +132,7 @@ Table sources {
 // 片段 (三層模型)
 Table scenes {
   _id ObjectId [pk]
-  source_id ObjectId [ref: > sources._id, not null, index]
+  source_id ObjectId [not null, note: '索引欄位']
   title varchar(200) [note: '片段標題']
   episode varchar(50) [note: '集數標示，如 S01E05']
   start_time int [note: '開始時間(秒)']
@@ -142,7 +142,7 @@ Table scenes {
   description varchar(2000) [note: '片段描述/場景說明']
   images varchar[] [note: '截圖連結陣列']
   video_url varchar [note: '片段影片連結']
-  slug varchar [index]
+  slug varchar [note: '索引欄位']
   status varchar [default: 'active']
   counts json [note: '統計數據：memes(相關迷因數)']
   createdAt timestamp [default: `now()`]
@@ -156,15 +156,15 @@ Table tags {
   _id ObjectId [pk]
   name varchar(50) [unique, not null]
   slug varchar [note: '同一語言下必須唯一']
-  lang varchar [default: 'zh', enum: 'zh, en, ja, ko']
+  lang varchar [default: 'zh', note: '可選值: zh, en, ja, ko']
   createdAt timestamp [default: `now()`]
   updatedAt timestamp [default: `now()`]
 }
 
 Table meme_tags {
   _id ObjectId [pk]
-  meme_id ObjectId [ref: > memes._id, not null]
-  tag_id ObjectId [ref: > tags._id, not null]
+  meme_id ObjectId [not null]
+  tag_id ObjectId [not null]
   lang varchar [default: 'zh']
   createdAt timestamp [default: `now()`]
   updatedAt timestamp [default: `now()`]
@@ -175,8 +175,8 @@ Table meme_tags {
 // ===========================
 Table likes {
   _id ObjectId [pk]
-  user_id ObjectId [ref: > users._id, not null]
-  meme_id ObjectId [ref: > memes._id, not null]
+  user_id ObjectId [not null]
+  meme_id ObjectId [not null]
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
@@ -186,8 +186,8 @@ Table likes {
 
 Table dislikes {
   _id ObjectId [pk]
-  user_id ObjectId [ref: > users._id, not null]
-  meme_id ObjectId [ref: > memes._id, not null]
+  user_id ObjectId [not null]
+  meme_id ObjectId [not null]
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
@@ -197,10 +197,10 @@ Table dislikes {
 
 Table comments {
   _id ObjectId [pk]
-  meme_id ObjectId [ref: > memes._id, not null]
-  user_id ObjectId [ref: > users._id, not null]
+  meme_id ObjectId [not null]
+  user_id ObjectId [not null]
   content varchar(2000) [not null]
-  parent_id ObjectId [ref: > comments._id, note: '樓中樓回覆']
+  parent_id ObjectId [note: '樓中樓回覆']
   status varchar [default: 'normal']
   like_count int [default: 0]
   dislike_count int [default: 0]
@@ -216,8 +216,8 @@ Table comments {
 
 Table collections {
   _id ObjectId [pk]
-  user_id ObjectId [ref: > users._id, not null]
-  meme_id ObjectId [ref: > memes._id, not null]
+  user_id ObjectId [not null]
+  meme_id ObjectId [not null]
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
@@ -227,8 +227,8 @@ Table collections {
 
 Table shares {
   _id ObjectId [pk]
-  user_id ObjectId [ref: > users._id, not null]
-  meme_id ObjectId [ref: > memes._id, not null]
+  user_id ObjectId [not null]
+  meme_id ObjectId [not null]
   platform_detail varchar(100)
   ip varchar(45)
   user_agent varchar(500)
@@ -241,8 +241,8 @@ Table shares {
 // ===========================
 Table views {
   _id ObjectId [pk]
-  meme_id ObjectId [ref: > memes._id, not null]
-  user_id ObjectId [ref: > users._id, note: '未登入用戶為空']
+  meme_id ObjectId [not null]
+  user_id ObjectId [note: '未登入用戶為空']
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
@@ -258,7 +258,7 @@ Table views {
 //   _id ObjectId [pk]
 //   user_id ObjectId [ref: > users._id, note: '未登入用戶為空']
 //   search_query varchar(500) [not null]
-//   search_type varchar [default: 'general', enum: 'general, tag, user, advanced']
+//   search_type varchar [default: 'general', note: '可選值: general, tag, user, advanced']
 //   filters json [note: '搜尋篩選條件']
 //   result_count int [default: 0]
 //   clicked_results ObjectId[] [ref: > memes._id, note: '點擊的搜尋結果']
@@ -273,12 +273,12 @@ Table views {
 // ===========================
 Table follows {
   _id ObjectId [pk]
-  follower_id ObjectId [ref: > users._id, not null]
-  following_id ObjectId [ref: > users._id, not null]
+  follower_id ObjectId [not null]
+  following_id ObjectId [not null]
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
-  status varchar [default: 'active', enum: 'active, muted, blocked']
+  status varchar [default: 'active', note: '可選值: active, muted, blocked']
   createdAt timestamp [default: `now()`]
   updatedAt timestamp [default: `now()`]
 }
@@ -288,10 +288,10 @@ Table follows {
 // ===========================
 Table notifications {
   _id ObjectId [pk]
-  actor_id ObjectId [ref: > users._id, not null, index]
-  verb varchar(50) [not null, index]
-  object_type varchar(50) [not null, index]
-  object_id ObjectId [not null, index]
+  actor_id ObjectId [not null, note: '索引欄位']
+  verb varchar(50) [not null, note: '索引欄位']
+  object_type varchar(50) [not null, note: '索引欄位']
+  object_id ObjectId [not null, note: '索引欄位']
   target_type varchar(50)
   target_id ObjectId
   extra json
@@ -302,8 +302,8 @@ Table notifications {
 // 通知收據
 Table notification_receipts {
   _id ObjectId [pk]
-  notification_id ObjectId [ref: > notifications._id, not null, index]
-  user_id ObjectId [ref: > users._id, not null, index]
+  notification_id ObjectId [not null, note: '索引欄位']
+  user_id ObjectId [not null, note: '索引欄位']
   read_at timestamp
   deleted_at timestamp
   archived_at timestamp
@@ -316,14 +316,14 @@ Table notification_receipts {
 // ===========================
 Table reports {
   _id ObjectId [pk]
-  reporter_id ObjectId [ref: > users._id, not null]
-  target_type varchar [not null, enum: 'user, meme, comment, other']
+  reporter_id ObjectId [not null]
+  target_type varchar [not null, note: '可選值: user, meme, comment, other']
   target_id ObjectId [not null]
   reason varchar(1000) [not null]
   evidence json
-  status varchar [default: 'pending', enum: 'pending, resolved, rejected']
+  status varchar [default: 'pending', note: '可選值: pending, resolved, rejected']
   processed_at timestamp
-  processor_id ObjectId [ref: > users._id]
+  processor_id ObjectId
   processing_note varchar(1000)
   is_anonymous boolean [default: false]
   createdAt timestamp [default: `now()`]
@@ -337,8 +337,8 @@ Table announcements {
   _id ObjectId [pk]
   title varchar(200) [not null]
   content varchar(5000) [not null]
-  author_id ObjectId [ref: > users._id, not null]
-  status varchar [default: 'draft', enum: 'draft, public, hidden, deleted']
+  author_id ObjectId [not null]
+  status varchar [default: 'draft', note: '可選值: draft, public, hidden, deleted']
   pinned boolean [default: false]
   visible_at timestamp
   expired_at timestamp
@@ -352,8 +352,8 @@ Table announcements {
 // ===========================
 Table sponsors {
   _id ObjectId [pk]
-  user_id ObjectId [ref: > users._id, not null]
-  status varchar [default: 'pending', enum: 'pending, success, failed, refunded']
+  user_id ObjectId [not null]
+  status varchar [default: 'pending', note: '可選值: pending, success, failed, refunded']
   amount int [not null]
   message varchar(1000)
   payment_method varchar(50)
@@ -368,29 +368,29 @@ Table sponsors {
 // ===========================
 Table meme_versions {
   _id ObjectId [pk]
-  meme ObjectId [ref: > memes._id, not null]
-  proposal_id ObjectId [ref: > meme_edit_proposals._id]
+  meme ObjectId [not null]
+  proposal_id ObjectId
   version_number int [not null]
   title varchar(200) [not null]
   content varchar(10000) [not null]
   images varchar[]
-  created_by ObjectId [ref: > users._id, not null]
+  created_by ObjectId [not null]
   changelog varchar(1000)
-  status varchar [default: 'active', enum: 'active, pending, rejected']
+  status varchar [default: 'active', note: '可選值: active, pending, rejected']
   createdAt timestamp [default: `now()`]
   updatedAt timestamp [default: `now()`]
 }
 
 Table meme_edit_proposals {
   _id ObjectId [pk]
-  meme_id ObjectId [ref: > memes._id, not null]
-  proposer_id ObjectId [ref: > users._id, not null]
+  meme_id ObjectId [not null]
+  proposer_id ObjectId [not null]
   title varchar
   content varchar
   images varchar[]
   reason varchar
-  status varchar [default: 'pending', enum: 'pending, approved, rejected']
-  reviewer_id ObjectId [ref: > users._id]
+  status varchar [default: 'pending', note: '可選值: pending, approved, rejected']
+  reviewer_id ObjectId
   reviewed_at timestamp
   review_comment varchar
   createdAt timestamp [default: `now()`]
@@ -405,7 +405,7 @@ Table ab_tests {
   test_type varchar [not null]
   name varchar [not null]
   description varchar
-  status varchar [default: 'draft', enum: 'draft, active, paused, completed']
+  status varchar [default: 'draft', note: '可選值: draft, active, paused, completed']
   primary_metric varchar [not null]
   secondary_metrics varchar[]
   variants json [not null]
@@ -413,7 +413,7 @@ Table ab_tests {
   target_audience json
   start_date timestamp
   end_date timestamp
-  created_by ObjectId [ref: > users._id]
+  created_by ObjectId
   results json
   createdAt timestamp [default: `now()`]
   updatedAt timestamp [default: `now()`]
@@ -424,8 +424,8 @@ Table ab_tests {
 // ===========================
 Table recommendation_metrics {
   _id ObjectId [pk]
-  user_id ObjectId [ref: > users._id, not null]
-  meme_id ObjectId [ref: > memes._id, not null]
+  user_id ObjectId [not null]
+  meme_id ObjectId [not null]
   algorithm varchar [not null]
   ab_test_id varchar
   ab_test_variant varchar
@@ -451,12 +451,12 @@ Table recommendation_metrics {
 // ===========================
 Table feedback {
   _id ObjectId [pk]
-  userId ObjectId [ref: > users._id, not null]
+  userId ObjectId [not null]
   email varchar(255) [not null]
   title varchar(200) [not null]
   message varchar(2000) [not null]
-  category varchar [enum: 'suggestion, bug, content, feature, other', default: 'other']
-  status varchar [enum: 'pending, in_progress, resolved, closed', default: 'pending']
+  category varchar [default: 'other', note: '可選值: suggestion, bug, content, feature, other']
+  status varchar [default: 'pending', note: '可選值: pending, in_progress, resolved, closed']
   adminResponse varchar(2000)
   userAgent varchar
   ipHash varchar
@@ -471,8 +471,8 @@ Table feedback {
 Table verification_tokens {
   _id ObjectId [pk]
   token varchar [unique, not null]
-  userId ObjectId [ref: > users._id, not null]
-  type varchar [enum: 'email, password_reset, account_verification', not null]
+  userId ObjectId [not null]
+  type varchar [not null, note: '可選值: email, password_reset, account_verification']
   used boolean [default: false]
   expiresAt timestamp [not null]
   createdAt timestamp [default: `now()`]
@@ -492,7 +492,6 @@ Ref: "scenes"."source_id" < "sources"."_id"
 
 // 迷因變體系譜
 Ref: "memes"."variant_of" < "memes"."_id"
-Ref: "memes"."lineage.root" < "memes"."_id"
 
 // 通知系統關聯
 Ref: "notification_receipts"."notification_id" < "notifications"."_id"

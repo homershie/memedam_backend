@@ -19,6 +19,11 @@ import Sponsor from '../models/Sponsor.js'
 import VerificationToken from '../models/VerificationToken.js'
 import RecommendationMetrics from '../models/RecommendationMetrics.js'
 import ABTest from '../models/ABTest.js'
+import Source from '../models/Source.js'
+import Scene from '../models/Scene.js'
+import PrivacyConsent from '../models/PrivacyConsent.js'
+import NotificationReceipt from '../models/NotificationReceipt.js'
+import Feedback from '../models/Feedback.js'
 
 // 導出所有模型以便其他模組使用
 export {
@@ -42,6 +47,11 @@ export {
   VerificationToken,
   RecommendationMetrics,
   ABTest,
+  Source,
+  Scene,
+  PrivacyConsent,
+  NotificationReceipt,
+  Feedback,
 }
 
 // 模型載入完成
