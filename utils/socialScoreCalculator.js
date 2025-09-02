@@ -443,6 +443,10 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加按讚用戶
     likes.forEach((like) => {
+      if (!like.user_id || !like.user_id._id) {
+        console.warn('跳過無效的按讚記錄，user_id 為 null 或無效:', like._id)
+        return
+      }
       const likeUserId = like.user_id._id.toString()
       if (likeUserId !== userId) {
         allInteractingUsers.set(likeUserId, {
@@ -455,6 +459,10 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加留言用戶
     comments.forEach((comment) => {
+      if (!comment.user_id || !comment.user_id._id) {
+        console.warn('跳過無效的留言記錄，user_id 為 null 或無效:', comment._id)
+        return
+      }
       const commentUserId = comment.user_id._id.toString()
       if (commentUserId !== userId) {
         allInteractingUsers.set(commentUserId, {
@@ -467,6 +475,10 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加分享用戶
     shares.forEach((share) => {
+      if (!share.user_id || !share.user_id._id) {
+        console.warn('跳過無效的分享記錄，user_id 為 null 或無效:', share._id)
+        return
+      }
       const shareUserId = share.user_id._id.toString()
       if (shareUserId !== userId) {
         allInteractingUsers.set(shareUserId, {
@@ -479,6 +491,10 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加收藏用戶
     collections.forEach((collection) => {
+      if (!collection.user_id || !collection.user_id._id) {
+        console.warn('跳過無效的收藏記錄，user_id 為 null 或無效:', collection._id)
+        return
+      }
       const collectionUserId = collection.user_id._id.toString()
       if (collectionUserId !== userId) {
         allInteractingUsers.set(collectionUserId, {
@@ -491,6 +507,10 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加瀏覽用戶
     views.forEach((view) => {
+      if (!view.user_id || !view.user_id._id) {
+        console.warn('跳過無效的瀏覽記錄，user_id 為 null 或無效:', view._id)
+        return
+      }
       const viewUserId = view.user_id._id.toString()
       if (viewUserId !== userId) {
         allInteractingUsers.set(viewUserId, {
