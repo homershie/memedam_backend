@@ -118,7 +118,9 @@ export const calculateSocialDistance = async (userId, targetUserId, socialGraph 
     for (const followingId of userSocialData.following) {
       const followingSocialData = socialGraph[followingId]
       if (followingSocialData) {
-        followingSocialData.following.forEach((id) => secondDegreeUsers.add(id))
+        followingSocialData.following.forEach((id) => {
+          if (id) secondDegreeUsers.add(id)
+        })
       }
     }
 
@@ -135,7 +137,9 @@ export const calculateSocialDistance = async (userId, targetUserId, socialGraph 
     for (const secondDegreeId of secondDegreeUsers) {
       const secondDegreeSocialData = socialGraph[secondDegreeId]
       if (secondDegreeSocialData) {
-        secondDegreeSocialData.following.forEach((id) => thirdDegreeUsers.add(id))
+        secondDegreeSocialData.following.forEach((id) => {
+          if (id) thirdDegreeUsers.add(id)
+        })
       }
     }
 
@@ -249,11 +253,25 @@ export const buildSocialGraph = async (userIds = []) => {
 
     // 合併結果並去重
     const followsMap = new Map()
-    followerFollows.forEach((follow) => {
+    ;(followerFollows || []).forEach((follow) => {
+      if (!follow || !follow.follower_id || !follow.following_id) {
+        console.warn(
+          '跳過無效的關注記錄，follower_id 或 following_id 為 null:',
+          follow?._id,
+        )
+        return
+      }
       const key = `${follow.follower_id}-${follow.following_id}`
       followsMap.set(key, follow)
     })
-    followingFollows.forEach((follow) => {
+    ;(followingFollows || []).forEach((follow) => {
+      if (!follow || !follow.follower_id || !follow.following_id) {
+        console.warn(
+          '跳過無效的關注記錄，follower_id 或 following_id 為 null:',
+          follow?._id,
+        )
+        return
+      }
       const key = `${follow.follower_id}-${follow.following_id}`
       followsMap.set(key, follow)
     })
@@ -263,6 +281,13 @@ export const buildSocialGraph = async (userIds = []) => {
     const socialGraph = {}
 
     for (const follow of follows) {
+      if (!follow || !follow.follower_id || !follow.following_id) {
+        console.warn(
+          '跳過無效的關注記錄，follower_id 或 following_id 為 null:',
+          follow?._id,
+        )
+        continue
+      }
       const followerId = follow.follower_id.toString()
       const followingId = follow.following_id.toString()
 
@@ -442,9 +467,9 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
     }
 
     // 添加按讚用戶
-    likes.forEach((like) => {
-      if (!like.user_id || !like.user_id._id) {
-        console.warn('跳過無效的按讚記錄，user_id 為 null 或無效:', like._id)
+    ;(likes || []).forEach((like) => {
+      if (!like || !like.user_id || !like.user_id._id) {
+        console.warn('跳過無效的按讚記錄，user_id 為 null 或無效:', like?._id)
         return
       }
       const likeUserId = like.user_id._id.toString()
@@ -458,9 +483,9 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
     })
 
     // 添加留言用戶
-    comments.forEach((comment) => {
-      if (!comment.user_id || !comment.user_id._id) {
-        console.warn('跳過無效的留言記錄，user_id 為 null 或無效:', comment._id)
+    ;(comments || []).forEach((comment) => {
+      if (!comment || !comment.user_id || !comment.user_id._id) {
+        console.warn('跳過無效的留言記錄，user_id 為 null 或無效:', comment?._id)
         return
       }
       const commentUserId = comment.user_id._id.toString()
@@ -474,9 +499,9 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
     })
 
     // 添加分享用戶
-    shares.forEach((share) => {
-      if (!share.user_id || !share.user_id._id) {
-        console.warn('跳過無效的分享記錄，user_id 為 null 或無效:', share._id)
+    ;(shares || []).forEach((share) => {
+      if (!share || !share.user_id || !share.user_id._id) {
+        console.warn('跳過無效的分享記錄，user_id 為 null 或無效:', share?._id)
         return
       }
       const shareUserId = share.user_id._id.toString()
@@ -490,9 +515,9 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
     })
 
     // 添加收藏用戶
-    collections.forEach((collection) => {
-      if (!collection.user_id || !collection.user_id._id) {
-        console.warn('跳過無效的收藏記錄，user_id 為 null 或無效:', collection._id)
+    ;(collections || []).forEach((collection) => {
+      if (!collection || !collection.user_id || !collection.user_id._id) {
+        console.warn('跳過無效的收藏記錄，user_id 為 null 或無效:', collection?._id)
         return
       }
       const collectionUserId = collection.user_id._id.toString()
@@ -506,9 +531,9 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
     })
 
     // 添加瀏覽用戶
-    views.forEach((view) => {
-      if (!view.user_id || !view.user_id._id) {
-        console.warn('跳過無效的瀏覽記錄，user_id 為 null 或無效:', view._id)
+    ;(views || []).forEach((view) => {
+      if (!view || !view.user_id || !view.user_id._id) {
+        console.warn('跳過無效的瀏覽記錄，user_id 為 null 或無效:', view?._id)
         return
       }
       const viewUserId = view.user_id._id.toString()
@@ -752,13 +777,19 @@ export const generateSocialRecommendationReasons = (socialInteractions, options 
 
     // 按權重分組
     const reasonsByType = {}
-    for (const interaction of socialInteractions) {
-      if (interaction.weight >= minWeight) {
-        if (!reasonsByType[interaction.action]) {
-          reasonsByType[interaction.action] = []
-        }
-        reasonsByType[interaction.action].push(interaction)
+    for (const interaction of socialInteractions || []) {
+      if (
+        !interaction ||
+        typeof interaction.weight !== 'number' ||
+        !interaction.action ||
+        interaction.weight < minWeight
+      ) {
+        continue
       }
+      if (!reasonsByType[interaction.action]) {
+        reasonsByType[interaction.action] = []
+      }
+      reasonsByType[interaction.action].push(interaction)
     }
 
     // 生成推薦原因
