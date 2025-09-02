@@ -2026,6 +2026,11 @@ export const getMemeBundle = async (req, res, next) => {
       .populate('author_id', 'username display_name avatar')
       .lean()
 
+    // 確保 sidebar_data 字段總是存在，即使是空的
+    if (meme && !meme.sidebar_data) {
+      meme.sidebar_data = {}
+    }
+
     if (!meme) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
