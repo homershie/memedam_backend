@@ -21,6 +21,7 @@ import {
   getMemeBundle,
   getMemeVariants,
   getMemesFromSameSource,
+  getMemesBySource,
   checkSlugAvailable,
 } from '../controllers/memeController.js'
 import {
@@ -1302,6 +1303,9 @@ router.get('/:id/variants', getMemeVariants)
 
 // 取得同一來源的其他迷因
 router.get('/:id/from-source', getMemesFromSameSource)
+
+// 根據來源取得迷因
+router.get('/by-source/:sourceId', getMemesBySource)
 
 // 基本 CRUD 操作（必須在最後）
 router.get('/:id', getMemeById)

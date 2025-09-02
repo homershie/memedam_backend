@@ -2217,3 +2217,84 @@ export const getMemesFromSameSource = async (req, res, next) => {
     next(error)
   }
 }
+
+// 根據來源 ID 取得迷因列表
+export const getMemesBySource = async (req, res, next) => {
+  try {
+    const { sourceId } = req.params
+    const { limit = 12, page = 1, sort = 'hot' } = req.query
+
+    // 驗證 sourceId 格式
+    if (!mongoose.Types.ObjectId.isValid(sourceId)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '無效的來源 ID',
+      })
+    }
+
+    // 檢查來源是否存在
+    const source = await Source.findById(sourceId).lean()
+    if (!source) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '來源不存在',
+      })
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    // 根據排序方式設定排序條件
+    let sortCondition = {}
+    switch (sort) {
+      case 'hot':
+        sortCondition = { hot_score: -1, like_count: -1, createdAt: -1 }
+        break
+      case 'new':
+        sortCondition = { createdAt: -1 }
+        break
+      case 'likes':
+        sortCondition = { like_count: -1, createdAt: -1 }
+        break
+      case 'views':
+        sortCondition = { view_count: -1, createdAt: -1 }
+        break
+      default:
+        sortCondition = { hot_score: -1, like_count: -1, createdAt: -1 }
+    }
+
+    const [memes, total] = await Promise.all([
+      Meme.find({
+        source_id: sourceId,
+        status: 'public',
+      })
+        .select('title slug image_url video_url like_count view_count author_id scene_id createdAt')
+        .sort(sortCondition)
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate('author_id', 'username display_name avatar')
+        .populate('scene_id', 'title quote start_time end_time')
+        .lean(),
+      Meme.countDocuments({
+        source_id: sourceId,
+        status: 'public',
+      }),
+    ])
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        memes,
+        source,
+      },
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    })
+  } catch (error) {
+    logger.error('根據來源取得迷因時發生錯誤:', error)
+    next(error)
+  }
+}
