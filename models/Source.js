@@ -256,6 +256,14 @@ const SourceSchema = new mongoose.Schema(
       },
       // 彈性補充欄位
     },
+    // 建立者資訊
+    created_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, '建立者ID為必填欄位'],
+      index: true,
+      // 建立此來源的使用者ID
+    },
   },
   {
     collection: 'sources',
