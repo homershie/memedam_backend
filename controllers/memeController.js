@@ -2004,26 +2004,36 @@ export const getMemeBundle = async (req, res, next) => {
     // 並行取得所需資料
     const promises = []
 
-    // scene/source 資料
-    if (include.includes('scene') && meme.scene_id) {
+    // scene/source 資料（加入 ObjectId 驗證以避免 CastError）
+    if (
+      include.includes('scene') &&
+      meme.scene_id &&
+      mongoose.Types.ObjectId.isValid(meme.scene_id)
+    ) {
       promises.push(
         Scene.findById(meme.scene_id)
           .lean()
           .then((scene) => {
             result.scene = scene
-          }),
+          })
+          .catch(() => {}),
       )
     }
 
     if (include.includes('source') && (meme.source_id || result.scene?.source_id)) {
       const sourceId = meme.source_id || result.scene?.source_id
-      if (sourceId) {
+      if (sourceId && mongoose.Types.ObjectId.isValid(sourceId)) {
+        const sourceObjectId =
+          sourceId instanceof mongoose.Types.ObjectId
+            ? sourceId
+            : new mongoose.Types.ObjectId(sourceId)
         promises.push(
-          Source.findById(sourceId)
+          Source.findById(sourceObjectId)
             .lean()
             .then((source) => {
               result.source = source
-            }),
+            })
+            .catch(() => {}),
         )
       }
     }
@@ -2031,11 +2041,15 @@ export const getMemeBundle = async (req, res, next) => {
     // 同 lineage（變體/混剪族譜）
     if (include.includes('variants')) {
       const rootId = meme.lineage?.root || meme._id
+      const currentMemeId =
+        meme._id instanceof mongoose.Types.ObjectId
+          ? meme._id
+          : new mongoose.Types.ObjectId(meme._id)
       promises.push(
         Meme.find({
           'lineage.root': rootId,
           status: 'public',
-          _id: { $ne: meme._id }, // 排除自己
+          _id: mongoose.trusted({ $ne: currentMemeId }), // 排除自己（避免 CastError）
         })
           .select(
             'title slug image_url video_url variant_of lineage like_count view_count author_id source_id scene_id createdAt',
@@ -2050,28 +2064,44 @@ export const getMemeBundle = async (req, res, next) => {
       )
     }
 
-    // 同來源其他迷因（排除自己）
+    // 同來源其他迷因（排除自己） - 加入 ObjectId 驗證與 Query Builder 避免 CastError
     if (include.includes('from_source') && (meme.source_id || result.scene?.source_id)) {
-      const sourceId = meme.source_id || result.scene?.source_id
-      if (sourceId) {
+      const rawSourceId = meme.source_id || result.scene?.source_id
+      if (rawSourceId && mongoose.Types.ObjectId.isValid(rawSourceId)) {
+        const sourceObjectId =
+          rawSourceId instanceof mongoose.Types.ObjectId
+            ? rawSourceId
+            : new mongoose.Types.ObjectId(rawSourceId)
+
+        const currentMemeId =
+          meme._id instanceof mongoose.Types.ObjectId
+            ? meme._id
+            : new mongoose.Types.ObjectId(meme._id)
+
+        const query = Meme.find({
+          source_id: sourceObjectId,
+          status: 'public',
+          _id: mongoose.trusted({ $ne: currentMemeId }),
+        })
+          .select(
+            'title slug image_url video_url like_count view_count author_id scene_id lineage createdAt',
+          )
+          .sort({ like_count: -1, createdAt: -1 })
+          .limit(30)
+          .populate('author_id', 'username display_name avatar')
+          .populate('scene_id', 'title quote start_time end_time')
+          .lean()
+
         promises.push(
-          Meme.find({
-            source_id: sourceId,
-            _id: { $ne: meme._id },
-            status: 'public',
-          })
-            .select(
-              'title slug image_url video_url like_count view_count author_id scene_id lineage createdAt',
-            )
-            .sort({ like_count: -1, createdAt: -1 })
-            .limit(30)
-            .populate('author_id', 'username display_name avatar')
-            .populate('scene_id', 'title quote start_time end_time')
-            .lean()
+          query
             .then((fromSource) => {
               result.from_source = fromSource
-            }),
+            })
+            .catch(() => {}),
         )
+      } else {
+        // 若 sourceId 無效則回傳空陣列避免中斷
+        result.from_source = []
       }
     }
 
