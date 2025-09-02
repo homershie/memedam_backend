@@ -446,13 +446,13 @@ const MemeSchema = new mongoose.Schema(
         message: '詳細介紹圖片必須是有效的 Cloudinary URL 陣列',
       },
     },
-    // 側邊欄模板系統
+    // 側邊欄模板系統 - 優化設計
     sidebar_template: {
       type: String,
       default: 'default',
       enum: {
-        values: ['default', 'custom', 'wiki', 'minimal'],
-        message: '側邊欄模板必須是 default、custom、wiki 或 minimal',
+        values: ['default', 'meme', 'character', 'event', 'minimal'],
+        message: '側邊欄模板必須是 default、meme、character、event 或 minimal',
       },
       // 側邊欄模板類型
     },
@@ -465,18 +465,17 @@ const MemeSchema = new mongoose.Schema(
         },
         message: '側邊欄資料必須是物件',
       },
-      // 側邊欄自定義資料（JSON格式）
+      // 側邊欄結構化資料（JSON格式，根據模板有不同結構）
     },
-    sidebar_schema: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-      validate: {
-        validator: function (v) {
-          return typeof v === 'object' && v !== null
-        },
-        message: '側邊欄結構定義必須是物件',
-      },
-      // 側邊欄結構定義（用於驗證和編輯器）
+    sidebar_html: {
+      type: String,
+      default: '',
+      // 快取的側邊欄 HTML（可選，用於提升效能）
+    },
+    sidebar_updated_at: {
+      type: Date,
+      default: null,
+      // 側邊欄最後更新時間
     },
   },
   {

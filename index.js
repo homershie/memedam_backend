@@ -374,7 +374,6 @@ import analyticsRoutes from './routes/analyticsRoutes.js'
 import emailRoutes from './routes/emailRoutes.js'
 import verificationRoutes from './routes/verificationRoutes.js'
 import usernameRoutes from './routes/usernameRoutes.js'
-import sidebarRoutes from './routes/sidebarRoutes.js'
 import logsRoutes from './routes/logsRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
 import privacyConsentRoutes from './routes/privacyConsentRoutes.js'
@@ -406,7 +405,6 @@ app.use('/api/analytics', analyticsRoutes)
 app.use('/api/email', emailRoutes)
 app.use('/api/verification', verificationRoutes)
 app.use('/api/username', usernameRoutes)
-app.use('/api/sidebar', sidebarRoutes)
 app.use('/api/logs', logsRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/privacy-consent', privacyConsentRoutes)
