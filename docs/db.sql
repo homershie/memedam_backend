@@ -1,7 +1,10 @@
-// MemeDex 資料庫 ERD 圖表 (2024年更新版)
+// MemeDam 資料庫 ERD 圖表 (2025年1月更新版)
 // 使用 dbdiagram.io 格式
+// 基於實際 MongoDB 模型架構更新
 
+// ===========================
 // 用戶相關
+// ===========================
 Table users {
   _id ObjectId [pk]
   username varchar(30) [unique, not null, note: '5-30字元，僅允許小寫英文、數字、底線與句點']
@@ -49,8 +52,8 @@ Table users {
   previous_usernames json[] [note: '用戶名變更歷史：username, changed_at']
   privacyConsentId ObjectId [ref: > privacy_consents._id]
   lastConsentUpdate timestamp
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 // 隱私權同意
@@ -67,11 +70,13 @@ Table privacy_consents {
   userAgent varchar [not null]
   isActive boolean [default: true, index]
   revokedAt timestamp
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
-// 迷因相關
+// ===========================
+// 迷因相關（三層模型架構）
+// ===========================
 Table memes {
   _id ObjectId [pk]
   title varchar(200) [not null]
@@ -100,8 +105,8 @@ Table memes {
   hot_score float [default: 0, note: '熱門分數']
   tags_cache varchar[] [note: '主要標籤名稱快取，每個標籤1-50字元']
   sources json[] [note: '來源資訊陣列：name(名稱), url(網址)']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 // 作品來源 (三層模型)
@@ -117,8 +122,11 @@ Table sources {
   context varchar(5000) [note: '背景/爭議/影響']
   license json [note: '授權資訊：type(類型), notes(說明)']
   links json[] [note: '相關連結陣列：label(標籤), url(網址)']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  slug varchar [index]
+  status varchar [default: 'active']
+  counts json [note: '統計數據：memes(相關迷因數)']
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 // 片段 (三層模型)
@@ -134,17 +142,23 @@ Table scenes {
   description varchar(2000) [note: '片段描述/場景說明']
   images varchar[] [note: '截圖連結陣列']
   video_url varchar [note: '片段影片連結']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  slug varchar [index]
+  status varchar [default: 'active']
+  counts json [note: '統計數據：memes(相關迷因數)']
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 標籤系統
+// ===========================
 Table tags {
   _id ObjectId [pk]
   name varchar(50) [unique, not null]
+  slug varchar [note: '同一語言下必須唯一']
   lang varchar [default: 'zh', enum: 'zh, en, ja, ko']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 Table meme_tags {
@@ -152,11 +166,13 @@ Table meme_tags {
   meme_id ObjectId [ref: > memes._id, not null]
   tag_id ObjectId [ref: > tags._id, not null]
   lang varchar [default: 'zh']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 互動系統
+// ===========================
 Table likes {
   _id ObjectId [pk]
   user_id ObjectId [ref: > users._id, not null]
@@ -164,8 +180,8 @@ Table likes {
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 Table dislikes {
@@ -175,8 +191,8 @@ Table dislikes {
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 Table comments {
@@ -194,8 +210,8 @@ Table comments {
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 Table collections {
@@ -205,8 +221,8 @@ Table collections {
   ip varchar(45)
   user_agent varchar(500)
   platform_detail varchar(100)
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 Table shares {
@@ -216,11 +232,13 @@ Table shares {
   platform_detail varchar(100)
   ip varchar(45)
   user_agent varchar(500)
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
-// 瀏覽記錄
+// ===========================
+// 瀏覽與追蹤
+// ===========================
 Table views {
   _id ObjectId [pk]
   meme_id ObjectId [ref: > memes._id, not null]
@@ -231,26 +249,28 @@ Table views {
   referrer varchar(500)
   duration int [default: 0, note: '瀏覽時間（秒）']
   is_duplicate boolean [default: false]
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
-// 搜尋歷史（計畫新增）
-Table search_history {
-  _id ObjectId [pk]
-  user_id ObjectId [ref: > users._id, note: '未登入用戶為空']
-  search_query varchar(500) [not null]
-  search_type varchar [default: 'general', enum: 'general, tag, user, advanced']
-  filters json [note: '搜尋篩選條件']
-  result_count int [default: 0]
-  clicked_results ObjectId[] [ref: > memes._id, note: '點擊的搜尋結果']
-  ip varchar(45)
-  user_agent varchar(500)
-  platform_detail varchar(100)
-  created_at timestamp [default: `now()`]
-}
+// 搜尋歷史（計畫新增，尚未實作）
+// Table search_history {
+//   _id ObjectId [pk]
+//   user_id ObjectId [ref: > users._id, note: '未登入用戶為空']
+//   search_query varchar(500) [not null]
+//   search_type varchar [default: 'general', enum: 'general, tag, user, advanced']
+//   filters json [note: '搜尋篩選條件']
+//   result_count int [default: 0]
+//   clicked_results ObjectId[] [ref: > memes._id, note: '點擊的搜尋結果']
+//   ip varchar(45)
+//   user_agent varchar(500)
+//   platform_detail varchar(100)
+//   createdAt timestamp [default: `now()`]
+// }
 
+// ===========================
 // 社交關係
+// ===========================
 Table follows {
   _id ObjectId [pk]
   follower_id ObjectId [ref: > users._id, not null]
@@ -259,24 +279,24 @@ Table follows {
   user_agent varchar(500)
   platform_detail varchar(100)
   status varchar [default: 'active', enum: 'active, muted, blocked']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 通知系統
+// ===========================
 Table notifications {
   _id ObjectId [pk]
-  user_id ObjectId [ref: > users._id, not null]
-  priority int [default: 0]
-  type varchar(50) [not null]
-  status varchar [default: 'unread', enum: 'unread, read, deleted']
-  content varchar(2000) [not null]
-  url varchar(500)
-  is_read boolean [default: false]
-  expire_at timestamp
-  meta json
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  actor_id ObjectId [ref: > users._id, not null, index]
+  verb varchar(50) [not null, index]
+  object_type varchar(50) [not null, index]
+  object_id ObjectId [not null, index]
+  target_type varchar(50)
+  target_id ObjectId
+  extra json
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 // 通知收據
@@ -287,30 +307,32 @@ Table notification_receipts {
   read_at timestamp
   deleted_at timestamp
   archived_at timestamp
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 檢舉系統
+// ===========================
 Table reports {
   _id ObjectId [pk]
   reporter_id ObjectId [ref: > users._id, not null]
-  punished_user_id ObjectId [ref: > users._id]
-  is_anonymous boolean [default: false]
   target_type varchar [not null, enum: 'user, meme, comment, other']
   target_id ObjectId [not null]
   reason varchar(1000) [not null]
   evidence json
   status varchar [default: 'pending', enum: 'pending, resolved, rejected']
-  action varchar(100)
-  handled_at timestamp
-  handler_id ObjectId [ref: > users._id]
-  result varchar(1000)
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  processed_at timestamp
+  processor_id ObjectId [ref: > users._id]
+  processing_note varchar(1000)
+  is_anonymous boolean [default: false]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 公告系統
+// ===========================
 Table announcements {
   _id ObjectId [pk]
   title varchar(200) [not null]
@@ -321,11 +343,13 @@ Table announcements {
   visible_at timestamp
   expired_at timestamp
   category varchar(50) [note: 'system, activity, update, other']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 贊助系統
+// ===========================
 Table sponsors {
   _id ObjectId [pk]
   user_id ObjectId [ref: > users._id, not null]
@@ -335,11 +359,13 @@ Table sponsors {
   payment_method varchar(50)
   transaction_id varchar(100)
   created_ip varchar(45)
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 版本控制系統
+// ===========================
 Table meme_versions {
   _id ObjectId [pk]
   meme ObjectId [ref: > memes._id, not null]
@@ -351,8 +377,8 @@ Table meme_versions {
   created_by ObjectId [ref: > users._id, not null]
   changelog varchar(1000)
   status varchar [default: 'active', enum: 'active, pending, rejected']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
 Table meme_edit_proposals {
@@ -367,29 +393,35 @@ Table meme_edit_proposals {
   reviewer_id ObjectId [ref: > users._id]
   reviewed_at timestamp
   review_comment varchar
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // A/B 測試系統
+// ===========================
 Table ab_tests {
   _id ObjectId [pk]
-  test_id varchar [unique, not null]
+  test_type varchar [not null]
   name varchar [not null]
   description varchar
-  test_type varchar [not null]
+  status varchar [default: 'draft', enum: 'draft, active, paused, completed']
   primary_metric varchar [not null]
   secondary_metrics varchar[]
   variants json [not null]
+  traffic_allocation json
   target_audience json
   start_date timestamp
   end_date timestamp
-  status varchar [default: 'draft', enum: 'draft, active, paused, completed']
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  created_by ObjectId [ref: > users._id]
+  results json
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 推薦系統指標
+// ===========================
 Table recommendation_metrics {
   _id ObjectId [pk]
   user_id ObjectId [ref: > users._id, not null]
@@ -408,11 +440,15 @@ Table recommendation_metrics {
   view_duration int [default: 0]
   time_to_interact int
   user_rating int
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  recommended_at timestamp [default: `now()`]
+  interacted_at timestamp
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 意見回饋系統
+// ===========================
 Table feedback {
   _id ObjectId [pk]
   userId ObjectId [ref: > users._id, not null]
@@ -425,28 +461,87 @@ Table feedback {
   userAgent varchar
   ipHash varchar
   respondedAt timestamp
-  created_at timestamp [default: `now()`]
-  updated_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
+  updatedAt timestamp [default: `now()`]
 }
 
+// ===========================
 // 驗證 Token
+// ===========================
 Table verification_tokens {
   _id ObjectId [pk]
   token varchar [unique, not null]
   userId ObjectId [ref: > users._id, not null]
   type varchar [enum: 'email, password_reset, account_verification', not null]
+  used boolean [default: false]
   expiresAt timestamp [not null]
-  created_at timestamp [default: `now()`]
+  createdAt timestamp [default: `now()`]
 }
 
-// 關聯關係
+// ===========================
+// 關聯關係定義
+// ===========================
+
+// 用戶與隱私同意
 Ref: "users"."privacyConsentId" < "privacy_consents"."_id"
+
+// 迷因三層模型關聯
 Ref: "memes"."source_id" < "sources"."_id"
 Ref: "memes"."scene_id" < "scenes"."_id"
 Ref: "scenes"."source_id" < "sources"."_id"
+
+// 迷因變體系譜
 Ref: "memes"."variant_of" < "memes"."_id"
 Ref: "memes"."lineage.root" < "memes"."_id"
+
+// 通知系統關聯
 Ref: "notification_receipts"."notification_id" < "notifications"."_id"
 Ref: "notification_receipts"."user_id" < "users"."_id"
+
+// 意見回饋關聯
 Ref: "feedback"."userId" < "users"."_id"
+
+// 驗證 Token 關聯
 Ref: "verification_tokens"."userId" < "users"."_id"
+
+// 版本控制關聯
+Ref: "meme_versions"."meme" < "memes"."_id"
+Ref: "meme_versions"."proposal_id" < "meme_edit_proposals"."_id"
+Ref: "meme_versions"."created_by" < "users"."_id"
+Ref: "meme_edit_proposals"."meme_id" < "memes"."_id"
+Ref: "meme_edit_proposals"."proposer_id" < "users"."_id"
+Ref: "meme_edit_proposals"."reviewer_id" < "users"."_id"
+
+// A/B 測試關聯
+Ref: "ab_tests"."created_by" < "users"."_id"
+
+// 推薦系統關聯
+Ref: "recommendation_metrics"."user_id" < "users"."_id"
+Ref: "recommendation_metrics"."meme_id" < "memes"."_id"
+
+// 檢舉系統關聯
+Ref: "reports"."reporter_id" < "users"."_id"
+Ref: "reports"."processor_id" < "users"."_id"
+
+// 其他基本關聯
+Ref: "memes"."author_id" < "users"."_id"
+Ref: "meme_tags"."meme_id" < "memes"."_id"
+Ref: "meme_tags"."tag_id" < "tags"."_id"
+Ref: "likes"."user_id" < "users"."_id"
+Ref: "likes"."meme_id" < "memes"."_id"
+Ref: "dislikes"."user_id" < "users"."_id"
+Ref: "dislikes"."meme_id" < "memes"."_id"
+Ref: "comments"."meme_id" < "memes"."_id"
+Ref: "comments"."user_id" < "users"."_id"
+Ref: "comments"."parent_id" < "comments"."_id"
+Ref: "collections"."user_id" < "users"."_id"
+Ref: "collections"."meme_id" < "memes"."_id"
+Ref: "shares"."user_id" < "users"."_id"
+Ref: "shares"."meme_id" < "memes"."_id"
+Ref: "views"."meme_id" < "memes"."_id"
+Ref: "views"."user_id" < "users"."_id"
+Ref: "follows"."follower_id" < "users"."_id"
+Ref: "follows"."following_id" < "users"."_id"
+Ref: "notifications"."actor_id" < "users"."_id"
+Ref: "announcements"."author_id" < "users"."_id"
+Ref: "sponsors"."user_id" < "users"."_id"
