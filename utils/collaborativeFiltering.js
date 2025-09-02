@@ -948,7 +948,7 @@ export const buildSocialGraph = async (userIds = []) => {
       // 分離查詢：先查詢 follower_id - 使用 mongoose.trusted
       const followerFollows = await Follow.find(
         mongoose.trusted({
-          follower_id: { $in: safeUserIds },
+          follower_id: mongoose.trusted({ $in: safeUserIds }),
           status: 'active',
         }),
       )
@@ -960,7 +960,7 @@ export const buildSocialGraph = async (userIds = []) => {
       // 再查詢 following_id - 使用 mongoose.trusted
       const followingFollows = await Follow.find(
         mongoose.trusted({
-          following_id: { $in: safeUserIds },
+          following_id: mongoose.trusted({ $in: safeUserIds }),
           status: 'active',
         }),
       )
