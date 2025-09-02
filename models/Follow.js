@@ -11,9 +11,17 @@ const FollowSchema = new mongoose.Schema(
       index: true,
       validate: {
         validator: function (v) {
+          // 檢查是否是有效的 ObjectId，並且不是查詢對象
+          if (typeof v === 'object' && v !== null) {
+            // 如果是對象，檢查是否包含 MongoDB 操作符
+            if ('$in' in v || '$nin' in v || '$eq' in v || '$ne' in v) {
+              console.error('Follow 模型 follower_id 字段收到查詢對象而不是純 ObjectId:', v)
+              return false
+            }
+          }
           return mongoose.Types.ObjectId.isValid(v)
         },
-        message: '追隨者ID必須是有效的ObjectId',
+        message: '追隨者ID必須是有效的ObjectId，不能是查詢對象',
       },
     },
     // 被追隨者的用戶ID
@@ -24,9 +32,17 @@ const FollowSchema = new mongoose.Schema(
       index: true,
       validate: {
         validator: function (v) {
+          // 檢查是否是有效的 ObjectId，並且不是查詢對象
+          if (typeof v === 'object' && v !== null) {
+            // 如果是對象，檢查是否包含 MongoDB 操作符
+            if ('$in' in v || '$nin' in v || '$eq' in v || '$ne' in v) {
+              console.error('Follow 模型 following_id 字段收到查詢對象而不是純 ObjectId:', v)
+              return false
+            }
+          }
           return mongoose.Types.ObjectId.isValid(v)
         },
-        message: '被追隨者ID必須是有效的ObjectId',
+        message: '被追隨者ID必須是有效的ObjectId，不能是查詢對象',
       },
     },
     // 追隨時的IP地址（防刷、統計用）

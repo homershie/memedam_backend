@@ -46,11 +46,13 @@ export const followUser = async (req, res) => {
 
     // 使用事務處理
     const result = await executeTransaction(async (session) => {
-      // 檢查是否已經追隨
-      const existingFollow = await Follow.findOne({
-        follower_id,
-        following_id: followingId,
-      }).session(session)
+      // 檢查是否已經追隨 - 使用 mongoose.trusted 避免 CastError
+      const existingFollow = await Follow.findOne(
+        mongoose.trusted({
+          follower_id,
+          following_id: followingId,
+        }),
+      ).session(session)
 
       if (existingFollow) {
         throw new Error('已經追隨過這個用戶')
@@ -127,12 +129,12 @@ export const unfollowUser = async (req, res) => {
 
     // 使用事務處理
     const result = await executeTransaction(async (session) => {
-      // 查找並刪除追隨關係
+      // 查找並刪除追隨關係 - 使用 mongoose.trusted 避免 CastError
       const existingFollow = await Follow.findOneAndDelete(
-        {
+        mongoose.trusted({
           follower_id,
           following_id: followingId,
-        },
+        }),
         { session },
       )
 
@@ -208,10 +210,12 @@ export const toggleFollow = async (req, res) => {
 
     // 使用事務處理
     const result = await executeTransaction(async (session) => {
-      const existingFollow = await Follow.findOne({
-        follower_id,
-        following_id: followingId,
-      }).session(session)
+      const existingFollow = await Follow.findOne(
+        mongoose.trusted({
+          follower_id,
+          following_id: followingId,
+        }),
+      ).session(session)
 
       if (existingFollow) {
         // 取消追隨
@@ -279,14 +283,14 @@ export const getFollowing = async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)))
     const skip = (pageNum - 1) * limitNum
 
-    // 查詢追隨列表
+    // 查詢追隨列表 - 使用 mongoose.trusted 避免 CastError
     const [follows, total] = await Promise.all([
-      Follow.find({ follower_id: userId })
+      Follow.find(mongoose.trusted({ follower_id: userId }))
         .populate('following_id', 'username display_name avatar bio follower_count')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
-      Follow.countDocuments({ follower_id: userId }),
+      Follow.countDocuments(mongoose.trusted({ follower_id: userId })),
     ])
 
     const totalPages = Math.ceil(total / limitNum)
@@ -336,14 +340,14 @@ export const getFollowers = async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)))
     const skip = (pageNum - 1) * limitNum
 
-    // 查詢粉絲列表
+    // 查詢粉絲列表 - 使用 mongoose.trusted 避免 CastError
     const [follows, total] = await Promise.all([
-      Follow.find({ following_id: userId })
+      Follow.find(mongoose.trusted({ following_id: userId }))
         .populate('follower_id', 'username display_name avatar bio follower_count')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
-      Follow.countDocuments({ following_id: userId }),
+      Follow.countDocuments(mongoose.trusted({ following_id: userId })),
     ])
 
     const totalPages = Math.ceil(total / limitNum)
@@ -389,10 +393,12 @@ export const checkFollowStatus = async (req, res) => {
 
     const followingId = new mongoose.Types.ObjectId(following_id)
 
-    const follow = await Follow.findOne({
-      follower_id,
-      following_id: followingId,
-    })
+    const follow = await Follow.findOne(
+      mongoose.trusted({
+        follower_id,
+        following_id: followingId,
+      }),
+    )
 
     res.json({
       success: true,

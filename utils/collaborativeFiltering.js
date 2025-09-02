@@ -13,7 +13,7 @@ import View from '../models/View.js'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import Follow from '../models/Follow.js'
-import { handleQueryError, validateObjectIdArray } from './errorHandler.js'
+import { handleQueryError } from './errorHandler.js'
 
 /**
  * 互動權重配置
@@ -937,20 +937,49 @@ export const buildSocialGraph = async (userIds = []) => {
         return {}
       }
 
-      // 構建查詢條件，確保類型正確
-      const query = {
-        $or: [{ follower_id: { $in: cleanUserIds } }, { following_id: { $in: cleanUserIds } }],
-        status: 'active',
-      }
+      // 構建查詢條件，使用安全的 ObjectId 處理
+      const safeUserIds = cleanUserIds.map((id) =>
+        id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id),
+      )
 
-      // 記錄查詢條件以便調試（只記錄ID數量，避免序列化問題）
+      // 使用 mongoose.trusted 完全避免 CastError (參考 mixedRecommendation.js)
       console.log(`執行查詢，用戶ID數量: ${cleanUserIds.length}`)
 
-      follows = await Follow.find(query)
+      // 分離查詢：先查詢 follower_id - 使用 mongoose.trusted
+      const followerFollows = await Follow.find(
+        mongoose.trusted({
+          follower_id: { $in: safeUserIds },
+          status: 'active',
+        }),
+      )
         .select('follower_id following_id createdAt')
         .maxTimeMS(queryTimeout)
         .lean()
         .exec()
+
+      // 再查詢 following_id - 使用 mongoose.trusted
+      const followingFollows = await Follow.find(
+        mongoose.trusted({
+          following_id: { $in: safeUserIds },
+          status: 'active',
+        }),
+      )
+        .select('follower_id following_id createdAt')
+        .maxTimeMS(queryTimeout)
+        .lean()
+        .exec()
+
+      // 合併結果並去重
+      const followsMap = new Map()
+      followerFollows.forEach((follow) => {
+        const key = `${follow.follower_id}-${follow.following_id}`
+        followsMap.set(key, follow)
+      })
+      followingFollows.forEach((follow) => {
+        const key = `${follow.follower_id}-${follow.following_id}`
+        followsMap.set(key, follow)
+      })
+      follows = Array.from(followsMap.values())
 
       console.log(`查詢到 ${follows.length} 個追隨關係`)
     } catch (error) {

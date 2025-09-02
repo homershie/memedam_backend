@@ -185,8 +185,8 @@ const checkSingleUserCounts = async (user) => {
     actualCommentCount,
     actualShareCount,
   ] = await Promise.all([
-    Follow.countDocuments({ following_id: user._id }),
-    Follow.countDocuments({ follower_id: user._id }),
+    Follow.countDocuments(mongoose.trusted({ following_id: user._id })),
+    Follow.countDocuments(mongoose.trusted({ follower_id: user._id })),
     Meme.countDocuments({ author_id: user._id }),
     Collection.countDocuments({ user_id: user._id }),
     // 計算用戶發布的所有迷因獲得的總讚數

@@ -7,6 +7,7 @@ import Comment from '../../../models/Comment.js'
 import Like from '../../../models/Like.js'
 import Follow from '../../../models/Follow.js'
 import { createTestUser, createTestMeme, cleanupTestData } from '../../setup.js'
+import mongoose from 'mongoose'
 
 describe('API 整合測試套件', () => {
   let testUser1, testUser2, testUser3
@@ -95,9 +96,7 @@ describe('API 整合測試套件', () => {
           password: 'SecurePass123!',
         }
 
-        const response = await request(app)
-          .post('/api/users/register')
-          .send(newUser)
+        const response = await request(app).post('/api/users/register').send(newUser)
 
         expect(response.status).toBe(201)
         expect(response.body.success).toBe(true)
@@ -136,12 +135,10 @@ describe('API 整合測試套件', () => {
 
     describe('用戶登入', () => {
       it('應該成功登入並返回 token', async () => {
-        const response = await request(app)
-          .post('/api/users/login')
-          .send({
-            email: testUser1.email,
-            password: 'testpassword123',
-          })
+        const response = await request(app).post('/api/users/login').send({
+          email: testUser1.email,
+          password: 'testpassword123',
+        })
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -150,24 +147,20 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該拒絕錯誤的密碼', async () => {
-        const response = await request(app)
-          .post('/api/users/login')
-          .send({
-            email: testUser1.email,
-            password: 'wrongpassword',
-          })
+        const response = await request(app).post('/api/users/login').send({
+          email: testUser1.email,
+          password: 'wrongpassword',
+        })
 
         expect(response.status).toBe(401)
         expect(response.body.success).toBe(false)
       })
 
       it('應該拒絕不存在的用戶', async () => {
-        const response = await request(app)
-          .post('/api/users/login')
-          .send({
-            email: 'nonexistent@example.com',
-            password: 'anypassword',
-          })
+        const response = await request(app).post('/api/users/login').send({
+          email: 'nonexistent@example.com',
+          password: 'anypassword',
+        })
 
         expect(response.status).toBe(401)
         expect(response.body.success).toBe(false)
@@ -194,8 +187,7 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該拒絕沒有 token 的請求', async () => {
-        const response = await request(app)
-          .get('/api/users/profile')
+        const response = await request(app).get('/api/users/profile')
 
         expect(response.status).toBe(401)
         expect(response.body.success).toBe(false)
@@ -237,12 +229,10 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該拒絕未授權的創建', async () => {
-        const response = await request(app)
-          .post('/api/memes')
-          .send({
-            title: 'Unauthorized meme',
-            image_url: 'https://example.com/unauth.jpg',
-          })
+        const response = await request(app).post('/api/memes').send({
+          title: 'Unauthorized meme',
+          image_url: 'https://example.com/unauth.jpg',
+        })
 
         expect(response.status).toBe(401)
         expect(response.body.success).toBe(false)
@@ -251,8 +241,7 @@ describe('API 整合測試套件', () => {
 
     describe('讀取迷因', () => {
       it('應該獲取單個迷因', async () => {
-        const response = await request(app)
-          .get(`/api/memes/${testMeme1._id}`)
+        const response = await request(app).get(`/api/memes/${testMeme1._id}`)
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -260,8 +249,7 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該獲取迷因列表', async () => {
-        const response = await request(app)
-          .get('/api/memes')
+        const response = await request(app).get('/api/memes')
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -270,8 +258,7 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該支援分頁', async () => {
-        const response = await request(app)
-          .get('/api/memes?page=1&limit=2')
+        const response = await request(app).get('/api/memes?page=1&limit=2')
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -282,14 +269,11 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該支援標籤過濾', async () => {
-        const response = await request(app)
-          .get('/api/memes?tags=test')
+        const response = await request(app).get('/api/memes?tags=test')
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
-        expect(response.body.data.every(meme => 
-          meme.tags.includes('test')
-        )).toBe(true)
+        expect(response.body.data.every((meme) => meme.tags.includes('test'))).toBe(true)
       })
     })
 
@@ -343,8 +327,7 @@ describe('API 整合測試套件', () => {
         expect(response.body.success).toBe(true)
 
         // 確認迷因已被刪除
-        const checkResponse = await request(app)
-          .get(`/api/memes/${memeToDelete._id}`)
+        const checkResponse = await request(app).get(`/api/memes/${memeToDelete._id}`)
 
         expect(checkResponse.status).toBe(404)
       })
@@ -481,8 +464,7 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該獲取迷因的留言列表', async () => {
-        const response = await request(app)
-          .get(`/api/memes/${testMeme1._id}/comments`)
+        const response = await request(app).get(`/api/memes/${testMeme1._id}/comments`)
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -530,8 +512,7 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該獲取分享統計', async () => {
-        const response = await request(app)
-          .get(`/api/memes/${testMeme1._id}/share-stats`)
+        const response = await request(app).get(`/api/memes/${testMeme1._id}/share-stats`)
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -566,8 +547,7 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該獲取關注者列表', async () => {
-        const response = await request(app)
-          .get(`/api/users/${testUser2._id}/followers`)
+        const response = await request(app).get(`/api/users/${testUser2._id}/followers`)
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -575,8 +555,7 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該獲取關注中列表', async () => {
-        const response = await request(app)
-          .get(`/api/users/${testUser1._id}/following`)
+        const response = await request(app).get(`/api/users/${testUser1._id}/following`)
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -603,32 +582,30 @@ describe('API 整合測試套件', () => {
   describe('推薦演算法測試', () => {
     describe('熱門推薦', () => {
       it('應該返回熱門迷因', async () => {
-        const response = await request(app)
-          .get('/api/memes/hot')
+        const response = await request(app).get('/api/memes/hot')
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
         expect(response.body.data).toBeInstanceOf(Array)
-        
+
         // 檢查是否按熱度排序
         if (response.body.data.length > 1) {
-          const scores = response.body.data.map(meme => 
-            meme.view_count + meme.like_count * 2 + meme.comment_count * 3
+          const scores = response.body.data.map(
+            (meme) => meme.view_count + meme.like_count * 2 + meme.comment_count * 3,
           )
           expect(scores).toEqual([...scores].sort((a, b) => b - a))
         }
       })
 
       it('應該支援時間範圍過濾', async () => {
-        const response = await request(app)
-          .get('/api/memes/hot?timeRange=week')
+        const response = await request(app).get('/api/memes/hot?timeRange=week')
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
-        
+
         // 檢查返回的迷因是否在一週內
         const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-        response.body.data.forEach(meme => {
+        response.body.data.forEach((meme) => {
           expect(new Date(meme.created_at)).toBeAfter(oneWeekAgo)
         })
       })
@@ -663,10 +640,10 @@ describe('API 整合測試套件', () => {
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
-        
+
         // 檢查是否不包含已看過的迷因
         const viewedIds = [testMeme1._id.toString(), testMeme2._id.toString()]
-        response.body.data.forEach(meme => {
+        response.body.data.forEach((meme) => {
           expect(viewedIds).not.toContain(meme._id)
         })
       })
@@ -691,10 +668,10 @@ describe('API 整合測試套件', () => {
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
-        
+
         // 檢查是否來自關注的用戶
         const followingIds = [testUser2._id.toString(), testUser3._id.toString()]
-        response.body.data.forEach(meme => {
+        response.body.data.forEach((meme) => {
           expect(followingIds).toContain(meme.author_id)
         })
       })
@@ -720,16 +697,12 @@ describe('API 整合測試套件', () => {
       it('應該能處理多個並發請求', async () => {
         const requests = []
         for (let i = 0; i < 10; i++) {
-          requests.push(
-            request(app)
-              .get('/api/memes')
-              .set('Authorization', `Bearer ${authToken1}`)
-          )
+          requests.push(request(app).get('/api/memes').set('Authorization', `Bearer ${authToken1}`))
         }
 
         const responses = await Promise.all(requests)
-        
-        responses.forEach(response => {
+
+        responses.forEach((response) => {
           expect(response.status).toBe(200)
           expect(response.body.success).toBe(true)
         })
@@ -744,14 +717,14 @@ describe('API 整合測試套件', () => {
           likeRequests.push(
             request(app)
               .post(`/api/memes/${testMeme1._id}/like`)
-              .set('Authorization', `Bearer ${token}`)
+              .set('Authorization', `Bearer ${token}`),
           )
         }
 
         const responses = await Promise.all(likeRequests)
-        
+
         // 檢查所有請求都成功
-        responses.forEach(response => {
+        responses.forEach((response) => {
           expect([200, 400]).toContain(response.status) // 200 成功，400 已按過讚
         })
 
@@ -779,8 +752,7 @@ describe('API 整合測試套件', () => {
       })
 
       it('應該有效處理大量數據的分頁', async () => {
-        const response = await request(app)
-          .get('/api/memes?page=1&limit=20')
+        const response = await request(app).get('/api/memes?page=1&limit=20')
 
         expect(response.status).toBe(200)
         expect(response.body.success).toBe(true)
@@ -790,9 +762,8 @@ describe('API 整合測試套件', () => {
 
       it('應該在合理時間內返回結果', async () => {
         const startTime = Date.now()
-        
-        const response = await request(app)
-          .get('/api/memes?limit=100')
+
+        const response = await request(app).get('/api/memes?limit=100')
 
         const endTime = Date.now()
         const responseTime = endTime - startTime
@@ -804,8 +775,7 @@ describe('API 整合測試套件', () => {
 
     describe('錯誤恢復', () => {
       it('應該優雅處理無效的 ID', async () => {
-        const response = await request(app)
-          .get('/api/memes/invalid_id')
+        const response = await request(app).get('/api/memes/invalid_id')
 
         expect(response.status).toBe(400)
         expect(response.body.success).toBe(false)
@@ -814,8 +784,7 @@ describe('API 整合測試套件', () => {
 
       it('應該處理不存在的資源', async () => {
         const fakeId = '507f1f77bcf86cd799439011'
-        const response = await request(app)
-          .get(`/api/memes/${fakeId}`)
+        const response = await request(app).get(`/api/memes/${fakeId}`)
 
         expect(response.status).toBe(404)
         expect(response.body.success).toBe(false)
@@ -883,9 +852,11 @@ describe('API 整合測試套件', () => {
 
         // 檢查計數
         const updatedUser = await User.findById(newUser._id)
-        const followerCount = await Follow.countDocuments({
-          following_id: newUser._id,
-        })
+        const followerCount = await Follow.countDocuments(
+          mongoose.trusted({
+            following_id: newUser._id,
+          }),
+        )
 
         expect(updatedUser.followers_count).toBe(followerCount)
       })
@@ -930,11 +901,11 @@ describe('API 整合測試套件', () => {
           email: `delete_${Date.now()}@example.com`,
         })
 
-              // 創建用戶內容
-      await createTestMeme(Meme, {
-        title: 'User content',
-        author_id: userToDelete._id,
-      })
+        // 創建用戶內容
+        await createTestMeme(Meme, {
+          title: 'User content',
+          author_id: userToDelete._id,
+        })
 
         await Comment.create({
           content: 'User comment',

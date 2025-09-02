@@ -76,11 +76,28 @@ const SOCIAL_SCORE_CONFIG = {
 export const calculateSocialDistance = async (userId, targetUserId, socialGraph = null) => {
   try {
     if (!socialGraph) {
-      socialGraph = await buildSocialGraph([userId, targetUserId])
+      // 確保傳入的用戶ID是正確的 ObjectId 格式
+      const userIds = [userId, targetUserId]
+        .map((id) => {
+          if (id instanceof mongoose.Types.ObjectId) return id
+          if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+            return new mongoose.Types.ObjectId(id)
+          }
+          console.warn(`calculateSocialDistance: 無效的用戶ID格式: ${id}`)
+          return null
+        })
+        .filter((id) => id !== null)
+
+      socialGraph = await buildSocialGraph(userIds)
     }
 
-    const userSocialData = socialGraph[userId]
-    const targetSocialData = socialGraph[targetUserId]
+    // 使用字符串格式的鍵來訪問社交圖譜，因為圖譜中的鍵是字符串
+    const userIdStr = typeof userId === 'string' ? userId : userId.toString()
+    const targetUserIdStr =
+      typeof targetUserId === 'string' ? targetUserId : targetUserId.toString()
+
+    const userSocialData = socialGraph[userIdStr]
+    const targetSocialData = socialGraph[targetUserIdStr]
 
     if (!userSocialData || !targetSocialData) {
       return { distance: Infinity, type: 'unknown', weight: 0 }
@@ -208,14 +225,39 @@ export const buildSocialGraph = async (userIds = []) => {
     console.log(`準備查詢 ${targetUserIds.length} 個有效用戶ID的關注關係`)
 
     // 取得所有關注關係
-    // 確保使用正確的查詢格式，避免 CastError
-    const follows = await Follow.find({
-      $or: [{ follower_id: { $in: targetUserIds } }, { following_id: { $in: targetUserIds } }],
-      status: 'active',
+    // 使用 mongoose.trusted 完全避免 CastError
+    const safeUserIds = targetUserIds.map((id) =>
+      id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id),
+    )
+
+    // 使用 mongoose.trusted 完全避免 CastError (參考 mixedRecommendation.js)
+    // 分離查詢：先查詢 follower_id - 使用 mongoose.trusted
+    const followerFollows = await Follow.find(
+      mongoose.trusted({
+        follower_id: { $in: safeUserIds },
+        status: 'active',
+      }),
+    )
+
+    // 再查詢 following_id - 使用 mongoose.trusted
+    const followingFollows = await Follow.find(
+      mongoose.trusted({
+        following_id: { $in: safeUserIds },
+        status: 'active',
+      }),
+    )
+
+    // 合併結果並去重
+    const followsMap = new Map()
+    followerFollows.forEach((follow) => {
+      const key = `${follow.follower_id}-${follow.following_id}`
+      followsMap.set(key, follow)
     })
-      .select('follower_id following_id createdAt')
-      .lean()
-      .exec()
+    followingFollows.forEach((follow) => {
+      const key = `${follow.follower_id}-${follow.following_id}`
+      followsMap.set(key, follow)
+    })
+    const follows = Array.from(followsMap.values())
 
     // 建立社交圖譜
     const socialGraph = {}
@@ -336,9 +378,22 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     console.log(`開始計算迷因 ${memeId} 對用戶 ${userId} 的社交層分數...`)
 
-    // 建立社交圖譜
-    const socialGraph = await buildSocialGraph([userId])
-    const userSocialData = socialGraph[userId]
+    // 建立社交圖譜 - 確保用戶ID格式正確
+    const userIdObj =
+      userId instanceof mongoose.Types.ObjectId
+        ? userId
+        : typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+          ? new mongoose.Types.ObjectId(userId)
+          : null
+
+    if (!userIdObj) {
+      console.warn(`calculateMultipleMemeSocialScores: 無效的用戶ID格式: ${userId}`)
+      return []
+    }
+
+    const socialGraph = await buildSocialGraph([userIdObj])
+    const userIdStr = userIdObj.toString()
+    const userSocialData = socialGraph[userIdStr]
 
     if (!userSocialData) {
       return {
@@ -598,8 +653,28 @@ export const calculateMultipleMemeSocialScores = async (userId, memeIds, options
  */
 export const getUserSocialInfluenceStats = async (userId) => {
   try {
-    const socialGraph = await buildSocialGraph([userId])
-    const userSocialData = socialGraph[userId]
+    // 確保用戶ID格式正確
+    const userIdObj =
+      userId instanceof mongoose.Types.ObjectId
+        ? userId
+        : typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+          ? new mongoose.Types.ObjectId(userId)
+          : null
+
+    if (!userIdObj) {
+      console.warn(`getUserSocialInfluenceStats: 無效的用戶ID格式: ${userId}`)
+      return {
+        influenceScore: 0,
+        influenceLevel: 'none',
+        followers: 0,
+        following: 0,
+        mutualConnections: 0,
+      }
+    }
+
+    const socialGraph = await buildSocialGraph([userIdObj])
+    const userIdStr = userIdObj.toString()
+    const userSocialData = socialGraph[userIdStr]
 
     if (!userSocialData) {
       return {

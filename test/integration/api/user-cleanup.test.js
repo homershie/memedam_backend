@@ -257,9 +257,14 @@ describe('用戶清理系統測試', () => {
     it('應該刪除用戶的關注關係', async () => {
       await userCleanupScheduler.cascadeDeleteUser(userToDelete._id)
 
-      const followsExist = await Follow.find({
-        $or: [{ follower_id: userToDelete._id }, { following_id: userToDelete._id }],
-      })
+      const followsExist = await Follow.find(
+        mongoose.trusted({
+          $or: [
+            mongoose.trusted({ follower_id: userToDelete._id }),
+            mongoose.trusted({ following_id: userToDelete._id }),
+          ],
+        }),
+      )
       expect(followsExist).toHaveLength(0)
     })
 

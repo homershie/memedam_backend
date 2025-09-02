@@ -74,10 +74,12 @@ const getUserWeeklyStats = async (userId) => {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
     // 獲取新追蹤者數量
-    const newFollowers = await Follow.countDocuments({
-      following_id: userId,
-      createdAt: { $gte: weekAgo },
-    })
+    const newFollowers = await Follow.countDocuments(
+      mongoose.trusted({
+        following_id: userId,
+        createdAt: { $gte: weekAgo },
+      }),
+    )
 
     // 獲取該用戶迷因的總讚數和留言數
     const userMemes = await Meme.find({ author_id: userId }, '_id')
