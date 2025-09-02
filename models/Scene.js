@@ -19,9 +19,10 @@ const SceneSchema = new mongoose.Schema(
     },
     title: {
       type: String,
+      required: [true, '場景標題為必填欄位'],
       trim: true,
       maxlength: [200, '標題長度不能超過200個字元'],
-      // 片段標題（可選）
+      // 片段標題（必填）
     },
     episode: {
       type: String,

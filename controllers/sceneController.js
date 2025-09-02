@@ -135,6 +135,14 @@ export const createScene = async (req, res, next) => {
       })
     }
 
+    // 驗證必填欄位
+    if (!title || !title.trim()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '場景標題為必填欄位',
+      })
+    }
+
     // 處理 slug 自動生成
     let finalSlug = slug
     if (!finalSlug && title) {
