@@ -7,8 +7,23 @@ const SourceSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: {
-        values: ['video', 'film', 'tv', 'ad', 'web', 'article', 'other'],
-        message: '來源類型必須是 video、film、tv、ad、web、article 或 other',
+        values: [
+          'video',
+          'film',
+          'tv',
+          'ad',
+          'web',
+          'article',
+          'music',
+          'broadcast',
+          'podcast',
+          'game',
+          'anime',
+          'comic',
+          'event',
+          'other',
+        ],
+        message: '來源類型不在允許清單中',
       },
       required: [true, '來源類型為必填欄位'],
       // 作品類型：影片、電影、電視、廣告、網路、文章、其他
