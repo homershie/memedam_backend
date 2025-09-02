@@ -26,7 +26,7 @@ export const getSourceBundle = async (req, res, next) => {
 
     const result = { source }
 
-    // 包含片段資料
+    // 包含場景資料
     if (include.includes('scenes')) {
       result.scenes = await Scene.find({ source_id: source._id })
         .select('title slug episode start_time end_time quote images counts')
@@ -311,7 +311,7 @@ export const deleteSource = async (req, res, next) => {
       })
     }
 
-    // 檢查是否有相關的片段
+    // 檢查是否有相關的場景
     const sceneCount = await Scene.countDocuments({
       source_id: id,
       status: { $ne: 'deleted' },
@@ -320,7 +320,7 @@ export const deleteSource = async (req, res, next) => {
     if (sceneCount > 0) {
       return res.status(StatusCodes.CONFLICT).json({
         success: false,
-        message: `無法刪除：此來源有 ${sceneCount} 個相關片段`,
+        message: `無法刪除：此來源有 ${sceneCount} 個相關場景`,
       })
     }
 

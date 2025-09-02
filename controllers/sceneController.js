@@ -6,13 +6,13 @@ import mongoose from 'mongoose'
 import { translateToEnglish } from '../services/googleTranslate.js'
 import { toSlug, toSlugOrNull } from '../utils/slugify.js'
 
-// 取得單一片段及相關資料
+// 取得單一場景及相關資料
 export const getSceneBundle = async (req, res, next) => {
   try {
     const { idOrSlug } = req.params
     const include = (req.query.include || '').split(',').filter(Boolean)
 
-    // 查詢片段
+    // 查詢場景
     const query = mongoose.Types.ObjectId.isValid(idOrSlug) ? { _id: idOrSlug } : { slug: idOrSlug }
 
     const scene = await Scene.findOne(query).lean()
@@ -20,7 +20,7 @@ export const getSceneBundle = async (req, res, next) => {
     if (!scene) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: '片段不存在',
+        message: '場景不存在',
       })
     }
 
@@ -33,7 +33,7 @@ export const getSceneBundle = async (req, res, next) => {
         .lean()
     }
 
-    // 包含使用此片段的迷因
+    // 包含使用此場景的迷因
     if (include.includes('memes')) {
       result.memes = await Meme.find({
         scene_id: scene._id,
@@ -55,7 +55,7 @@ export const getSceneBundle = async (req, res, next) => {
   }
 }
 
-// 取得來源的所有片段
+// 取得來源的所有場景
 export const getSourceScenes = async (req, res, next) => {
   try {
     const { sourceId } = req.params
@@ -90,7 +90,7 @@ export const getSourceScenes = async (req, res, next) => {
       })
     }
 
-    // 否則取得所有片段
+    // 否則取得所有場景
     const scenes = await Scene.getSourceScenes(sourceId, { sortBy })
 
     res.status(StatusCodes.OK).json({
@@ -107,7 +107,7 @@ export const getSourceScenes = async (req, res, next) => {
   }
 }
 
-// 建立新片段
+// 建立新場景
 export const createScene = async (req, res, next) => {
   try {
     const {
@@ -216,14 +216,14 @@ export const createScene = async (req, res, next) => {
 
     await scene.save()
 
-    // 更新來源的片段計數
+    // 更新來源的場景計數
     await Source.findByIdAndUpdate(source_id, {
       $inc: { 'counts.scenes': 1 },
     })
 
     res.status(StatusCodes.CREATED).json({
       success: true,
-      message: '片段建立成功',
+      message: '場景建立成功',
       data: scene,
     })
   } catch (error) {
@@ -237,7 +237,7 @@ export const createScene = async (req, res, next) => {
   }
 }
 
-// 更新片段
+// 更新場景
 export const updateScene = async (req, res, next) => {
   try {
     const { id } = req.params
@@ -267,13 +267,13 @@ export const updateScene = async (req, res, next) => {
     if (!scene) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: '片段不存在',
+        message: '場景不存在',
       })
     }
 
     res.status(StatusCodes.OK).json({
       success: true,
-      message: '片段更新成功',
+      message: '場景更新成功',
       data: scene,
     })
   } catch (error) {
@@ -287,7 +287,7 @@ export const updateScene = async (req, res, next) => {
   }
 }
 
-// 刪除片段
+// 刪除場景
 export const deleteScene = async (req, res, next) => {
   try {
     const { id } = req.params
@@ -301,7 +301,7 @@ export const deleteScene = async (req, res, next) => {
     if (memeCount > 0) {
       return res.status(StatusCodes.CONFLICT).json({
         success: false,
-        message: `無法刪除：此片段有 ${memeCount} 個相關迷因`,
+        message: `無法刪除：此場景有 ${memeCount} 個相關迷因`,
       })
     }
 
@@ -314,25 +314,25 @@ export const deleteScene = async (req, res, next) => {
     if (!scene) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: '片段不存在',
+        message: '場景不存在',
       })
     }
 
-    // 更新來源的片段計數
+    // 更新來源的場景計數
     await Source.findByIdAndUpdate(scene.source_id, {
       $inc: { 'counts.scenes': -1 },
     })
 
     res.status(StatusCodes.OK).json({
       success: true,
-      message: '片段已標記為刪除',
+      message: '場景已標記為刪除',
     })
   } catch (error) {
     next(error)
   }
 }
 
-// 更新片段統計
+// 更新場景統計
 export const updateSceneStats = async (req, res, next) => {
   try {
     const { id } = req.params
@@ -341,7 +341,7 @@ export const updateSceneStats = async (req, res, next) => {
     if (!scene) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: '片段不存在',
+        message: '場景不存在',
       })
     }
 
@@ -357,7 +357,7 @@ export const updateSceneStats = async (req, res, next) => {
   }
 }
 
-// 搜尋片段
+// 搜尋場景
 export const searchScenes = async (req, res, next) => {
   try {
     const { q, sourceId, tags, page = 1, limit = 20 } = req.query
@@ -384,7 +384,7 @@ export const searchScenes = async (req, res, next) => {
   }
 }
 
-// 取得熱門片段
+// 取得熱門場景
 export const getPopularScenes = async (req, res, next) => {
   try {
     const { limit = 20, sourceId } = req.query

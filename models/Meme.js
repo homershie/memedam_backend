@@ -83,7 +83,7 @@ const MemeSchema = new mongoose.Schema(
       // 音樂/音效迷因的檔案連結，僅 type 為 audio 時用
     },
     // ===== 三層模型架構欄位 =====
-    // 來源/片段關聯（B：三層模型的關鍵）
+    // 來源/場景關聯（B：三層模型的關鍵）
     source_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Source',
@@ -108,9 +108,9 @@ const MemeSchema = new mongoose.Schema(
           if (!v) return true // 允許空值
           return mongoose.Types.ObjectId.isValid(v)
         },
-        message: '片段ID必須是有效的ObjectId',
+        message: '場景ID必須是有效的ObjectId',
       },
-      // 關聯的片段ID（可選）
+      // 關聯的場景ID（可選）
     },
     // 變體系譜（A：迷因對迷因的關係）
     variant_of: {
@@ -754,7 +754,7 @@ MemeSchema.statics.updateSourceCounts = async function (sourceId) {
   }
 }
 
-// 批次更新片段的統計數據
+// 批次更新場景的統計數據
 MemeSchema.statics.updateSceneCounts = async function (sceneId) {
   const Scene = mongoose.model('Scene')
   const scene = await Scene.findById(sceneId)

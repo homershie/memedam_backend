@@ -1977,7 +1977,7 @@ export const getRandomMeme = async (req, res) => {
 
 // ===== 三層模型 Bundle API =====
 
-// 取得迷因 bundle（包含來源、片段、變體等資料）
+// 取得迷因 bundle（包含來源、場景、變體等資料）
 export const getMemeBundle = async (req, res, next) => {
   try {
     const { idOrSlug } = req.params

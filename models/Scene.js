@@ -22,7 +22,7 @@ const SceneSchema = new mongoose.Schema(
       required: [true, '場景標題為必填欄位'],
       trim: true,
       maxlength: [200, '標題長度不能超過200個字元'],
-      // 片段標題（必填）
+      // 場景標題（必填）
     },
     episode: {
       type: String,
@@ -69,13 +69,13 @@ const SceneSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [5000, '逐字稿長度不能超過5000個字元'],
-      // 片段逐字稿（短）
+      // 場景逐字稿（短）
     },
     description: {
       type: String,
       trim: true,
       maxlength: [2000, '描述長度不能超過2000個字元'],
-      // 片段描述/場景說明
+      // 場景描述/場景說明
     },
     images: [
       {
@@ -113,7 +113,7 @@ const SceneSchema = new mongoose.Schema(
         },
         message: '音訊連結必須是有效的URL',
       },
-      // 音訊片段連結
+      // 音訊場景連結
     },
     slug: {
       type: String,
@@ -146,7 +146,7 @@ const SceneSchema = new mongoose.Schema(
         type: Number,
         default: 0,
         min: [0, '迷因數量不能為負數'],
-        // 使用此片段的迷因數
+        // 使用此場景的迷因數
       },
       views: {
         type: Number,
@@ -234,7 +234,7 @@ SceneSchema.methods.getTimeRange = function () {
 SceneSchema.methods.updateCounts = async function () {
   const Meme = mongoose.model('Meme')
 
-  // 計算使用此片段的迷因數
+  // 計算使用此場景的迷因數
   const memeCount = await Meme.countDocuments({
     scene_id: this._id,
     status: { $ne: 'deleted' },
@@ -267,7 +267,7 @@ SceneSchema.methods.updateCounts = async function () {
   return this.save()
 }
 
-// 靜態方法：批次更新所有片段的統計數據
+// 靜態方法：批次更新所有場景的統計數據
 SceneSchema.statics.batchUpdateCounts = async function () {
   const scenes = await this.find({ status: { $ne: 'deleted' } })
 
@@ -276,7 +276,7 @@ SceneSchema.statics.batchUpdateCounts = async function () {
   return Promise.all(updatePromises)
 }
 
-// 靜態方法：取得來源的所有片段
+// 靜態方法：取得來源的所有場景
 SceneSchema.statics.getSourceScenes = async function (sourceId, options = {}) {
   const { includeInactive = false, sortBy = 'time' } = options
 
@@ -300,7 +300,7 @@ SceneSchema.statics.getSourceScenes = async function (sourceId, options = {}) {
     .select('title episode start_time end_time quote images counts slug')
 }
 
-// 靜態方法：取得熱門片段
+// 靜態方法：取得熱門場景
 SceneSchema.statics.getPopularScenes = async function (limit = 50, sourceId = null) {
   const query = { status: 'active' }
   if (sourceId) {
@@ -314,7 +314,7 @@ SceneSchema.statics.getPopularScenes = async function (limit = 50, sourceId = nu
     .select('title quote images start_time end_time counts slug')
 }
 
-// 靜態方法：搜尋片段
+// 靜態方法：搜尋場景
 SceneSchema.statics.searchScenes = async function (query, options = {}) {
   const { sourceId = null, tags = [], limit = 20, page = 1, sortBy = 'popular' } = options
 

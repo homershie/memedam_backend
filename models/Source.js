@@ -169,8 +169,8 @@ const SourceSchema = new mongoose.Schema(
       scenes: {
         type: Number,
         default: 0,
-        min: [0, '片段數量不能為負數'],
-        // 相關片段總數
+        min: [0, '場景數量不能為負數'],
+        // 相關場景總數
       },
       views: {
         type: Number,
@@ -241,7 +241,7 @@ SourceSchema.methods.updateCounts = async function () {
   const Scene = mongoose.model('Scene')
   const Meme = mongoose.model('Meme')
 
-  // 計算相關片段數
+  // 計算相關場景數
   const sceneCount = await Scene.countDocuments({
     source_id: this._id,
   })

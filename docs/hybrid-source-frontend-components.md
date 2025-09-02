@@ -168,9 +168,9 @@ const shouldUseRootCanonical = () => {
 
     <transition name="expand">
       <div v-show="expanded" class="source-content">
-        <!-- 片段資訊 -->
+        <!-- 場景資訊 -->
         <div v-if="scene" class="scene-info">
-          <h4>片段資訊</h4>
+          <h4>場景資訊</h4>
           <div v-if="scene.episode" class="scene-episode">集數：{{ scene.episode }}</div>
           <div v-if="scene.quote" class="scene-quote">
             <Icon name="quote" />
@@ -367,7 +367,7 @@ const sortedVariants = computed(() => {
           <div class="meme-info">
             <h4>{{ meme.title }}</h4>
 
-            <!-- 顯示片段資訊 -->
+            <!-- 顯示場景資訊 -->
             <div v-if="meme.scene_id" class="scene-badge">
               <Icon name="film" />
               {{ meme.scene_id.quote || formatTime(meme.scene_id.start_time) }}
@@ -461,11 +461,11 @@ async function fetchSourceBundle(slug) {
       <button type="button" @click="showCreateSource = true">找不到？新增來源</button>
     </div>
 
-    <!-- 片段選擇（可選） -->
+    <!-- 場景選擇（可選） -->
     <div v-if="form.source_id" class="form-group">
-      <label>選擇片段（可選）</label>
+      <label>選擇場景（可選）</label>
       <SceneSelector v-model="form.scene_id" :source-id="form.source_id" />
-      <button type="button" @click="showCreateScene = true">新增片段</button>
+      <button type="button" @click="showCreateScene = true">新增場景</button>
     </div>
 
     <!-- 變體關係 -->
@@ -623,10 +623,10 @@ export function useMemeSEO(meme, source, scene) {
    - 如果更改 variant_of，重新計算 lineage
 
 2. **刪除/合併迷因時**：
-   - 更新相關來源和片段的統計數據
+   - 更新相關來源和場景的統計數據
    - 處理變體關係的重新連結
 
 3. **定期維護任務**：
-   - 每日重新計算來源和片段的統計數據
+   - 每日重新計算來源和場景的統計數據
    - 檢查並修復循環引用的 lineage
    - 清理孤立的變體關係

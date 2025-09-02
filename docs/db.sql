@@ -87,7 +87,7 @@ Table memes {
   video_url varchar [note: '影片迷因的影片連結']
   audio_url varchar [note: '音樂/音效迷因的檔案連結']
   source_id ObjectId [note: '三層模型：作品來源']
-  scene_id ObjectId [note: '三層模型：片段']
+  scene_id ObjectId [note: '三層模型：場景']
   variant_of ObjectId [note: '變體系譜：此迷因是哪個迷因的變體']
   lineage json [note: '變體系譜：root(根源), depth(深度)']
   body varchar(5000) [note: '笑點解析']
@@ -129,19 +129,19 @@ Table sources {
   updatedAt timestamp [default: `now()`]
 }
 
-// 片段 (三層模型)
+// 場景 (三層模型)
 Table scenes {
   _id ObjectId [pk]
   source_id ObjectId [not null, note: '索引欄位']
-  title varchar(200) [note: '片段標題']
+  title varchar(200) [note: '場景標題']
   episode varchar(50) [note: '集數標示，如 S01E05']
   start_time int [note: '開始時間(秒)']
   end_time int [note: '結束時間(秒)，必須大於開始時間']
   quote varchar(1000) [note: '關鍵台詞/名言']
-  transcript varchar(5000) [note: '片段逐字稿']
-  description varchar(2000) [note: '片段描述/場景說明']
+  transcript varchar(5000) [note: '場景逐字稿']
+  description varchar(2000) [note: '場景描述/場景說明']
   images varchar[] [note: '截圖連結陣列']
-  video_url varchar [note: '片段影片連結']
+  video_url varchar [note: '場景影片連結']
   slug varchar [note: '索引欄位']
   status varchar [default: 'active']
   counts json [note: '統計數據：memes(相關迷因數)']
