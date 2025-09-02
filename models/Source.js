@@ -90,14 +90,42 @@ const SourceSchema = new mongoose.Schema(
         type: String,
         enum: {
           values: [
+            // 版權相關
             'copyright',
+            'all-rights-reserved',
+
+            // 創用CC授權
             'cc-by',
             'cc-by-sa',
             'cc-by-nc',
             'cc-by-nc-sa',
+            'cc-by-nd',
+            'cc-by-nc-nd',
             'cc0',
+
+            // 公有領域
             'public-domain',
+            'public-domain-dedication',
+
+            // 合理使用
+            'fair-use',
+            'fair-dealing',
+
+            // 其他常見授權
+            'mit',
+            'apache',
+            'gpl',
+            'gpl-v2',
+            'gpl-v3',
+            'lgpl',
+            'bsd',
+            'mozilla',
+            'creative-commons',
+
+            // 未知或自定義
             'other',
+            'unknown',
+            'custom',
           ],
           message: '授權類型必須是有效的授權方式',
         },
