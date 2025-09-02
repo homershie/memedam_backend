@@ -124,10 +124,38 @@ const storage = new CloudinaryStorage({
       }
     }
 
+    // 根據檔案類型設定不同的轉換
+    let transformation = [{ quality: 'auto', format: 'auto' }]
+
+    if (file.fieldname === 'avatar') {
+      // 頭像：保持正方形比例，最大邊長400px
+      transformation = [
+        {
+          width: 400,
+          height: 400,
+          crop: 'fill',
+          gravity: 'face', // 優先保留人臉區域
+          quality: 'auto',
+          format: 'auto',
+        },
+      ]
+    } else {
+      // 其他圖片：使用適當的尺寸
+      transformation = [
+        {
+          width: 1200,
+          height: 900,
+          crop: 'limit', // 不裁剪，保持完整圖片
+          quality: 'auto',
+          format: 'auto',
+        },
+      ]
+    }
+
     return {
       folder,
       allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-      transformation: [{ width: 800, height: 600, crop: 'fill', quality: 'auto' }],
+      transformation,
     }
   },
 })
