@@ -149,11 +149,20 @@ export const createMeme = async (req, res) => {
       content = '',
       type,
       detail_markdown,
+      detail_content, // 新增：詳細內容 (JSON 格式)
+      detail_images = [], // 新增：詳細內容中的圖片
       tags_cache = [],
       source_url = '',
       video_url = '',
       audio_url = '',
+      cover_image = '', // 新增：主圖連結
       slug,
+      nsfw = false, // 新增：NSFW 標記
+      language = 'zh', // 新增：語言
+      sources = [], // 新增：引用來源
+      source_id = null, // 新增：來源 ID
+      scene_id = null, // 新增：場景 ID
+      variant_of = null, // 新增：變體來源
     } = req.body
 
     // 從認證中間件獲取用戶ID
@@ -188,7 +197,10 @@ export const createMeme = async (req, res) => {
           let counter = 1
 
           while (true) {
-            const existingSlugMeme = await Meme.findOne({ slug: finalSlug }).session(session)
+            // 使用 mongoose.trusted 避免 slug 查詢的 CastError
+            const existingSlugMeme = await Meme.findOne(
+              mongoose.trusted({ slug: finalSlug }),
+            ).session(session)
 
             if (!existingSlugMeme) {
               break
@@ -211,12 +223,21 @@ export const createMeme = async (req, res) => {
       image_url,
       video_url,
       audio_url,
+      cover_image: cover_image || '',
       author_id,
       type,
       detail_markdown,
+      detail_content, // 設定詳細內容 (JSON 格式)
+      detail_images, // 設定詳細內容中的圖片
       tags_cache: tagsArr,
       source_url,
       slug: finalSlug,
+      nsfw,
+      language,
+      sources, // 設定引用來源
+      source_id, // 設定來源 ID
+      scene_id, // 設定場景 ID
+      variant_of, // 設定變體來源
     })
 
     // 使用 session 保存迷因
@@ -333,7 +354,7 @@ export const getMemes = async (req, res) => {
 
       // 類型/狀態篩選（多選/單選）
       if (typesArr.length > 0) {
-        baseFilter.type = { $in: typesArr }
+        baseFilter.type = mongoose.trusted({ $in: typesArr })
       } else if (typeVal !== '') {
         baseFilter.type = typeVal
       }
@@ -419,7 +440,7 @@ export const getMemes = async (req, res) => {
 
       // 基本篩選條件
       if (typesArr.length > 0) {
-        mongoQuery.type = { $in: typesArr }
+        mongoQuery.type = mongoose.trusted({ $in: typesArr })
       } else if (typeVal !== '') {
         mongoQuery.type = typeVal
       }
@@ -450,7 +471,8 @@ export const getMemes = async (req, res) => {
       // 標籤條件
       if (tagsArr.length > 0) {
         tagsArr.forEach((tag) => {
-          orConditions.push({ tags_cache: tag })
+          // 使用 mongoose.trusted 避免標籤查詢的 CastError
+          orConditions.push(mongoose.trusted({ tags_cache: tag }))
         })
       }
 
@@ -596,7 +618,7 @@ export const checkSlugAvailable = async (req, res) => {
     }
 
     // 檢查 slug 是否已存在
-    const existingMeme = await Meme.findOne({ slug }).select('_id title').lean()
+    const existingMeme = await Meme.findOne(mongoose.trusted({ slug })).select('_id title').lean()
 
     res.json({
       success: true,
@@ -883,7 +905,7 @@ export const batchDeleteMemes = async (req, res) => {
     logger.info('開始批量刪除迷因，數量:', ids.length)
 
     // 先獲取所有要刪除的迷因資料
-    const memes = await Meme.find({ _id: { $in: ids } })
+    const memes = await Meme.find(mongoose.trusted({ _id: { $in: ids } }))
 
     if (memes.length === 0) {
       return res.status(404).json({
@@ -1546,10 +1568,12 @@ export const getSearchSuggestions = async (req, res) => {
             // 取得每個標籤的使用次數
             const tagStats = await Promise.all(
               tags.map(async (tag) => {
-                const count = await Meme.countDocuments({
-                  status: 'public',
-                  tags_cache: tag.name,
-                })
+                const count = await Meme.countDocuments(
+                  mongoose.trusted({
+                    status: 'public',
+                    tags_cache: tag.name,
+                  }),
+                )
                 return {
                   name: tag.name,
                   count,
@@ -1652,7 +1676,7 @@ export const batchUpdateHotScores = async (req, res) => {
     const { limit = 1000 } = req.query
 
     // 取得需要更新的迷因（排除已刪除的）
-    const memes = await Meme.find({ status: { $ne: 'deleted' } })
+    const memes = await Meme.find(mongoose.trusted({ status: { $ne: 'deleted' } }))
       .limit(parseInt(limit))
       .sort({ updatedAt: -1 })
 
@@ -1857,13 +1881,23 @@ export const getRandomMeme = async (req, res) => {
 
     // 排除指定ID（避免重複顯示同一個迷因）
     if (excludeId) {
-      filter._id = { $ne: excludeId }
+      // 驗證並轉換 excludeId 為 ObjectId
+      if (mongoose.Types.ObjectId.isValid(excludeId)) {
+        const excludeObjectId =
+          excludeId instanceof mongoose.Types.ObjectId
+            ? excludeId
+            : new mongoose.Types.ObjectId(excludeId)
+        filter._id = mongoose.trusted({ $ne: excludeObjectId })
+      } else {
+        logger.warn(`無效的 excludeId 格式: ${excludeId}`)
+      }
     }
 
     // 根據標籤篩選
     if (tags) {
       const tagArray = Array.isArray(tags) ? tags : [tags]
-      filter.tags_cache = { $in: tagArray }
+      // 使用 mongoose.trusted 避免標籤查詢的 CastError
+      filter.tags_cache = mongoose.trusted({ $in: tagArray })
     }
 
     // 使用 MongoDB 的 $sample 操作符來隨機選擇一個迷因
@@ -2046,11 +2080,13 @@ export const getMemeBundle = async (req, res, next) => {
           ? meme._id
           : new mongoose.Types.ObjectId(meme._id)
       promises.push(
-        Meme.find({
-          'lineage.root': rootId,
-          status: 'public',
-          _id: mongoose.trusted({ $ne: currentMemeId }), // 排除自己（避免 CastError）
-        })
+        Meme.find(
+          mongoose.trusted({
+            'lineage.root': rootId,
+            status: 'public',
+            _id: { $ne: currentMemeId }, // 排除自己
+          }),
+        )
           .select(
             'title slug image_url video_url variant_of lineage like_count view_count author_id source_id scene_id createdAt',
           )
@@ -2078,11 +2114,13 @@ export const getMemeBundle = async (req, res, next) => {
             ? meme._id
             : new mongoose.Types.ObjectId(meme._id)
 
-        const query = Meme.find({
-          source_id: sourceObjectId,
-          status: 'public',
-          _id: mongoose.trusted({ $ne: currentMemeId }),
-        })
+        const query = Meme.find(
+          mongoose.trusted({
+            source_id: sourceObjectId,
+            status: 'public',
+            _id: { $ne: currentMemeId },
+          }),
+        )
           .select(
             'title slug image_url video_url like_count view_count author_id scene_id lineage createdAt',
           )
@@ -2141,11 +2179,13 @@ export const getMemeVariants = async (req, res, next) => {
     const skip = (parseInt(page) - 1) * parseInt(limit)
 
     const [variants, total] = await Promise.all([
-      Meme.find({
-        'lineage.root': rootId,
-        status: 'public',
-        _id: { $ne: id },
-      })
+      Meme.find(
+        mongoose.trusted({
+          'lineage.root': rootId,
+          status: 'public',
+          _id: { $ne: id },
+        }),
+      )
         .select(
           'title slug image_url video_url variant_of lineage like_count view_count author_id createdAt',
         )
@@ -2154,11 +2194,13 @@ export const getMemeVariants = async (req, res, next) => {
         .limit(parseInt(limit))
         .populate('author_id', 'username display_name avatar')
         .lean(),
-      Meme.countDocuments({
-        'lineage.root': rootId,
-        status: 'public',
-        _id: { $ne: id },
-      }),
+      Meme.countDocuments(
+        mongoose.trusted({
+          'lineage.root': rootId,
+          status: 'public',
+          _id: { $ne: id },
+        }),
+      ),
     ])
 
     res.status(StatusCodes.OK).json({
@@ -2211,11 +2253,13 @@ export const getMemesFromSameSource = async (req, res, next) => {
     const skip = (parseInt(page) - 1) * parseInt(limit)
 
     const [memes, total] = await Promise.all([
-      Meme.find({
-        source_id: sourceId,
-        status: 'public',
-        _id: { $ne: id },
-      })
+      Meme.find(
+        mongoose.trusted({
+          source_id: sourceId,
+          status: 'public',
+          _id: { $ne: id },
+        }),
+      )
         .select(
           'title slug image_url video_url like_count view_count scene_id lineage author_id createdAt',
         )
@@ -2225,11 +2269,13 @@ export const getMemesFromSameSource = async (req, res, next) => {
         .populate('author_id', 'username display_name avatar')
         .populate('scene_id', 'title quote start_time end_time')
         .lean(),
-      Meme.countDocuments({
-        source_id: sourceId,
-        status: 'public',
-        _id: { $ne: id },
-      }),
+      Meme.countDocuments(
+        mongoose.trusted({
+          source_id: sourceId,
+          status: 'public',
+          _id: { $ne: id },
+        }),
+      ),
     ])
 
     res.status(StatusCodes.OK).json({
