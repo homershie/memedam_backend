@@ -246,6 +246,16 @@ export const createMeme = async (req, res) => {
     // 使用原子操作更新用戶迷因數量統計，避免 race condition
     await User.findByIdAndUpdate(author_id, { $inc: { meme_count: 1 } }, { session, new: true })
 
+    // 更新場景統計數據（如果有指定場景）
+    if (scene_id) {
+      try {
+        await Meme.updateSceneCounts(scene_id)
+      } catch (sceneError) {
+        logger.warn('更新場景統計數據失敗:', sceneError.message)
+        // 不中斷主要流程，因為統計數據可以稍後重新計算
+      }
+    }
+
     // 提交事務
     await session.commitTransaction()
 
@@ -2348,7 +2358,9 @@ export const getMemesBySource = async (req, res, next) => {
         source_id: sourceId,
         status: 'public',
       })
-        .select('title slug image_url video_url like_count view_count author_id scene_id createdAt')
+        .select(
+          'title slug image_url cover_image video_url like_count view_count author_id scene_id createdAt',
+        )
         .sort(sortCondition)
         .skip(skip)
         .limit(parseInt(limit))
