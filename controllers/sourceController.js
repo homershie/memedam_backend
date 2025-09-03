@@ -170,6 +170,7 @@ export const createSource = async (req, res, next) => {
       thumbnails,
       slug,
       tags,
+      created_by,
     } = req.body
 
     // 處理 slug 自動生成
@@ -233,6 +234,7 @@ export const createSource = async (req, res, next) => {
       thumbnails,
       slug: finalSlug,
       tags,
+      created_by,
     })
 
     await source.save()

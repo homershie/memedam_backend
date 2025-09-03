@@ -124,6 +124,7 @@ export const createScene = async (req, res, next) => {
       audio_url,
       slug,
       tags,
+      created_by,
     } = req.body
 
     // 驗證來源是否存在
@@ -212,6 +213,7 @@ export const createScene = async (req, res, next) => {
       audio_url,
       slug: finalSlug,
       tags,
+      created_by,
     })
 
     await scene.save()
