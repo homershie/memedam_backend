@@ -4,6 +4,7 @@ import { token, isUser, blockBannedUser } from '../middleware/auth.js'
 import {
   uploadImage as uploadImageController,
   uploadImages,
+  uploadAvatar as uploadAvatarController,
 } from '../controllers/uploadController.js'
 
 const router = express.Router()
@@ -131,7 +132,7 @@ router.post(
   uploadImage,
   uploadImageController,
 )
-router.post('/avatar', token, isUser, blockBannedUser, uploadAvatar, uploadImageController)
+router.post('/avatar', token, isUser, blockBannedUser, uploadAvatar, uploadAvatarController)
 router.post('/images', token, isUser, blockBannedUser, uploadImages, uploadImages)
 
 export default router

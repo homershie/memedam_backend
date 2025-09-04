@@ -721,7 +721,7 @@ router.post('/me/cover-image', token, isUser, uploadCoverImage, async (req, res)
     }
 
     // 更新用戶的封面圖片
-    const userId = req.user.id
+    const userId = req.user._id || req.user.id
     const user = await User.findById(userId)
 
     if (!user) {
@@ -731,11 +731,12 @@ router.post('/me/cover-image', token, isUser, uploadCoverImage, async (req, res)
       })
     }
 
-    // 如果用戶已有封面圖片，刪除舊的
-    if (user.cover_image) {
+    // 如果用戶已有封面圖片且為 Cloudinary URL，刪除舊的
+    if (user.cover_image && user.cover_image.includes('cloudinary.com')) {
       try {
         const { deleteImageByUrl } = await import('../services/uploadService.js')
         await deleteImageByUrl(user.cover_image)
+        logger.info(`刪除舊封面圖片成功: ${user.cover_image}`)
       } catch (error) {
         logger.warn('刪除舊封面圖片失敗:', error)
       }
