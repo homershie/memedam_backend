@@ -847,6 +847,86 @@ export const getUser = async (req, res) => {
   }
 }
 
+// 根據 username 取得使用者
+export const getUserByUsername = async (req, res) => {
+  try {
+    const { username } = req.params
+
+    // 驗證 username 格式
+    if (!username || username.trim().length === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請提供有效的用戶名稱',
+      })
+    }
+
+    // 使用 username 查詢用戶
+    const user = await User.findOne({ username: username.trim() }).select('-password -tokens')
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到該用戶名稱的使用者',
+      })
+    }
+
+    res.json({ success: true, user })
+  } catch (error) {
+    logger.error('getUserByUsername 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+      debug: { error: error.message },
+    })
+  }
+}
+
+// 根據 username 取得用戶統計資訊
+export const getUserStatsByUsername = async (req, res) => {
+  try {
+    const { username } = req.params
+
+    // 驗證 username 格式
+    if (!username || username.trim().length === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '請提供有效的用戶名稱',
+      })
+    }
+
+    // 使用 username 查詢用戶統計
+    const user = await User.findOne(
+      { username: username.trim() },
+      'follower_count following_count meme_count collection_count total_likes_received comment_count share_count',
+    )
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到該用戶名稱的使用者',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: {
+        follower_count: user.follower_count || 0,
+        following_count: user.following_count || 0,
+        meme_count: user.meme_count || 0,
+        collection_count: user.collection_count || 0,
+        total_likes_received: user.total_likes_received || 0,
+        comment_count: user.comment_count || 0,
+        share_count: user.share_count || 0,
+      },
+    })
+  } catch (error) {
+    logger.error('getUserStatsByUsername 錯誤:', error)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: '伺服器錯誤',
+    })
+  }
+}
+
 // 取得所有使用者（可加分頁）
 export const getUsers = async (req, res) => {
   try {

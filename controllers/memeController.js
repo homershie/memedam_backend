@@ -466,7 +466,26 @@ export const getMemes = async (req, res) => {
 
       // 作者篩選條件
       if (authorVal) {
-        mongoQuery.author_id = authorVal
+        // 檢查是否為有效的 ObjectId
+        if (mongoose.Types.ObjectId.isValid(authorVal)) {
+          // 如果是有效的 ObjectId，直接使用
+          mongoQuery.author_id = authorVal
+        } else {
+          // 如果不是有效的 ObjectId，嘗試作為 username 查詢
+          try {
+            // 使用同步查詢獲取用戶ID（因為我們在異步函數中）
+            const authorUser = await User.findOne({ username: authorVal }).select('_id')
+            if (authorUser) {
+              mongoQuery.author_id = authorUser._id
+            } else {
+              // 如果找不到對應的用戶，返回空結果
+              mongoQuery.author_id = null
+            }
+          } catch (error) {
+            logger.warn('查詢用戶失敗:', error.message)
+            mongoQuery.author_id = null
+          }
+        }
       }
 
       // 搜尋和標籤條件

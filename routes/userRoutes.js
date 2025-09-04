@@ -2,6 +2,8 @@ import express from 'express'
 import {
   createUser,
   getUser,
+  getUserByUsername, // 新增：根據 username 查詢用戶
+  getUserStatsByUsername, // 新增：根據 username 查詢用戶統計
   getUsers,
   updateUser,
   deleteUser,
@@ -555,12 +557,83 @@ router.get('/search', searchUsers)
  *         description: 權限不足
  *       404:
  *         description: 用戶不存在
+ * /api/users/profile/{username}:
+ *   get:
+ *     summary: 根據 username 取得用戶資料
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 用戶名稱
+ *     responses:
+ *       200:
+ *         description: 成功取得用戶資料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: 用戶不存在
+ * /api/users/profile/{username}/stats:
+ *   get:
+ *     summary: 根據 username 取得用戶統計資料
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 用戶名稱
+ *     responses:
+ *       200:
+ *         description: 成功取得用戶統計資料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     follower_count:
+ *                       type: integer
+ *                       description: 粉絲數
+ *                     following_count:
+ *                       type: integer
+ *                       description: 關注數
+ *                     meme_count:
+ *                       type: integer
+ *                       description: 貼文數
+ *                     collection_count:
+ *                       type: integer
+ *                       description: 收藏數
+ *                     total_likes_received:
+ *                       type: integer
+ *                       description: 獲得的總讚數
+ *                     comment_count:
+ *                       type: integer
+ *                       description: 評論數
+ *                     share_count:
+ *                       type: integer
+ *                       description: 分享數
+ *       404:
+ *         description: 用戶不存在
  */
 
 // 用戶個人資料相關路由（必須在 /:id 之前）
 router.get('/me', token, isUser, getMe)
 router.put('/me', token, isUser, uploadAvatar, updateMe)
 router.delete('/me', token, isUser, deleteMe)
+
+// 新增：根據 username 查詢用戶的路由（必須在 /:id 之前）
+router.get('/profile/:username', getUserByUsername)
+router.get('/profile/:username/stats', getUserStatsByUsername)
 
 /**
  * @swagger
