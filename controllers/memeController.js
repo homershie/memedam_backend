@@ -747,6 +747,19 @@ export const updateMeme = async (req, res) => {
       }
     }
 
+    // 檢查是否有新的封面圖片
+    if (req.body.cover_image && req.body.cover_image !== originalMeme.cover_image) {
+      // 如果是透過 body 傳入新的封面圖片 URL
+      if (originalMeme.cover_image) {
+        try {
+          await deleteImageByUrl(originalMeme.cover_image)
+        } catch (deleteError) {
+          logger.error('刪除舊封面圖片失敗:', deleteError)
+          // 不中斷更新流程，只記錄錯誤
+        }
+      }
+    }
+
     // 檢查迷因類型變更，處理相關媒體檔案
     if (updateData.type && updateData.type !== originalMeme.type) {
       // 如果從圖片類型變更為其他類型，刪除舊圖片
@@ -784,6 +797,15 @@ export const updateMeme = async (req, res) => {
           }
           updateData.video_url = ''
           updateData.audio_url = ''
+          // 清空封面圖片，因為文字類型不需要封面圖片
+          if (originalMeme.cover_image) {
+            try {
+              await deleteImageByUrl(originalMeme.cover_image)
+            } catch (deleteError) {
+              logger.error('類型變更時刪除舊封面圖片失敗:', deleteError)
+            }
+          }
+          updateData.cover_image = ''
           break
       }
     }
@@ -907,6 +929,16 @@ export const deleteMeme = async (req, res) => {
       }
     }
 
+    // 刪除封面圖片（如果存在且為 Cloudinary URL）
+    if (meme.cover_image && meme.cover_image.includes('cloudinary.com')) {
+      try {
+        await deleteImageByUrl(meme.cover_image)
+      } catch (deleteError) {
+        logger.error('刪除迷因封面圖片失敗:', deleteError)
+        // 不中斷刪除流程，只記錄錯誤
+      }
+    }
+
     // 刪除迷因記錄
     await Meme.findByIdAndDelete(req.params.id)
 
@@ -1025,6 +1057,21 @@ export const batchDeleteMemes = async (req, res) => {
             cloudinaryErrors.push({
               memeId: meme._id,
               imageUrl: meme.source_url,
+              error: deleteError.message,
+            })
+            // 不中斷刪除流程，只記錄錯誤
+          }
+        }
+
+        // 刪除封面圖片（如果存在且為 Cloudinary URL）
+        if (meme.cover_image && meme.cover_image.includes('cloudinary.com')) {
+          try {
+            await deleteImageByUrl(meme.cover_image)
+          } catch (deleteError) {
+            logger.error('刪除迷因封面圖片失敗:', deleteError)
+            cloudinaryErrors.push({
+              memeId: meme._id,
+              imageUrl: meme.cover_image,
               error: deleteError.message,
             })
             // 不中斷刪除流程，只記錄錯誤
