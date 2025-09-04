@@ -44,14 +44,16 @@ export const createComment = async (req, res) => {
 
     // 使用事務處理建立留言並更新計數
     const result = await executeTransaction(async (session) => {
-      const comment = await Comment.create(
-        {
-          content,
-          meme_id,
-          parent_id,
-          user_id: req.user?._id,
-          mentioned_users, // 保存提及的用戶名
-        },
+      const [comment] = await Comment.create(
+        [
+          {
+            content,
+            meme_id,
+            parent_id,
+            user_id: req.user?._id,
+            mentioned_users, // 保存提及的用戶名
+          },
+        ],
         { session },
       )
 
