@@ -634,12 +634,25 @@ UserSchema.pre('save', function (next) {
 // 如果用戶沒有上傳 avatar，則使用 Dicebear API 生成
 UserSchema.virtual('avatarUrl').get(function () {
   const user = this
-  // 如果有自訂頭像，使用自訂頭像
-  if (user.avatar && user.avatar.trim().length > 0) {
-    return user.avatar
+
+  // 如果有自訂頭像且為有效 URL，使用自訂頭像
+  if (user.avatar && typeof user.avatar === 'string' && user.avatar.trim().length > 0) {
+    // 確保是有效的 URL
+    try {
+      new URL(user.avatar)
+      return user.avatar
+    } catch {
+      // 如果不是有效的 URL，繼續使用預設頭像
+      console.warn(`Invalid avatar URL for user ${user.username}: ${user.avatar}`)
+    }
   }
+
   // 沒有頭像時，使用 Dicebear API 生成，以 username 作為 seed
-  return `https://api.dicebear.com/9.x/notionists-neutral/svg?seed=${encodeURIComponent(user.username)}`
+  // 確保 username 存在且不為空
+  const seed =
+    user.username && user.username.trim().length > 0 ? encodeURIComponent(user.username) : 'default'
+
+  return `https://api.dicebear.com/9.x/notionists-neutral/svg?seed=${seed}`
 })
 
 // 確保虛擬欄位在 JSON 序列化時包含進來
