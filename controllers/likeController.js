@@ -66,7 +66,9 @@ export const createLike = async (req, res) => {
 export const getLikes = async (req, res) => {
   try {
     const filter = {}
-    if (req.query.user_id) filter.user_id = req.query.user_id
+    // 如果沒有指定 user_id，使用當前用戶ID（如果已登入）
+    const targetUserId = req.query.user_id || req.user?._id
+    if (targetUserId) filter.user_id = targetUserId
     if (req.query.meme_id) filter.meme_id = req.query.meme_id
     const likes = await Like.find(filter).sort({ createdAt: -1 })
     res.json(likes)
