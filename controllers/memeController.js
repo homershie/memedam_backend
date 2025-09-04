@@ -735,6 +735,11 @@ export const updateMeme = async (req, res) => {
 
         // 更新為新圖片 URL
         updateData.image_url = newImageUrl
+
+        // 如果是圖片類型，同步更新 cover_image
+        if (originalMeme.type === 'image') {
+          updateData.cover_image = newImageUrl
+        }
       }
     } else if (req.body.image_url && req.body.image_url !== originalMeme.image_url) {
       // 如果是透過 body 傳入新的圖片 URL（非上傳檔案）
@@ -745,12 +750,19 @@ export const updateMeme = async (req, res) => {
           logger.error('刪除舊圖片失敗:', deleteError)
         }
       }
+      // 更新圖片 URL
+      updateData.image_url = req.body.image_url
+
+      // 如果是圖片類型，同步更新 cover_image
+      if (originalMeme.type === 'image') {
+        updateData.cover_image = req.body.image_url
+      }
     }
 
     // 檢查是否有新的封面圖片
-    if (req.body.cover_image && req.body.cover_image !== originalMeme.cover_image) {
+    if (req.body.cover_image !== undefined && req.body.cover_image !== originalMeme.cover_image) {
       // 如果是透過 body 傳入新的封面圖片 URL
-      if (originalMeme.cover_image) {
+      if (originalMeme.cover_image && req.body.cover_image !== originalMeme.cover_image) {
         try {
           await deleteImageByUrl(originalMeme.cover_image)
         } catch (deleteError) {
@@ -758,6 +770,8 @@ export const updateMeme = async (req, res) => {
           // 不中斷更新流程，只記錄錯誤
         }
       }
+      // 設置新的封面圖片 URL
+      updateData.cover_image = req.body.cover_image
     }
 
     // 檢查迷因類型變更，處理相關媒體檔案
