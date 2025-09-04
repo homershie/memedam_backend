@@ -18,10 +18,10 @@ import { deleteImageByUrl } from '../services/uploadService.js'
 import {
   calculateMemeHotScore,
   getHotScoreLevel,
-  clearMixedRecommendationCache,
   calculateEngagementScore,
   calculateQualityScore,
 } from '../utils/hotScore.js'
+import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
 import { translateToEnglish } from '../services/googleTranslate.js'
 import { toSlug, toSlugOrNull } from '../utils/slugify.js'
 
