@@ -122,6 +122,7 @@ privacyConsentSchema.statics.findActiveByUserId = function (userId) {
   }
 
   const query = { userId: queryUserId, isActive: true }
+  logger.debug(`查詢隱私同意記錄: ${JSON.stringify(query)}`)
   return this.findOne(query).sort({ createdAt: -1 })
 }
 
