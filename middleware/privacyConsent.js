@@ -39,40 +39,66 @@ const checkPrivacyConsent = async (req) => {
 
     // 優先檢查登入使用者的同意
     if (req.user) {
-      // 確保 userId 是 ObjectId 類型
-      const { ObjectId } = require('mongoose').Types
-      const userId =
-        req.user._id instanceof ObjectId ? req.user._id : new ObjectId(String(req.user._id))
-      consent = await PrivacyConsent.findActiveByUserId(userId)
+      try {
+        // 確保 userId 是 ObjectId 類型
+        const { ObjectId } = require('mongoose').Types
+        const userId =
+          req.user._id instanceof ObjectId ? req.user._id : new ObjectId(String(req.user._id))
+        consent = await PrivacyConsent.findActiveByUserId(userId)
+        logger.debug(`用戶隱私同意檢查: userId=${userId}, found=${!!consent}`)
+      } catch (userError) {
+        logger.error('檢查用戶隱私同意失敗:', {
+          userId: req.user._id,
+          message: userError?.message,
+          stack: userError?.stack,
+        })
+      }
     }
 
     // 如果沒有登入使用者或沒有同意記錄，檢查 session
     if (!consent) {
-      const sessionId = getSessionId(req)
-      consent = await PrivacyConsent.findActiveBySessionId(sessionId)
+      try {
+        const sessionId = getSessionId(req)
+        consent = await PrivacyConsent.findActiveBySessionId(sessionId)
+        logger.debug(`Session 隱私同意檢查: sessionId=${sessionId}, found=${!!consent}`)
 
-      // 如果已登入且找到的同意記錄是基於 session、且尚未綁定 userId，則進行遷移
-      if (req.user && consent && !consent.userId) {
-        try {
-          const { ObjectId } = require('mongoose').Types
-          const migratedUserId =
-            req.user._id instanceof ObjectId ? req.user._id : new ObjectId(req.user._id)
-          logger.info(`遷移 session 同意記錄到 userId: ${consent.sessionId} -> ${migratedUserId}`)
-          consent.userId = migratedUserId
-          consent.updatedAt = new Date()
-          await consent.save()
-        } catch (migrateError) {
-          logger.error('遷移 session 同意記錄失敗:', {
-            message: migrateError?.message,
-            stack: migrateError?.stack,
-          })
+        // 如果已登入且找到的同意記錄是基於 session、且尚未綁定 userId，則進行遷移
+        if (req.user && consent && !consent.userId) {
+          try {
+            const { ObjectId } = require('mongoose').Types
+            const migratedUserId =
+              req.user._id instanceof ObjectId ? req.user._id : new ObjectId(String(req.user._id))
+            logger.info(`遷移 session 同意記錄到 userId: ${consent.sessionId} -> ${migratedUserId}`)
+            consent.userId = migratedUserId
+            consent.updatedAt = new Date()
+            await consent.save()
+          } catch (migrateError) {
+            logger.error('遷移 session 同意記錄失敗:', {
+              sessionId: consent.sessionId,
+              userId: req.user._id,
+              message: migrateError?.message,
+              stack: migrateError?.stack,
+            })
+          }
         }
+      } catch (sessionError) {
+        logger.error('檢查 session 隱私同意失敗:', {
+          sessionId: getSessionId(req),
+          message: sessionError?.message,
+          stack: sessionError?.stack,
+        })
       }
     }
 
     return consent
   } catch (error) {
-    logger.error('檢查隱私同意失敗:', { message: error?.message, stack: error?.stack })
+    logger.error('檢查隱私同意失敗:', {
+      hasUser: !!req.user,
+      userId: req.user?._id,
+      sessionId: getSessionId(req),
+      message: error?.message,
+      stack: error?.stack,
+    })
     return null
   }
 }
