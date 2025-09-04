@@ -1371,15 +1371,25 @@ export const updateMe = async (req, res) => {
   session.startTransaction()
 
   try {
-    // 檢查是否要更新頭像
+    // 檢查是否要更新頭像或封面圖片
     const isUpdatingAvatar = req.body.avatar !== undefined
+    const isUpdatingCoverImage = req.body.cover_image !== undefined
     let oldAvatarUrl = null
+    let oldCoverImageUrl = null
 
     // 如果要更新頭像，先取得舊的頭像 URL
     if (isUpdatingAvatar) {
       const currentUser = await User.findById(req.user._id).session(session)
       if (currentUser && currentUser.avatar) {
         oldAvatarUrl = currentUser.avatar
+      }
+    }
+
+    // 如果要更新封面圖片，先取得舊的封面圖片 URL
+    if (isUpdatingCoverImage) {
+      const currentUser = await User.findById(req.user._id).session(session)
+      if (currentUser && currentUser.cover_image) {
+        oldCoverImageUrl = currentUser.cover_image
       }
     }
 
@@ -1404,6 +1414,17 @@ export const updateMe = async (req, res) => {
         logger.info('成功刪除舊頭像:', oldAvatarUrl)
       } catch (deleteError) {
         logger.error('刪除舊頭像失敗:', deleteError)
+        // 不影響主要操作，只記錄錯誤
+      }
+    }
+
+    // 如果更新了封面圖片且有舊的封面圖片 URL，刪除舊的 Cloudinary 圖片
+    if (isUpdatingCoverImage && oldCoverImageUrl && oldCoverImageUrl !== user.cover_image) {
+      try {
+        await deleteImageByUrl(oldCoverImageUrl)
+        logger.info('成功刪除舊封面圖片:', oldCoverImageUrl)
+      } catch (deleteError) {
+        logger.error('刪除舊封面圖片失敗:', deleteError)
         // 不影響主要操作，只記錄錯誤
       }
     }
