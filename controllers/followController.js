@@ -13,34 +13,42 @@ export const followUser = async (req, res) => {
     const { user_id: following_id } = req.body
     const follower_id = req.user._id
 
-    // 檢查必要參數與格式
-    if (
-      !following_id ||
-      typeof following_id !== 'string' ||
-      !mongoose.Types.ObjectId.isValid(following_id)
-    ) {
+    // 檢查必要參數
+    if (!following_id || typeof following_id !== 'string') {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: '缺少或無效的被追隨者ID',
+        message: '缺少或無效的被追隨者參數',
       })
     }
 
-    followingId = new mongoose.Types.ObjectId(following_id)
+    // 查找目標用戶（支持 ID 或 username）
+    let targetUser
+    if (mongoose.Types.ObjectId.isValid(following_id)) {
+      // 嘗試作為 ID 查詢
+      targetUser = await User.findById(following_id, '_id username')
+      followingId = following_id
+    }
+
+    // 如果沒有找到用戶或參數不是 ObjectId，嘗試作為 username 查詢
+    if (!targetUser) {
+      targetUser = await User.findOne({ username: following_id }, '_id username')
+      followingId = targetUser?._id?.toString()
+    }
+
+    if (!targetUser || !followingId) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到要追隨的用戶',
+      })
+    }
+
+    followingId = new mongoose.Types.ObjectId(followingId)
 
     // 檢查是否嘗試追隨自己
     if (follower_id.equals(followingId)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: '不能追隨自己',
-      })
-    }
-
-    // 檢查被追隨者是否存在
-    const targetUser = await User.findById(followingId)
-    if (!targetUser) {
-      return res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        message: '找不到要追隨的用戶',
       })
     }
 
@@ -113,19 +121,36 @@ export const unfollowUser = async (req, res) => {
     const { user_id: following_id } = req.body
     const follower_id = req.user._id
 
-    // 檢查必要參數與格式
-    if (
-      !following_id ||
-      typeof following_id !== 'string' ||
-      !mongoose.Types.ObjectId.isValid(following_id)
-    ) {
+    // 檢查必要參數
+    if (!following_id || typeof following_id !== 'string') {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: '缺少或無效的被追隨者ID',
+        message: '缺少或無效的被追隨者參數',
       })
     }
 
-    followingId = new mongoose.Types.ObjectId(following_id)
+    // 查找目標用戶（支持 ID 或 username）
+    let targetUser
+    if (mongoose.Types.ObjectId.isValid(following_id)) {
+      // 嘗試作為 ID 查詢
+      targetUser = await User.findById(following_id, '_id username')
+      followingId = following_id
+    }
+
+    // 如果沒有找到用戶或參數不是 ObjectId，嘗試作為 username 查詢
+    if (!targetUser) {
+      targetUser = await User.findOne({ username: following_id }, '_id username')
+      followingId = targetUser?._id?.toString()
+    }
+
+    if (!targetUser || !followingId) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到要取消追隨的用戶',
+      })
+    }
+
+    followingId = new mongoose.Types.ObjectId(followingId)
 
     // 使用事務處理
     const result = await executeTransaction(async (session) => {
@@ -270,14 +295,28 @@ export const getFollowing = async (req, res) => {
     const { user_id } = req.params
     const { page = 1, limit = 20 } = req.query
 
-    if (!mongoose.Types.ObjectId.isValid(user_id)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: '無效的用戶ID',
-      })
+    // 查找用戶（支持 ID 或 username）
+    let user
+    let userId
+
+    if (mongoose.Types.ObjectId.isValid(user_id)) {
+      // 嘗試作為 ID 查詢
+      user = await User.findById(user_id, '_id username')
+      userId = user_id
     }
 
-    const userId = new mongoose.Types.ObjectId(user_id)
+    // 如果沒有找到用戶或參數不是 ObjectId，嘗試作為 username 查詢
+    if (!user) {
+      user = await User.findOne({ username: user_id }, '_id username')
+      userId = user?._id?.toString()
+    }
+
+    if (!user || !userId) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到用戶',
+      })
+    }
 
     const pageNum = Math.max(1, parseInt(page))
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)))
@@ -327,14 +366,28 @@ export const getFollowers = async (req, res) => {
     const { user_id } = req.params
     const { page = 1, limit = 20 } = req.query
 
-    if (!mongoose.Types.ObjectId.isValid(user_id)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: '無效的用戶ID',
-      })
+    // 查找用戶（支持 ID 或 username）
+    let user
+    let userId
+
+    if (mongoose.Types.ObjectId.isValid(user_id)) {
+      // 嘗試作為 ID 查詢
+      user = await User.findById(user_id, '_id username')
+      userId = user_id
     }
 
-    const userId = new mongoose.Types.ObjectId(user_id)
+    // 如果沒有找到用戶或參數不是 ObjectId，嘗試作為 username 查詢
+    if (!user) {
+      user = await User.findOne({ username: user_id }, '_id username')
+      userId = user?._id?.toString()
+    }
+
+    if (!user || !userId) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到用戶',
+      })
+    }
 
     const pageNum = Math.max(1, parseInt(page))
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)))
@@ -384,14 +437,28 @@ export const checkFollowStatus = async (req, res) => {
     const { user_id: following_id } = req.params
     const follower_id = req.user._id
 
-    if (!mongoose.Types.ObjectId.isValid(following_id)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: '無效的用戶ID',
-      })
+    // 查找目標用戶（支持 ID 或 username）
+    let targetUser
+    let followingId
+
+    if (mongoose.Types.ObjectId.isValid(following_id)) {
+      // 嘗試作為 ID 查詢
+      targetUser = await User.findById(following_id, '_id username')
+      followingId = following_id
     }
 
-    const followingId = new mongoose.Types.ObjectId(following_id)
+    // 如果沒有找到用戶或參數不是 ObjectId，嘗試作為 username 查詢
+    if (!targetUser) {
+      targetUser = await User.findOne({ username: following_id }, '_id username')
+      followingId = targetUser?._id?.toString()
+    }
+
+    if (!targetUser || !followingId) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: '找不到用戶',
+      })
+    }
 
     const follow = await Follow.findOne(
       mongoose.trusted({
@@ -421,17 +488,23 @@ export const getUserStats = async (req, res) => {
   try {
     const { user_id } = req.params
 
-    if (!mongoose.Types.ObjectId.isValid(user_id)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: '無效的用戶ID',
-      })
+    // 檢查是否為有效的 ObjectId，如果不是則嘗試作為 username 查詢
+    let user
+    if (mongoose.Types.ObjectId.isValid(user_id)) {
+      // 嘗試作為 ID 查詢
+      user = await User.findById(
+        user_id,
+        'follower_count following_count meme_count collection_count total_likes_received',
+      )
     }
 
-    const user = await User.findById(
-      user_id,
-      'follower_count following_count meme_count collection_count total_likes_received',
-    )
+    // 如果沒有找到用戶或參數不是 ObjectId，嘗試作為 username 查詢
+    if (!user) {
+      user = await User.findOne(
+        { username: user_id },
+        'follower_count following_count meme_count collection_count total_likes_received',
+      )
+    }
 
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).json({
