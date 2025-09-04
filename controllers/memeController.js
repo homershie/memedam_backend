@@ -18,6 +18,7 @@ import { deleteImageByUrl } from '../services/uploadService.js'
 import {
   calculateMemeHotScore,
   getHotScoreLevel,
+  clearMixedRecommendationCache,
   calculateEngagementScore,
   calculateQualityScore,
 } from '../utils/hotScore.js'
@@ -258,6 +259,15 @@ export const createMeme = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 新增迷因成功後清除推薦快取，讓新內容能立即顯示
+    try {
+      await clearMixedRecommendationCache()
+      logger.info('已清除推薦快取，新迷因將立即顯示')
+    } catch (cacheError) {
+      logger.warn('清除推薦快取失敗:', cacheError.message)
+      // 不中斷主要流程，快取清除失敗不影響迷因創建成功
+    }
 
     res.status(201).json({ success: true, data: meme, error: null })
   } catch (err) {
@@ -847,6 +857,15 @@ export const updateMeme = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
+    // 更新迷因成功後清除推薦快取，讓更新內容能立即顯示
+    try {
+      await clearMixedRecommendationCache()
+      logger.info('已清除推薦快取，更新的迷因將立即顯示')
+    } catch (cacheError) {
+      logger.warn('清除推薦快取失敗:', cacheError.message)
+      // 不中斷主要流程，快取清除失敗不影響迷因更新成功
+    }
+
     res.json({ success: true, data: updatedMeme, error: null })
   } catch (err) {
     // 回滾事務
@@ -958,6 +977,15 @@ export const deleteMeme = async (req, res) => {
 
     // 更新用戶迷因數量統計
     await User.findByIdAndUpdate(author_id, { $inc: { meme_count: -1 } })
+
+    // 刪除迷因成功後清除推薦快取
+    try {
+      await clearMixedRecommendationCache()
+      logger.info('已清除推薦快取，刪除的迷因將不再顯示')
+    } catch (cacheError) {
+      logger.warn('清除推薦快取失敗:', cacheError.message)
+      // 不中斷主要流程，快取清除失敗不影響迷因刪除成功
+    }
 
     res.json({ success: true, message: '迷因已刪除', error: null })
   } catch (err) {
@@ -1111,6 +1139,17 @@ export const batchDeleteMemes = async (req, res) => {
         await User.findByIdAndUpdate(authorId, { $inc: { meme_count: -count } })
       } catch (error) {
         logger.error('更新用戶迷因數量失敗:', { authorId, error: error.message })
+      }
+    }
+
+    // 批量刪除成功後清除推薦快取
+    if (deletedCount > 0) {
+      try {
+        await clearMixedRecommendationCache()
+        logger.info('已清除推薦快取，刪除的迷因將不再顯示')
+      } catch (cacheError) {
+        logger.warn('清除推薦快取失敗:', cacheError.message)
+        // 不中斷主要流程，快取清除失敗不影響批量刪除成功
       }
     }
 
