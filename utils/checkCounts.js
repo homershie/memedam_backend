@@ -1,3 +1,4 @@
+import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import Like from '../models/Like.js'
 import Dislike from '../models/Dislike.js'
