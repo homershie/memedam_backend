@@ -3,6 +3,7 @@ import NotificationReceipt from '../models/NotificationReceipt.js'
 import User from '../models/User.js'
 import Meme from '../models/Meme.js'
 import mongoose from 'mongoose'
+import { logger } from '../utils/logger.js'
 
 // 輔助函數：在測試環境中禁用事務
 const createSession = async (Model) => {
@@ -489,26 +490,63 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
  */
 export const createNewLikeNotification = async (memeId, likerUserId) => {
   try {
-    console.log(`準備建立按讚通知: memeId=${memeId}, likerUserId=${likerUserId}`)
+    logger.info(`準備建立按讚通知`, {
+      memeId,
+      likerUserId,
+      event: 'like_notification_start',
+    })
+
+    // 驗證參數
+    if (!memeId || !likerUserId) {
+      logger.warn(`建立按讚通知參數缺失`, {
+        memeId,
+        likerUserId,
+        event: 'like_notification_invalid_params',
+      })
+      return { success: false, error: '參數缺失' }
+    }
 
     // 獲取迷因資訊和作者
     const meme = await Meme.findById(memeId, 'author_id title').populate(
       'author_id',
-      'username display_name',
+      'username display_name notificationSettings',
     )
     if (!meme || !meme.author_id) {
-      console.log(`迷因不存在或無作者: memeId=${memeId}`)
-      return
+      logger.warn(`迷因不存在或無作者`, {
+        memeId,
+        event: 'like_notification_meme_not_found',
+      })
+      return { success: false, error: '迷因不存在' }
     }
 
     // 不給自己發送通知
     if (meme.author_id._id.toString() === likerUserId.toString()) {
-      console.log(`跳過自己給自己的通知: authorId=${meme.author_id._id}, likerId=${likerUserId}`)
-      return
+      logger.info(`跳過自己給自己的通知`, {
+        memeId,
+        authorId: meme.author_id._id,
+        likerId: likerUserId,
+        event: 'like_notification_self_like',
+      })
+      return { success: true, skipped: true, reason: 'self_like' }
+    }
+
+    // 檢查用戶的通知設定
+    const hasPermission = await checkNotificationPermission(
+      meme.author_id._id,
+      NOTIFICATION_TYPES.NEW_LIKE,
+    )
+
+    if (!hasPermission) {
+      logger.info(`用戶已關閉按讚通知`, {
+        memeId,
+        recipientId: meme.author_id._id,
+        event: 'like_notification_disabled',
+      })
+      return { success: true, skipped: true, reason: 'notification_disabled' }
     }
 
     // 使用互動通知來實現去重
-    return await createInteractionNotification({
+    const result = await createInteractionNotification({
       actorId: likerUserId,
       verb: VERB_MAPPING[NOTIFICATION_TYPES.NEW_LIKE],
       objectType: 'meme',
@@ -517,14 +555,34 @@ export const createNewLikeNotification = async (memeId, likerUserId) => {
       payload: {
         meme_id: memeId,
         liker_user_id: likerUserId,
+        meme_title: meme.title,
       },
       options: {
         notificationType: NOTIFICATION_TYPES.NEW_LIKE,
       },
     })
+
+    logger.info(`按讚通知建立成功`, {
+      memeId,
+      likerUserId,
+      recipientId: meme.author_id._id,
+      notificationId: result?.notification?._id,
+      isDuplicate: result?.isDuplicate,
+      event: 'like_notification_success',
+    })
+
+    return { success: true, result }
   } catch (error) {
-    console.error('建立新讚通知失敗:', error)
-    // 不拋出錯誤，避免影響按讚功能
+    logger.error(`建立新讚通知失敗`, {
+      error: error.message,
+      stack: error.stack,
+      memeId,
+      likerUserId,
+      event: 'like_notification_error',
+    })
+
+    // 不拋出錯誤，避免影響按讚功能，但返回錯誤資訊
+    return { success: false, error: error.message }
   }
 }
 

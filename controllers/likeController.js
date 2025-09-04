@@ -41,18 +41,52 @@ export const createLike = async (req, res) => {
 
     // 創建按讚通知（在事務外執行）
     createNewLikeNotification(meme_id, req.user._id)
-      .then(() => {
-        logger.info(
-          {
-            event: 'like_notification_created',
-            memeId: meme_id,
-            userId: req.user._id,
-          },
-          '按讚通知創建完成',
-        )
+      .then((notificationResult) => {
+        if (notificationResult?.success) {
+          if (notificationResult.skipped) {
+            logger.info(
+              {
+                event: 'like_notification_skipped',
+                memeId: meme_id,
+                userId: req.user._id,
+                reason: notificationResult.reason,
+              },
+              '按讚通知被跳過',
+            )
+          } else {
+            logger.info(
+              {
+                event: 'like_notification_created',
+                memeId: meme_id,
+                userId: req.user._id,
+                notificationId: notificationResult.result?.notification?._id,
+              },
+              '按讚通知創建完成',
+            )
+          }
+        } else {
+          logger.warn(
+            {
+              event: 'like_notification_failed',
+              memeId: meme_id,
+              userId: req.user._id,
+              error: notificationResult?.error,
+            },
+            '按讚通知創建失敗',
+          )
+        }
       })
       .catch((error) => {
-        logger.error({ error, memeId: meme_id, userId: req.user._id }, '發送按讚通知失敗')
+        logger.error(
+          {
+            error: error.message,
+            stack: error.stack,
+            memeId: meme_id,
+            userId: req.user._id,
+            event: 'like_notification_error',
+          },
+          '發送按讚通知時發生未預期的錯誤',
+        )
         // 不影響按讚操作的成功回應
       })
 
@@ -144,18 +178,52 @@ export const toggleLike = async (req, res) => {
     // 如果是新增讚，創建通知（在事務外執行）
     if (result.action === 'added') {
       createNewLikeNotification(meme_id, user_id)
-        .then(() => {
-          logger.info(
-            {
-              event: 'toggle_like_notification_created',
-              memeId: meme_id,
-              userId: user_id,
-            },
-            '切換按讚通知創建完成',
-          )
+        .then((notificationResult) => {
+          if (notificationResult?.success) {
+            if (notificationResult.skipped) {
+              logger.info(
+                {
+                  event: 'toggle_like_notification_skipped',
+                  memeId: meme_id,
+                  userId: user_id,
+                  reason: notificationResult.reason,
+                },
+                '切換按讚通知被跳過',
+              )
+            } else {
+              logger.info(
+                {
+                  event: 'toggle_like_notification_created',
+                  memeId: meme_id,
+                  userId: user_id,
+                  notificationId: notificationResult.result?.notification?._id,
+                },
+                '切換按讚通知創建完成',
+              )
+            }
+          } else {
+            logger.warn(
+              {
+                event: 'toggle_like_notification_failed',
+                memeId: meme_id,
+                userId: user_id,
+                error: notificationResult?.error,
+              },
+              '切換按讚通知創建失敗',
+            )
+          }
         })
         .catch((error) => {
-          logger.error({ error, memeId: meme_id, userId: user_id }, '發送切換按讚通知失敗')
+          logger.error(
+            {
+              error: error.message,
+              stack: error.stack,
+              memeId: meme_id,
+              userId: user_id,
+              event: 'toggle_like_notification_error',
+            },
+            '發送切換按讚通知時發生未預期的錯誤',
+          )
           // 不影響按讚操作的成功回應
         })
     }

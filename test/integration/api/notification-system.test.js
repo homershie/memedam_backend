@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
 import request from 'supertest'
 import mongoose from 'mongoose'
+import jwt from 'jsonwebtoken'
 import app from '../../../../index.js'
 import User from '../../../../models/User.js'
+import Meme from '../../../../models/Meme.js'
 import Notification from '../../../../models/Notification.js'
 import NotificationReceipt from '../../../../models/NotificationReceipt.js'
-import { generateToken } from '../../../../utils/authUtils.js'
 
 describe('通知系統 API', () => {
   let testUser, testUser2, userToken, adminToken
@@ -134,6 +135,82 @@ describe('通知系統 API', () => {
       expect(response.body.data.length).toBe(1)
       expect(response.body.data[0].verb).toBe('like')
       expect(response.body.pagination.total).toBe(1)
+    })
+  })
+
+  describe('按讚通知測試', () => {
+    it('應該在按讚時建立通知', async () => {
+      // 建立測試用戶和迷因
+      const likerUser = await User.create({
+        username: 'liker_user',
+        email: 'liker@example.com',
+        password: 'password123',
+        displayName: 'liker user',
+        notificationSettings: {
+          newLike: true,
+          newComment: true,
+          newFollower: true,
+        },
+      })
+
+      const authorUser = await User.create({
+        username: 'author_user',
+        email: 'author@example.com',
+        password: 'password123',
+        displayName: 'author user',
+        notificationSettings: {
+          newLike: true,
+          newComment: true,
+          newFollower: true,
+        },
+      })
+
+      const testMeme = await Meme.create({
+        title: '測試迷因',
+        author_id: authorUser._id,
+        tags: ['test'],
+        image_url: 'https://example.com/test.jpg',
+      })
+
+      const likerToken = jwt.sign({ _id: likerUser._id }, process.env.JWT_SECRET || 'test_secret')
+
+      // 模擬按讚操作
+      const response = await request(app)
+        .post('/api/likes/toggle')
+        .set('Authorization', `Bearer ${likerToken}`)
+        .send({ meme_id: testMeme._id })
+        .expect(200)
+
+      // 檢查響應
+      expect(response.body.success).toBe(true)
+      expect(response.body.action).toBe('added')
+
+      // 等待通知建立（因為是異步的）
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      // 檢查通知是否建立
+      const notifications = await Notification.find({
+        verb: 'like',
+        object_type: 'meme',
+        object_id: testMeme._id,
+      })
+
+      expect(notifications.length).toBeGreaterThan(0)
+
+      // 檢查收件項是否建立
+      const receipts = await NotificationReceipt.find({
+        notification_id: notifications[0]._id,
+        user_id: authorUser._id,
+      })
+
+      expect(receipts.length).toBe(1)
+
+      // 清理測試資料
+      await User.findByIdAndDelete(likerUser._id)
+      await User.findByIdAndDelete(authorUser._id)
+      await Meme.findByIdAndDelete(testMeme._id)
+      await Notification.findByIdAndDelete(notifications[0]._id)
+      await NotificationReceipt.findByIdAndDelete(receipts[0]._id)
     })
   })
 
