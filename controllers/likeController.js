@@ -4,7 +4,7 @@ import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { executeTransaction } from '../utils/transaction.js'
-import { createNewLikeNotification } from '../services/notificationService.js'
+import notificationQueue from '../services/notificationQueue.js'
 import { logger } from '../utils/logger.js'
 
 // 建立讚
@@ -39,56 +39,31 @@ export const createLike = async (req, res) => {
       return like
     })
 
-    // 創建按讚通知（在事務外執行）
-    createNewLikeNotification(meme_id, req.user._id)
-      .then((notificationResult) => {
-        if (notificationResult?.success) {
-          if (notificationResult.skipped) {
-            logger.info(
-              {
-                event: 'like_notification_skipped',
-                memeId: meme_id,
-                userId: req.user._id,
-                reason: notificationResult.reason,
-              },
-              '按讚通知被跳過',
-            )
-          } else {
-            logger.info(
-              {
-                event: 'like_notification_created',
-                memeId: meme_id,
-                userId: req.user._id,
-                notificationId: notificationResult.result?.notification?._id,
-              },
-              '按讚通知創建完成',
-            )
-          }
-        } else {
-          logger.warn(
-            {
-              event: 'like_notification_failed',
-              memeId: meme_id,
-              userId: req.user._id,
-              error: notificationResult?.error,
-            },
-            '按讚通知創建失敗',
-          )
-        }
-      })
-      .catch((error) => {
-        logger.error(
-          {
-            error: error.message,
-            stack: error.stack,
-            memeId: meme_id,
-            userId: req.user._id,
-            event: 'like_notification_error',
-          },
-          '發送按讚通知時發生未預期的錯誤',
-        )
-        // 不影響按讚操作的成功回應
-      })
+    // 將按讚通知加入隊列（異步處理）
+    try {
+      const job = await notificationQueue.addLikeNotification(meme_id, req.user._id)
+      logger.info(
+        {
+          event: 'like_notification_queued',
+          memeId: meme_id,
+          userId: req.user._id,
+          jobId: job.id,
+        },
+        '按讚通知已加入隊列',
+      )
+    } catch (error) {
+      logger.error(
+        {
+          error: error.message,
+          stack: error.stack,
+          memeId: meme_id,
+          userId: req.user._id,
+          event: 'like_notification_queue_error',
+        },
+        '將按讚通知加入隊列時發生錯誤',
+      )
+      // 不影響按讚操作的成功回應
+    }
 
     res.status(201).json({ success: true, data: result, error: null })
   } catch (err) {

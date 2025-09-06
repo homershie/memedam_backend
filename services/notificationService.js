@@ -1037,6 +1037,272 @@ export const batchNotify = async (userIds, notificationData) => {
   }
 }
 
+/**
+ * 批量建立通知事件（優化版本，使用 MongoDB bulkWrite）
+ * @param {Object} eventData - 通知事件資料
+ * @param {string[]} userIds - 收件者ID陣列
+ * @param {Object} options - 選項
+ * @param {boolean} options.checkPermission - 是否檢查權限（預設true）
+ * @param {string} options.notificationType - 通知類型（用於權限檢查）
+ * @returns {Promise<Object>} 建立結果
+ */
+export const createBulkNotificationEvent = async (eventData, userIds, options = {}) => {
+  const { checkPermission = true, notificationType } = options
+
+  logger.info(`開始批量建立通知事件`, {
+    userCount: userIds.length,
+    notificationType,
+    event: 'bulk_notification_start',
+  })
+
+  // 如果指定了通知類型且需要檢查權限，則過濾用戶
+  let filteredUserIds = userIds
+  if (checkPermission && notificationType) {
+    const permissionPromises = userIds.map(async (userId) => {
+      const hasPermission = await checkNotificationPermission(userId, notificationType)
+      return hasPermission ? userId : null
+    })
+
+    const results = await Promise.all(permissionPromises)
+    filteredUserIds = results.filter((id) => id !== null)
+
+    const skippedCount = userIds.length - filteredUserIds.length
+    if (skippedCount > 0) {
+      logger.info(`批量通知權限檢查完成`, {
+        originalCount: userIds.length,
+        filteredCount: filteredUserIds.length,
+        skippedCount,
+        event: 'bulk_notification_permission_filtered',
+      })
+    }
+  }
+
+  if (filteredUserIds.length === 0) {
+    return {
+      success: true,
+      notification: null,
+      receiptCount: 0,
+      skippedCount: userIds.length - filteredUserIds.length,
+    }
+  }
+
+  const session = await createSession(Notification)
+
+  return await withTransaction(session, async () => {
+    // 建立通知事件
+    const notification = new Notification(eventData)
+    await notification.save(session ? { session } : {})
+
+    // 使用 MongoDB bulkWrite 進行批量插入
+    const bulkWriteOps = filteredUserIds.map((userId) => ({
+      insertOne: {
+        document: {
+          notification_id: notification._id,
+          user_id: userId,
+          created_at: new Date(),
+        },
+      },
+    }))
+
+    // 分批處理，避免單次操作過大
+    const batchSize = 1000
+    let totalInserted = 0
+
+    for (let i = 0; i < bulkWriteOps.length; i += batchSize) {
+      const batch = bulkWriteOps.slice(i, i + batchSize)
+      const result = await NotificationReceipt.bulkWrite(batch, { session })
+      totalInserted += result.insertedCount
+
+      logger.debug(`批量插入通知收件項`, {
+        batchIndex: Math.floor(i / batchSize) + 1,
+        batchSize: batch.length,
+        insertedCount: result.insertedCount,
+        event: 'bulk_notification_batch_inserted',
+      })
+    }
+
+    logger.info(`批量通知事件建立完成`, {
+      notificationId: notification._id,
+      totalUsers: userIds.length,
+      processedUsers: filteredUserIds.length,
+      skippedUsers: userIds.length - filteredUserIds.length,
+      totalReceipts: totalInserted,
+      event: 'bulk_notification_completed',
+    })
+
+    return {
+      success: true,
+      notification,
+      receiptCount: totalInserted,
+      skippedCount: userIds.length - filteredUserIds.length,
+    }
+  })
+}
+
+/**
+ * 高效批量通知處理（針對大量用戶）
+ * @param {Object} eventData - 通知事件資料
+ * @param {Object} options - 選項
+ * @param {boolean} options.allUsers - 是否發送給所有用戶
+ * @param {string[]} options.userIds - 指定用戶ID陣列
+ * @param {Object} options.userFilter - 用戶篩選條件
+ * @param {boolean} options.checkPermission - 是否檢查權限
+ * @param {string} options.notificationType - 通知類型（用於權限檢查）
+ * @param {number} options.batchSize - 批次處理大小
+ * @returns {Promise<Object>} 建立結果
+ */
+export const createEfficientBulkNotification = async (eventData, options = {}) => {
+  const {
+    allUsers,
+    userIds,
+    userFilter = {},
+    checkPermission = true,
+    notificationType,
+    batchSize = 5000,
+  } = options
+
+  logger.info(`開始高效批量通知處理`, {
+    allUsers,
+    userCount: userIds ? userIds.length : 'all',
+    batchSize,
+    notificationType,
+    event: 'efficient_bulk_notification_start',
+  })
+
+  const session = await createSession(Notification)
+
+  return await withTransaction(session, async () => {
+    // 建立通知事件
+    const notification = new Notification(eventData)
+    await notification.save(session ? { session } : {})
+
+    let totalProcessed = 0
+    let totalSkipped = 0
+
+    if (allUsers) {
+      // 處理所有用戶，使用分頁查詢避免記憶體問題
+      let skip = 0
+      const pageSize = batchSize
+
+      while (true) {
+        // 查詢一批用戶
+        const users = await User.find({
+          isActive: true,
+          ...userFilter,
+        })
+          .select('_id notificationSettings')
+          .skip(skip)
+          .limit(pageSize)
+          .session(session || {})
+
+        if (users.length === 0) break
+
+        // 過濾用戶權限
+        let targetUserIds = users.map((user) => user._id)
+        if (checkPermission && notificationType) {
+          const permissionPromises = users.map(async (user) => {
+            const hasPermission = await checkNotificationPermission(user._id, notificationType)
+            return hasPermission ? user._id : null
+          })
+
+          const results = await Promise.all(permissionPromises)
+          targetUserIds = results.filter((id) => id !== null)
+        }
+
+        // 批量建立收件項
+        if (targetUserIds.length > 0) {
+          const bulkWriteOps = targetUserIds.map((userId) => ({
+            insertOne: {
+              document: {
+                notification_id: notification._id,
+                user_id: userId,
+                created_at: new Date(),
+              },
+            },
+          }))
+
+          const result = await NotificationReceipt.bulkWrite(bulkWriteOps, { session })
+          totalProcessed += result.insertedCount
+        }
+
+        totalSkipped += users.length - targetUserIds.length
+
+        logger.debug(`處理批量通知分頁`, {
+          skip,
+          pageSize,
+          usersFound: users.length,
+          usersProcessed: targetUserIds.length,
+          usersSkipped: users.length - targetUserIds.length,
+          totalProcessed,
+          event: 'efficient_bulk_notification_page_processed',
+        })
+
+        skip += pageSize
+      }
+    } else if (userIds && userIds.length > 0) {
+      // 處理指定用戶列表
+      for (let i = 0; i < userIds.length; i += batchSize) {
+        const batch = userIds.slice(i, i + batchSize)
+
+        // 過濾用戶權限
+        let targetUserIds = batch
+        if (checkPermission && notificationType) {
+          const permissionPromises = batch.map(async (userId) => {
+            const hasPermission = await checkNotificationPermission(userId, notificationType)
+            return hasPermission ? userId : null
+          })
+
+          const results = await Promise.all(permissionPromises)
+          targetUserIds = results.filter((id) => id !== null)
+        }
+
+        // 批量建立收件項
+        if (targetUserIds.length > 0) {
+          const bulkWriteOps = targetUserIds.map((userId) => ({
+            insertOne: {
+              document: {
+                notification_id: notification._id,
+                user_id: userId,
+                created_at: new Date(),
+              },
+            },
+          }))
+
+          const result = await NotificationReceipt.bulkWrite(bulkWriteOps, { session })
+          totalProcessed += result.insertedCount
+        }
+
+        totalSkipped += batch.length - targetUserIds.length
+
+        logger.debug(`處理指定用戶批量通知分頁`, {
+          batchIndex: Math.floor(i / batchSize) + 1,
+          batchSize: batch.length,
+          processed: targetUserIds.length,
+          skipped: batch.length - targetUserIds.length,
+          totalProcessed,
+          event: 'efficient_bulk_notification_batch_processed',
+        })
+      }
+    } else {
+      throw new Error('必須提供條件：allUsers 或 userIds')
+    }
+
+    logger.info(`高效批量通知處理完成`, {
+      notificationId: notification._id,
+      totalProcessed,
+      totalSkipped,
+      event: 'efficient_bulk_notification_completed',
+    })
+
+    return {
+      success: true,
+      notification,
+      receiptCount: totalProcessed,
+      skippedCount: totalSkipped,
+    }
+  })
+}
+
 // ========== 相容性功能 ==========
 
 /**

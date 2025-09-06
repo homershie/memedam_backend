@@ -55,7 +55,9 @@ checkTestEnvironment()
 // 測試環境旗標，阻止應用自動啟動與重度背景任務
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 process.env.SKIP_SERVER = process.env.SKIP_SERVER || 'true'
-process.env.REDIS_ENABLED = 'false'
+process.env.REDIS_ENABLED = 'true'
+process.env.REDIS_URL = 'redis://localhost:6379'
+process.env.REDIS_DB = '1'
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-session-secret'
 process.env.SKIP_REDIS = 'true'
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-key-for-testing-only'

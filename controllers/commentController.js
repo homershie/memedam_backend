@@ -3,10 +3,8 @@ import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
-import {
-  createNewCommentNotification,
-  notifyMentionedUsers,
-} from '../services/notificationService.js'
+import notificationQueue from '../services/notificationQueue.js'
+import { logger } from '../utils/logger.js'
 
 // 從內容中提取被提及的用戶名
 const extractMentionedUsers = (content) => {
@@ -64,15 +62,64 @@ export const createComment = async (req, res) => {
       return comment
     })
 
-    // 創建留言通知（在事務外執行）
-    createNewCommentNotification(meme_id, req.user._id, content).catch((error) => {
-      console.error('發送留言通知失敗:', error)
-    })
+    // 將留言通知加入隊列（異步處理）
+    try {
+      const commentJob = await notificationQueue.addCommentNotification(
+        meme_id,
+        req.user._id,
+        content,
+      )
+      logger.info(
+        {
+          event: 'comment_notification_queued',
+          memeId: meme_id,
+          userId: req.user._id,
+          jobId: commentJob.id,
+        },
+        '留言通知已加入隊列',
+      )
+    } catch (error) {
+      logger.error(
+        {
+          error: error.message,
+          stack: error.stack,
+          memeId: meme_id,
+          userId: req.user._id,
+          event: 'comment_notification_queue_error',
+        },
+        '將留言通知加入隊列時發生錯誤',
+      )
+    }
 
-    // 檢查並創建提及通知（在事務外執行）
-    notifyMentionedUsers(content, req.user._id, meme_id, 'comment').catch((error) => {
-      console.error('發送提及通知失敗:', error)
-    })
+    // 將提及通知加入隊列（異步處理）
+    try {
+      const mentionJob = await notificationQueue.addMentionNotification(
+        content,
+        req.user._id,
+        meme_id,
+        'comment',
+      )
+      logger.info(
+        {
+          event: 'mention_notification_queued',
+          memeId: meme_id,
+          userId: req.user._id,
+          jobId: mentionJob.id,
+        },
+        '提及通知已加入隊列',
+      )
+    } catch (error) {
+      logger.error(
+        {
+          error: error.message,
+          stack: error.stack,
+          memeId: meme_id,
+          userId: req.user._id,
+          event: 'mention_notification_queue_error',
+        },
+        '將提及通知加入隊列時發生錯誤',
+      )
+    }
 
     res.status(201).json({ success: true, data: result, error: null })
   } catch (err) {

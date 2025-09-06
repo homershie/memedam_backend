@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 import Follow from '../models/Follow.js'
 import User from '../models/User.js'
 import { executeTransaction } from '../utils/transaction.js'
-import { createNewFollowerNotification } from '../services/notificationService.js'
+import notificationQueue from '../services/notificationQueue.js'
 import { logger } from '../utils/logger.js'
 
 // 追隨用戶
@@ -87,10 +87,30 @@ export const followUser = async (req, res) => {
       return { action: 'followed' }
     })
 
-    // 創建新追蹤者通知（在事務外執行，避免阻塞主要流程）
-    createNewFollowerNotification(followingId, follower_id).catch((error) => {
-      logger.error({ error, followedId: followingId, followerId: follower_id }, '發送追蹤通知失敗')
-    })
+    // 將追蹤通知加入隊列（異步處理）
+    try {
+      const job = await notificationQueue.addFollowNotification(followingId, follower_id)
+      logger.info(
+        {
+          event: 'follow_notification_queued',
+          followedId: followingId,
+          followerId: follower_id,
+          jobId: job.id,
+        },
+        '追蹤通知已加入隊列',
+      )
+    } catch (error) {
+      logger.error(
+        {
+          error: error.message,
+          stack: error.stack,
+          followedId: followingId,
+          followerId: follower_id,
+          event: 'follow_notification_queue_error',
+        },
+        '將追蹤通知加入隊列時發生錯誤',
+      )
+    }
 
     res.status(StatusCodes.CREATED).json({
       success: true,
@@ -268,11 +288,31 @@ export const toggleFollow = async (req, res) => {
       }
     })
 
-    // 如果是新追隨，創建通知（在事務外執行）
+    // 如果是新追隨，將通知加入隊列（異步處理）
     if (result.action === 'followed') {
-      createNewFollowerNotification(followingId, follower_id).catch((error) => {
-        console.error('發送追蹤通知失敗:', error)
-      })
+      try {
+        const job = await notificationQueue.addFollowNotification(followingId, follower_id)
+        logger.info(
+          {
+            event: 'follow_notification_queued',
+            followedId: followingId,
+            followerId: follower_id,
+            jobId: job.id,
+          },
+          '追蹤通知已加入隊列',
+        )
+      } catch (error) {
+        logger.error(
+          {
+            error: error.message,
+            stack: error.stack,
+            followedId: followingId,
+            followerId: follower_id,
+            event: 'follow_notification_queue_error',
+          },
+          '將追蹤通知加入隊列時發生錯誤',
+        )
+      }
     }
 
     res.json({
