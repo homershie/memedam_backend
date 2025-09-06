@@ -4,6 +4,8 @@ import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
+import { logger } from '../utils/logger.js'
+import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
 
 export const validateCreateCollection = [
   body('name').isLength({ min: 1, max: 100 }).withMessage('收藏名稱必填，且長度需在 1~100 字'),
@@ -108,6 +110,15 @@ export const toggleCollection = async (req, res) => {
         return { action: 'added' }
       }
     })
+
+    // 清理推薦快取以確保統計數據同步
+    try {
+      // 添加小延遲確保數據庫事務完全提交
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      await clearMixedRecommendationCache(user_id)
+    } catch (cacheError) {
+      logger.warn('清理推薦快取失敗，但不影響收藏操作:', cacheError.message)
+    }
 
     return res.json({ success: true, ...result })
   } catch (error) {

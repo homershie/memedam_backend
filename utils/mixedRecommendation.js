@@ -254,6 +254,9 @@ export const getHotRecommendations = async (options = {}) => {
       let memes = await Meme.find(filter)
         .sort({ hot_score: -1 })
         .limit(queryLimit)
+        .select(
+          'title type content image_url cover_image video_url audio_url author_id createdAt hot_score like_count dislike_count comment_count views',
+        )
         .populate('author_id', 'username display_name avatar')
         .lean() // 使用 lean() 提升效能
 
@@ -277,6 +280,9 @@ export const getHotRecommendations = async (options = {}) => {
         const extendedMemes = await Meme.find(extendedFilter)
           .sort({ hot_score: -1 })
           .limit(queryLimit)
+          .select(
+            'title type content image_url cover_image video_url audio_url author_id createdAt hot_score like_count dislike_count comment_count views',
+          )
           .populate('author_id', 'username display_name avatar')
           .lean()
 
@@ -355,6 +361,9 @@ export const getLatestRecommendations = async (options = {}) => {
       let memes = await Meme.find(filter)
         .sort({ createdAt: -1 })
         .limit(queryLimit)
+        .select(
+          'title type content image_url cover_image video_url audio_url author_id createdAt hot_score like_count dislike_count comment_count views',
+        )
         .populate('author_id', 'username display_name avatar')
         .lean()
 
@@ -378,6 +387,9 @@ export const getLatestRecommendations = async (options = {}) => {
         const extendedMemes = await Meme.find(extendedFilter)
           .sort({ createdAt: -1 })
           .limit(queryLimit)
+          .select(
+            'title type content image_url cover_image video_url audio_url author_id createdAt hot_score like_count dislike_count comment_count views',
+          )
           .populate('author_id', 'username display_name avatar')
           .lean()
 
@@ -464,6 +476,9 @@ export const getUpdatedRecommendations = async (options = {}) => {
       let memes = await Meme.find(filter)
         .sort({ modified_at: -1 }) // 按修改時間排序
         .limit(queryLimit)
+        .select(
+          'title type content image_url cover_image video_url audio_url author_id createdAt modified_at hot_score like_count dislike_count comment_count views',
+        )
         .populate('author_id', 'username display_name avatar')
         .lean()
 
@@ -487,6 +502,9 @@ export const getUpdatedRecommendations = async (options = {}) => {
         const extendedMemes = await Meme.find(extendedFilter)
           .sort({ modified_at: -1 })
           .limit(queryLimit)
+          .select(
+            'title type content image_url cover_image video_url audio_url author_id createdAt modified_at hot_score like_count dislike_count comment_count views',
+          )
           .populate('author_id', 'username display_name avatar')
           .lean()
 
@@ -1345,15 +1363,31 @@ export const clearUserCache = async (userId) => {
 export const clearMixedRecommendationCache = async (userId = null) => {
   try {
     const patterns = [
-      `mixed_recommendations:${userId || 'anonymous'}:*`,
+      `mixed_recommendations:*`, // 清理所有混合推薦快取
       `hot_recommendations:*`,
       `latest_recommendations:*`,
       `updated_recommendations:*`,
+      `social_scores:*`, // 清理社交分數快取
+      `user_activity:*`, // 清理所有用戶活躍度快取
+      `cold_start:*`, // 清理所有冷啟動快取
+      `content_based:*`, // 清理內容基礎推薦快取
+      `collaborative_filtering:*`, // 清理協同過濾推薦快取
+      `recommendation_stats:*`, // 清理推薦統計快取
+      `recommendation_strategy:*`, // 清理推薦策略快取
     ]
 
-    await Promise.all(patterns.map((pattern) => redisCache.delPattern(pattern)))
+    const results = await Promise.all(
+      patterns.map(async (pattern) => {
+        try {
+          const count = await redisCache.delPattern(pattern)
+          return { pattern, count }
+        } catch (error) {
+          return { pattern, error: error.message }
+        }
+      }),
+    )
 
-    logger.info(`已清除混合推薦快取 ${userId ? `(用戶: ${userId})` : '(匿名用戶)'}`)
+    logger.info(`已清除混合推薦快取 ${userId ? `(用戶: ${userId})` : '(匿名用戶)'}`, { results })
   } catch (error) {
     logger.error('清除混合推薦快取失敗:', error)
   }

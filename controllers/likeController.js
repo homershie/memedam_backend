@@ -7,6 +7,7 @@ import { executeTransaction } from '../utils/transaction.js'
 import notificationQueue from '../services/notificationQueue.js'
 import { logger } from '../utils/logger.js'
 import { createNewLikeNotification } from '../services/notificationService.js'
+import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
 
 // 建立讚
 export const createLike = async (req, res) => {
@@ -202,6 +203,31 @@ export const toggleLike = async (req, res) => {
           )
           // 不影響按讚操作的成功回應
         })
+    }
+
+    // 清理推薦快取以確保統計數據同步
+    try {
+      // 添加小延遲確保數據庫事務完全提交
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      await clearMixedRecommendationCache(user_id)
+      logger.info(
+        {
+          event: 'toggle_like_cache_cleared',
+          memeId: meme_id,
+          userId: user_id,
+        },
+        '按讚操作後已清理推薦快取',
+      )
+    } catch (cacheError) {
+      logger.warn(
+        {
+          event: 'toggle_like_cache_clear_failed',
+          memeId: meme_id,
+          userId: user_id,
+          error: cacheError.message,
+        },
+        '清理推薦快取失敗，但不影響按讚操作',
+      )
     }
 
     return res.json({ success: true, ...result })
