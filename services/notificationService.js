@@ -342,12 +342,35 @@ export const createInteractionNotification = async (interactionData) => {
   } = interactionData
 
   // 檢查是否已有相關的互動通知（24小時內）
+  const now = new Date()
+  const twentyFourHoursAgo = new Date(now)
+  twentyFourHoursAgo.setHours(now.getHours() - 24)
+
+  console.log('🔍 調試日期查詢:', {
+    now: now.toISOString(),
+    twentyFourHoursAgo: twentyFourHoursAgo.toISOString(),
+    twentyFourHoursAgoType: typeof twentyFourHoursAgo,
+    query: {
+      actor_id: actorId,
+      verb,
+      object_type: objectType,
+      object_id: objectId,
+      createdAt: mongoose.trusted({ $gte: twentyFourHoursAgo }),
+    },
+  })
+
+  // 檢查日期對象是否正確
+  if (!(twentyFourHoursAgo instanceof Date) || isNaN(twentyFourHoursAgo)) {
+    console.error('❌ 日期對象無效:', twentyFourHoursAgo)
+    throw new Error('日期對象創建失敗')
+  }
+
   const existingNotification = await Notification.findOne({
     actor_id: actorId,
     verb,
     object_type: objectType,
     object_id: objectId,
-    createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    createdAt: mongoose.trusted({ $gte: twentyFourHoursAgo }),
   })
 
   if (existingNotification) {
@@ -359,6 +382,14 @@ export const createInteractionNotification = async (interactionData) => {
     })
 
     if (existingReceipt) {
+      logger.debug(`發現重複通知，跳過創建`, {
+        actorId,
+        verb,
+        objectType,
+        objectId,
+        recipientId,
+        existingNotificationId: existingNotification._id,
+      })
       return {
         success: true,
         notification: existingNotification,
@@ -369,6 +400,15 @@ export const createInteractionNotification = async (interactionData) => {
 
     // 為現有通知添加收件項
     const result = await addReceiptsToNotification(existingNotification._id, [recipientId])
+    logger.debug(`為現有通知添加收件項`, {
+      actorId,
+      verb,
+      objectType,
+      objectId,
+      recipientId,
+      existingNotificationId: existingNotification._id,
+      addedCount: result.addedCount,
+    })
     return {
       success: true,
       notification: existingNotification,
@@ -390,15 +430,34 @@ export const createInteractionNotification = async (interactionData) => {
   if (verb === 'follow') {
     eventData.title = '新追蹤者'
     eventData.content = '開始追蹤您'
+    eventData.url = `${getFrontendUrl()}/users/${payload.followed_username || recipientId}`
   } else if (verb === 'like') {
     eventData.title = '新讚'
     eventData.content = '喜歡了您的迷因'
+    // 獲取meme的slug用於生成正確的連結
+    if (objectType === 'meme' && objectId) {
+      const meme = await Meme.findById(objectId, 'slug title')
+      const memeSlug = meme?.slug || objectId
+      eventData.url = `${getFrontendUrl()}/memes/detail/${memeSlug}`
+    }
   } else if (verb === 'comment') {
     eventData.title = '新評論'
     eventData.content = '評論了您的迷因'
+    // 獲取meme的slug用於生成正確的連結
+    if (objectType === 'meme' && objectId) {
+      const meme = await Meme.findById(objectId, 'slug title')
+      const memeSlug = meme?.slug || objectId
+      eventData.url = `${getFrontendUrl()}/memes/detail/${memeSlug}`
+    }
   } else if (verb === 'mention') {
     eventData.title = '提及'
     eventData.content = '在內容中提及了您'
+    // 獲取meme的slug用於生成正確的連結
+    if (objectType === 'meme' && objectId) {
+      const meme = await Meme.findById(objectId, 'slug title')
+      const memeSlug = meme?.slug || objectId
+      eventData.url = `${getFrontendUrl()}/memes/detail/${memeSlug}`
+    }
   }
 
   return await createNotificationEvent(eventData, [recipientId], options)
@@ -445,19 +504,32 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
       'author_id',
       'username display_name',
     )
-    if (!meme || !meme.author_id) return
+    if (!meme || !meme.author_id) {
+      console.log('找不到迷因或作者:', memeId)
+      return null
+    }
 
     // 不給自己發送通知
-    if (meme.author_id._id.toString() === commentUserId.toString()) return
+    if (meme.author_id._id.toString() === commentUserId.toString()) {
+      console.log('跳過自己評論自己的迷因')
+      return null
+    }
 
     // 獲取評論者資訊
     const commenter = await User.findById(commentUserId, 'username display_name')
-    if (!commenter) return
+    if (!commenter) {
+      console.log('找不到評論者:', commentUserId)
+      return null
+    }
 
     const commenterName = commenter.display_name || commenter.username
     const truncatedContent =
       commentContent.length > 50 ? commentContent.substring(0, 50) + '...' : commentContent
     const frontendUrl = getFrontendUrl()
+
+    // 獲取meme的slug用於生成正確的連結
+    const memeForUrl = await Meme.findById(memeId, 'slug title')
+    const memeSlug = memeForUrl?.slug || memeId
 
     const eventData = {
       actor_id: commentUserId,
@@ -466,7 +538,7 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
       object_id: memeId,
       title: '新評論',
       content: `${commenterName} 對您的迷因評論：「${truncatedContent}」`,
-      url: `${frontendUrl}/meme/details/${memeId}`,
+      url: `${frontendUrl}/memes/detail/${memeSlug}`,
       payload: {
         meme_id: memeId,
         comment_user_id: commentUserId,
@@ -475,11 +547,14 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
       },
     }
 
-    return await createNotificationEvent(eventData, [meme.author_id._id], {
+    const result = await createNotificationEvent(eventData, [meme.author_id._id], {
       notificationType: NOTIFICATION_TYPES.NEW_COMMENT,
     })
+
+    return result
   } catch (error) {
     console.error('建立新評論通知失敗:', error)
+    return null
   }
 }
 
@@ -490,6 +565,7 @@ export const createNewCommentNotification = async (memeId, commentUserId, commen
  */
 export const createNewLikeNotification = async (memeId, likerUserId) => {
   try {
+    console.log('🚀 開始執行 createNewLikeNotification 函數 - 修復版本 2025-09-06')
     logger.info(`準備建立按讚通知`, {
       memeId,
       likerUserId,
@@ -613,6 +689,13 @@ export const createMentionNotifications = async (
     const mentionerName = mentioner.display_name || mentioner.username
     const frontendUrl = getFrontendUrl()
 
+    // 如果有memeId，先獲取meme資訊
+    let memeSlug = null
+    if (memeId) {
+      const meme = await Meme.findById(memeId, 'slug title')
+      memeSlug = meme?.slug || memeId // 如果沒有slug，使用ID作為fallback
+    }
+
     // 處理每個被提及的用戶
     for (const mention of mentions) {
       const username = mention.substring(1) // 移除 @ 符號
@@ -624,8 +707,16 @@ export const createMentionNotifications = async (
       // 不給自己發送通知
       if (mentionedUser._id.toString() === mentionerUserId.toString()) continue
 
+      // 檢查通知權限
+      const hasPermission = await checkNotificationPermission(
+        mentionedUser._id,
+        NOTIFICATION_TYPES.NEW_MENTION,
+      )
+
+      if (!hasPermission) continue
+
       let notificationContent = `${mentionerName} 在${contextType === 'comment' ? '評論' : '內容'}中提及了您`
-      let url = memeId ? `${frontendUrl}/meme/details/${memeId}` : `${frontendUrl}/`
+      let url = memeSlug ? `${frontendUrl}/memes/detail/${memeSlug}` : `${frontendUrl}/`
 
       const eventData = {
         actor_id: mentionerUserId,
@@ -647,8 +738,11 @@ export const createMentionNotifications = async (
         notificationType: NOTIFICATION_TYPES.NEW_MENTION,
       })
     }
+
+    return { success: true }
   } catch (error) {
     console.error('建立提及通知失敗:', error)
+    return { success: false, error: error.message }
   }
 }
 
@@ -749,7 +843,11 @@ export const createWeeklySummaryNotification = async (userId, weeklyStats) => {
       content: content,
       url: `${getFrontendUrl()}/profile`,
       payload: {
-        week_start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        week_start: (() => {
+          const weekStart = new Date()
+          weekStart.setDate(weekStart.getDate() - 7)
+          return weekStart
+        })(),
         week_end: new Date(),
         stats: weeklyStats,
       },
@@ -1347,7 +1445,8 @@ export const markNotificationsAsRead = async (userId, notificationIds = null) =>
  */
 export const cleanupOldNotifications = async (daysOld = 30) => {
   try {
-    const cutoffDate = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000)
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld)
 
     const result = await Notification.deleteMany({
       $or: [

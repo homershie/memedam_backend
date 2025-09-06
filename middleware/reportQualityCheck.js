@@ -76,7 +76,11 @@ const checkReportSuspension = async (userId) => {
       reporter_id: userId,
       'action_meta.suspended': true,
       'action_meta.suspended_at': {
-        $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        $gte: (() => {
+          const sevenDaysAgo = new Date()
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+          return sevenDaysAgo
+        })(),
       },
     })
 

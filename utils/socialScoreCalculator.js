@@ -255,10 +255,7 @@ export const buildSocialGraph = async (userIds = []) => {
     const followsMap = new Map()
     ;(followerFollows || []).forEach((follow) => {
       if (!follow || !follow.follower_id || !follow.following_id) {
-        console.warn(
-          '跳過無效的關注記錄，follower_id 或 following_id 為 null:',
-          follow?._id,
-        )
+        console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
         return
       }
       const key = `${follow.follower_id}-${follow.following_id}`
@@ -266,10 +263,7 @@ export const buildSocialGraph = async (userIds = []) => {
     })
     ;(followingFollows || []).forEach((follow) => {
       if (!follow || !follow.follower_id || !follow.following_id) {
-        console.warn(
-          '跳過無效的關注記錄，follower_id 或 following_id 為 null:',
-          follow?._id,
-        )
+        console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
         return
       }
       const key = `${follow.follower_id}-${follow.following_id}`
@@ -282,10 +276,7 @@ export const buildSocialGraph = async (userIds = []) => {
 
     for (const follow of follows) {
       if (!follow || !follow.follower_id || !follow.following_id) {
-        console.warn(
-          '跳過無效的關注記錄，follower_id 或 following_id 為 null:',
-          follow?._id,
-        )
+        console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
         continue
       }
       const followerId = follow.follower_id.toString()
@@ -468,10 +459,28 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加按讚用戶
     ;(likes || []).forEach((like) => {
-      if (!like || !like.user_id || !like.user_id._id) {
-        console.warn('跳過無效的按讚記錄，user_id 為 null 或無效:', like?._id)
+      if (!like) {
+        console.warn('跳過無效的按讚記錄，記錄本身為空')
         return
       }
+
+      // 檢查 populate 後的用戶對象是否存在
+      if (!like.user_id) {
+        console.warn(
+          '跳過無效的按讚記錄，用戶已被刪除或不存在，原始user_id:',
+          like.user_id,
+          '記錄ID:',
+          like._id,
+        )
+        return
+      }
+
+      // 檢查用戶對象是否有 _id 屬性
+      if (!like.user_id._id) {
+        console.warn('跳過無效的按讚記錄，用戶對象缺少_id，記錄ID:', like._id)
+        return
+      }
+
       const likeUserId = like.user_id._id.toString()
       if (likeUserId !== userId) {
         allInteractingUsers.set(likeUserId, {
@@ -484,8 +493,18 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加留言用戶
     ;(comments || []).forEach((comment) => {
-      if (!comment || !comment.user_id || !comment.user_id._id) {
-        console.warn('跳過無效的留言記錄，user_id 為 null 或無效:', comment?._id)
+      if (!comment) {
+        console.warn('跳過無效的留言記錄，記錄本身為空')
+        return
+      }
+
+      if (!comment.user_id) {
+        console.warn('跳過無效的留言記錄，用戶已被刪除或不存在，記錄ID:', comment._id)
+        return
+      }
+
+      if (!comment.user_id._id) {
+        console.warn('跳過無效的留言記錄，用戶對象缺少_id，記錄ID:', comment._id)
         return
       }
       const commentUserId = comment.user_id._id.toString()
@@ -500,8 +519,18 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加分享用戶
     ;(shares || []).forEach((share) => {
-      if (!share || !share.user_id || !share.user_id._id) {
-        console.warn('跳過無效的分享記錄，user_id 為 null 或無效:', share?._id)
+      if (!share) {
+        console.warn('跳過無效的分享記錄，記錄本身為空')
+        return
+      }
+
+      if (!share.user_id) {
+        console.warn('跳過無效的分享記錄，用戶已被刪除或不存在，記錄ID:', share._id)
+        return
+      }
+
+      if (!share.user_id._id) {
+        console.warn('跳過無效的分享記錄，用戶對象缺少_id，記錄ID:', share._id)
         return
       }
       const shareUserId = share.user_id._id.toString()
@@ -516,8 +545,18 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加收藏用戶
     ;(collections || []).forEach((collection) => {
-      if (!collection || !collection.user_id || !collection.user_id._id) {
-        console.warn('跳過無效的收藏記錄，user_id 為 null 或無效:', collection?._id)
+      if (!collection) {
+        console.warn('跳過無效的收藏記錄，記錄本身為空')
+        return
+      }
+
+      if (!collection.user_id) {
+        console.warn('跳過無效的收藏記錄，用戶已被刪除或不存在，記錄ID:', collection._id)
+        return
+      }
+
+      if (!collection.user_id._id) {
+        console.warn('跳過無效的收藏記錄，用戶對象缺少_id，記錄ID:', collection._id)
         return
       }
       const collectionUserId = collection.user_id._id.toString()
@@ -532,8 +571,20 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     // 添加瀏覽用戶
     ;(views || []).forEach((view) => {
-      if (!view || !view.user_id || !view.user_id._id) {
-        console.warn('跳過無效的瀏覽記錄，user_id 為 null 或無效:', view?._id)
+      if (!view) {
+        // 靜默跳過，不記錄警告
+        return
+      }
+
+      // 跳過匿名瀏覽記錄（user_id 為 null）
+      if (!view.user_id) {
+        // 靜默跳過，不記錄警告，因為這是預期的行為
+        return
+      }
+
+      // 檢查用戶是否存在
+      if (!view.user_id._id) {
+        // 靜默跳過，不記錄警告，因為用戶可能已被刪除
         return
       }
       const viewUserId = view.user_id._id.toString()

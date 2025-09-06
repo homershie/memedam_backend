@@ -176,7 +176,8 @@ export const cleanupOrphanReceipts = async () => {
  * @returns {Promise<number>} 清理數量
  */
 export const cleanupExpiredDeletedReceipts = async () => {
-  const cutoffDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - 90)
 
   const result = await NotificationReceipt.deleteMany({
     deleted_at: { $lt: cutoffDate },

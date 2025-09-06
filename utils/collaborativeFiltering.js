@@ -167,7 +167,13 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
         // 減少查詢數量，並添加時間限制
         const publicMemes = await Meme.find({
           status: 'public',
-          created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 只取最近30天的迷因
+          createdAt: {
+            $gte: (() => {
+              const thirtyDaysAgo = new Date()
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+              return thirtyDaysAgo
+            })(),
+          }, // 只取最近30天的迷因
         })
           .select('_id')
           .sort({ created_at: -1 }) // 按創建時間倒序

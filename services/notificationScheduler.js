@@ -57,7 +57,8 @@ const getHotMemes = async (hoursAgo = 24, limit = 5) => {
  */
 const getUserWeeklyStats = async (userId) => {
   try {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
 
     // 獲取新追蹤者數量
     const newFollowers = await Follow.countDocuments(
@@ -162,12 +163,15 @@ const sendHotContentNotifications = async () => {
     }
 
     // 獲取活躍用戶（可以根據需要調整篩選條件）
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
     const activeUsers = await User.find(
       {
-        $or: [
-          { last_login_at: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-          { createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
-        ],
+        $or: [{ last_login_at: { $gte: sevenDaysAgo } }, { createdAt: { $gte: thirtyDaysAgo } }],
       },
       '_id',
     ).limit(500) // 限制為500個用戶，避免過載
@@ -189,12 +193,15 @@ const sendWeeklySummaryNotifications = async () => {
     console.log('開始發送週報摘要通知...')
 
     // 獲取所有活躍用戶
+    const fourteenDaysAgo = new Date()
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
     const activeUsers = await User.find(
       {
-        $or: [
-          { last_login_at: { $gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) } },
-          { createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-        ],
+        $or: [{ last_login_at: { $gte: fourteenDaysAgo } }, { createdAt: { $gte: sevenDaysAgo } }],
       },
       '_id username',
     ).limit(1000)

@@ -159,7 +159,7 @@ class NotificationQueueService {
 
       const result = await createNewCommentNotification(memeId, commentUserId, commentContent)
 
-      if (!result || !result.success) {
+      if (!result) {
         throw new Error('建立評論通知失敗')
       }
 
