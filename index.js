@@ -52,6 +52,7 @@ import {
   startNotificationScheduler,
   stopNotificationScheduler,
 } from './services/notificationScheduler.js'
+import notificationQueue from './services/notificationQueue.js'
 import {
   startUserCleanupScheduler,
   stopUserCleanupScheduler,
@@ -604,8 +605,16 @@ const startServer = async () => {
     if (!process.env.SKIP_REDIS) {
       try {
         await redisCache.connect()
+
+        // 初始化通知隊列
+        try {
+          await notificationQueue.initialize()
+          logger.info('通知隊列初始化成功')
+        } catch (queueError) {
+          logger.warn('通知隊列初始化失敗，將繼續運行但通知隊列功能受限:', queueError.message)
+        }
       } catch (error) {
-        logger.warn('Redis 連線失敗，將繼續運行但快取功能可能受限:', error.message)
+        logger.warn('Redis 連線失敗，將繼續運行但快取和通知隊列功能可能受限:', error.message)
       }
     } else {
       logger.info('跳過 Redis 連線 (SKIP_REDIS=true)')

@@ -1,4 +1,5 @@
 import cron from 'node-cron'
+import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import Follow from '../models/Follow.js'
@@ -20,43 +21,28 @@ const getHotMemes = async (hoursAgo = 24, limit = 5) => {
     const cutoffTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000)
 
     // 獲取熱門迷因（基於讚數、留言數和觀看數的綜合熱度）
-    const hotMemes = await Meme.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: cutoffTime },
-          like_count: { $gte: 5 }, // 至少5個讚
-        },
-      },
-      {
-        $addFields: {
-          hotScore: {
-            $add: [
-              { $multiply: ['$like_count', 3] }, // 讚數權重為3
-              { $multiply: ['$comment_count', 2] }, // 留言數權重為2
-              { $multiply: ['$view_count', 1] }, // 觀看數權重為1
-            ],
-          },
-        },
-      },
-      {
-        $sort: { hotScore: -1 },
-      },
-      {
-        $limit: limit,
-      },
-      {
-        $project: {
-          _id: 1,
-          title: 1,
-          author_id: 1,
-          like_count: 1,
-          comment_count: 1,
-          view_count: 1,
-          hotScore: 1,
-          createdAt: 1,
-        },
-      },
-    ])
+    const rawMemes = await Meme.find({
+      createdAt: { $gte: cutoffTime },
+      like_count: { $gte: 5 }, // 至少5個讚
+    })
+      .select('_id title author_id like_count comment_count view_count createdAt')
+      .sort({ createdAt: -1 })
+      .limit(limit * 2) // 多取一些，用於排序
+
+    // 在JavaScript中計算hotScore，確保類型正確
+    const hotMemes = rawMemes
+      .map((meme) => {
+        const likeCount = Number(meme.like_count) || 0
+        const commentCount = Number(meme.comment_count) || 0
+        const viewCount = Number(meme.view_count) || 0
+
+        return {
+          ...meme.toObject(),
+          hotScore: likeCount * 3 + commentCount * 2 + viewCount * 1,
+        }
+      })
+      .sort((a, b) => b.hotScore - a.hotScore)
+      .slice(0, limit)
 
     return hotMemes
   } catch (error) {
@@ -337,3 +323,6 @@ export const manualTriggers = {
   sendWeeklySummaryNotifications,
   cleanupOldNotificationsTask,
 }
+
+// 導出內部函數供測試使用
+export { getHotMemes, getUserWeeklyStats }

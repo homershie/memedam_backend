@@ -14,6 +14,7 @@
     "start:test": "node scripts/start-test.js",
     "start:prod": "node scripts/start-prod.js",
     "notification-worker": "node scripts/notification-worker.js",
+    "test:scheduled-notifications": "node scripts/test-scheduled-notifications.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest",

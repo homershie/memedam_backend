@@ -19,14 +19,15 @@ async function startNotificationWorker() {
 
     // 連接到資料庫
     await connectDB()
-    logger.info('資料庫連接成功')
+    logger.info('✅ 資料庫連接成功')
 
     // 初始化通知隊列
     await notificationQueue.initialize()
-    logger.info('通知隊列初始化成功')
+    logger.info('✅ 通知隊列初始化成功')
 
     // 啟動處理程序
-    logger.info('通知工作者已啟動並開始處理隊列')
+    logger.info('🚀 通知工作者已啟動並開始處理隊列')
+    logger.info('📊 每分鐘會記錄隊列統計資訊')
 
     // 定期記錄統計資訊
     setInterval(async () => {

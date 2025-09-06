@@ -679,7 +679,10 @@ export const createHotContentNotifications = async (hotMemes, targetUserIds = nu
       object_id: hotMemes[0]?._id || new mongoose.Types.ObjectId(),
       title: '熱門內容推薦',
       content: `發現新的熱門內容：${memeTitle}`,
-      url: hotMemes.length === 1 ? `/meme/${hotMemes[0]._id}` : '/hot',
+      url:
+        hotMemes.length === 1
+          ? `${getFrontendUrl()}/meme/${hotMemes[0]._id}`
+          : `${getFrontendUrl()}/hot`,
       payload: {
         hot_memes: hotMemes.map((meme) => ({
           id: meme._id,
@@ -695,12 +698,22 @@ export const createHotContentNotifications = async (hotMemes, targetUserIds = nu
     }
 
     if (targetUserIds) {
-      return await createNotificationEvent(eventData, targetUserIds, options)
+      const result = await createNotificationEvent(eventData, targetUserIds, options)
+      return {
+        sent: result.receiptCount,
+        success: result.success,
+        notification: result.notification,
+      }
     } else {
-      return await createBulkNotification(eventData, {
+      const result = await createBulkNotification(eventData, {
         allUsers: true,
         ...options,
       })
+      return {
+        sent: result.receiptCount || 0,
+        success: result.success,
+        notification: result.notification,
+      }
     }
   } catch (error) {
     console.error('建立熱門內容通知失敗:', error)
