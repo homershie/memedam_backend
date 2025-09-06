@@ -110,7 +110,17 @@ export const toggleCollection = async (req, res) => {
     })
 
     return res.json({ success: true, ...result })
-  } catch {
+  } catch (error) {
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        memeId: req.body.meme_id,
+        userId: req.user?._id,
+        event: 'toggle_collection_error',
+      },
+      '切換收藏時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }

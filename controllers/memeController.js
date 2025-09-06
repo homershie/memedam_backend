@@ -1194,7 +1194,16 @@ export const addEditor = async (req, res) => {
     meme.editors.push(userId)
     await meme.save()
     res.json({ success: true, editors: meme.editors })
-  } catch {
+  } catch (error) {
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        memeId: req.params.id,
+        event: 'add_editor_error',
+      },
+      '添加協作者時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }
@@ -1220,7 +1229,16 @@ export const removeEditor = async (req, res) => {
     meme.editors = meme.editors.filter((id) => id.toString() !== userId)
     await meme.save()
     res.json({ success: true, editors: meme.editors })
-  } catch {
+  } catch (error) {
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        memeId: req.params.id,
+        event: 'remove_editor_error',
+      },
+      '移除協作者時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }

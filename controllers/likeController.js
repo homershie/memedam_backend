@@ -6,6 +6,7 @@ import { StatusCodes } from 'http-status-codes'
 import { executeTransaction } from '../utils/transaction.js'
 import notificationQueue from '../services/notificationQueue.js'
 import { logger } from '../utils/logger.js'
+import { createNewLikeNotification } from '../services/notificationService.js'
 
 // 建立讚
 export const createLike = async (req, res) => {
@@ -204,7 +205,17 @@ export const toggleLike = async (req, res) => {
     }
 
     return res.json({ success: true, ...result })
-  } catch {
+  } catch (error) {
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        memeId: req.body.meme_id,
+        userId: req.user?._id,
+        event: 'toggle_like_error',
+      },
+      '切換按讚時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }

@@ -1259,9 +1259,18 @@ export const deleteUser = async (req, res) => {
     }
 
     res.json({ success: true, message: '使用者已刪除' })
-  } catch {
+  } catch (error) {
     // 回滾事務
     await session.abortTransaction()
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.id,
+        event: 'delete_user_error',
+      },
+      '刪除用戶時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   } finally {
     // 結束 session
@@ -1359,7 +1368,16 @@ export const getMe = async (req, res) => {
       return res.status(404).json({ success: false, message: '找不到使用者' })
     }
     res.json({ success: true, user })
-  } catch {
+  } catch (error) {
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.id,
+        event: 'get_user_error',
+      },
+      '獲取用戶時發生錯誤',
+    )
     res.status(500).json({ success: false, message: '伺服器錯誤' })
   }
 }
@@ -1511,9 +1529,18 @@ export const deleteMe = async (req, res) => {
     }
 
     res.json({ success: true, message: '使用者已刪除' })
-  } catch {
+  } catch (error) {
     // 回滾事務
     await session.abortTransaction()
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.id,
+        event: 'delete_user_error',
+      },
+      '刪除用戶時發生錯誤',
+    )
     res.status(500).json({ success: false, message: '伺服器錯誤' })
   } finally {
     // 結束 session

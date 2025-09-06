@@ -321,7 +321,16 @@ export const toggleFollow = async (req, res) => {
       ...result,
     })
   } catch (error) {
-    console.error('切換追隨狀態錯誤:', error)
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        followingId: req.body.user_id,
+        followerId: req.user?._id,
+        event: 'toggle_follow_error',
+      },
+      '切換追隨狀態時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: '伺服器錯誤',

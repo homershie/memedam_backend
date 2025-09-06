@@ -158,8 +158,17 @@ export const logout = async (req, res) => {
     }
 
     res.json({ success: true, message: '登出成功' })
-  } catch {
+  } catch (error) {
     if (session) await session.abortTransaction()
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?._id,
+        event: 'logout_error',
+      },
+      '登出時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   } finally {
     if (session) session.endSession()
@@ -194,8 +203,17 @@ export const refresh = async (req, res) => {
     }
 
     res.json({ success: true, token })
-  } catch {
+  } catch (error) {
     if (session) await session.abortTransaction()
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?._id,
+        event: 'refresh_token_error',
+      },
+      '刷新token時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   } finally {
     if (session) session.endSession()

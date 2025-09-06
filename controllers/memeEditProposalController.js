@@ -1,6 +1,7 @@
 import MemeEditProposal from '../models/MemeEditProposal.js'
 import Meme from '../models/Meme.js'
 import { StatusCodes } from 'http-status-codes'
+import { logger } from '../utils/logger.js'
 
 // 提交修改提案
 export const proposeEdit = async (req, res) => {
@@ -21,7 +22,17 @@ export const proposeEdit = async (req, res) => {
       reason,
     })
     res.status(201).json({ success: true, proposal })
-  } catch {
+  } catch (error) {
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        memeId: req.body.meme_id,
+        userId: req.user?._id,
+        event: 'create_edit_proposal_error',
+      },
+      '創建編輯提案時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }
@@ -82,7 +93,17 @@ export const rejectProposal = async (req, res) => {
     proposal.review_comment = req.body.review_comment || ''
     await proposal.save()
     res.json({ success: true, proposal })
-  } catch {
+  } catch (error) {
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        proposalId: req.params.proposalId,
+        userId: req.user?._id,
+        event: 'reject_edit_proposal_error',
+      },
+      '拒絕編輯提案時發生錯誤',
+    )
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: '伺服器錯誤' })
   }
 }
