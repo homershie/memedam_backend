@@ -76,7 +76,7 @@ const safeJsonStringify = (data) => {
 import { handleQueryError } from './errorHandler.js'
 import cacheVersionManager from './cacheVersionManager.js'
 import redisCache from '../config/redis.js'
-import mongoose from 'mongoose'
+// 重複匯入移除（已於檔案頂部匯入）
 
 /**
  * 資料庫連線健康檢查
@@ -946,7 +946,7 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
         }
 
         // 找到相似用戶
-        const similarUsers = findSimilarUsers(
+        const similarUsers = await findSimilarUsers(
           targetUserIdObj.toString(),
           interactionMatrix,
           minSimilarity,
@@ -1799,7 +1799,7 @@ export const getSocialCollaborativeFilteringRecommendations = async (
         }
 
         // 找到社交相似用戶
-        const socialSimilarUsers = findSocialSimilarUsers(
+        const socialSimilarUsers = await findSocialSimilarUsers(
           targetUserIdObj.toString(),
           socialGraph,
           minSimilarity,
@@ -2076,7 +2076,7 @@ export const getSocialCollaborativeFilteringStats = async (userId) => {
     const userInteractions = interactionMatrix[userIdStr] || {}
     const userSocialData = socialGraph[userIdStr] || {}
 
-    const socialSimilarUsers = findSocialSimilarUsers(userIdStr, socialGraph, 0.1, 100)
+    const socialSimilarUsers = await findSocialSimilarUsers(userIdStr, socialGraph, 0.1, 100)
 
     return {
       user_id: userId,
