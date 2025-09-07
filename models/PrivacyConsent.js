@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { logger } from '../utils/logger.js'
 
 const privacyConsentSchema = new mongoose.Schema({
   // User association
@@ -101,8 +102,6 @@ privacyConsentSchema.methods.toJSON = function () {
 
 // Static methods
 privacyConsentSchema.statics.findActiveByUserId = function (userId) {
-  const { logger } = require('../utils/logger.js')
-
   // 確保 userId 是 ObjectId 類型
   let queryUserId = userId
   if (userId && typeof userId === 'string') {

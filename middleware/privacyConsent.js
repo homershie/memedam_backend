@@ -42,23 +42,12 @@ const checkPrivacyConsent = async (req) => {
     if (req.user && req.user._id) {
       try {
         // 確保 userId 是 ObjectId 類型
-        const { ObjectId } = mongoose.Types
-        let userId = req.user._id
-
-        // 檢查 userId 是否已經是 ObjectId
-        if (!(userId instanceof ObjectId)) {
-          try {
-            userId = new ObjectId(String(userId))
-          } catch {
-            logger.warn(`無效的用戶ID格式，跳過用戶隱私同意檢查: ${req.user._id}`)
-            userId = null
-          }
-        }
-
-        if (userId) {
-          consent = await PrivacyConsent.findActiveByUserId(userId)
-          logger.debug(`用戶隱私同意檢查: userId=${userId}, found=${!!consent}`)
-        }
+        const userId =
+          req.user._id instanceof mongoose.Types.ObjectId
+            ? req.user._id
+            : new mongoose.Types.ObjectId(String(req.user._id))
+        consent = await PrivacyConsent.findActiveByUserId(userId)
+        logger.debug(`用戶隱私同意檢查: userId=${userId}, found=${!!consent}`)
       } catch (userError) {
         logger.error('檢查用戶隱私同意失敗:', {
           userId: req.user?._id,
@@ -78,25 +67,13 @@ const checkPrivacyConsent = async (req) => {
         // 如果已登入且找到的同意記錄是基於 session、且尚未綁定 userId，則進行遷移
         if (req.user && req.user._id && consent && !consent.userId) {
           try {
-            const { ObjectId } = mongoose.Types
-            let migratedUserId = req.user._id
-
-            // 檢查 userId 是否已經是 ObjectId
-            if (!(migratedUserId instanceof ObjectId)) {
-              try {
-                migratedUserId = new ObjectId(String(migratedUserId))
-              } catch {
-                logger.warn(`遷移時無效的用戶ID格式: ${req.user._id}`)
-                migratedUserId = null
-              }
-            }
-
-            if (migratedUserId) {
-              logger.info(`遷移 session 同意記錄到 userId: ${consent.sessionId} -> ${migratedUserId}`)
-              consent.userId = migratedUserId
-              consent.updatedAt = new Date()
-              await consent.save()
-            }
+            const { ObjectId } = require('mongoose').Types
+            const migratedUserId =
+              req.user._id instanceof ObjectId ? req.user._id : new ObjectId(String(req.user._id))
+            logger.info(`遷移 session 同意記錄到 userId: ${consent.sessionId} -> ${migratedUserId}`)
+            consent.userId = migratedUserId
+            consent.updatedAt = new Date()
+            await consent.save()
           } catch (migrateError) {
             logger.error('遷移 session 同意記錄失敗:', {
               sessionId: consent.sessionId,
