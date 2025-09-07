@@ -31,11 +31,12 @@ vi.mock('../../../utils/logger.js', () => ({
     error: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
+    debug: vi.fn(),
   },
 }))
 
 describe('SEO Controller', () => {
-  let req, res, next
+  let req, res
   let seoMonitor, redisCache
 
   beforeEach(async () => {
@@ -61,8 +62,6 @@ describe('SEO Controller', () => {
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
     }
-
-    next = vi.fn()
   })
 
   afterEach(() => {

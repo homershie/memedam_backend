@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 import jwt from 'jsonwebtoken'
@@ -88,7 +88,7 @@ describe('SEO Routes API 整合測試', () => {
           role: 'admin', // Set admin role for testing
         }
         next()
-      } catch (error) {
+      } catch {
         return res.status(401).json({
           success: false,
           error: '無效的認證令牌',
@@ -487,9 +487,8 @@ describe('SEO Routes API 整合測試', () => {
         .set('Authorization', `Bearer ${testToken}`)
 
       if (response.status !== 200) {
-        // 調試輸出
-        // eslint-disable-next-line no-console
-        console.log('Dashboard response (error):', response.body)
+        // 調試輸出 - 如果需要可以重新啟用
+        // console.log('Dashboard response (error):', response.body)
       }
       expect(response.status).toBe(200)
       expect(response.body.success).toBe(true)
@@ -622,22 +621,6 @@ describe('SEO Routes API 整合測試', () => {
 
       // 檢查所有路由是否正確定義
       for (const route of routes) {
-        const methods = {
-          '/api/seo/status': ['GET'],
-          '/api/seo/metrics': ['GET'],
-          '/api/seo/reports': ['GET'],
-          '/api/seo/reports/list': ['GET'],
-          '/api/seo/alerts': ['GET'],
-          '/api/seo/recommendations': ['GET'],
-          '/api/seo/health-check': ['POST'],
-          '/api/seo/dashboard': ['GET'],
-          '/api/seo/monitoring/start': ['POST'],
-          '/api/seo/monitoring/stop': ['POST'],
-          '/api/seo/reports/generate': ['POST'],
-        }
-
-        const expectedMethods = methods[route] || []
-
         // 這裡我們只檢查路由是否可訪問，而不是具體的HTTP方法
         // 在實際測試中，可以使用更複雜的路由檢查
         expect(route).toBeDefined()
