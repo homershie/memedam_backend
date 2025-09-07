@@ -57,17 +57,27 @@ class CacheManager {
       if (cached !== null) {
         this.monitor.recordHit(cacheKey)
 
-        // 如果使用版本控制，附加版本資訊
-        if (useVersion) {
-          const version = await this.versionManager.getVersion(cacheKey)
-          return {
-            data: cached,
-            version,
-            fromCache: true,
-          }
-        }
+        try {
+          // 解析JSON數據
+          const parsedData = JSON.parse(cached)
 
-        return cached
+          // 如果使用版本控制，附加版本資訊
+          if (useVersion) {
+            const version = await this.versionManager.getVersion(cacheKey)
+            return {
+              data: parsedData,
+              version,
+              fromCache: true,
+            }
+          }
+
+          return parsedData
+        } catch (parseError) {
+          console.warn(`快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`, parseError.message)
+          // 刪除無效的快取數據
+          await this.redis.del(cacheKey)
+          // 繼續獲取新數據
+        }
       }
 
       // 快取未命中
@@ -108,16 +118,26 @@ class CacheManager {
       if (cached !== null) {
         this.monitor.recordHit(cacheKey)
 
-        if (useVersion) {
-          const version = await this.versionManager.getVersion(cacheKey)
-          return {
-            data: cached,
-            version,
-            fromCache: true,
-          }
-        }
+        try {
+          // 解析JSON數據
+          const parsedData = JSON.parse(cached)
 
-        return cached
+          if (useVersion) {
+            const version = await this.versionManager.getVersion(cacheKey)
+            return {
+              data: parsedData,
+              version,
+              fromCache: true,
+            }
+          }
+
+          return parsedData
+        } catch (parseError) {
+          console.warn(`快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`, parseError.message)
+          // 刪除無效的快取數據
+          await this.redis.del(cacheKey)
+          return null
+        }
       }
 
       this.monitor.recordMiss(cacheKey)
@@ -367,7 +387,9 @@ class CacheManager {
       const data = await fetchFunction()
 
       if (data !== null && data !== undefined) {
-        await this.redis.set(cacheKey, data, ttl)
+        // 將數據序列化為JSON字符串存儲
+        const serializedData = JSON.stringify(data)
+        await this.redis.set(cacheKey, serializedData, ttl)
 
         if (useVersion) {
           const version = await this.versionManager.updateVersion(cacheKey, 'patch')

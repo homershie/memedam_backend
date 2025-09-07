@@ -16,6 +16,66 @@ import cacheVersionManager from './cacheVersionManager.js'
 import redisCache from '../config/redis.js'
 
 /**
+ * 安全的JSON序列化函數，避免"[object Object]"問題
+ * @param {any} data - 要序列化的數據
+ * @returns {string} JSON字符串
+ */
+const safeJsonStringify = (data) => {
+  try {
+    // 首先嘗試標準的JSON.stringify
+    return JSON.stringify(data)
+  } catch (error) {
+    console.warn('標準JSON序列化失敗，嘗試安全序列化:', error.message)
+
+    // 如果失敗，使用自定義的序列化邏輯
+    const safeStringify = (obj, seen = new WeakSet()) => {
+      // 處理基本類型
+      if (obj === null || obj === undefined) return obj
+      if (typeof obj === 'string') return obj
+      if (typeof obj === 'number') return obj
+      if (typeof obj === 'boolean') return obj
+
+      // 處理函數
+      if (typeof obj === 'function') return '[Function]'
+
+      // 處理日期
+      if (obj instanceof Date) return obj.toISOString()
+
+      // 處理ObjectId
+      if (obj instanceof mongoose.Types.ObjectId) return obj.toString()
+
+      // 處理數組
+      if (Array.isArray(obj)) {
+        return obj.map((item) => safeStringify(item, seen))
+      }
+
+      // 處理對象
+      if (typeof obj === 'object') {
+        // 檢查循環引用
+        if (seen.has(obj)) return '[Circular Reference]'
+        seen.add(obj)
+
+        const result = {}
+        for (const [key, value] of Object.entries(obj)) {
+          try {
+            result[key] = safeStringify(value, seen)
+          } catch {
+            result[key] = '[Serialization Error]'
+          }
+        }
+        seen.delete(obj)
+        return result
+      }
+
+      // 其他類型轉為字符串
+      return String(obj)
+    }
+
+    return JSON.stringify(safeStringify(data))
+  }
+}
+
+/**
  * 社交分數配置
  */
 const SOCIAL_SCORE_CONFIG = {
@@ -106,15 +166,26 @@ class SocialScoreVersionedCacheProcessor {
         const cachedData = await this.redis.get(cacheKey)
 
         if (cachedData !== null) {
-          const parsedData = JSON.parse(cachedData)
+          try {
+            // redisCache.get 可能已解析 JSON，因此僅在字串時解析
+            const parsedData =
+              typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
 
-          // 如果快取包含版本資訊且版本匹配，返回快取數據
-          if (parsedData.version && parsedData.version === currentVersion) {
-            return {
-              data: parsedData.data,
-              version: parsedData.version,
-              fromCache: true,
+            // 如果快取包含版本資訊且版本匹配，返回快取數據
+            if (parsedData && parsedData.version === currentVersion) {
+              return {
+                data: parsedData.data,
+                version: parsedData.version,
+                fromCache: true,
+              }
             }
+          } catch (parseError) {
+            console.warn(
+              `快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`,
+              parseError.message,
+            )
+            // 刪除無效的快取數據
+            await this.redis.del(cacheKey)
           }
         }
       }
@@ -130,7 +201,7 @@ class SocialScoreVersionedCacheProcessor {
       }
 
       // 設定快取（包含版本資訊）
-      await this.redis.set(cacheKey, JSON.stringify(versionedData), ttl)
+      await this.redis.set(cacheKey, safeJsonStringify(versionedData), ttl)
 
       return {
         data: freshData,
@@ -145,16 +216,25 @@ class SocialScoreVersionedCacheProcessor {
         if (!forceRefresh) {
           const cached = await this.redis.get(cacheKey)
           if (cached !== null) {
-            return {
-              data: JSON.parse(cached),
-              version: '1.0.0',
-              fromCache: true,
+            try {
+              return {
+                data: JSON.parse(cached),
+                version: '1.0.0',
+                fromCache: true,
+              }
+            } catch (parseError) {
+              console.warn(
+                `降級快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`,
+                parseError.message,
+              )
+              // 刪除無效的快取數據
+              await this.redis.del(cacheKey)
             }
           }
         }
 
         const data = await fetchFunction()
-        await this.redis.set(cacheKey, JSON.stringify(data), ttl)
+        await this.redis.set(cacheKey, safeJsonStringify(data), ttl)
 
         return {
           data: data,
@@ -423,8 +503,21 @@ export const buildSocialGraph = async (userIds = []) => {
             console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
             continue
           }
-          const followerId = follow.follower_id.toString()
-          const followingId = follow.following_id.toString()
+          // 確保轉換為字符串，並處理可能的 ObjectId
+          const followerId =
+            follow.follower_id && typeof follow.follower_id === 'object'
+              ? follow.follower_id.toString()
+              : String(follow.follower_id || '')
+          const followingId =
+            follow.following_id && typeof follow.following_id === 'object'
+              ? follow.following_id.toString()
+              : String(follow.following_id || '')
+
+          // 跳過空ID
+          if (!followerId || !followingId) {
+            console.warn('跳過空ID的關注記錄:', { followerId, followingId, followId: follow?._id })
+            continue
+          }
 
           // 初始化用戶社交數據
           if (!socialGraph[followerId]) {
@@ -892,13 +985,35 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
  * @param {Object} options - 配置選項
  * @returns {Array} 社交層分數列表
  */
+/**
+ * 安全生成快取鍵，避免JSON序列化問題
+ * @param {Object} options - 選項對象
+ * @returns {string} 安全的快取鍵字符串
+ */
+const generateSafeCacheKey = (options) => {
+  try {
+    // 提取關鍵選項值，手動構建鍵
+    const keyParts = []
+    if (options.includeDistance !== undefined) keyParts.push(`dist_${options.includeDistance}`)
+    if (options.includeInfluence !== undefined) keyParts.push(`inf_${options.includeInfluence}`)
+    if (options.includeInteractions !== undefined)
+      keyParts.push(`int_${options.includeInteractions}`)
+    if (options.maxDistance !== undefined) keyParts.push(`maxd_${options.maxDistance}`)
+
+    return keyParts.length > 0 ? keyParts.join('_') : 'default'
+  } catch (error) {
+    console.warn('生成快取鍵時發生錯誤，使用默認鍵:', error.message)
+    return 'default'
+  }
+}
+
 export const calculateMultipleMemeSocialScores = async (userId, memeIds, options = {}) => {
   try {
     console.log(`開始批量計算 ${memeIds.length} 個迷因的社交層分數...`)
 
     // 生成快取鍵
     const memeIdsKey = memeIds.sort().join('_')
-    const optionsKey = JSON.stringify(options).replace(/[^a-zA-Z0-9]/g, '_')
+    const optionsKey = generateSafeCacheKey(options)
     const cacheKey = `batch_social_scores:${userId}:${memeIdsKey}:${optionsKey}`
 
     // 嘗試從快取取得數據

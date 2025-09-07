@@ -1,5 +1,7 @@
 import PrivacyConsent from '../models/PrivacyConsent.js'
 import { logger } from '../utils/logger.js'
+import mongoose from 'mongoose'
+import crypto from 'crypto'
 
 /**
  * 隱私同意檢查 Middleware
@@ -26,7 +28,6 @@ const getSessionId = (req) => {
   if (req.headers['x-session-id']) return req.headers['x-session-id']
   if (req.cookies?.sessionId) return req.cookies.sessionId
 
-  const crypto = require('crypto')
   return crypto.randomBytes(32).toString('hex')
 }
 
@@ -38,17 +39,18 @@ const checkPrivacyConsent = async (req) => {
     let consent = null
 
     // 優先檢查登入使用者的同意
-    if (req.user) {
+    if (req.user && req.user._id) {
       try {
         // 確保 userId 是 ObjectId 類型
-        const { ObjectId } = require('mongoose').Types
         const userId =
-          req.user._id instanceof ObjectId ? req.user._id : new ObjectId(String(req.user._id))
+          req.user._id instanceof mongoose.Types.ObjectId
+            ? req.user._id
+            : new mongoose.Types.ObjectId(String(req.user._id))
         consent = await PrivacyConsent.findActiveByUserId(userId)
         logger.debug(`用戶隱私同意檢查: userId=${userId}, found=${!!consent}`)
       } catch (userError) {
         logger.error('檢查用戶隱私同意失敗:', {
-          userId: req.user._id,
+          userId: req.user?._id,
           message: userError?.message,
           stack: userError?.stack,
         })
@@ -63,7 +65,7 @@ const checkPrivacyConsent = async (req) => {
         logger.debug(`Session 隱私同意檢查: sessionId=${sessionId}, found=${!!consent}`)
 
         // 如果已登入且找到的同意記錄是基於 session、且尚未綁定 userId，則進行遷移
-        if (req.user && consent && !consent.userId) {
+        if (req.user && req.user._id && consent && !consent.userId) {
           try {
             const { ObjectId } = require('mongoose').Types
             const migratedUserId =
@@ -75,7 +77,7 @@ const checkPrivacyConsent = async (req) => {
           } catch (migrateError) {
             logger.error('遷移 session 同意記錄失敗:', {
               sessionId: consent.sessionId,
-              userId: req.user._id,
+              userId: req.user?._id,
               message: migrateError?.message,
               stack: migrateError?.stack,
             })

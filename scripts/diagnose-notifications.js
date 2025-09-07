@@ -14,7 +14,6 @@ import User from '../models/User.js'
 import Meme from '../models/Meme.js'
 import Notification from '../models/Notification.js'
 import NotificationReceipt from '../models/NotificationReceipt.js'
-import { logger } from '../utils/logger.js'
 
 // 載入環境變數
 const __filename = fileURLToPath(import.meta.url)

@@ -260,7 +260,7 @@ async function simulateVersionedCacheProcess(cacheKey, versionManager, fetchFunc
       version: currentVersion,
       fromCache: false,
     }
-  } catch (error) {
+  } catch {
     // 降級處理
     const freshData = fetchFunction ? await fetchFunction() : { recommendations: [] }
     return {

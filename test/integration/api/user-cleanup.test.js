@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import request from 'supertest'
+import mongoose from 'mongoose'
 import { app } from '../../../index.js'
 import User from '../../../models/User.js'
 import Meme from '../../../models/Meme.js'

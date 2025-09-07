@@ -8,6 +8,15 @@ import Meme from '../../../../models/Meme.js'
 import Notification from '../../../../models/Notification.js'
 import NotificationReceipt from '../../../../models/NotificationReceipt.js'
 
+// Helper function to generate JWT token for testing
+const generateToken = (user) => {
+  return jwt.sign(
+    { _id: user._id, email: user.email, role: user.role },
+    process.env.JWT_SECRET || 'test-secret-key',
+    { expiresIn: '24h' },
+  )
+}
+
 describe('通知系統 API', () => {
   let testUser, testUser2, userToken, adminToken
   let testNotification, testReceipt

@@ -248,7 +248,7 @@ class CacheVersionManager {
 
     try {
       const keys = await this.redis.client.keys(pattern)
-      const versionKeys = keys.filter((key) => !key.endsWith(':version'))
+      const versionKeys = keys.filter((key) => !key.startsWith(this.cachePrefix))
 
       return await this.batchUpdateVersions(versionKeys, bumpType)
     } catch (error) {
@@ -462,7 +462,7 @@ class CacheVersionManager {
     }
 
     try {
-      const versionKey = `${cacheKey}:version`
+      const versionKey = `${this.cachePrefix}${cacheKey}`
       await this.redis.client.expire(versionKey, ttl)
     } catch (error) {
       logger.error('設定版本 TTL 失敗:', error)
@@ -480,7 +480,7 @@ class CacheVersionManager {
     }
 
     try {
-      const versionKey = `${cacheKey}:version`
+      const versionKey = `${this.cachePrefix}${cacheKey}`
       const exists = await this.redis.client.exists(versionKey)
       return exists === 1
     } catch (error) {
