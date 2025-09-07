@@ -167,10 +167,12 @@ class SocialScoreVersionedCacheProcessor {
 
         if (cachedData !== null) {
           try {
-            const parsedData = JSON.parse(cachedData)
+            // redisCache.get 可能已解析 JSON，因此僅在字串時解析
+            const parsedData =
+              typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
 
             // 如果快取包含版本資訊且版本匹配，返回快取數據
-            if (parsedData.version && parsedData.version === currentVersion) {
+            if (parsedData && parsedData.version === currentVersion) {
               return {
                 data: parsedData.data,
                 version: parsedData.version,
@@ -178,7 +180,10 @@ class SocialScoreVersionedCacheProcessor {
               }
             }
           } catch (parseError) {
-            console.warn(`快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`, parseError.message)
+            console.warn(
+              `快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`,
+              parseError.message,
+            )
             // 刪除無效的快取數據
             await this.redis.del(cacheKey)
           }
