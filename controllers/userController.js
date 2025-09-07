@@ -1062,8 +1062,27 @@ export const batchSoftDeleteUsers = async (req, res) => {
         .json({ success: false, message: '請提供要刪除的用戶ID陣列' })
     }
 
+    // 驗證並轉換ObjectId - 使用安全的處理方式
+    const validIds = ids.filter((id) => {
+      try {
+        return mongoose.Types.ObjectId.isValid(id)
+      } catch {
+        return false
+      }
+    })
+
+    if (validIds.length !== ids.length) {
+      await session.abortTransaction()
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: '部分用戶ID格式無效',
+      })
+    }
+
+    const objectIds = validIds.map((id) => new mongoose.Types.ObjectId(id))
+
     const result = await User.updateMany(
-      { _id: { $in: ids } },
+      { _id: { $in: objectIds } },
       { $set: { status: 'deleted', deactivate_at: new Date() } },
       { session },
     )

@@ -13,6 +13,66 @@ import View from '../models/View.js'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import Follow from '../models/Follow.js'
+
+/**
+ * 安全的JSON序列化函數，避免"[object Object]"問題
+ * @param {any} data - 要序列化的數據
+ * @returns {string} JSON字符串
+ */
+const safeJsonStringify = (data) => {
+  try {
+    // 首先嘗試標準的JSON.stringify
+    return JSON.stringify(data)
+  } catch (error) {
+    console.warn('標準JSON序列化失敗，嘗試安全序列化:', error.message)
+
+    // 如果失敗，使用自定義的序列化邏輯
+    const safeStringify = (obj, seen = new WeakSet()) => {
+      // 處理基本類型
+      if (obj === null || obj === undefined) return obj
+      if (typeof obj === 'string') return obj
+      if (typeof obj === 'number') return obj
+      if (typeof obj === 'boolean') return obj
+
+      // 處理函數
+      if (typeof obj === 'function') return '[Function]'
+
+      // 處理日期
+      if (obj instanceof Date) return obj.toISOString()
+
+      // 處理ObjectId
+      if (obj instanceof mongoose.Types.ObjectId) return obj.toString()
+
+      // 處理數組
+      if (Array.isArray(obj)) {
+        return obj.map((item) => safeStringify(item, seen))
+      }
+
+      // 處理對象
+      if (typeof obj === 'object') {
+        // 檢查循環引用
+        if (seen.has(obj)) return '[Circular Reference]'
+        seen.add(obj)
+
+        const result = {}
+        for (const [key, value] of Object.entries(obj)) {
+          try {
+            result[key] = safeStringify(value, seen)
+          } catch {
+            result[key] = '[Serialization Error]'
+          }
+        }
+        seen.delete(obj)
+        return result
+      }
+
+      // 其他類型轉為字符串
+      return String(obj)
+    }
+
+    return JSON.stringify(safeStringify(data))
+  }
+}
 import { handleQueryError } from './errorHandler.js'
 import cacheVersionManager from './cacheVersionManager.js'
 import redisCache from '../config/redis.js'
@@ -77,15 +137,21 @@ class CollaborativeVersionedCacheProcessor {
         const cachedData = await this.redis.get(cacheKey)
 
         if (cachedData !== null) {
-          const parsedData = JSON.parse(cachedData)
+          try {
+            const parsedData = JSON.parse(cachedData)
 
-          // 如果快取包含版本資訊且版本匹配，返回快取數據
-          if (parsedData.version && parsedData.version === currentVersion) {
-            return {
-              data: parsedData.data,
-              version: parsedData.version,
-              fromCache: true,
+            // 如果快取包含版本資訊且版本匹配，返回快取數據
+            if (parsedData.version && parsedData.version === currentVersion) {
+              return {
+                data: parsedData.data,
+                version: parsedData.version,
+                fromCache: true,
+              }
             }
+          } catch (parseError) {
+            console.warn(`快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`, parseError.message)
+            // 刪除無效的快取數據
+            await this.redis.del(cacheKey)
           }
         }
       }
@@ -101,7 +167,7 @@ class CollaborativeVersionedCacheProcessor {
       }
 
       // 設定快取（包含版本資訊）
-      await this.redis.set(cacheKey, JSON.stringify(versionedData), ttl)
+      await this.redis.set(cacheKey, safeJsonStringify(versionedData), ttl)
 
       return {
         data: freshData,
@@ -116,16 +182,25 @@ class CollaborativeVersionedCacheProcessor {
         if (!forceRefresh) {
           const cached = await this.redis.get(cacheKey)
           if (cached !== null) {
-            return {
-              data: JSON.parse(cached),
-              version: '1.0.0',
-              fromCache: true,
+            try {
+              return {
+                data: JSON.parse(cached),
+                version: '1.0.0',
+                fromCache: true,
+              }
+            } catch (parseError) {
+              console.warn(
+                `降級快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`,
+                parseError.message,
+              )
+              // 刪除無效的快取數據
+              await this.redis.del(cacheKey)
             }
           }
         }
 
         const data = await fetchFunction()
-        await this.redis.set(cacheKey, JSON.stringify(data), ttl)
+        await this.redis.set(cacheKey, safeJsonStringify(data), ttl)
 
         return {
           data: data,

@@ -1053,10 +1053,28 @@ export const batchDeleteMemes = async (req, res) => {
       })
     }
 
-    logger.info('開始批量刪除迷因，數量:', ids.length)
+    // 驗證並轉換ObjectId - 使用安全的處理方式
+    const validIds = ids.filter((id) => {
+      try {
+        return mongoose.Types.ObjectId.isValid(id)
+      } catch {
+        return false
+      }
+    })
+
+    if (validIds.length !== ids.length) {
+      return res.status(400).json({
+        success: false,
+        error: '部分迷因ID格式無效',
+      })
+    }
+
+    const objectIds = validIds.map((id) => new mongoose.Types.ObjectId(id))
+
+    logger.info('開始批量刪除迷因，數量:', objectIds.length)
 
     // 先獲取所有要刪除的迷因資料
-    const memes = await Meme.find(mongoose.trusted({ _id: { $in: ids } }))
+    const memes = await Meme.find(mongoose.trusted({ _id: { $in: objectIds } }))
 
     if (memes.length === 0) {
       return res.status(404).json({

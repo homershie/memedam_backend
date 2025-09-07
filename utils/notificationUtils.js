@@ -1,3 +1,4 @@
+import mongoose from 'mongoose'
 import NotificationReceipt from '../models/NotificationReceipt.js'
 import Notification from '../models/Notification.js'
 
@@ -30,7 +31,19 @@ export const getBatchDeleteQuery = (userId, options = {}) => {
   const query = getUserReceiptQuery(userId)
 
   if (ids && ids.length > 0) {
-    query._id = { $in: ids }
+    // 驗證並轉換ObjectId - 使用安全的處理方式
+    const validIds = ids.filter((id) => {
+      try {
+        return mongoose.Types.ObjectId.isValid(id)
+      } catch {
+        return false
+      }
+    })
+
+    if (validIds.length > 0) {
+      const objectIds = validIds.map((id) => new mongoose.Types.ObjectId(id))
+      query._id = { $in: objectIds }
+    }
   }
 
   if (olderThan) {
