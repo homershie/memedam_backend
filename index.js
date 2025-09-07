@@ -29,6 +29,7 @@ import RedisStore from 'connect-redis'
 import promBundle from 'express-prom-bundle'
 import connectDB, { getDBStats } from './config/db.js'
 import redisCache from './config/redis.js'
+import integratedCache from './config/cache.js'
 import swaggerSpecs from './config/swagger.js'
 import swaggerUi from 'swagger-ui-express'
 import { performanceMonitor } from './services/asyncProcessor.js'
@@ -605,6 +606,14 @@ const startServer = async () => {
     if (!process.env.SKIP_REDIS) {
       try {
         await redisCache.connect()
+
+        // 初始化整合快取系統
+        try {
+          await integratedCache.initialize()
+          logger.info('整合快取系統初始化成功')
+        } catch (cacheError) {
+          logger.warn('整合快取系統初始化失敗，將繼續運行但統一快取功能受限:', cacheError.message)
+        }
 
         // 初始化通知隊列
         try {

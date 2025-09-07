@@ -2,10 +2,12 @@
 
 ## 版本資訊
 
-- **文件版本**: 1.0
+- **文件版本**: 1.2
 - **建立日期**: 2025年1月
+- **最後更新**: 2025年1月
 - **作者**: AI Assistant
 - **審核狀態**: 待審核
+- **更新內容**: 擴大實施範圍，包含所有推薦系統模組和控制器，新增擴展實施計劃和測試覆蓋
 
 ## 目錄
 
@@ -111,18 +113,21 @@ user_activity:{userId}
 **問題**: 全量清除造成大量重計算
 **影響**: 嚴重效能問題
 **預期效益**: 效能提升 50-70%
+**影響範圍**: 整合到8個控制器和4個推薦系統模組
 
 #### 1.2 快取版本控制系統 ⭐⭐⭐⭐⭐
 
 **問題**: 無版本控制，無法實現條件請求
 **影響**: 無法利用瀏覽器快取
 **預期效益**: 網路傳輸減少 30-50%
+**影響範圍**: 整合到6個推薦系統模組
 
 #### 1.3 統一快取管理器 ⭐⭐⭐⭐
 
 **問題**: 快取邏輯分散，難以維護
 **影響**: 程式碼重複，錯誤率高
 **預期效益**: 開發效率提升 40%
+**影響範圍**: 整合到核心快取配置和所有推薦系統
 
 ### 階段二：效能優化（2-3週）
 
@@ -197,9 +202,28 @@ class SmartCacheInvalidator {
 **檔案變更**:
 
 - 新增: `utils/smartCacheInvalidator.js`
-- 修改: `controllers/memeController.js`
-- 修改: `controllers/likeController.js`
-- 修改: `controllers/commentController.js`
+- 新增: `utils/cacheVersionManager.js`
+- 新增: `utils/cacheManager.js`
+- 新增: `utils/cacheMonitor.js`
+- 新增: `utils/cacheWarmer.js`
+- 新增: `middleware/conditionalCache.js`
+- 修改: `utils/mixedRecommendation.js` (新增版本控制快取)
+- 修改: `services/analyticsMonitor.js` (新增版本控制快取)
+- 修改: `utils/collaborativeFiltering.js` (新增CollaborativeVersionedCacheProcessor)
+- 修改: `utils/contentBased.js` (新增ContentBasedVersionedCacheProcessor)
+- 修改: `utils/hotScore.js` (新增HotScoreVersionedCacheProcessor)
+- 修改: `utils/socialScoreCalculator.js` (新增SocialScoreVersionedCacheProcessor)
+- 修改: `controllers/memeController.js` (整合智慧快取失效)
+- 修改: `controllers/likeController.js` (整合智慧快取失效)
+- 修改: `controllers/commentController.js` (整合智慧快取失效)
+- 修改: `controllers/dislikeController.js` (整合智慧快取失效)
+- 修改: `controllers/collectionController.js` (整合智慧快取失效)
+- 修改: `controllers/followController.js` (整合智慧快取失效)
+- 修改: `controllers/shareController.js` (整合智慧快取失效)
+- 修改: `controllers/viewController.js` (整合智慧快取失效)
+- 修改: `controllers/recommendationController.js`
+- 修改: `routes/recommendationRoutes.js`
+- 修改: `config/redis.js` (整合CacheManager)
 
 #### 1.2 快取版本控制系統
 
@@ -230,8 +254,12 @@ class CacheVersionManager {
 **檔案變更**:
 
 - 新增: `utils/cacheVersionManager.js`
-- 修改: `utils/mixedRecommendation.js`
-- 修改: `services/analyticsMonitor.js`
+- 修改: `utils/mixedRecommendation.js` (整合版本控制)
+- 修改: `services/analyticsMonitor.js` (整合版本控制)
+- 修改: `utils/collaborativeFiltering.js` (整合版本控制)
+- 修改: `utils/contentBased.js` (整合版本控制)
+- 修改: `utils/hotScore.js` (整合版本控制)
+- 修改: `utils/socialScoreCalculator.js` (整合版本控制)
 
 #### 1.3 統一快取管理器
 
@@ -269,6 +297,7 @@ class CacheManager {
 - 新增: `utils/cacheManager.js`
 - 修改: `config/redis.js` (整合 CacheManager)
 - 新增: `utils/cacheMonitor.js`
+- 修改: `utils/cacheManager.js` (整合快取監控)
 
 ### 階段二：效能優化
 
@@ -373,6 +402,9 @@ class CacheWarmer {
 
 - 新增: `utils/cacheWarmer.js`
 - 修改: `index.js` (啟動時執行預熱)
+- 修改: `utils/mixedRecommendation.js` (整合快取預熱)
+- 修改: `utils/collaborativeFiltering.js` (整合快取預熱)
+- 修改: `utils/contentBased.js` (整合快取預熱)
 
 ### 階段三：架構優化
 
@@ -463,8 +495,8 @@ class CompressedCache {
 
 | 週次  | 任務             | 負責人   | 狀態   | 驗收標準                 |
 | ----- | ---------------- | -------- | ------ | ------------------------ |
-| 第1週 | 智慧快取失效策略 | 開發團隊 | 待開始 | 寫入操作不再全量清除快取 |
-| 第1週 | 快取版本控制系統 | 開發團隊 | 待開始 | 實現快取版本號管理       |
+| 第1週 | 智慧快取失效策略 | 開發團隊 | 完成   | 寫入操作不再全量清除快取 |
+| 第1週 | 快取版本控制系統 | 開發團隊 | 完成   | 實現快取版本號管理       |
 | 第2週 | 統一快取管理器   | 開發團隊 | 待開始 | 所有快取操作通過統一介面 |
 
 ### 階段二：效能優化（第3-5週）
@@ -484,12 +516,201 @@ class CompressedCache {
 | 第8週 | 快取數據壓縮   | 開發團隊 | 待開始 | 記憶體使用優化40%      |
 | 第9週 | 整合測試與優化 | 測試團隊 | 待開始 | 全系統效能提升50%      |
 
+### 階段四：擴展實施（第10-15週）
+
+| 週次   | 任務類別               | 負責人   | 狀態   | 驗收標準                     |
+| ------ | ---------------------- | -------- | ------ | ---------------------------- |
+| 第10週 | 高優先級智慧快取失效器 | 開發團隊 | 待開始 | 用戶相關控制器快取失效實現   |
+| 第11週 | 高優先級版本快取       | 開發團隊 | 待開始 | 核心服務版本快取實現         |
+| 第12週 | 內容管理快取失效器     | 開發團隊 | 待開始 | 標籤和編輯相關快取失效實現   |
+| 第13週 | 中優先級快取實施       | 開發團隊 | 待開始 | 通知、分析和管理功能快取實現 |
+| 第14週 | 工具函數快取優化       | 開發團隊 | 待開始 | 搜尋和統計相關快取實現       |
+| 第15週 | 完整測試與優化         | 測試團隊 | 待開始 | 全系統快取覆蓋率達95%        |
+
 ### 關鍵里程碑
 
 1. **M1**: 階段一完成 - 基本功能恢復正常
 2. **M2**: 階段二完成 - 效能顯著改善
 3. **M3**: 階段三完成 - 架構完全優化
 4. **M4**: 上線驗證 - 生產環境穩定運行
+5. **M5**: 階段四完成 - 擴展實施完成，全系統快取覆蓋
+
+---
+
+## 擴展實施計劃
+
+### 未完成的智慧快取失效器實施
+
+#### 🔴 高優先級 - 用戶相關控制器
+
+**`controllers/userController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 更新通知設定時清除用戶快取
+  - 更新用戶資訊時清除相關快取
+  - 修改密碼/設定時清除會話快取
+- **影響**: 用戶操作影響最大，應優先實施
+
+**`controllers/preferencesController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 更新主題偏好設定
+  - 更新功能Cookie偏好
+  - 更新隱私設定
+- **影響**: 用戶體驗相關，中等優先級
+
+#### 🔴 高優先級 - 內容管理控制器
+
+**`controllers/tagController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 建立新標籤時清除標籤快取
+  - 更新標籤時清除相關迷因快取
+  - 刪除標籤時清除標籤索引快取
+- **影響**: 標籤操作影響搜尋系統
+
+**`controllers/memeEditProposalController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 編輯提案狀態變更時清除相關快取
+  - 新提案建立時清除提案列表快取
+
+**`controllers/memeTagController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 迷因標籤變更時清除標籤統計快取
+  - 標籤關聯更新時清除相關快取
+
+**`controllers/memeVersionController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 版本建立時清除迷因快取
+  - 版本切換時清除相關快取
+
+#### 🟡 中優先級 - 通知與分析控制器
+
+**`controllers/notificationController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 標記通知為已讀時清除用戶通知快取
+  - 批量操作時清除通知統計快取
+- **影響**: 通知系統效能優化
+
+**`controllers/analyticsController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 記錄新指標時清除分析快取
+  - 更新A/B測試時清除測試快取
+- **影響**: 分析數據準確性
+
+#### 🟡 中優先級 - 管理功能控制器
+
+**`controllers/announcementController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 公告發佈時清除公告列表快取
+  - 公告更新時清除相關快取
+
+**`controllers/emailController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 郵件範本更新時清除範本快取
+  - 郵件發送記錄更新時清除統計快取
+
+**`controllers/feedbackController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 新回饋建立時清除統計快取
+  - 回饋狀態更新時清除列表快取
+
+**`controllers/reportController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 新檢舉建立時清除統計快取
+  - 檢舉處理時清除相關快取
+
+**`controllers/sceneController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 場景配置變更時清除場景快取
+
+**`controllers/sourceController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 來源管理變更時清除來源快取
+
+**`controllers/sponsorController.js`** ❌ 未完成
+
+- **需要失效的操作**:
+  - 贊助資訊更新時清除贊助快取
+
+### 未完成的版本快取實施
+
+#### 🔴 高優先級 - 服務層快取
+
+**`services/notificationService.js`** ❌ 未完成
+
+- **需要快取的數據**:
+  - 用戶通知偏好設定快取
+  - 通知範本快取
+  - 批量通知發送狀態快取
+- **實現方式**: 新增 `NotificationVersionedCacheProcessor`
+
+**`services/uploadService.js`** ❌ 未完成
+
+- **需要快取的數據**:
+  - Cloudinary配置快取
+  - 圖片處理參數快取
+  - 上傳限制設定快取
+- **實現方式**: 新增 `UploadVersionedCacheProcessor`
+
+#### 🟡 中優先級 - 工具函數快取
+
+**`utils/advancedSearch.js`** ❌ 未完成
+
+- **需要快取的數據**:
+  - Fuse.js搜尋索引快取
+  - 搜尋結果快取
+  - 搜尋配置快取
+- **實現方式**: 新增 `SearchVersionedCacheProcessor`
+
+**`utils/checkCounts.js`** ❌ 未完成
+
+- **需要快取的數據**:
+  - 迷因統計數據快取
+  - 用戶統計數據快取
+  - 計數驗證結果快取
+- **實現方式**: 新增 `CountsVersionedCacheProcessor`
+
+#### 🔴 高優先級 - 臨時狀態快取
+
+**`utils/oauthTempStore.js`** ❌ 未完成
+
+- **需要優化的內容**:
+  - 將Memory Map改為Redis快取
+  - 添加版本控制
+  - 實現自動清理機制
+- **影響**: 生產環境必要升級
+
+#### 🟢 低優先級 - 其他工具快取
+
+**`utils/notificationUtils.js`** ❌ 未完成
+
+- **需要快取的數據**:
+  - 通知格式化快取
+  - 通知優先級計算快取
+
+**`utils/sidebarTemplates.js`** ❌ 未完成
+
+- **需要快取的數據**:
+  - 側邊欄範本快取
+  - 範本渲染結果快取
+
+**`utils/usernameGenerator.js`** ❌ 未完成
+
+- **需要快取的數據**:
+  - 用戶名驗證結果快取
+  - 用戶名建議快取
 
 ---
 
@@ -513,7 +734,7 @@ describe('SmartCacheInvalidator', () => {
 
 #### 快取版本控制測試
 
-```javascript
+````javascript
 describe('CacheVersionManager', () => {
   test('should increment version correctly', async () => {
     // 測試版本號正確遞增
@@ -523,7 +744,50 @@ describe('CacheVersionManager', () => {
     // 測試並發更新的一致性
   })
 })
-```
+
+#### 版本控制快取處理器測試
+
+```javascript
+describe('CollaborativeVersionedCacheProcessor', () => {
+  test('should use cache when version matches', async () => {
+    // 測試版本匹配時使用快取
+  })
+
+  test('should refresh cache when version differs', async () => {
+    // 測試版本不同時重新計算
+  })
+})
+
+describe('ContentBasedVersionedCacheProcessor', () => {
+  test('should cache user preferences with version', async () => {
+    // 測試用戶偏好帶版本快取
+  })
+
+  test('should invalidate cache on version update', async () => {
+    // 測試版本更新時快取失效
+  })
+})
+
+describe('HotScoreVersionedCacheProcessor', () => {
+  test('should cache hot score calculations', async () => {
+    // 測試熱門分數計算快取
+  })
+
+  test('should handle batch updates with versioning', async () => {
+    // 測試批次更新版本控制
+  })
+})
+
+describe('SocialScoreVersionedCacheProcessor', () => {
+  test('should cache social graph with version', async () => {
+    // 測試社交圖譜帶版本快取
+  })
+
+  test('should maintain cache consistency', async () => {
+    // 測試快取一致性
+  })
+})
+````
 
 ### 整合測試
 
@@ -583,6 +847,118 @@ describe('HTTP Conditional Cache', () => {
 - 模擬大量數據更新
 - 監控快取重建時間
 - 確保服務可用性
+
+### 擴展實施測試
+
+#### 用戶控制器快取測試
+
+```javascript
+describe('UserController Cache Integration', () => {
+  test('should invalidate user cache on profile update', async () => {
+    // 測試用戶設定更新時快取失效
+  })
+
+  test('should invalidate notification cache on settings change', async () => {
+    // 測試通知設定變更時快取失效
+  })
+})
+
+describe('PreferencesController Cache Integration', () => {
+  test('should invalidate theme cache on preference update', async () => {
+    // 測試主題偏好更新時快取失效
+  })
+
+  test('should invalidate privacy cache on consent change', async () => {
+    // 測試隱私同意變更時快取失效
+  })
+})
+```
+
+#### 內容管理快取測試
+
+```javascript
+describe('TagController Cache Integration', () => {
+  test('should invalidate tag cache on tag creation', async () => {
+    // 測試標籤建立時快取失效
+  })
+
+  test('should invalidate meme cache on tag association change', async () => {
+    // 測試標籤關聯變更時迷因快取失效
+  })
+})
+
+describe('NotificationController Cache Integration', () => {
+  test('should invalidate notification cache on read status change', async () => {
+    // 測試通知已讀狀態變更時快取失效
+  })
+
+  test('should invalidate stats cache on bulk operations', async () => {
+    // 測試批量操作時統計快取失效
+  })
+})
+```
+
+#### 版本快取處理器測試
+
+```javascript
+describe('NotificationVersionedCacheProcessor', () => {
+  test('should cache user notification preferences', async () => {
+    // 測試用戶通知偏好快取
+  })
+
+  test('should invalidate cache on preference update', async () => {
+    // 測試偏好更新時快取失效
+  })
+})
+
+describe('UploadVersionedCacheProcessor', () => {
+  test('should cache Cloudinary configuration', async () => {
+    // 測試Cloudinary配置快取
+  })
+
+  test('should handle configuration updates', async () => {
+    // 測試配置更新處理
+  })
+})
+
+describe('SearchVersionedCacheProcessor', () => {
+  test('should cache Fuse.js search index', async () => {
+    // 測試Fuse.js搜尋索引快取
+  })
+
+  test('should invalidate on content updates', async () => {
+    // 測試內容更新時索引失效
+  })
+})
+
+describe('CountsVersionedCacheProcessor', () => {
+  test('should cache meme statistics', async () => {
+    // 測試迷因統計快取
+  })
+
+  test('should maintain consistency with database', async () => {
+    // 測試與資料庫的一致性
+  })
+})
+```
+
+#### 生產環境快取測試
+
+```javascript
+describe('OAuthTempStore Redis Migration', () => {
+  test('should use Redis instead of memory map in production', async () => {
+    // 測試生產環境使用Redis快取
+  })
+
+  test('should handle Redis connection failures gracefully', async () => {
+    // 測試Redis連接失敗的降級處理
+  })
+
+  test('should automatically cleanup expired states', async () => {
+    // 測試自動清理過期狀態
+  })
+})
+```
 
 ---
 
@@ -644,6 +1020,52 @@ describe('HTTP Conditional Cache', () => {
 - 多重備份機制
 - 服務健康監控
 
+### 擴展實施風險評估
+
+#### 6. 擴展複雜度風險
+
+**風險**: 大量控制器和服務同時實施快取可能導致系統不穩定
+**影響**: 開發效率降低，出錯率增加
+**緩解方案**:
+
+- 分階段實施，按優先級逐步推進
+- 每個模組實施前進行充分的單元測試
+- 實施前進行程式碼審查
+- 準備詳細的回滾計劃
+
+#### 7. 快取一致性風險
+
+**風險**: 多個控制器同時操作相關快取可能導致數據不一致
+**影響**: 用戶看到過時或錯誤的數據
+**緩解方案**:
+
+- 設計統一的快取鍵命名規則
+- 實施快取版本控制系統
+- 添加快取一致性檢查機制
+- 建立快取依賴關係圖
+
+#### 8. 記憶體使用風險（擴展）
+
+**風險**: 新增大量快取可能導致記憶體使用過度
+**影響**: 系統效能下降，成本增加
+**緩解方案**:
+
+- 實施智慧快取失效策略
+- 設定合理的TTL值
+- 監控快取命中率和記憶體使用
+- 實現快取數據壓縮
+
+#### 9. 生產環境遷移風險
+
+**風險**: OAuth臨時存儲從Memory Map遷移到Redis可能出現問題
+**影響**: 用戶無法正常進行OAuth認證
+**緩解方案**:
+
+- 在測試環境充分驗證遷移
+- 準備降級方案（臨時回退到Memory Map）
+- 實施漸進式部署
+- 添加詳細的監控和告警
+
 ---
 
 ## 監控與回滾計劃
@@ -663,6 +1085,13 @@ describe('HTTP Conditional Cache', () => {
 - 功能可用性: 99.9% SLA
 - 錯誤率: < 0.1%
 
+#### 擴展實施指標
+
+- 快取覆蓋率: > 95%
+- 智慧失效命中率: > 90%
+- 版本快取一致性: 99.99%
+- 擴展模組效能提升: 25-35%
+
 ### 告警機制
 
 #### 即時告警
@@ -677,6 +1106,13 @@ describe('HTTP Conditional Cache', () => {
 - 快取命中率持續下降
 - 記憶體使用率持續上升
 - 響應時間持續增加
+
+#### 擴展實施告警
+
+- 快取覆蓋率 < 90%
+- 智慧失效命中率 < 80%
+- 版本快取不一致事件 > 5次/小時
+- 擴展模組錯誤率 > 1%
 
 ### 回滾計劃
 
@@ -707,6 +1143,34 @@ kubectl set image deployment/app app=old-image:v1.0
 # 4. 完全切換或保持混合部署
 ```
 
+### 擴展實施回滾
+
+#### 模組級回滾
+
+```bash
+# 1. 停用特定擴展快取模組
+docker-compose exec app sed -i 's/USER_CACHE_ENABLED=true/USER_CACHE_ENABLED=false/' .env
+docker-compose exec app sed -i 's/TAG_CACHE_ENABLED=true/TAG_CACHE_ENABLED=false/' .env
+
+# 2. 清除對應的快取鍵
+redis-cli KEYS "user_cache:*" | xargs redis-cli DEL
+redis-cli KEYS "tag_cache:*" | xargs redis-cli DEL
+
+# 3. 重啟服務
+docker-compose restart app
+```
+
+#### 漸進式擴展回滾
+
+```bash
+# 1. 降低擴展模組流量到 20%
+kubectl set env deployment/app EXTENDED_CACHE_RATIO=0.2
+
+# 2. 監控效能指標 1 小時
+# 3. 如果穩定，逐步降低到 0%
+# 4. 完全停用擴展快取模組
+```
+
 ### 災難恢復
 
 #### 數據備份
@@ -714,6 +1178,14 @@ kubectl set image deployment/app app=old-image:v1.0
 - 每日快取數據備份
 - 快取配置版本控制
 - 監控配置自動化部署
+
+#### 擴展實施備份策略
+
+- 擴展模組配置快照
+- 快取鍵映射備份
+- 版本控制歷史記錄
+- 效能基準數據備份
+- OAuth狀態遷移備份
 
 #### 服務恢復
 
@@ -725,21 +1197,32 @@ kubectl set image deployment/app app=old-image:v1.0
 
 ## 結論
 
-此快取系統重設計劃將分三階段實施，預計總共9週完成。通過實施智慧快取失效策略、版本控制系統和統一管理器，可以顯著提升系統效能和可維護性。
+此快取系統重設計劃將分四階段實施，預計總共15週完成。通過實施智慧快取失效策略、版本控制系統和統一管理器，涵蓋20+個控制器和服務模組，可以顯著提升系統效能和可維護性。
 
-**預期效益**:
+**階段效益累計**:
+
+**階段一至三 (9週)**:
 
 - 效能提升: 50-70%
 - 開發效率: 提升40%
 - 系統穩定性: 提升至99.9%
 - 維護成本: 降低30%
 
+**階段四擴展 (6週)**:
+
+- 效能提升: 額外25-35%
+- 快取覆蓋率: 提升至95%+
+- 用戶體驗: 進一步優化
+- 系統完整性: 全面提升
+
 **成功關鍵**:
 
-1. 遵循優先順序，逐步實施
-2. 完善的測試覆蓋
-3. 持續監控和優化
-4. 準備充分的回滾計劃
+1. 遵循優先順序，逐步實施（分四階段推進）
+2. 完善的測試覆蓋（包含20+個控制器和服務模組的整合測試）
+3. 持續監控和優化（包含擴展實施指標監控）
+4. 準備充分的回滾計劃（模組級和系統級回滾策略）
+5. 建立完整的快取依賴關係圖
+6. 實施前進行詳細的程式碼審查
 
 ---
 
@@ -760,9 +1243,11 @@ kubectl set image deployment/app app=old-image:v1.0
 
 ### 版本歷史
 
-| 版本 | 日期    | 變更內容 | 作者         |
-| ---- | ------- | -------- | ------------ |
-| 1.0  | 2025-01 | 初始版本 | AI Assistant |
+| 版本 | 日期    | 變更內容                                   | 作者         |
+| ---- | ------- | ------------------------------------------ | ------------ |
+| 1.2  | 2025-01 | 新增擴展實施計劃、完整測試覆蓋和風險評估   | AI Assistant |
+| 1.1  | 2025-01 | 擴大實施範圍，包含所有推薦系統模組和控制器 | AI Assistant |
+| 1.0  | 2025-01 | 初始版本                                   | AI Assistant |
 
 ---
 
