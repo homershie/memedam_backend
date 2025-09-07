@@ -1088,6 +1088,7 @@ export const getInfiniteScrollRecommendations = async (userId = null, options = 
       customWeights = {},
       includeSocialScores = true,
       includeRecommendationReasons = true,
+      useCache = true,
     } = options
 
     // 計算需要獲取的總數量（確保有足夠的推薦）
@@ -1101,7 +1102,7 @@ export const getInfiniteScrollRecommendations = async (userId = null, options = 
       includeColdStartAnalysis: true,
       includeSocialScores,
       includeRecommendationReasons,
-      useCache: true,
+      useCache: useCache,
       tags,
       page: 1, // 總是從第一頁開始
       excludeIds: [], // 在混合推薦中不排除，在結果中排除

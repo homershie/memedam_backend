@@ -1236,8 +1236,15 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
       custom_weights = '{}',
       include_social_scores = 'true',
       include_recommendation_reasons = 'true',
+      clear_cache = 'false',
     } = req.query
     const userId = req.user?._id
+
+    // 如果需要清除快取
+    if (clear_cache === 'true') {
+      await clearMixedRecommendationCache(userId)
+      logger.info('已清除混合推薦快取')
+    }
 
     // 解析自定義權重
     let customWeights = {}
@@ -1300,6 +1307,7 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
       customWeights,
       includeSocialScores: include_social_scores === 'true',
       includeRecommendationReasons: include_recommendation_reasons === 'true',
+      useCache: clear_cache !== 'true', // 如果清除快取，就不使用快取
     })
 
     res.json({
