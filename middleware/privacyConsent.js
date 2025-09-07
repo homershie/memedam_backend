@@ -1,5 +1,7 @@
 import PrivacyConsent from '../models/PrivacyConsent.js'
 import { logger } from '../utils/logger.js'
+import mongoose from 'mongoose'
+import crypto from 'crypto'
 
 /**
  * 隱私同意檢查 Middleware
@@ -26,7 +28,6 @@ const getSessionId = (req) => {
   if (req.headers['x-session-id']) return req.headers['x-session-id']
   if (req.cookies?.sessionId) return req.cookies.sessionId
 
-  const crypto = require('crypto')
   return crypto.randomBytes(32).toString('hex')
 }
 
@@ -41,9 +42,10 @@ const checkPrivacyConsent = async (req) => {
     if (req.user) {
       try {
         // 確保 userId 是 ObjectId 類型
-        const { ObjectId } = require('mongoose').Types
         const userId =
-          req.user._id instanceof ObjectId ? req.user._id : new ObjectId(String(req.user._id))
+          req.user._id instanceof mongoose.Types.ObjectId
+            ? req.user._id
+            : new mongoose.Types.ObjectId(String(req.user._id))
         consent = await PrivacyConsent.findActiveByUserId(userId)
         logger.debug(`用戶隱私同意檢查: userId=${userId}, found=${!!consent}`)
       } catch (userError) {
@@ -65,9 +67,10 @@ const checkPrivacyConsent = async (req) => {
         // 如果已登入且找到的同意記錄是基於 session、且尚未綁定 userId，則進行遷移
         if (req.user && consent && !consent.userId) {
           try {
-            const { ObjectId } = require('mongoose').Types
             const migratedUserId =
-              req.user._id instanceof ObjectId ? req.user._id : new ObjectId(String(req.user._id))
+              req.user._id instanceof mongoose.Types.ObjectId
+                ? req.user._id
+                : new mongoose.Types.ObjectId(String(req.user._id))
             logger.info(`遷移 session 同意記錄到 userId: ${consent.sessionId} -> ${migratedUserId}`)
             consent.userId = migratedUserId
             consent.updatedAt = new Date()
