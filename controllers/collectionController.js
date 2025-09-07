@@ -5,7 +5,7 @@ import { StatusCodes } from 'http-status-codes'
 import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
 import { logger } from '../utils/logger.js'
-import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 export const validateCreateCollection = [
   body('name').isLength({ min: 1, max: 100 }).withMessage('收藏名稱必填，且長度需在 1~100 字'),
@@ -115,9 +115,12 @@ export const toggleCollection = async (req, res) => {
     try {
       // 添加小延遲確保數據庫事務完全提交
       await new Promise((resolve) => setTimeout(resolve, 100))
-      await clearMixedRecommendationCache(user_id)
+      await smartCacheInvalidator.invalidateByOperation(CACHE_OPERATIONS.USER_COLLECTED, {
+        userId: user_id.toString(),
+        memeId: meme_id.toString(),
+      })
     } catch (cacheError) {
-      logger.warn('清理推薦快取失敗，但不影響收藏操作:', cacheError.message)
+      logger.warn('智慧失效推薦快取失敗，但不影響收藏操作:', cacheError.message)
     }
 
     return res.json({ success: true, ...result })

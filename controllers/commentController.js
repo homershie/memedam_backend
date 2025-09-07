@@ -5,7 +5,7 @@ import { body, validationResult } from 'express-validator'
 import { executeTransaction } from '../utils/transaction.js'
 import notificationQueue from '../services/notificationQueue.js'
 import { logger } from '../utils/logger.js'
-import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 從內容中提取被提及的用戶名
 const extractMentionedUsers = (content) => {
@@ -122,13 +122,16 @@ export const createComment = async (req, res) => {
       )
     }
 
-    // 清理推薦快取以確保統計數據同步
+    // 智慧失效推薦快取以確保統計數據同步
     try {
       // 添加小延遲確保數據庫事務完全提交
       await new Promise((resolve) => setTimeout(resolve, 100))
-      await clearMixedRecommendationCache(req.user._id)
+      await smartCacheInvalidator.invalidateByOperation(CACHE_OPERATIONS.USER_COMMENTED, {
+        userId: req.user._id.toString(),
+        memeId: meme_id.toString(),
+      })
     } catch (cacheError) {
-      console.warn('清理推薦快取失敗，但不影響留言操作:', cacheError.message)
+      console.warn('智慧失效推薦快取失敗，但不影響留言操作:', cacheError.message)
     }
 
     res.status(201).json({ success: true, data: result, error: null })

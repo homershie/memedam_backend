@@ -5,7 +5,7 @@ import User from '../models/User.js'
 import { StatusCodes } from 'http-status-codes'
 import { executeTransaction } from '../utils/transaction.js'
 import { logger } from '../utils/logger.js'
-import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 建立噓
 export const createDislike = async (req, res) => {
@@ -115,9 +115,13 @@ export const toggleDislike = async (req, res) => {
     try {
       // 添加小延遲確保數據庫事務完全提交
       await new Promise((resolve) => setTimeout(resolve, 100))
-      await clearMixedRecommendationCache(user_id)
+      await smartCacheInvalidator.invalidateByOperation(CACHE_OPERATIONS.USER_DISLIKED, {
+        userId: user_id.toString(),
+        memeId: meme_id.toString(),
+        isLike: false,
+      })
     } catch (cacheError) {
-      logger.warn('清理推薦快取失敗，但不影響噓聲操作:', cacheError.message)
+      logger.warn('智慧失效推薦快取失敗，但不影響噓聲操作:', cacheError.message)
     }
 
     return res.json({ success: true, ...result })

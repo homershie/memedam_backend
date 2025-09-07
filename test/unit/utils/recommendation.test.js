@@ -12,12 +12,22 @@ import {
 // Mock 相關模組
 vi.mock('../../../models/Meme.js')
 vi.mock('../../../models/User.js')
+vi.mock('../../../models/Like.js')
+vi.mock('../../../models/Comment.js')
+vi.mock('../../../models/Share.js')
+vi.mock('../../../models/Collection.js')
+vi.mock('../../../models/View.js')
 vi.mock('../../../utils/hotScore.js')
 vi.mock('../../../utils/contentBased.js')
 vi.mock('../../../utils/collaborativeFiltering.js')
 
 import Meme from '../../../models/Meme.js'
 import User from '../../../models/User.js'
+import Like from '../../../models/Like.js'
+import Comment from '../../../models/Comment.js'
+import Share from '../../../models/Share.js'
+import Collection from '../../../models/Collection.js'
+import View from '../../../models/View.js'
 import { getHotScoreLevel } from '../../../utils/hotScore.js'
 import {
   getContentBasedRecommendations as getContentBasedRecs,
@@ -72,10 +82,11 @@ describe('混合推薦系統測試', () => {
         },
       ]
 
-      // 鏈式查詢 mock：find().sort().limit().populate().lean()
+      // 鏈式查詢 mock：find().sort().limit().select().populate().lean()
       const chain = {
         sort: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
         populate: vi.fn().mockReturnThis(),
         lean: vi.fn().mockResolvedValue(mockMemes),
       }
@@ -88,17 +99,11 @@ describe('混合推薦系統測試', () => {
 
       // Mock 活躍度計算相關
       const mockCountDocuments = vi.fn().mockResolvedValue(10)
-      const mockLike = await import('../../../models/Like.js')
-      const mockComment = await import('../../../models/Comment.js')
-      const mockShare = await import('../../../models/Share.js')
-      const mockCollection = await import('../../../models/Collection.js')
-      const mockView = await import('../../../models/View.js')
-
-      Object.assign(mockLike.default, { countDocuments: mockCountDocuments })
-      Object.assign(mockComment.default, { countDocuments: mockCountDocuments })
-      Object.assign(mockShare.default, { countDocuments: mockCountDocuments })
-      Object.assign(mockCollection.default, { countDocuments: mockCountDocuments })
-      Object.assign(mockView.default, { countDocuments: mockCountDocuments })
+      Like.countDocuments = mockCountDocuments
+      Comment.countDocuments = mockCountDocuments
+      Share.countDocuments = mockCountDocuments
+      Collection.countDocuments = mockCountDocuments
+      View.countDocuments = mockCountDocuments
 
       // 執行測試
       const result = await getMixedRecommendations('user123', {
@@ -139,6 +144,7 @@ describe('混合推薦系統測試', () => {
       const chain2 = {
         sort: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
         populate: vi.fn().mockReturnThis(),
         lean: vi.fn().mockResolvedValue(mockMemes),
       }
@@ -197,6 +203,7 @@ describe('混合推薦系統測試', () => {
       const chain3 = {
         sort: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
         populate: vi.fn().mockReturnThis(),
         lean: vi.fn().mockResolvedValue(mockMemes),
       }
@@ -223,8 +230,8 @@ describe('混合推薦系統測試', () => {
   describe('getRecommendationAlgorithmStats', () => {
     it('應該返回演算法統計', async () => {
       // Mock 統計數據
-      Meme.countDocuments.mockResolvedValue(1500)
-      User.findById.mockResolvedValue({
+      Meme.countDocuments = vi.fn().mockResolvedValue(1500)
+      User.findById = vi.fn().mockResolvedValue({
         _id: 'user123',
         username: 'testuser',
       })
@@ -245,7 +252,7 @@ describe('混合推薦系統測試', () => {
     })
 
     it('應該處理未登入用戶', async () => {
-      Meme.countDocuments.mockResolvedValue(1000)
+      Meme.countDocuments = vi.fn().mockResolvedValue(1000)
 
       const result = await getRecommendationAlgorithmStats(null)
 
@@ -258,7 +265,7 @@ describe('混合推薦系統測試', () => {
   describe('adjustRecommendationStrategy', () => {
     it('應該根據用戶行為調整策略', async () => {
       // Mock 用戶活躍度
-      User.findById.mockResolvedValue({
+      User.findById = vi.fn().mockResolvedValue({
         _id: 'user123',
         username: 'activeuser',
       })
@@ -282,7 +289,7 @@ describe('混合推薦系統測試', () => {
     })
 
     it('應該處理高互動率用戶', async () => {
-      User.findById.mockResolvedValue({
+      User.findById = vi.fn().mockResolvedValue({
         _id: 'user123',
         username: 'socialuser',
       })
@@ -304,7 +311,7 @@ describe('混合推薦系統測試', () => {
     })
 
     it('應該處理高多樣性偏好用戶', async () => {
-      User.findById.mockResolvedValue({
+      User.findById = vi.fn().mockResolvedValue({
         _id: 'user123',
         username: 'explorer',
       })
@@ -329,7 +336,7 @@ describe('混合推薦系統測試', () => {
   describe('冷啟動處理', () => {
     it('應該識別冷啟動用戶', async () => {
       // Mock 低互動用戶
-      User.findById.mockResolvedValue({
+      User.findById = vi.fn().mockResolvedValue({
         _id: 'newuser',
         username: 'newuser',
       })
@@ -338,10 +345,11 @@ describe('混合推薦系統測試', () => {
         preferences: {},
       })
 
-      // 鏈式查詢 mock：find().sort().limit().populate().lean()
+      // 鏈式查詢 mock：find().sort().limit().select().populate().lean()
       const chain = {
         sort: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
         populate: vi.fn().mockReturnThis(),
         lean: vi.fn().mockResolvedValue([
           {
@@ -357,17 +365,11 @@ describe('混合推薦系統測試', () => {
 
       // Mock 活躍度計算相關
       const mockCountDocuments = vi.fn().mockResolvedValue(2) // 低活躍度
-      const mockLike = await import('../../../models/Like.js')
-      const mockComment = await import('../../../models/Comment.js')
-      const mockShare = await import('../../../models/Share.js')
-      const mockCollection = await import('../../../models/Collection.js')
-      const mockView = await import('../../../models/View.js')
-
-      Object.assign(mockLike.default, { countDocuments: mockCountDocuments })
-      Object.assign(mockComment.default, { countDocuments: mockCountDocuments })
-      Object.assign(mockShare.default, { countDocuments: mockCountDocuments })
-      Object.assign(mockCollection.default, { countDocuments: mockCountDocuments })
-      Object.assign(mockView.default, { countDocuments: mockCountDocuments })
+      Like.countDocuments = mockCountDocuments
+      Comment.countDocuments = mockCountDocuments
+      Share.countDocuments = mockCountDocuments
+      Collection.countDocuments = mockCountDocuments
+      View.countDocuments = mockCountDocuments
 
       const result = await getMixedRecommendations('newuser', {
         limit: 10,
@@ -381,7 +383,7 @@ describe('混合推薦系統測試', () => {
 
     it('應該處理活躍用戶', async () => {
       // Mock 高互動用戶
-      User.findById.mockResolvedValue({
+      User.findById = vi.fn().mockResolvedValue({
         _id: 'activeuser',
         username: 'activeuser',
       })
@@ -390,10 +392,11 @@ describe('混合推薦系統測試', () => {
         preferences: { funny: 0.8, meme: 0.7, viral: 0.6 },
       })
 
-      // 鏈式查詢 mock：find().sort().limit().populate().lean()
+      // 鏈式查詢 mock：find().sort().limit().select().populate().lean()
       const chain2 = {
         sort: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
         populate: vi.fn().mockReturnThis(),
         lean: vi.fn().mockResolvedValue([
           {
@@ -409,17 +412,11 @@ describe('混合推薦系統測試', () => {
 
       // Mock 活躍度計算相關
       const mockCountDocuments2 = vi.fn().mockResolvedValue(15) // 高活躍度
-      const mockLike2 = await import('../../../models/Like.js')
-      const mockComment2 = await import('../../../models/Comment.js')
-      const mockShare2 = await import('../../../models/Share.js')
-      const mockCollection2 = await import('../../../models/Collection.js')
-      const mockView2 = await import('../../../models/View.js')
-
-      Object.assign(mockLike2.default, { countDocuments: mockCountDocuments2 })
-      Object.assign(mockComment2.default, { countDocuments: mockCountDocuments2 })
-      Object.assign(mockShare2.default, { countDocuments: mockCountDocuments2 })
-      Object.assign(mockCollection2.default, { countDocuments: mockCountDocuments2 })
-      Object.assign(mockView2.default, { countDocuments: mockCountDocuments2 })
+      Like.countDocuments = mockCountDocuments2
+      Comment.countDocuments = mockCountDocuments2
+      Share.countDocuments = mockCountDocuments2
+      Collection.countDocuments = mockCountDocuments2
+      View.countDocuments = mockCountDocuments2
 
       const result = await getMixedRecommendations('activeuser', {
         limit: 10,
@@ -459,6 +456,7 @@ describe('混合推薦系統測試', () => {
       const chain4 = {
         sort: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
         populate: vi.fn().mockReturnThis(),
         lean: vi.fn().mockResolvedValue(mockMemes),
       }

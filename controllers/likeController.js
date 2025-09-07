@@ -7,7 +7,7 @@ import { executeTransaction } from '../utils/transaction.js'
 import notificationQueue from '../services/notificationQueue.js'
 import { logger } from '../utils/logger.js'
 import { createNewLikeNotification } from '../services/notificationService.js'
-import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 建立讚
 export const createLike = async (req, res) => {
@@ -205,23 +205,27 @@ export const toggleLike = async (req, res) => {
         })
     }
 
-    // 清理推薦快取以確保統計數據同步
+    // 智慧失效推薦快取以確保統計數據同步
     try {
       // 添加小延遲確保數據庫事務完全提交
       await new Promise((resolve) => setTimeout(resolve, 100))
-      await clearMixedRecommendationCache(user_id)
+      await smartCacheInvalidator.invalidateByOperation(CACHE_OPERATIONS.USER_LIKED, {
+        userId: user_id.toString(),
+        memeId: meme_id.toString(),
+        isLike: true,
+      })
       logger.info(
         {
-          event: 'toggle_like_cache_cleared',
+          event: 'toggle_like_cache_invalidated',
           memeId: meme_id,
           userId: user_id,
         },
-        '按讚操作後已清理推薦快取',
+        '按讚操作後已智慧失效推薦快取',
       )
     } catch (cacheError) {
       logger.warn(
         {
-          event: 'toggle_like_cache_clear_failed',
+          event: 'toggle_like_cache_invalidation_failed',
           memeId: meme_id,
           userId: user_id,
           error: cacheError.message,
