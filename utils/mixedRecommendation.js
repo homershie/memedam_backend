@@ -117,7 +117,8 @@ class VersionedCacheProcessor {
 
         if (cachedData !== null) {
           try {
-            const parsedData = JSON.parse(cachedData)
+            const parsedData =
+              typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
 
             // 如果快取包含版本資訊且版本匹配，返回快取數據
             if (parsedData.version && parsedData.version === currentVersion) {
