@@ -14,6 +14,8 @@ export default defineConfig({
       'test/integration/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'test/e2e/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'test/e2e/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      // 包含診斷腳本
+      'scripts/**/*diagnose*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: [
       'node_modules',
@@ -30,8 +32,8 @@ export default defineConfig({
     restoreMocks: true,
     clearMocks: true,
 
-    // 測試超時
-    testTimeout: 10000,
+    // 測試超時 - 診斷腳本需要更長的時間
+    testTimeout: 30000,
 
     // 並行執行
     pool: 'forks',

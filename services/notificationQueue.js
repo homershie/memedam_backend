@@ -50,12 +50,32 @@ class NotificationQueueService {
       // 在測試環境中建立模擬 Redis 客戶端
       let redisClient = null
       if (process.env.NODE_ENV === 'test') {
-        redisClient = new Redis(redisConfig)
+        redisClient = new Redis({
+          ...redisConfig,
+          lazyConnect: true,
+          showFriendlyErrorStack: true,
+          retryDelayOnFailover: 100,
+          retryDelayOnClusterDown: 300,
+          enableOfflineQueue: true,
+          maxRetriesPerRequest: 3, // 與主 Redis 配置保持一致
+          connectTimeout: 5000,
+          commandTimeout: 5000,
+        })
       }
 
       // 建立通知隊列
       this.queue = new Queue('notifications', {
-        redis: redisClient || redisConfig,
+        redis: redisClient || {
+          ...redisConfig,
+          lazyConnect: true,
+          showFriendlyErrorStack: process.env.NODE_ENV === 'development',
+          retryDelayOnFailover: 100,
+          retryDelayOnClusterDown: 300,
+          enableOfflineQueue: true,
+          maxRetriesPerRequest: 3, // 與主 Redis 配置保持一致
+          connectTimeout: 5000,
+          commandTimeout: 5000,
+        },
         defaultJobOptions: {
           removeOnComplete: 50, // 保留最近50個完成的工作
           removeOnFail: 20, // 保留最近20個失敗的工作
@@ -307,27 +327,76 @@ class NotificationQueueService {
    * @param {string} followerUserId - 追蹤者ID
    */
   async addFollowNotification(followedUserId, followerUserId) {
-    if (!this.isInitialized) await this.initialize()
+    try {
+      if (!this.isInitialized) await this.initialize()
 
-    const job = await this.queue.add(
-      'follow',
-      {
+      const job = await this.queue.add(
+        'follow',
+        {
+          followedUserId,
+          followerUserId,
+        },
+        {
+          priority: 4, // 中等優先級
+        },
+      )
+
+      logger.info(`追蹤通知已加入隊列`, {
+        jobId: job.id,
         followedUserId,
         followerUserId,
-      },
-      {
-        priority: 4, // 中等優先級
-      },
-    )
+        event: 'follow_notification_queued',
+      })
 
-    logger.info(`追蹤通知已加入隊列`, {
-      jobId: job.id,
-      followedUserId,
-      followerUserId,
-      event: 'follow_notification_queued',
-    })
+      return job
+    } catch (error) {
+      logger.error(`添加追蹤通知到隊列失敗`, {
+        error: error.message,
+        followedUserId,
+        followerUserId,
+        event: 'follow_notification_queue_error',
+      })
 
-    return job
+      // 如果是連線問題，嘗試重新連線
+      if (
+        error.message.includes('Connection') ||
+        error.message.includes('ECONNREFUSED') ||
+        error.message.includes('MaxRetriesPerRequestError')
+      ) {
+        try {
+          logger.info('嘗試重新連線通知隊列...')
+          await this.reconnect()
+          // 重新嘗試添加通知
+          const retryJob = await this.queue.add(
+            'follow',
+            {
+              followedUserId,
+              followerUserId,
+            },
+            {
+              priority: 4,
+            },
+          )
+          logger.info(`重新連線後成功添加追蹤通知`, {
+            jobId: retryJob.id,
+            followedUserId,
+            followerUserId,
+            event: 'follow_notification_queued_retry',
+          })
+          return retryJob
+        } catch (retryError) {
+          logger.error(`重新連線後仍無法添加追蹤通知`, {
+            error: retryError.message,
+            followedUserId,
+            followerUserId,
+            event: 'follow_notification_queue_retry_failed',
+          })
+          throw retryError
+        }
+      }
+
+      throw error
+    }
   }
 
   /**
@@ -437,18 +506,66 @@ class NotificationQueueService {
   }
 
   /**
+   * 檢查隊列健康狀態
+   */
+  async checkHealth() {
+    try {
+      if (!this.isInitialized) {
+        return { healthy: false, message: '隊列未初始化' }
+      }
+
+      const stats = await this.getStats()
+      if (!stats) {
+        return { healthy: false, message: '無法取得隊列統計' }
+      }
+
+      // 檢查是否有過多的失敗工作
+      const failureRate = stats.failed / (stats.completed + stats.failed + 1) // +1 避免除零
+      if (failureRate > 0.5) {
+        return { healthy: false, message: `失敗率過高: ${(failureRate * 100).toFixed(1)}%` }
+      }
+
+      return {
+        healthy: true,
+        message: '隊列運行正常',
+        stats,
+      }
+    } catch (error) {
+      logger.error('檢查隊列健康狀態失敗:', error)
+      return { healthy: false, message: `健康檢查失敗: ${error.message}` }
+    }
+  }
+
+  /**
    * 重新連接隊列
    */
   async reconnect() {
     if (this.isInitialized) {
       try {
+        logger.info('開始重新連接通知隊列...')
         await this.close()
+
+        // 等待一小段時間再重新初始化
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+
         await this.initialize()
         logger.info('通知隊列重新連接成功')
+
+        // 驗證重新連接是否成功
+        const health = await this.checkHealth()
+        if (!health.healthy) {
+          logger.warn('重新連接後隊列健康檢查失敗:', health.message)
+        }
+
+        return health
       } catch (error) {
         logger.error('通知隊列重新連接失敗:', error)
+        this.isInitialized = false
         throw error
       }
+    } else {
+      // 如果未初始化，直接初始化
+      return await this.initialize()
     }
   }
 

@@ -33,6 +33,11 @@ class RedisCache {
           maxRetriesPerRequest: 3,
           connectTimeout: 5000,
           commandTimeout: 5000,
+          // 連線池優化設定
+          enableReadyCheck: true,
+          keepAlive: 30000,
+          family: 4, // IPv4
+          keyPrefix: 'memedam:', // 添加鍵前綴避免衝突
         })
         logger.info('使用 REDIS_URL 連線')
       } else {
@@ -49,6 +54,11 @@ class RedisCache {
           maxRetriesPerRequest: 3,
           connectTimeout: 5000,
           commandTimeout: 5000,
+          // 連線池優化設定
+          enableReadyCheck: true,
+          keepAlive: 30000,
+          family: 4, // IPv4
+          keyPrefix: 'memedam:', // 添加鍵前綴避免衝突
         })
         logger.info('使用個別環境變數連線')
       }

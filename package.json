@@ -20,7 +20,10 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "diagnose:notifications": "vitest run scripts/diagnose-notifications.js",
+    "diagnose:redis-queue": "vitest run scripts/diagnose-redis-queue.js",
+    "diagnose:all": "vitest run scripts/**/*diagnose*.js"
   },
   "keywords": [],
   "author": "homershie",
