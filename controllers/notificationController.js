@@ -11,6 +11,7 @@ import {
   cleanupOrphanReceipts,
   cleanupExpiredDeletedReceipts,
 } from '../utils/notificationUtils.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // ==================== 使用者端 API ====================
 
@@ -188,6 +189,26 @@ export const updateNotification = async (req, res) => {
       await markReceiptArchived(receiptId, userId, archived)
     }
 
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.NOTIFICATION_STATUS_UPDATED,
+        {
+          userId: userId.toString(),
+          receiptId,
+          notificationId: receipt ? receipt.notification_id.toString() : null,
+          status: { read, archived },
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('通知狀態更新快取失效失敗', {
+        userId: userId.toString(),
+        receiptId,
+        error: cacheError.message,
+      })
+    }
+
     // 重新查詢更新後資料
     const updatedReceipt = await ensureReceiptOwner(receiptId, userId)
 
@@ -225,6 +246,25 @@ export const deleteNotification = async (req, res) => {
     // 軟刪除收件記錄（標記為已刪除）
     await softDeleteReceipt(receiptId, userId)
 
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.NOTIFICATION_DELETED,
+        {
+          userId: userId.toString(),
+          receiptId,
+          notificationId: receipt ? receipt.notification_id.toString() : null,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('通知刪除快取失效失敗', {
+        userId: userId.toString(),
+        receiptId,
+        error: cacheError.message,
+      })
+    }
+
     res.status(204).send()
   } catch (error) {
     console.error('刪除通知錯誤:', error)
@@ -254,6 +294,25 @@ export const markNotificationRead = async (req, res) => {
 
     // 標記為已讀
     await markReceiptRead(receiptId, userId, true)
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.NOTIFICATION_MARK_READ,
+        {
+          userId: userId.toString(),
+          receiptId,
+          notificationId: receipt ? receipt.notification_id.toString() : null,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('通知標記為已讀快取失效失敗', {
+        userId: userId.toString(),
+        receiptId,
+        error: cacheError.message,
+      })
+    }
 
     // 重新查詢更新後資料
     const updatedReceipt = await ensureReceiptOwner(receiptId, userId)
@@ -285,6 +344,22 @@ export const markAllNotificationsRead = async (req, res) => {
         updatedAt: new Date(),
       },
     })
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.NOTIFICATION_MARK_ALL_READ,
+        {
+          userId: userId.toString(),
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('全部通知標記為已讀快取失效失敗', {
+        userId: userId.toString(),
+        error: cacheError.message,
+      })
+    }
 
     res.json({
       success: true,
@@ -322,6 +397,24 @@ export const deleteNotifications = async (req, res) => {
       olderThan,
       unreadOnly,
     })
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.NOTIFICATION_BATCH_DELETED,
+        {
+          userId: userId.toString(),
+          receiptIds: ids,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('通知批量刪除快取失效失敗', {
+        userId: userId.toString(),
+        ids,
+        error: cacheError.message,
+      })
+    }
 
     res.json({
       success: true,

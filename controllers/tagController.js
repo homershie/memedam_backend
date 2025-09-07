@@ -4,6 +4,7 @@ import Meme from '../models/Meme.js'
 import mongoose from 'mongoose'
 import { translateToEnglish } from '../services/googleTranslate.js'
 import { toSlug, toSlugOrNull } from '../utils/slugify.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 建立標籤
 export const createTag = async (req, res) => {
@@ -73,6 +74,21 @@ export const createTag = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.TAG_CREATED,
+        {
+          tagId: tag._id.toString(),
+          tagName: tag.name,
+          lang: tag.lang || 'zh',
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('標籤創建快取失效失敗', { tagId: tag._id.toString(), error: cacheError.message })
+    }
 
     res.status(201).json(tag)
   } catch (error) {
@@ -247,11 +263,18 @@ export const updateTag = async (req, res) => {
   session.startTransaction()
 
   try {
+    // 先獲取現有標籤資訊
+    const currentTag = await Tag.findById(req.params.id).session(session)
+    if (!currentTag) {
+      await session.abortTransaction()
+      return res.status(404).json({ error: '找不到標籤' })
+    }
+
     // 如果要更新名稱，檢查是否會造成重複
     if (req.body.name) {
       const existingTag = await Tag.findOne({
         name: req.body.name,
-        lang: req.body.lang || 'zh',
+        lang: req.body.lang || currentTag.lang,
       })
         .where('_id')
         .ne(req.params.id)
@@ -278,6 +301,23 @@ export const updateTag = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.TAG_UPDATED,
+        {
+          tagId: tag._id.toString(),
+          oldName: req.body.name ? currentTag.name : tag.name,
+          newName: tag.name,
+          lang: tag.lang,
+          oldLang: req.body.lang ? currentTag.lang : tag.lang,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('標籤更新快取失效失敗', { tagId: tag._id.toString(), error: cacheError.message })
+    }
 
     res.json(tag)
   } catch (error) {
@@ -336,6 +376,21 @@ export const deleteTag = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.TAG_DELETED,
+        {
+          tagId: tag._id.toString(),
+          tagName: tag.name,
+          lang: tag.lang,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('標籤刪除快取失效失敗', { tagId: tag._id.toString(), error: cacheError.message })
+    }
 
     res.json({
       message: '標籤已刪除',
@@ -658,9 +713,30 @@ export const toggleTagStatus = async (req, res) => {
     }
 
     // 切換狀態
+    const oldStatus = tag.status
     const newStatus = tag.status === 'active' ? 'archived' : 'active'
     tag.status = newStatus
     await tag.save()
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.TAG_STATUS_TOGGLED,
+        {
+          tagId: tag._id.toString(),
+          newStatus,
+          oldStatus,
+          tagName: tag.name,
+          lang: tag.lang,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('標籤狀態切換快取失效失敗', {
+        tagId: tag._id.toString(),
+        error: cacheError.message,
+      })
+    }
 
     res.json({
       message: '標籤狀態已更新',
@@ -779,6 +855,25 @@ export const mergeTags = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.TAG_MERGED,
+        {
+          primaryTagId: primaryTag._id.toString(),
+          secondaryTagIds: secondaryIds,
+          primaryTagName: primaryTag.name,
+          lang: primaryTag.lang,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('標籤合併快取失效失敗', {
+        primaryTagId: primaryTag._id.toString(),
+        error: cacheError.message,
+      })
+    }
+
     res.json({
       message: '標籤合併成功',
       primaryTag: {
@@ -852,6 +947,20 @@ export const batchDeleteTags = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.TAG_BATCH_DELETED,
+        {
+          tagIds: validIds,
+          lang: 'zh', // 假設主要使用中文，可根據實際需求調整
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('標籤批量刪除快取失效失敗', { tagIds: validIds, error: cacheError.message })
+    }
 
     res.json({
       message: '批量刪除成功',

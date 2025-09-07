@@ -13,6 +13,7 @@ import { logger } from '../utils/logger.js'
 import EmailService from '../services/emailService.js'
 import VerificationController from './verificationController.js'
 import { deleteImageByUrl } from '../services/uploadService.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 通知設定相關方法
 export const updateNotificationSettings = async (req, res) => {
@@ -92,6 +93,20 @@ export const updateNotificationSettings = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
         message: '用戶不存在',
+      })
+    }
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.USER_NOTIFICATION_SETTINGS_UPDATE,
+        { userId: userId.toString() },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      logger.warn('通知設定更新快取失效失敗', {
+        userId: userId.toString(),
+        error: cacheError.message,
       })
     }
 
@@ -1318,6 +1333,24 @@ export const bindSocialAccount = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.USER_SOCIAL_BIND,
+        {
+          userId: userId.toString(),
+          provider,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      logger.warn('用戶社群帳號綁定快取失效失敗', {
+        userId: userId.toString(),
+        provider,
+        error: cacheError.message,
+      })
+    }
+
     res.json({ success: true, message: `成功綁定${provider}帳號` })
   } catch (error) {
     // 回滾事務
@@ -1445,6 +1478,23 @@ export const updateMe = async (req, res) => {
         logger.error('刪除舊封面圖片失敗:', deleteError)
         // 不影響主要操作，只記錄錯誤
       }
+    }
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.USER_PROFILE_UPDATE,
+        {
+          userId: req.user._id.toString(),
+          changes: req.body,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      logger.warn('用戶個人資料更新快取失效失敗', {
+        userId: req.user._id.toString(),
+        error: cacheError.message,
+      })
     }
 
     res.json({ success: true, user })
@@ -1693,6 +1743,20 @@ export const changePassword = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.USER_PASSWORD_CHANGE,
+        { userId: userId.toString() },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      logger.warn('用戶密碼變更快取失效失敗', {
+        userId: userId.toString(),
+        error: cacheError.message,
+      })
+    }
+
     const message = hasExistingPassword ? '密碼已成功變更，請重新登入' : '密碼已成功設定'
 
     res.json({
@@ -1811,6 +1875,24 @@ export const changeEmail = async (req, res) => {
       // 即使 email 發送失敗，仍然回傳成功，但記錄錯誤
     }
 
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.USER_EMAIL_CHANGE,
+        {
+          userId: userId.toString(),
+          oldEmail: user.email.toLowerCase(),
+          newEmail: newEmail.toLowerCase(),
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      logger.warn('用戶電子信箱變更快取失效失敗', {
+        userId: userId.toString(),
+        error: cacheError.message,
+      })
+    }
+
     res.json({
       success: true,
       message: '電子信箱已成功變更，驗證信已發送到您的新信箱，請檢查並點擊驗證連結來完成驗證。',
@@ -1886,6 +1968,24 @@ export const unbindSocialAccount = async (req, res) => {
 
     // 提交事務
     await session.commitTransaction()
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.USER_SOCIAL_UNBIND,
+        {
+          userId: userId.toString(),
+          provider,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      logger.warn('用戶社群帳號解除綁定快取失效失敗', {
+        userId: userId.toString(),
+        provider,
+        error: cacheError.message,
+      })
+    }
 
     res.json({
       success: true,
@@ -2211,6 +2311,23 @@ export const resetPassword = async (req, res) => {
     await user.save()
 
     if (session) await session.commitTransaction()
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.USER_PASSWORD_RESET,
+        {
+          userId: user._id.toString(),
+          email: user.email,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      logger.warn('用戶密碼重設快取失效失敗', {
+        userId: user._id.toString(),
+        error: cacheError.message,
+      })
+    }
 
     res.status(StatusCodes.OK).json({ success: true, message: '密碼重設成功，請使用新密碼登入' })
   } catch (error) {

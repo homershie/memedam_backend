@@ -1,6 +1,7 @@
 import MemeTag from '../models/MemeTag.js'
 import Meme from '../models/Meme.js'
 import Tag from '../models/Tag.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 建立迷因標籤關聯（支援單一和批量創建）
 export const createMemeTag = async (req, res) => {
@@ -55,6 +56,25 @@ export const createMemeTag = async (req, res) => {
 
       const createdMemeTags = await MemeTag.insertMany(newMemeTags)
 
+      // 智慧快取失效
+      try {
+        await smartCacheInvalidator.invalidateByOperation(
+          CACHE_OPERATIONS.MEME_TAG_BATCH_CREATED,
+          {
+            memeId: meme_id,
+            tagIds: newTagIds,
+            lang,
+          },
+          { skipLogging: true },
+        )
+      } catch (cacheError) {
+        console.warn('迷因標籤關聯批量創建快取失效失敗', {
+          memeId: meme_id,
+          tagIds: newTagIds,
+          error: cacheError.message,
+        })
+      }
+
       // 返回創建結果
       const populatedMemeTags = await MemeTag.find({
         _id: { $in: createdMemeTags.map((mt) => mt._id) },
@@ -101,6 +121,25 @@ export const createMemeTag = async (req, res) => {
 
     const memeTag = new MemeTag({ meme_id, tag_id, lang })
     await memeTag.save()
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.MEME_TAG_CREATED,
+        {
+          memeId: meme_id,
+          tagId: tag_id,
+          lang,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('迷因標籤關聯創建快取失效失敗', {
+        memeId: meme_id,
+        tagId: tag_id,
+        error: cacheError.message,
+      })
+    }
 
     // 返回完整信息（populate）
     const populatedMemeTag = await MemeTag.findById(memeTag._id)
@@ -319,6 +358,25 @@ export const deleteMemeTag = async (req, res) => {
     const memeTag = await MemeTag.findByIdAndDelete(req.params.id)
     if (!memeTag) return res.status(404).json({ error: '找不到迷因標籤關聯' })
 
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.MEME_TAG_DELETED,
+        {
+          memeId: memeTag.meme_id,
+          tagId: memeTag.tag_id,
+          lang: memeTag.lang,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('迷因標籤關聯刪除快取失效失敗', {
+        memeId: memeTag.meme_id,
+        tagId: memeTag.tag_id,
+        error: cacheError.message,
+      })
+    }
+
     res.json({
       message: '迷因標籤關聯已刪除',
       deletedMemeTag: memeTag,
@@ -344,6 +402,20 @@ export const deleteMemeAllTags = async (req, res) => {
     if (lang) filter.lang = lang
 
     const result = await MemeTag.deleteMany(filter)
+
+    // 智慧快取失效
+    try {
+      await smartCacheInvalidator.invalidateByOperation(
+        CACHE_OPERATIONS.MEME_TAG_BATCH_DELETED,
+        {
+          memeId,
+          lang,
+        },
+        { skipLogging: true },
+      )
+    } catch (cacheError) {
+      console.warn('迷因標籤關聯批量刪除快取失效失敗', { memeId, error: cacheError.message })
+    }
 
     res.json({
       message: `成功刪除 ${result.deletedCount} 個標籤關聯`,

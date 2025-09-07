@@ -1,5 +1,6 @@
 import { StatusCodes } from 'http-status-codes'
 import { logger } from '../utils/logger.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 /**
  * 偏好設定控制器
@@ -46,6 +47,25 @@ class PreferencesController {
       })
 
       logger.info(`使用者 ${req.user?._id || 'anonymous'} 設定主題: ${theme}`)
+
+      // 智慧快取失效
+      if (req.user?._id) {
+        try {
+          await smartCacheInvalidator.invalidateByOperation(
+            CACHE_OPERATIONS.USER_THEME_UPDATE,
+            {
+              userId: req.user._id.toString(),
+              theme,
+            },
+            { skipLogging: true },
+          )
+        } catch (cacheError) {
+          logger.warn('用戶主題偏好更新快取失效失敗', {
+            userId: req.user._id.toString(),
+            error: cacheError.message,
+          })
+        }
+      }
 
       res.json({
         success: true,
@@ -95,6 +115,25 @@ class PreferencesController {
       })
 
       logger.info(`使用者 ${req.user?._id || 'anonymous'} 設定語言: ${language}`)
+
+      // 智慧快取失效
+      if (req.user?._id) {
+        try {
+          await smartCacheInvalidator.invalidateByOperation(
+            CACHE_OPERATIONS.USER_LANGUAGE_UPDATE,
+            {
+              userId: req.user._id.toString(),
+              language,
+            },
+            { skipLogging: true },
+          )
+        } catch (cacheError) {
+          logger.warn('用戶語言偏好更新快取失效失敗', {
+            userId: req.user._id.toString(),
+            error: cacheError.message,
+          })
+        }
+      }
 
       res.json({
         success: true,
@@ -150,6 +189,25 @@ class PreferencesController {
 
       logger.info(`使用者 ${req.user?._id || 'anonymous'} 更新個人化設定`)
 
+      // 智慧快取失效
+      if (req.user?._id) {
+        try {
+          await smartCacheInvalidator.invalidateByOperation(
+            CACHE_OPERATIONS.USER_PERSONALIZATION_UPDATE,
+            {
+              userId: req.user._id.toString(),
+              personalization,
+            },
+            { skipLogging: true },
+          )
+        } catch (cacheError) {
+          logger.warn('用戶個人化設定更新快取失效失敗', {
+            userId: req.user._id.toString(),
+            error: cacheError.message,
+          })
+        }
+      }
+
       res.json({
         success: true,
         message: '個人化偏好已儲存',
@@ -196,6 +254,25 @@ class PreferencesController {
       })
 
       logger.info(`使用者 ${req.user?._id || 'anonymous'} 更新搜尋偏好`)
+
+      // 智慧快取失效
+      if (req.user?._id) {
+        try {
+          await smartCacheInvalidator.invalidateByOperation(
+            CACHE_OPERATIONS.USER_SEARCH_PREFERENCES_UPDATE,
+            {
+              userId: req.user._id.toString(),
+              searchPreferences,
+            },
+            { skipLogging: true },
+          )
+        } catch (cacheError) {
+          logger.warn('用戶搜尋偏好更新快取失效失敗', {
+            userId: req.user._id.toString(),
+            error: cacheError.message,
+          })
+        }
+      }
 
       res.json({
         success: true,
@@ -278,6 +355,24 @@ class PreferencesController {
       })
 
       logger.info(`使用者 ${req.user?._id || 'anonymous'} 清除所有偏好設定`)
+
+      // 智慧快取失效
+      if (req.user?._id) {
+        try {
+          await smartCacheInvalidator.invalidateByOperation(
+            CACHE_OPERATIONS.USER_PREFERENCES_CLEAR,
+            {
+              userId: req.user._id.toString(),
+            },
+            { skipLogging: true },
+          )
+        } catch (cacheError) {
+          logger.warn('用戶偏好設定清除快取失效失敗', {
+            userId: req.user._id.toString(),
+            error: cacheError.message,
+          })
+        }
+      }
 
       res.json({
         success: true,
