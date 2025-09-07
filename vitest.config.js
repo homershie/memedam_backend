@@ -15,7 +15,7 @@ export default defineConfig({
       'test/e2e/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'test/e2e/**/*-test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       // 包含診斷腳本
-      'scripts/**/*diagnose*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'scripts/diagnostics/**/*diagnose*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: [
       'node_modules',
@@ -47,7 +47,16 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules/', 'test/', '**/*.config.js', '**/*.config.mjs', 'scripts/', 'docs/'],
+      exclude: [
+        'node_modules/',
+        'test/',
+        '**/*.config.js',
+        '**/*.config.mjs',
+        'scripts/maintenance/',
+        'scripts/data/',
+        'scripts/runners/',
+        'docs/',
+      ],
     },
 
     // 設置文件

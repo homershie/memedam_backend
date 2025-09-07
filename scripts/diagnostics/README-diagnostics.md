@@ -44,23 +44,23 @@ npm run diagnose:all
 
 ```bash
 # 診斷通知系統
-npx vitest run scripts/diagnose-notifications.js
+npx vitest run scripts/diagnostics/diagnose-notifications.js
 
 # 診斷 Redis 隊列
-npx vitest run scripts/diagnose-redis-queue.js
+npx vitest run scripts/diagnostics/diagnose-redis-queue.js
 
 # 執行所有診斷腳本
-npx vitest run scripts/**/*diagnose*.js
+npx vitest run scripts/diagnostics/**/*diagnose*.js
 ```
 
 ### 方法 3: 監視模式
 
 ```bash
 # 監視模式運行診斷
-npx vitest scripts/diagnose-notifications.js --watch
+npx vitest scripts/diagnostics/diagnose-notifications.js --watch
 
 # 監視模式運行所有診斷
-npx vitest scripts/**/*diagnose*.js --watch
+npx vitest scripts/diagnostics/**/*diagnose*.js --watch
 ```
 
 ## 錯誤排除
