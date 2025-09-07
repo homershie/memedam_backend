@@ -21,6 +21,10 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest --watch",
+    "test:seo": "vitest run test/unit/controllers/seoController.test.js test/integration/api/seo-routes.test.js",
+    "test:seo:unit": "vitest run test/unit/controllers/seoController.test.js",
+    "test:seo:integration": "vitest run test/integration/api/seo-routes.test.js",
+    "test:seo:watch": "vitest --watch test/unit/controllers/seoController.test.js test/integration/api/seo-routes.test.js",
     "diagnose:notifications": "vitest run scripts/diagnostics/diagnose-notifications.js",
     "diagnose:redis-queue": "vitest run scripts/diagnostics/diagnose-redis-queue.js",
     "diagnose:all": "vitest run scripts/diagnostics/**/*diagnose*.js"

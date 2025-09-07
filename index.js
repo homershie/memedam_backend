@@ -49,6 +49,7 @@ import { attachPrivacyConsent } from './middleware/privacyConsent.js'
 import { optionalToken } from './middleware/auth.js'
 import maintenanceScheduler from './services/maintenanceScheduler.js'
 import analyticsMonitor from './services/analyticsMonitor.js'
+import seoMonitor from './services/seoMonitor.js'
 import {
   startNotificationScheduler,
   stopNotificationScheduler,
@@ -375,6 +376,7 @@ import logsRoutes from './routes/logsRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
 import privacyConsentRoutes from './routes/privacyConsentRoutes.js'
 import sitemapRoutes from './routes/sitemapRoutes.js'
+import seoRoutes from './routes/seoRoutes.js'
 
 app.use('/api/users', userRoutes)
 app.use('/api/memes', memeRoutes)
@@ -406,6 +408,7 @@ app.use('/api/username', usernameRoutes)
 app.use('/api/logs', logsRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/privacy-consent', privacyConsentRoutes)
+app.use('/api/seo', seoRoutes)
 
 // Sitemap 路由（無需 /api 前綴）
 app.use('/', sitemapRoutes)
@@ -426,6 +429,7 @@ app.get('/health', async (req, res) => {
 
     const performanceMetrics = performanceMonitor.getAllMetrics()
     const analyticsStatus = analyticsMonitor.getMonitoringStatus()
+    const seoStatus = seoMonitor.getMonitoringStatus()
 
     res.json({
       status: 'healthy',
@@ -445,6 +449,7 @@ app.get('/health', async (req, res) => {
           })),
       },
       analytics: analyticsStatus,
+      seo: seoStatus,
     })
   } catch (error) {
     logger.error('健康檢查失敗:', error)
