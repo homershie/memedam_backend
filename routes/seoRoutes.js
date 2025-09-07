@@ -723,7 +723,7 @@ router.post('/health-check', token, seoController.runSEOHealthCheck)
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/dashboard', token, seoController.getSEODashboard)
+router.get('/dashboard', token, seoController.getSEODashboard.bind(seoController))
 
 /**
  * @swagger

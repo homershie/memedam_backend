@@ -45,6 +45,11 @@ vi.mock('../../../utils/logger.js', () => ({
   },
 }))
 
+// 將 auth token 中介直接略過，避免依賴 passport 設定
+vi.mock('../../../middleware/auth.js', () => ({
+  token: (req, res, next) => next(),
+}))
+
 describe('SEO Routes API 整合測試', () => {
   let app
   let server
@@ -101,7 +106,9 @@ describe('SEO Routes API 整合測試', () => {
       { expiresIn: '1h' },
     )
 
-    // Dependencies are already mocked by vi.mock above, no need to re-import
+    // 取得已被 vi.mock 的模組實例供測試使用
+    ;({ default: seoMonitor } = await import('../../../services/seoMonitor.js'))
+    ;({ default: redisCache } = await import('../../../config/redis.js'))
 
     // Start server
     server = app.listen(0)
@@ -464,9 +471,12 @@ describe('SEO Routes API 整合測試', () => {
       seoMonitor.getMonitoringStatus.mockReturnValue(mockStatus)
       seoMonitor.getLatestMetrics.mockResolvedValue(mockMetrics)
 
-      // Mock internal methods - we need to mock the controller's methods
-      // This is a bit tricky since we're testing the routes, not the controller directly
-      redisCache.smembers.mockResolvedValue(['alert1', 'alert2'])
+      // 依呼叫順序分別回傳：先給 alerts，再給 reports 日期
+      redisCache.smembers
+        .mockResolvedValueOnce(['alert1', 'alert2']) // for active alerts
+        .mockResolvedValueOnce(['2024-01-15']) // for recent reports
+
+      // 對應順序：兩次 alert 內容、一次 report 內容
       redisCache.get
         .mockResolvedValueOnce(JSON.stringify(mockAlerts[0]))
         .mockResolvedValueOnce(JSON.stringify(mockAlerts[1]))
@@ -476,6 +486,11 @@ describe('SEO Routes API 整合測試', () => {
         .get('/api/seo/dashboard')
         .set('Authorization', `Bearer ${testToken}`)
 
+      if (response.status !== 200) {
+        // 調試輸出
+        // eslint-disable-next-line no-console
+        console.log('Dashboard response (error):', response.body)
+      }
       expect(response.status).toBe(200)
       expect(response.body.success).toBe(true)
       expect(response.body.data.status).toEqual(mockStatus)
