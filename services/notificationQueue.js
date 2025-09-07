@@ -65,6 +65,11 @@ class NotificationQueueService {
             delay: 5000, // 初始延遲5秒
           },
         },
+        settings: {
+          lockDuration: 30000, // 鎖定持續時間30秒
+          stalledInterval: 30000, // 檢查停滯工作的間隔
+          maxStalledCount: 2, // 最大停滯次數
+        },
       })
 
       // 設定事件監聽器
@@ -92,7 +97,17 @@ class NotificationQueueService {
     })
 
     this.queue.on('error', (error) => {
-      logger.error('通知隊列錯誤:', error)
+      // 只記錄非預期的錯誤，避免過度記錄
+      if (
+        error.message &&
+        !error.message.includes('Connection is closed') &&
+        !error.message.includes('ECONNREFUSED') &&
+        !error.message.includes('Redis connection lost')
+      ) {
+        logger.error('通知隊列錯誤:', error)
+      } else {
+        logger.debug('通知隊列連線問題 (正常重連中):', error.message)
+      }
     })
 
     this.queue.on('waiting', (jobId) => {
@@ -121,6 +136,11 @@ class NotificationQueueService {
         attemptsRemaining: job.opts.attempts - job.attemptsMade,
         event: 'notification_job_failed',
       })
+    })
+
+    // 添加連線恢復事件
+    this.queue.on('stalled', (jobId) => {
+      logger.warn(`通知工作 ${jobId} 停滯，可能需要重新處理`)
     })
   }
 
@@ -413,6 +433,22 @@ class NotificationQueueService {
       logger.info(`通知隊列已清空: ${state}`)
     } catch (error) {
       logger.error('清空隊列失敗:', error)
+    }
+  }
+
+  /**
+   * 重新連接隊列
+   */
+  async reconnect() {
+    if (this.isInitialized) {
+      try {
+        await this.close()
+        await this.initialize()
+        logger.info('通知隊列重新連接成功')
+      } catch (error) {
+        logger.error('通知隊列重新連接失敗:', error)
+        throw error
+      }
     }
   }
 

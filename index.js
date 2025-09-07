@@ -125,8 +125,8 @@ app.use(mongoSanitize())
 app.use(compression())
 app.use(cookieParser())
 
-// 立即配置 session 中間件（所有環境）
-const configureSession = () => {
+// 延遲配置 session 中間件（等待 Redis 連線完成）
+const configureSession = async () => {
   let sessionStore
 
   if (process.env.NODE_ENV === 'development') {
@@ -181,12 +181,7 @@ const configureSession = () => {
   })
 }
 
-// 配置 session 中間件
-app.use(configureSession())
-
-// Passport 初始化（在 session 配置之後）
-app.use(passport.initialize())
-app.use(passport.session())
+// Session 和 Passport 初始化將在 startServer 中完成
 
 // 其他中間件
 app.use(express.json({ limit: '10mb' }))
@@ -629,6 +624,43 @@ const startServer = async () => {
       logger.info('跳過 Redis 連線 (SKIP_REDIS=true)')
     }
 
+    // 在 Redis 連線完成後配置 session 中間件
+    try {
+      const sessionMiddleware = await configureSession()
+      app.use(sessionMiddleware)
+
+      // Passport 初始化（在 session 配置之後）
+      app.use(passport.initialize())
+      app.use(passport.session())
+
+      logger.info('Session 和 Passport 中間件配置完成')
+    } catch (sessionError) {
+      logger.error('Session 中間件配置失敗:', sessionError.message)
+      // 備用方案：使用 MemoryStore
+      app.use(
+        session({
+          store: new session.MemoryStore(),
+          secret: process.env.SESSION_SECRET || 'fallback-session-secret',
+          name: 'memedam.sid',
+          resave: true,
+          saveUninitialized: true,
+          cookie: {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            path: '/',
+          },
+        }),
+      )
+
+      // Passport 初始化
+      app.use(passport.initialize())
+      app.use(passport.session())
+
+      logger.warn('使用備用 MemoryStore 配置 session')
+    }
+
     // 記錄 session 配置狀態
     logger.info('Session configured:', {
       NODE_ENV: process.env.NODE_ENV,
@@ -759,6 +791,8 @@ if (process.env.NODE_ENV === 'test') {
       // Passport 初始化
       app.use(passport.initialize())
       app.use(passport.session())
+
+      logger.info('測試環境 session 和 Passport 初始化完成')
     } catch (error) {
       logger.error('測試環境 session 初始化失敗:', error)
     }
