@@ -352,6 +352,8 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
     includeHotScore = true,
     hotScoreWeight = 0.3,
     tags = [],
+    type,
+    types,
     // 新增：分頁和排除功能
     page = 1,
     excludeIds = [],
@@ -361,7 +363,9 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
     // 生成快取鍵
     const excludeIdsKey = excludeIds.length > 0 ? excludeIds.sort().join('_') : 'none'
     const tagsKey = tags.length > 0 ? tags.sort().join('_') : 'none'
-    const cacheKey = `content_based_recommendations:${userId}:${limit}:${minSimilarity}:${excludeInteracted}:${includeHotScore}:${hotScoreWeight}:${tagsKey}:${page}:${excludeIdsKey}`
+    const typeKey = type || 'all'
+    const typesKey = types && types.length > 0 ? types.sort().join('_') : 'none'
+    const cacheKey = `content_based_recommendations:${userId}:${limit}:${minSimilarity}:${excludeInteracted}:${includeHotScore}:${hotScoreWeight}:${tagsKey}:${typeKey}:${typesKey}:${page}:${excludeIdsKey}`
 
     // 嘗試從快取取得數據
     const cacheResult = await contentBasedCacheProcessor.processWithVersion(
@@ -392,6 +396,17 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
             filter.tags_cache = { $in: tags }
           }
 
+          // 如果有類型篩選，加入類型條件
+          if (types && types.length > 0) {
+            if (types.length === 1) {
+              filter.type = types[0]
+            } else {
+              filter.type = { $in: types }
+            }
+          } else if (type && type !== 'all') {
+            filter.type = type
+          }
+
           const hotMemes = await Meme.find(filter)
             .sort({ hot_score: -1 })
             .limit(limit)
@@ -412,6 +427,17 @@ export const getContentBasedRecommendations = async (userId, options = {}) => {
         // 如果有標籤篩選，加入標籤條件
         if (tags && tags.length > 0) {
           filter.tags_cache = { $in: tags }
+        }
+
+        // 如果有類型篩選，加入類型條件
+        if (types && types.length > 0) {
+          if (types.length === 1) {
+            filter.type = types[0]
+          } else {
+            filter.type = { $in: types }
+          }
+        } else if (type && type !== 'all') {
+          filter.type = type
         }
 
         // 如果有排除ID，加入查詢條件

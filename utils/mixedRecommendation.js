@@ -113,19 +113,17 @@ class VersionedCacheProcessor {
   /**
    * 更新快取版本
    * @param {string} cacheKey - 快取鍵
-   * @param {string} level - 版本遞增層級
    * @returns {string} 新版本號
    */
-  async updateCacheVersion(cacheKey, level = 'patch') {
+  async updateCacheVersion(cacheKey) {
     return await cacheVersionManager.updateVersion(cacheKey)
   }
 
   /**
    * 清除快取並更新版本
    * @param {string} cacheKey - 快取鍵
-   * @param {string} level - 版本遞增層級
    */
-  async invalidateCache(cacheKey, level = 'patch') {
+  async invalidateCache(cacheKey) {
     try {
       // 更新版本號
       const newVersion = await cacheVersionManager.updateVersion(cacheKey)
@@ -363,8 +361,8 @@ const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights 
  * @returns {Array} 熱門推薦列表
  */
 export const getHotRecommendations = async (options = {}) => {
-  const { limit = 20, days = 7, tags = [] } = options || {}
-  const cacheKey = `hot_recommendations:${limit}:${days}:${JSON.stringify(tags)}`
+  const { limit = 20, days = 7, tags = [], type, types } = options || {}
+  const cacheKey = `hot_recommendations:${limit}:${days}:${JSON.stringify(tags)}:${type || 'all'}:${JSON.stringify(types || [])}`
 
   return await cacheProcessor.processWithCache(
     cacheKey,
@@ -381,6 +379,17 @@ export const getHotRecommendations = async (options = {}) => {
       // 如果有標籤篩選，加入標籤條件
       if (tags && tags.length > 0) {
         filter.tags_cache = { $in: tags }
+      }
+
+      // 如果有類型篩選，加入類型條件
+      if (types && types.length > 0) {
+        if (types.length === 1) {
+          filter.type = types[0]
+        } else {
+          filter.type = mongoose.trusted({ $in: types })
+        }
+      } else if (type && type !== 'all') {
+        filter.type = type
       }
 
       // 增加查詢數量以確保有足夠的推薦
@@ -470,8 +479,8 @@ export const getHotRecommendations = async (options = {}) => {
  * @returns {Array} 最新推薦列表
  */
 export const getLatestRecommendations = async (options = {}) => {
-  const { limit = 20, hours = 24, tags = [] } = options || {}
-  const cacheKey = `latest_recommendations:${limit}:${hours}:${JSON.stringify(tags)}`
+  const { limit = 20, hours = 24, tags = [], type, types } = options || {}
+  const cacheKey = `latest_recommendations:${limit}:${hours}:${JSON.stringify(tags)}:${type || 'all'}:${JSON.stringify(types || [])}`
 
   return await cacheProcessor.processWithCache(
     cacheKey,
@@ -488,6 +497,17 @@ export const getLatestRecommendations = async (options = {}) => {
       // 如果有標籤篩選，加入標籤條件
       if (tags && tags.length > 0) {
         filter.tags_cache = { $in: tags }
+      }
+
+      // 如果有類型篩選，加入類型條件
+      if (types && types.length > 0) {
+        if (types.length === 1) {
+          filter.type = types[0]
+        } else {
+          filter.type = mongoose.trusted({ $in: types })
+        }
+      } else if (type && type !== 'all') {
+        filter.type = type
       }
 
       // 增加查詢數量以確保有足夠的推薦
@@ -586,8 +606,8 @@ export const getLatestRecommendations = async (options = {}) => {
  * @returns {Array} 最近更新推薦列表
  */
 export const getUpdatedRecommendations = async (options = {}) => {
-  const { limit = 20, days = 30, tags = [] } = options || {}
-  const cacheKey = `updated_recommendations:${limit}:${days}:${JSON.stringify(tags)}`
+  const { limit = 20, days = 30, tags = [], type, types } = options || {}
+  const cacheKey = `updated_recommendations:${limit}:${days}:${JSON.stringify(tags)}:${type || 'all'}:${JSON.stringify(types || [])}`
 
   return await cacheProcessor.processWithCache(
     cacheKey,
@@ -604,6 +624,17 @@ export const getUpdatedRecommendations = async (options = {}) => {
       // 如果有標籤篩選，加入標籤條件
       if (tags && tags.length > 0) {
         filter.tags_cache = { $in: tags }
+      }
+
+      // 如果有類型篩選，加入類型條件
+      if (types && types.length > 0) {
+        if (types.length === 1) {
+          filter.type = types[0]
+        } else {
+          filter.type = mongoose.trusted({ $in: types })
+        }
+      } else if (type && type !== 'all') {
+        filter.type = type
       }
 
       // 增加查詢數量以確保有足夠的推薦
@@ -891,6 +922,8 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       includeRecommendationReasons = true,
       useCache = true,
       tags = [],
+      type,
+      types,
       // 新增：分頁和排除功能
       page = 1,
       excludeIds = [],
@@ -929,6 +962,8 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
             adjustedLimit,
             weights,
             tags,
+            type,
+            types,
           )
 
           return {
@@ -1014,8 +1049,8 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
 
       const result = {
         recommendations: paginatedRecommendations,
-        weights: cached.weights,
-        coldStartStatus: cached.coldStartStatus,
+        weights: cacheResult.data.weights,
+        coldStartStatus: cacheResult.data.coldStartStatus,
         diversity,
         algorithm: 'mixed',
         userAuthenticated: !!userId,
@@ -1034,7 +1069,9 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
           requestedLimit: limit,
           adjustedLimit: adjustedLimit,
           coldStartMultiplier: COLD_START_CONFIG.coldStartMultiplier,
-          isColdStart: !userId || (cached.coldStartStatus && cached.coldStartStatus.isColdStart),
+          isColdStart:
+            !userId ||
+            (cacheResult.data.coldStartStatus && cacheResult.data.coldStartStatus.isColdStart),
           excludedCount: excludeIds ? excludeIds.length : 0,
         },
       }
@@ -1049,6 +1086,8 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       adjustedLimit,
       weights,
       tags,
+      type,
+      types,
     )
 
     // 排除已顯示的項目
@@ -1120,11 +1159,13 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
 
     // 如果沒有使用快取或者快取處理失敗，這裡處理原始邏輯
     if (!useCache) {
-      mergedRecommendations = await this.generateMixedRecommendations(
+      mergedRecommendations = await generateMixedRecommendations(
         userId,
         adjustedLimit,
         weights,
         tags,
+        type,
+        types,
       )
     }
 
@@ -1172,7 +1213,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
  * @param {Array} tags - 標籤篩選
  * @returns {Array} 推薦結果
  */
-const generateMixedRecommendations = async (userId, limit, weights, tags) => {
+const generateMixedRecommendations = async (userId, limit, weights, tags, type, types) => {
   // 並行取得各種推薦
   const recommendationTasks = []
 
@@ -1183,6 +1224,8 @@ const generateMixedRecommendations = async (userId, limit, weights, tags) => {
         limit: Math.ceil(limit * weights.hot),
         days: 7,
         tags,
+        type,
+        types,
       }),
     )
   }
@@ -1194,6 +1237,8 @@ const generateMixedRecommendations = async (userId, limit, weights, tags) => {
         limit: Math.ceil(limit * weights.latest),
         hours: 24,
         tags,
+        type,
+        types,
       }),
     )
   }
@@ -1205,6 +1250,8 @@ const generateMixedRecommendations = async (userId, limit, weights, tags) => {
         limit: Math.ceil(limit * weights.updated),
         days: 30,
         tags,
+        type,
+        types,
       }),
     )
   }
@@ -1215,6 +1262,8 @@ const generateMixedRecommendations = async (userId, limit, weights, tags) => {
       getContentBasedRecommendations(userId, {
         limit: Math.ceil(limit * weights.content_based),
         tags,
+        type,
+        types,
       }),
     )
   }
@@ -1225,6 +1274,8 @@ const generateMixedRecommendations = async (userId, limit, weights, tags) => {
       getCollaborativeFilteringRecommendations(userId, {
         limit: Math.ceil(limit * weights.collaborative_filtering),
         tags,
+        type,
+        types,
       }),
     )
   }
@@ -1235,6 +1286,8 @@ const generateMixedRecommendations = async (userId, limit, weights, tags) => {
       getSocialCollaborativeFilteringRecommendations(userId, {
         limit: Math.ceil(limit * weights.social_collaborative_filtering),
         tags,
+        type,
+        types,
       }),
     )
   }
@@ -1261,6 +1314,8 @@ export const getInfiniteScrollRecommendations = async (userId = null, options = 
       limit = 10,
       excludeIds = [],
       tags = [],
+      type,
+      types,
       customWeights = {},
       includeSocialScores = true,
       includeRecommendationReasons = true,
@@ -1280,6 +1335,8 @@ export const getInfiniteScrollRecommendations = async (userId = null, options = 
       includeRecommendationReasons,
       useCache: useCache,
       tags,
+      type,
+      types,
       page: 1, // 總是從第一頁開始
       excludeIds: [], // 在混合推薦中不排除，在結果中排除
     })
