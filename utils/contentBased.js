@@ -110,7 +110,8 @@ class ContentBasedVersionedCacheProcessor {
 
         if (cachedData !== null) {
           try {
-            const parsedData = JSON.parse(cachedData)
+            const parsedData =
+              typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
 
             // 如果快取包含版本資訊且版本匹配，返回快取數據
             if (parsedData.version && parsedData.version === currentVersion) {
@@ -155,8 +156,9 @@ class ContentBasedVersionedCacheProcessor {
           const cached = await this.redis.get(cacheKey)
           if (cached !== null) {
             try {
+              const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached
               return {
-                data: JSON.parse(cached),
+                data: parsed,
                 version: '1.0.0',
                 fromCache: true,
               }
