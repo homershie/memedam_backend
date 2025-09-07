@@ -946,12 +946,13 @@ export const getCollaborativeFilteringRecommendations = async (targetUserId, opt
         }
 
         // 找到相似用戶
-        const similarUsers = findSimilarUsers(
+        const similarUsersResult = await findSimilarUsers(
           targetUserIdObj.toString(),
           interactionMatrix,
           minSimilarity,
           maxSimilarUsers,
         )
+        const similarUsers = Array.isArray(similarUsersResult) ? similarUsersResult : []
 
         if (similarUsers.length === 0) {
           console.log('沒有找到相似用戶，使用熱門推薦作為備選')
@@ -1799,12 +1800,15 @@ export const getSocialCollaborativeFilteringRecommendations = async (
         }
 
         // 找到社交相似用戶
-        const socialSimilarUsers = findSocialSimilarUsers(
+        const socialSimilarUsersResult = await findSocialSimilarUsers(
           targetUserIdObj.toString(),
           socialGraph,
           minSimilarity,
           maxSimilarUsers,
         )
+        const socialSimilarUsers = Array.isArray(socialSimilarUsersResult)
+          ? socialSimilarUsersResult
+          : []
 
         if (socialSimilarUsers.length === 0) {
           console.log('沒有找到社交相似用戶，使用熱門推薦作為備選')
@@ -2076,7 +2080,15 @@ export const getSocialCollaborativeFilteringStats = async (userId) => {
     const userInteractions = interactionMatrix[userIdStr] || {}
     const userSocialData = socialGraph[userIdStr] || {}
 
-    const socialSimilarUsers = findSocialSimilarUsers(userIdStr, socialGraph, 0.1, 100)
+    const socialSimilarUsersResult = await findSocialSimilarUsers(
+      userIdStr,
+      socialGraph,
+      0.1,
+      100,
+    )
+    const socialSimilarUsers = Array.isArray(socialSimilarUsersResult)
+      ? socialSimilarUsersResult
+      : []
 
     return {
       user_id: userId,
