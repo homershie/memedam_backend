@@ -14,6 +14,7 @@ import {
   getUserTagPreferences,
   updateUserPreferences,
   getMixedRecommendationsController,
+  getFeaturedMemesController,
   getRecommendationStats,
   getRecommendationAlgorithmStatsController,
   adjustRecommendationStrategyController,
@@ -678,6 +679,70 @@ router.post('/update-preferences', token, updateUserPreferences)
  *               $ref: '#/components/schemas/RecommendationResponse'
  */
 router.get('/mixed', getMixedRecommendationsController)
+
+/**
+ * @swagger
+ * /api/recommendations/featured:
+ *   get:
+ *     summary: 取得精選迷因
+ *     tags: [Recommendations]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 3
+ *         description: 推薦數量限制
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 頁碼
+ *     responses:
+ *       200:
+ *         description: 成功取得精選迷因
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     memes:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Meme'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         skip:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                         totalPages:
+ *                           type: integer
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         is_featured:
+ *                           type: boolean
+ *                         status:
+ *                           type: string
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ */
+router.get('/featured', getFeaturedMemesController)
 
 /**
  * @swagger

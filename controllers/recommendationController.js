@@ -1222,6 +1222,103 @@ export const getMixedRecommendationsController = async (req, res) => {
 }
 
 /**
+ * 取得精選迷因
+ */
+export const getFeaturedMemesController = async (req, res) => {
+  try {
+    const { limit = 3, page = 1 } = req.query
+
+    // 直接查詢資料庫中的精選迷因
+    const query = {
+      status: 'public',
+      is_featured: true,
+    }
+
+    // 計算總數
+    const total = await Meme.countDocuments(query)
+
+    // 計算分頁
+    const skip = (page - 1) * limit
+
+    // 先獲取迷因資料（不包含 populate）
+    const memesWithoutAuthor = await Meme.find(query)
+      .sort({ created_at: -1 }) // 按創建時間降序排列
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean()
+
+    console.log(`獲取到 ${memesWithoutAuthor.length} 個迷因進行 populate`)
+
+    // 手動 populate 作者資訊，避免因為 author_id 問題導致記錄被過濾
+    const featuredMemes = []
+    for (const meme of memesWithoutAuthor) {
+      try {
+        if (meme.author_id) {
+          const author = await User.findById(meme.author_id)
+            .select('display_name username avatar')
+            .lean()
+          if (author) {
+            meme.author = author
+          } else {
+            // 作者不存在，設置預設值
+            meme.author = {
+              display_name: '未知用戶',
+              username: 'unknown',
+              avatar: null,
+            }
+          }
+        } else {
+          // 沒有作者 ID，設置預設值
+          meme.author = {
+            display_name: '匿名用戶',
+            username: 'anonymous',
+            avatar: null,
+          }
+        }
+        featuredMemes.push(meme)
+      } catch (error) {
+        console.warn(`處理迷因 ${meme._id} 的作者資訊失敗:`, error.message)
+        // 即使 populate 失敗也要包含迷因
+        meme.author = {
+          display_name: '未知用戶',
+          username: 'unknown',
+          avatar: null,
+        }
+        featuredMemes.push(meme)
+      }
+    }
+    const hasMore = skip + parseInt(limit) < total
+    const totalPages = Math.ceil(total / parseInt(limit))
+
+    res.json({
+      success: true,
+      data: {
+        memes: featuredMemes,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total,
+          hasMore,
+          totalPages,
+        },
+        filters: {
+          is_featured: true,
+          status: 'public',
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    logger.error('取得精選迷因失敗:', err)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
  * 取得無限捲動推薦（專門為前端無限捲動設計）
  */
 export const getInfiniteScrollRecommendationsController = async (req, res) => {
@@ -2290,6 +2387,7 @@ export default {
   getUserTagPreferences,
   updateUserPreferences,
   getMixedRecommendationsController,
+  getFeaturedMemesController,
   getInfiniteScrollRecommendationsController,
   getRecommendationStats,
   getRecommendationAlgorithmStatsController,
