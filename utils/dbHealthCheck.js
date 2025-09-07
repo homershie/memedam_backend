@@ -5,6 +5,7 @@
 
 import mongoose from 'mongoose'
 import { logger } from './logger.js'
+import { getCurrentEnvironment } from '../config/environment.js'
 
 /**
  * 檢查資料庫連線狀態
@@ -112,26 +113,81 @@ export const waitForDatabaseConnection = async (maxWaitTime = 30000, checkInterv
 }
 
 /**
- * 執行資料庫操作前的健康檢查
+ * 嘗試重新連接到資料庫
+ * @returns {Promise<Object>} 重連結果
+ */
+export const reconnectDatabase = async () => {
+  try {
+    logger.info('嘗試重新連接到資料庫...')
+
+    const env = getCurrentEnvironment()
+    const { uri, options } = env.database
+
+    // 如果已經連接，先斷開
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect()
+      logger.info('已斷開現有連線')
+    }
+
+    // 重新連線
+    await mongoose.connect(uri, options)
+    logger.info('資料庫重連成功')
+
+    return {
+      success: true,
+      message: '資料庫重連成功',
+    }
+  } catch (error) {
+    logger.error('資料庫重連失敗:', error)
+    return {
+      success: false,
+      message: '資料庫重連失敗',
+      error: error.message,
+    }
+  }
+}
+
+/**
+ * 執行資料庫操作前的健康檢查（包含自動重連）
  * @param {string} operationName - 操作名稱
+ * @param {boolean} autoReconnect - 是否啟用自動重連
  * @returns {Promise<boolean>} 是否通過健康檢查
  */
-export const preOperationHealthCheck = async (operationName) => {
+export const preOperationHealthCheck = async (operationName, autoReconnect = true) => {
   logger.info(`執行 ${operationName} 前的資料庫健康檢查...`)
 
   const connectionStatus = await checkDatabaseConnection()
 
-  if (!connectionStatus.success) {
-    logger.error(`${operationName} 健康檢查失敗:`, connectionStatus)
-    return false
+  if (connectionStatus.success) {
+    logger.info(`${operationName} 健康檢查通過`)
+    return true
   }
 
-  logger.info(`${operationName} 健康檢查通過`)
-  return true
+  // 如果連線失敗且啟用了自動重連，嘗試重連
+  if (autoReconnect) {
+    logger.warn(`${operationName} 健康檢查失敗，嘗試自動重連...`)
+    const reconnectResult = await reconnectDatabase()
+
+    if (reconnectResult.success) {
+      // 重連成功，再次檢查連線狀態
+      const recheckStatus = await checkDatabaseConnection()
+      if (recheckStatus.success) {
+        logger.info(`${operationName} 自動重連並通過健康檢查`)
+        return true
+      }
+    }
+
+    logger.error(`${operationName} 自動重連失敗:`, reconnectResult)
+  } else {
+    logger.error(`${operationName} 健康檢查失敗:`, connectionStatus)
+  }
+
+  return false
 }
 
 export default {
   checkDatabaseConnection,
   waitForDatabaseConnection,
   preOperationHealthCheck,
+  reconnectDatabase,
 }
