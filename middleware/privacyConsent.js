@@ -1,5 +1,7 @@
 import PrivacyConsent from '../models/PrivacyConsent.js'
 import { logger } from '../utils/logger.js'
+import mongoose from 'mongoose'
+import crypto from 'crypto'
 
 /**
  * 隱私同意檢查 Middleware
@@ -26,7 +28,6 @@ const getSessionId = (req) => {
   if (req.headers['x-session-id']) return req.headers['x-session-id']
   if (req.cookies?.sessionId) return req.cookies.sessionId
 
-  const crypto = require('crypto')
   return crypto.randomBytes(32).toString('hex')
 }
 
@@ -41,7 +42,7 @@ const checkPrivacyConsent = async (req) => {
     if (req.user && req.user._id) {
       try {
         // 確保 userId 是 ObjectId 類型
-        const { ObjectId } = require('mongoose').Types
+        const { ObjectId } = mongoose.Types
         let userId = req.user._id
 
         // 檢查 userId 是否已經是 ObjectId
@@ -77,7 +78,7 @@ const checkPrivacyConsent = async (req) => {
         // 如果已登入且找到的同意記錄是基於 session、且尚未綁定 userId，則進行遷移
         if (req.user && req.user._id && consent && !consent.userId) {
           try {
-            const { ObjectId } = require('mongoose').Types
+            const { ObjectId } = mongoose.Types
             let migratedUserId = req.user._id
 
             // 檢查 userId 是否已經是 ObjectId
