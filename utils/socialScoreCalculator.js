@@ -106,15 +106,21 @@ class SocialScoreVersionedCacheProcessor {
         const cachedData = await this.redis.get(cacheKey)
 
         if (cachedData !== null) {
-          const parsedData = JSON.parse(cachedData)
+          try {
+            const parsedData = JSON.parse(cachedData)
 
-          // 如果快取包含版本資訊且版本匹配，返回快取數據
-          if (parsedData.version && parsedData.version === currentVersion) {
-            return {
-              data: parsedData.data,
-              version: parsedData.version,
-              fromCache: true,
+            // 如果快取包含版本資訊且版本匹配，返回快取數據
+            if (parsedData.version && parsedData.version === currentVersion) {
+              return {
+                data: parsedData.data,
+                version: parsedData.version,
+                fromCache: true,
+              }
             }
+          } catch (parseError) {
+            console.warn(`快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`, parseError.message)
+            // 刪除無效的快取數據
+            await this.redis.del(cacheKey)
           }
         }
       }
@@ -145,10 +151,16 @@ class SocialScoreVersionedCacheProcessor {
         if (!forceRefresh) {
           const cached = await this.redis.get(cacheKey)
           if (cached !== null) {
-            return {
-              data: JSON.parse(cached),
-              version: '1.0.0',
-              fromCache: true,
+            try {
+              return {
+                data: JSON.parse(cached),
+                version: '1.0.0',
+                fromCache: true,
+              }
+            } catch (parseError) {
+              console.warn(`降級快取數據解析失敗 (${cacheKey}), 將重新獲取數據:`, parseError.message)
+              // 刪除無效的快取數據
+              await this.redis.del(cacheKey)
             }
           }
         }
@@ -892,13 +904,34 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
  * @param {Object} options - 配置選項
  * @returns {Array} 社交層分數列表
  */
+/**
+ * 安全生成快取鍵，避免JSON序列化問題
+ * @param {Object} options - 選項對象
+ * @returns {string} 安全的快取鍵字符串
+ */
+const generateSafeCacheKey = (options) => {
+  try {
+    // 提取關鍵選項值，手動構建鍵
+    const keyParts = []
+    if (options.includeDistance !== undefined) keyParts.push(`dist_${options.includeDistance}`)
+    if (options.includeInfluence !== undefined) keyParts.push(`inf_${options.includeInfluence}`)
+    if (options.includeInteractions !== undefined) keyParts.push(`int_${options.includeInteractions}`)
+    if (options.maxDistance !== undefined) keyParts.push(`maxd_${options.maxDistance}`)
+
+    return keyParts.length > 0 ? keyParts.join('_') : 'default'
+  } catch (error) {
+    console.warn('生成快取鍵時發生錯誤，使用默認鍵:', error.message)
+    return 'default'
+  }
+}
+
 export const calculateMultipleMemeSocialScores = async (userId, memeIds, options = {}) => {
   try {
     console.log(`開始批量計算 ${memeIds.length} 個迷因的社交層分數...`)
 
     // 生成快取鍵
     const memeIdsKey = memeIds.sort().join('_')
-    const optionsKey = JSON.stringify(options).replace(/[^a-zA-Z0-9]/g, '_')
+    const optionsKey = generateSafeCacheKey(options)
     const cacheKey = `batch_social_scores:${userId}:${memeIdsKey}:${optionsKey}`
 
     // 嘗試從快取取得數據
