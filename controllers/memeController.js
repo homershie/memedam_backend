@@ -21,7 +21,7 @@ import {
   calculateEngagementScore,
   calculateQualityScore,
 } from '../utils/hotScore.js'
-import { clearMixedRecommendationCache } from '../utils/mixedRecommendation.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 import { translateToEnglish } from '../services/googleTranslate.js'
 import { toSlug, toSlugOrNull } from '../utils/slugify.js'
 
@@ -133,7 +133,9 @@ export const createMeme = async (req, res) => {
 
   // 使用 session 來確保原子性操作
   const session = await Meme.startSession()
-  session.startTransaction()
+  if (session) {
+    session.startTransaction()
+  }
 
   try {
     // 取得圖片網址（多圖上傳，僅取第一張作為主圖）
@@ -142,6 +144,15 @@ export const createMeme = async (req, res) => {
       image_url = req.files[0].path || req.files[0].url || req.files[0].secure_url || ''
     } else if (req.body.image_url) {
       image_url = req.body.image_url
+    }
+
+    // 檢查是否提供圖片
+    if (!image_url) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '請提供圖片檔案或圖片網址',
+      })
     }
 
     // 其他欄位
@@ -260,19 +271,25 @@ export const createMeme = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
-    // 新增迷因成功後清除推薦快取，讓新內容能立即顯示
+    // 新增迷因成功後智慧失效相關快取，讓新內容能立即顯示
     try {
-      await clearMixedRecommendationCache()
-      logger.info('已清除推薦快取，新迷因將立即顯示')
+      await smartCacheInvalidator.invalidateByOperation(CACHE_OPERATIONS.MEME_CREATED, {
+        memeId: meme._id.toString(),
+        tags: tagsArr || [],
+        authorId: author_id.toString(),
+      })
+      logger.info('已智慧失效推薦快取，新迷因將立即顯示')
     } catch (cacheError) {
-      logger.warn('清除推薦快取失敗:', cacheError.message)
-      // 不中斷主要流程，快取清除失敗不影響迷因創建成功
+      logger.warn('智慧失效推薦快取失敗:', cacheError.message)
+      // 不中斷主要流程，快取失效失敗不影響迷因創建成功
     }
 
     res.status(201).json({ success: true, data: meme, error: null })
   } catch (err) {
     // 回滾事務
-    await session.abortTransaction()
+    if (session) {
+      await session.abortTransaction()
+    }
 
     // 處理重複鍵錯誤
     if (err.code === 11000) {
@@ -295,7 +312,9 @@ export const createMeme = async (req, res) => {
     res.status(500).json({ success: false, data: null, error: err.message })
   } finally {
     // 結束 session
-    session.endSession()
+    if (session) {
+      session.endSession()
+    }
   }
 }
 
@@ -691,7 +710,9 @@ export const updateMeme = async (req, res) => {
 
   // 使用 session 來確保原子性操作
   const session = await Meme.startSession()
-  session.startTransaction()
+  if (session) {
+    session.startTransaction()
+  }
 
   try {
     // 先獲取原始迷因資料
@@ -857,19 +878,31 @@ export const updateMeme = async (req, res) => {
     // 提交事務
     await session.commitTransaction()
 
-    // 更新迷因成功後清除推薦快取，讓更新內容能立即顯示
+    // 更新迷因成功後智慧失效相關快取，讓更新內容能立即顯示
     try {
-      await clearMixedRecommendationCache()
-      logger.info('已清除推薦快取，更新的迷因將立即顯示')
+      const oldTags = originalMeme.tags_cache || []
+      const newTags = updateData.tags_cache || oldTags
+      const hotScoreChanged = originalMeme.hot_score !== updatedMeme.hot_score
+
+      await smartCacheInvalidator.invalidateByOperation(CACHE_OPERATIONS.MEME_UPDATED, {
+        memeId: req.params.id,
+        oldTags,
+        newTags,
+        authorId: originalMeme.author_id?.toString(),
+        hotScoreChanged,
+      })
+      logger.info('已智慧失效推薦快取，更新的迷因將立即顯示')
     } catch (cacheError) {
-      logger.warn('清除推薦快取失敗:', cacheError.message)
-      // 不中斷主要流程，快取清除失敗不影響迷因更新成功
+      logger.warn('智慧失效推薦快取失敗:', cacheError.message)
+      // 不中斷主要流程，快取失效失敗不影響迷因更新成功
     }
 
     res.json({ success: true, data: updatedMeme, error: null })
   } catch (err) {
     // 回滾事務
-    await session.abortTransaction()
+    if (session) {
+      await session.abortTransaction()
+    }
 
     // 處理重複鍵錯誤
     if (err.code === 11000) {
@@ -892,7 +925,9 @@ export const updateMeme = async (req, res) => {
     res.status(400).json({ success: false, data: null, error: err.message })
   } finally {
     // 結束 session
-    session.endSession()
+    if (session) {
+      session.endSession()
+    }
   }
 }
 
@@ -903,6 +938,15 @@ export const deleteMeme = async (req, res) => {
     const meme = await Meme.findById(req.params.id)
     if (!meme) {
       return res.status(404).json({ error: '找不到迷因' })
+    }
+
+    // 檢查權限：只有作者或管理員可以刪除
+    if (
+      !req.user ||
+      (req.user._id.toString() !== meme.author_id.toString() &&
+        !['admin', 'manager'].includes(req.user.role))
+    ) {
+      return res.status(403).json({ success: false, error: '權限不足，無法刪除此迷因' })
     }
 
     const author_id = meme.author_id
@@ -978,13 +1022,17 @@ export const deleteMeme = async (req, res) => {
     // 更新用戶迷因數量統計
     await User.findByIdAndUpdate(author_id, { $inc: { meme_count: -1 } })
 
-    // 刪除迷因成功後清除推薦快取
+    // 刪除迷因成功後智慧失效相關快取
     try {
-      await clearMixedRecommendationCache()
-      logger.info('已清除推薦快取，刪除的迷因將不再顯示')
+      await smartCacheInvalidator.invalidateByOperation(CACHE_OPERATIONS.MEME_DELETED, {
+        memeId: req.params.id,
+        tags: meme.tags_cache || [],
+        authorId: author_id?.toString(),
+      })
+      logger.info('已智慧失效推薦快取，刪除的迷因將不再顯示')
     } catch (cacheError) {
-      logger.warn('清除推薦快取失敗:', cacheError.message)
-      // 不中斷主要流程，快取清除失敗不影響迷因刪除成功
+      logger.warn('智慧失效推薦快取失敗:', cacheError.message)
+      // 不中斷主要流程，快取失效失敗不影響迷因刪除成功
     }
 
     res.json({ success: true, message: '迷因已刪除', error: null })
@@ -1142,14 +1190,39 @@ export const batchDeleteMemes = async (req, res) => {
       }
     }
 
-    // 批量刪除成功後清除推薦快取
+    // 批量刪除成功後智慧失效相關快取
     if (deletedCount > 0) {
       try {
-        await clearMixedRecommendationCache()
-        logger.info('已清除推薦快取，刪除的迷因將不再顯示')
+        // 收集所有被刪除迷因的標籤和作者信息
+        const allTags = new Set()
+        const allAuthors = new Set()
+
+        memes.forEach((meme) => {
+          if (meme.tags_cache && Array.isArray(meme.tags_cache)) {
+            meme.tags_cache.forEach((tag) => allTags.add(tag))
+          }
+          if (meme.author_id) {
+            allAuthors.add(meme.author_id.toString())
+          }
+        })
+
+        // 對每個被刪除的迷因執行智慧快取失效
+        for (const meme of memes) {
+          await smartCacheInvalidator.invalidateByOperation(CACHE_OPERATIONS.MEME_DELETED, {
+            memeId: meme._id.toString(),
+            tags: meme.tags_cache || [],
+            authorId: meme.author_id?.toString(),
+          })
+        }
+
+        logger.info('已智慧失效推薦快取，刪除的迷因將不再顯示', {
+          deletedCount,
+          affectedTags: Array.from(allTags),
+          affectedAuthors: Array.from(allAuthors),
+        })
       } catch (cacheError) {
-        logger.warn('清除推薦快取失敗:', cacheError.message)
-        // 不中斷主要流程，快取清除失敗不影響批量刪除成功
+        logger.warn('智慧失效推薦快取失敗:', cacheError.message)
+        // 不中斷主要流程，快取失效失敗不影響批量刪除成功
       }
     }
 
