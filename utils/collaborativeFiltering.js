@@ -393,16 +393,16 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
             // 減少查詢數量，並添加時間限制
             const publicMemes = await Meme.find({
               status: 'public',
-              createdAt: {
+              createdAt: mongoose.trusted({
                 $gte: (() => {
                   const thirtyDaysAgo = new Date()
                   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
                   return thirtyDaysAgo
                 })(),
-              }, // 只取最近30天的迷因
+              }), // 只取最近30天的迷因
             })
               .select('_id')
-              .sort({ created_at: -1 }) // 按創建時間倒序
+              .sort({ createdAt: -1 }) // 按創建時間倒序
               .limit(1000) // 大幅減少限制數量
               .lean()
               .exec()
@@ -518,24 +518,24 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
         const queryTimeout = 30000 // 30秒超時
         const [likes, collections, comments, shares, views] = await Promise.all([
           Like.find({
-            user_id: { $in: validatedUserIds },
-            meme_id: { $in: validatedMemeIds },
+            user_id: mongoose.trusted({ $in: validatedUserIds }),
+            meme_id: mongoose.trusted({ $in: validatedMemeIds }),
           })
             .select('user_id meme_id createdAt')
             .maxTimeMS(queryTimeout)
             .lean()
             .exec(),
           Collection.find({
-            user_id: { $in: validatedUserIds },
-            meme_id: { $in: validatedMemeIds },
+            user_id: mongoose.trusted({ $in: validatedUserIds }),
+            meme_id: mongoose.trusted({ $in: validatedMemeIds }),
           })
             .select('user_id meme_id createdAt')
             .maxTimeMS(queryTimeout)
             .lean()
             .exec(),
           Comment.find({
-            user_id: { $in: validatedUserIds },
-            meme_id: { $in: validatedMemeIds },
+            user_id: mongoose.trusted({ $in: validatedUserIds }),
+            meme_id: mongoose.trusted({ $in: validatedMemeIds }),
             status: 'normal',
           })
             .select('user_id meme_id createdAt')
@@ -543,16 +543,16 @@ export const buildInteractionMatrix = async (userIds = [], memeIds = []) => {
             .lean()
             .exec(),
           Share.find({
-            user_id: { $in: validatedUserIds },
-            meme_id: { $in: validatedMemeIds },
+            user_id: mongoose.trusted({ $in: validatedUserIds }),
+            meme_id: mongoose.trusted({ $in: validatedMemeIds }),
           })
             .select('user_id meme_id createdAt')
             .maxTimeMS(queryTimeout)
             .lean()
             .exec(),
           View.find({
-            user_id: { $in: validatedUserIds },
-            meme_id: { $in: validatedMemeIds },
+            user_id: mongoose.trusted({ $in: validatedUserIds }),
+            meme_id: mongoose.trusted({ $in: validatedMemeIds }),
           })
             .select('user_id meme_id createdAt')
             .maxTimeMS(queryTimeout)
