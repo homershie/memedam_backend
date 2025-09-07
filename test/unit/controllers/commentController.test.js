@@ -37,6 +37,15 @@ vi.mock('../../../services/notificationService.js', () => ({
   notifyMentionedUsers: vi.fn(),
 }))
 
+vi.mock('../../../utils/smartCacheInvalidator.js', () => ({
+  default: {
+    invalidateByOperation: vi.fn().mockResolvedValue(true),
+  },
+  CACHE_OPERATIONS: {
+    USER_COMMENTED: 'USER_COMMENTED',
+  },
+}))
+
 describe('Comment Controller', () => {
   let req, res, next
   let Comment, Meme, User

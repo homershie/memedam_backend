@@ -69,6 +69,17 @@ vi.mock('../../../utils/hotScore.js', () => ({
   calculateHotScore: vi.fn().mockReturnValue(100),
 }))
 
+vi.mock('../../../utils/smartCacheInvalidator.js', () => ({
+  default: {
+    invalidateByOperation: vi.fn().mockResolvedValue(true),
+  },
+  CACHE_OPERATIONS: {
+    MEME_CREATED: 'MEME_CREATED',
+    MEME_UPDATED: 'MEME_UPDATED',
+    MEME_DELETED: 'MEME_DELETED',
+  },
+}))
+
 describe('Meme Controller', () => {
   let req, res, next
   let Meme, User, Comment

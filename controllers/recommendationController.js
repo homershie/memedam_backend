@@ -39,6 +39,793 @@ import {
   calculateMemeSocialScore,
   getUserSocialInfluenceStats,
 } from '../utils/socialScoreCalculator.js'
+import RecommendationMetrics from '../models/RecommendationMetrics.js'
+import Follow from '../models/Follow.js'
+
+/**
+ * 取得推薦內容（通用推薦入口）
+ * 根據演算法參數選擇不同的推薦策略
+ */
+export const getRecommendations = async (req, res) => {
+  try {
+    const userId = req.user?._id
+    const {
+      page = 1,
+      limit = 20,
+      algorithm = 'mixed',
+      type = 'all',
+      tags,
+      types,
+      custom_weights = '{}',
+      include_diversity = 'true',
+      include_cold_start_analysis = 'true',
+      exclude_ids,
+    } = req.query
+
+    if (!userId) {
+      // 匿名用戶返回熱門推薦
+      return await getHotRecommendations(req, res)
+    }
+
+    // 根據演算法選擇不同的推薦策略
+    switch (algorithm) {
+      case 'hot':
+        // 更新查詢參數
+        req.query = { ...req.query, page, limit, type, exclude_ids }
+        return await getHotRecommendations(req, res)
+      case 'latest':
+        req.query = { ...req.query, page, limit, type, exclude_ids }
+        return await getLatestRecommendations(req, res)
+      case 'content-based':
+        req.query = { ...req.query, page, limit, exclude_ids }
+        return await getContentBasedRecommendationsController(req, res)
+      case 'collaborative':
+        req.query = { ...req.query, page, limit, exclude_ids }
+        return await getCollaborativeFilteringRecommendationsController(req, res)
+      case 'tag-based':
+        if (!tags) {
+          return res.status(StatusCodes.BAD_REQUEST).json({
+            success: false,
+            error: '標籤參數是必需的',
+          })
+        }
+        req.query = { ...req.query, page, limit, tags, exclude_ids }
+        return await getTagBasedRecommendationsController(req, res)
+      case 'mixed':
+      default:
+        // 使用混合推薦作為預設
+        req.query = {
+          ...req.query,
+          page,
+          limit,
+          type,
+          types,
+          custom_weights,
+          include_diversity,
+          include_cold_start_analysis,
+          exclude_ids,
+        }
+        return await getMixedRecommendationsController(req, res)
+    }
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 取得相似迷因推薦
+ */
+export const getSimilarMemes = async (req, res) => {
+  try {
+    return await getSimilarRecommendations(req, res)
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 取得用戶偏好分析
+ */
+export const getUserPreferences = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能取得個人偏好',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    // 計算用戶標籤偏好
+    const preferences = await calculateUserTagPreferences(userId)
+
+    // 取得互動歷史統計
+    const interactionStats = await Promise.all([
+      Like.aggregate([
+        { $match: { user_id: userId, status: 'normal' } },
+        {
+          $lookup: {
+            from: 'memes',
+            localField: 'meme_id',
+            foreignField: '_id',
+            as: 'meme',
+          },
+        },
+        { $unwind: '$meme' },
+        {
+          $group: {
+            _id: null,
+            totalLikes: { $sum: 1 },
+            tagStats: {
+              $push: {
+                tags: '$meme.tags_cache',
+                timestamp: '$createdAt',
+              },
+            },
+          },
+        },
+      ]),
+      View.aggregate([
+        { $match: { user_id: userId } },
+        {
+          $lookup: {
+            from: 'memes',
+            localField: 'meme_id',
+            foreignField: '_id',
+            as: 'meme',
+          },
+        },
+        { $unwind: '$meme' },
+        {
+          $group: {
+            _id: null,
+            totalViews: { $sum: 1 },
+            tagStats: {
+              $push: {
+                tags: '$meme.tags_cache',
+                timestamp: '$createdAt',
+              },
+            },
+          },
+        },
+      ]),
+    ])
+
+    const likeHistory = interactionStats[0][0] || { totalLikes: 0, tagStats: [] }
+    const viewHistory = interactionStats[1][0] || { totalViews: 0, tagStats: [] }
+
+    res.json({
+      success: true,
+      data: {
+        user_id: userId,
+        preferences: preferences.preferences,
+        interaction_counts: {
+          total_likes: likeHistory.totalLikes,
+          total_views: viewHistory.totalViews,
+          total_interactions: likeHistory.totalLikes + viewHistory.totalViews,
+        },
+        total_interactions: preferences.totalInteractions,
+        confidence: preferences.confidence,
+        analysis: {
+          top_tags: Object.entries(preferences.preferences)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 10)
+            .map(([tag, score]) => ({ tag, score })),
+          total_tags: Object.keys(preferences.preferences).length,
+          confidence_level:
+            preferences.confidence < 0.1 ? 'low' : preferences.confidence < 0.3 ? 'medium' : 'high',
+        },
+        interaction_history: {
+          like_history: likeHistory.tagStats.slice(0, 50), // 最近50條
+          view_history: viewHistory.tagStats.slice(0, 50), // 最近50條
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 更新用戶偏好設定
+ */
+export const updateUserPreferencesSettings = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能更新個人偏好',
+      })
+    }
+
+    const { tags, categories, excludeTags, preferences } = req.body
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    // 更新用戶偏好
+    const updateData = {}
+    if (tags) updateData['preferences.tags'] = tags
+    if (categories) updateData['preferences.categories'] = categories
+    if (excludeTags) updateData['preferences.excludeTags'] = excludeTags
+    if (preferences) {
+      updateData['preferences'] = {
+        ...user.preferences,
+        ...preferences,
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true })
+
+    // 更新快取
+    await updateUserPreferencesCache(userId)
+
+    res.json({
+      success: true,
+      data: {
+        user_id: userId,
+        preferences: updatedUser.preferences,
+        updated_at: new Date().toISOString(),
+        message: '用戶偏好已成功更新',
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 取得推薦系統指標
+ */
+export const getRecommendationMetrics = async (req, res) => {
+  try {
+    const { period = '7d', algorithm } = req.query
+
+    // 計算時間範圍
+    const now = new Date()
+    const periods = {
+      '1d': 1,
+      '7d': 7,
+      '30d': 30,
+      '90d': 90,
+    }
+
+    const days = periods[period] || 7
+    const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+
+    // 建立查詢條件
+    const matchConditions = {
+      recommended_at: { $gte: startDate },
+    }
+
+    if (algorithm) {
+      matchConditions.algorithm = algorithm
+    }
+
+    const metrics = await RecommendationMetrics.aggregate([
+      { $match: matchConditions },
+      {
+        $group: {
+          _id: {
+            date: {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: '$recommended_at',
+              },
+            },
+            algorithm: '$algorithm',
+          },
+          total_recommendations: { $sum: 1 },
+          total_clicks: { $sum: { $cond: ['$is_clicked', 1, 0] } },
+          total_likes: { $sum: { $cond: ['$is_liked', 1, 0] } },
+          total_shares: { $sum: { $cond: ['$is_shared', 1, 0] } },
+          total_comments: { $sum: { $cond: ['$is_commented', 1, 0] } },
+          total_collections: { $sum: { $cond: ['$is_collected', 1, 0] } },
+          total_dislikes: { $sum: { $cond: ['$is_disliked', 1, 0] } },
+          avg_view_duration: { $avg: '$view_duration' },
+          avg_rating: { $avg: '$user_rating' },
+          avg_recommendation_score: { $avg: '$recommendation_score' },
+        },
+      },
+      {
+        $project: {
+          date: '$_id.date',
+          algorithm: '$_id.algorithm',
+          total_recommendations: 1,
+          click_through_rate: {
+            $cond: {
+              if: { $gt: ['$total_recommendations', 0] },
+              then: { $divide: ['$total_clicks', '$total_recommendations'] },
+              else: 0,
+            },
+          },
+          engagement_rate: {
+            $divide: [
+              { $add: ['$total_likes', '$total_shares', '$total_comments', '$total_collections'] },
+              { $max: ['$total_recommendations', 1] },
+            ],
+          },
+          total_clicks: 1,
+          total_likes: 1,
+          total_shares: 1,
+          total_comments: 1,
+          total_collections: 1,
+          total_dislikes: 1,
+          avg_view_duration: { $ifNull: ['$avg_view_duration', 0] },
+          avg_rating: { $ifNull: ['$avg_rating', 0] },
+          avg_recommendation_score: { $ifNull: ['$avg_recommendation_score', 0] },
+        },
+      },
+      { $sort: { date: -1, algorithm: 1 } },
+    ])
+
+    // 計算總計
+    const summary = metrics.reduce(
+      (acc, metric) => ({
+        total_recommendations: acc.total_recommendations + metric.total_recommendations,
+        total_clicks: acc.total_clicks + metric.total_clicks,
+        total_likes: acc.total_likes + metric.total_likes,
+        total_shares: acc.total_shares + metric.total_shares,
+        total_comments: acc.total_comments + metric.total_comments,
+        total_collections: acc.total_collections + metric.total_collections,
+        total_dislikes: acc.total_dislikes + metric.total_dislikes,
+      }),
+      {
+        total_recommendations: 0,
+        total_clicks: 0,
+        total_likes: 0,
+        total_shares: 0,
+        total_comments: 0,
+        total_collections: 0,
+        total_dislikes: 0,
+      },
+    )
+
+    summary.click_through_rate =
+      summary.total_recommendations > 0 ? summary.total_clicks / summary.total_recommendations : 0
+
+    summary.engagement_rate =
+      summary.total_recommendations > 0
+        ? (summary.total_likes +
+            summary.total_shares +
+            summary.total_comments +
+            summary.total_collections) /
+          summary.total_recommendations
+        : 0
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        summary,
+        daily_metrics: metrics,
+        filters: {
+          period,
+          algorithm,
+          start_date: startDate.toISOString(),
+          end_date: now.toISOString(),
+        },
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 追蹤推薦點擊
+ */
+export const trackRecommendationClick = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能追蹤推薦點擊',
+      })
+    }
+
+    const { memeId, algorithm, position, score, sessionId, page = 'home' } = req.body
+
+    if (!memeId || !algorithm) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: '迷因ID和演算法是必需的',
+      })
+    }
+
+    // 取得迷因資訊
+    const meme = await Meme.findById(memeId)
+    if (!meme) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到指定的迷因',
+      })
+    }
+
+    // 建立推薦指標記錄
+    const metric = await RecommendationMetrics.create({
+      user_id: userId,
+      meme_id: memeId,
+      algorithm,
+      recommendation_score: score || 0,
+      recommendation_rank: position || 0,
+      is_clicked: true,
+      recommendation_context: {
+        page,
+        position: position || 0,
+        session_id: sessionId,
+      },
+      meme_features: {
+        type: meme.type,
+        tags: meme.tags_cache || [],
+        hot_score: meme.hot_score,
+        age_hours: Math.floor((Date.now() - meme.createdAt.getTime()) / (1000 * 60 * 60)),
+      },
+      interacted_at: new Date(),
+    })
+
+    res.json({
+      success: true,
+      data: {
+        metric_id: metric._id,
+        message: '推薦點擊已成功記錄',
+        tracked_at: new Date().toISOString(),
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 取得熱門標籤
+ */
+export const getTrendingTags = async (req, res) => {
+  try {
+    const { limit = 10, period = '24h' } = req.query
+
+    // 計算時間範圍
+    const now = new Date()
+    const periods = {
+      '1h': 60 * 60 * 1000,
+      '6h': 6 * 60 * 60 * 1000,
+      '24h': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+    }
+
+    const timeRange = periods[period] || periods['24h']
+    const startDate = new Date(now.getTime() - timeRange)
+
+    // 聚合熱門標籤
+    const trendingTags = await Meme.aggregate([
+      {
+        $match: {
+          status: 'public',
+          createdAt: { $gte: startDate },
+          tags_cache: { $exists: true, $ne: [] },
+        },
+      },
+      {
+        $unwind: '$tags_cache',
+      },
+      {
+        $group: {
+          _id: '$tags_cache',
+          count: { $sum: 1 },
+          total_hot_score: { $sum: '$hot_score' },
+          avg_hot_score: { $avg: '$hot_score' },
+          recent_memes: {
+            $push: {
+              _id: '$_id',
+              title: '$title',
+              hot_score: '$hot_score',
+              createdAt: '$createdAt',
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          tag: '$_id',
+          count: 1,
+          total_hot_score: 1,
+          avg_hot_score: 1,
+          trend_score: {
+            $multiply: ['$count', '$avg_hot_score'],
+          },
+          recent_count: {
+            $size: {
+              $filter: {
+                input: '$recent_memes',
+                cond: {
+                  $gte: ['$$this.createdAt', new Date(now.getTime() - 60 * 60 * 1000)], // 最近1小時
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        $sort: { trend_score: -1, count: -1 },
+      },
+      {
+        $limit: parseInt(limit),
+      },
+    ])
+
+    // 計算趨勢
+    const tagsWithTrend = trendingTags.map((tag, index) => ({
+      ...tag,
+      trend:
+        tag.recent_count > tag.count * 0.3
+          ? 'up'
+          : tag.recent_count < tag.count * 0.1
+            ? 'down'
+            : 'stable',
+      rank: index + 1,
+    }))
+
+    res.json({
+      success: true,
+      data: {
+        tags: tagsWithTrend,
+        filters: {
+          limit: parseInt(limit),
+          period,
+          start_date: startDate.toISOString(),
+          end_date: now.toISOString(),
+        },
+        total_tags: tagsWithTrend.length,
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 取得個人化動態
+ */
+export const getPersonalizedFeed = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能取得個人化動態',
+      })
+    }
+
+    const { page = 1, limit = 15, includeFollowing = true } = req.query
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    // 取得用戶關注列表
+    const following =
+      includeFollowing === 'true'
+        ? await Follow.find({ follower_id: userId }).select('following_id')
+        : []
+    const followingIds = following.map((f) => f.following_id)
+
+    // 計算分頁
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    // 建立查詢條件
+    const baseQuery = {
+      status: 'public',
+    }
+
+    // 如果有關注用戶，優先顯示關注用戶的內容
+    let followingPosts = []
+    let recommendedPosts = []
+
+    if (followingIds.length > 0 && includeFollowing === 'true') {
+      followingPosts = await Meme.find({
+        ...baseQuery,
+        author_id: { $in: followingIds },
+      })
+        .populate('author_id', 'username display_name avatar')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Math.ceil(parseInt(limit) * 0.6)) // 關注內容佔60%
+        .lean()
+
+      followingPosts = followingPosts.map((post) => ({
+        ...post,
+        isFromFollowing: true,
+        personalization_score: 1.0,
+      }))
+    }
+
+    // 取得推薦內容
+    const remainingLimit = parseInt(limit) - followingPosts.length
+    if (remainingLimit > 0) {
+      // 使用混合推薦系統取得推薦內容
+      const recommendationResult = await getMixedRecommendations(userId, {
+        limit: remainingLimit,
+        page: parseInt(page),
+        excludeIds: followingPosts.map((p) => p._id),
+      })
+
+      recommendedPosts = recommendationResult.recommendations.map((post) => ({
+        ...post,
+        isFromFollowing: false,
+        personalization_score: post.recommendation_score || 0.5,
+      }))
+    }
+
+    // 合併並排序內容
+    const allPosts = [...followingPosts, ...recommendedPosts].sort((a, b) => {
+      // 優先按時間排序，關注內容略微提升權重
+      const timeA = new Date(a.createdAt).getTime()
+      const timeB = new Date(b.createdAt).getTime()
+      const scoreA = a.isFromFollowing ? timeA + 3600000 : timeA // 關注內容加1小時權重
+      const scoreB = b.isFromFollowing ? timeB + 3600000 : timeB
+      return scoreB - scoreA
+    })
+
+    // 計算分頁資訊
+    const totalFollowingPosts =
+      followingIds.length > 0
+        ? await Meme.countDocuments({
+            ...baseQuery,
+            author_id: { $in: followingIds },
+          })
+        : 0
+
+    const totalRecommendedPosts = await Meme.countDocuments(baseQuery)
+    const total = Math.max(totalFollowingPosts, totalRecommendedPosts)
+    const hasMore = skip + allPosts.length < total
+    const totalPages = Math.ceil(total / parseInt(limit))
+
+    res.json({
+      success: true,
+      data: {
+        posts: allPosts,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total,
+          hasMore,
+          totalPages,
+        },
+        sources: {
+          following: followingPosts.length,
+          recommended: recommendedPosts.length,
+        },
+        filters: {
+          includeFollowing: includeFollowing === 'true',
+        },
+        user_authenticated: true,
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
+
+/**
+ * 重置用戶推薦緩存
+ */
+export const resetRecommendations = async (req, res) => {
+  try {
+    const userId = req.user?._id
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: '需要登入才能重置推薦緩存',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: '找不到用戶',
+      })
+    }
+
+    // 重置用戶的推薦相關快取
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $unset: {
+          recommendationCache: 1,
+          contentBasedCache: 1,
+          collaborativeCache: 1,
+          mixedRecommendationCache: 1,
+        },
+        $set: {
+          lastRecommendationReset: new Date(),
+        },
+      },
+      { new: true },
+    )
+
+    // 清除相關的快取
+    await clearMixedRecommendationCache(userId)
+
+    res.json({
+      success: true,
+      data: {
+        user_id: userId,
+        user_updated: !!updatedUser,
+        message: '用戶推薦緩存已成功重置',
+        reset_at: new Date().toISOString(),
+        caches_cleared: [
+          'recommendationCache',
+          'contentBasedCache',
+          'collaborativeCache',
+          'mixedRecommendationCache',
+        ],
+      },
+      error: null,
+    })
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: err.message,
+    })
+  }
+}
 
 /**
  * 取得熱門推薦
@@ -2378,6 +3165,18 @@ export const getTrendingRecommendationsController = async (req, res) => {
 }
 
 export default {
+  // 新增的函數
+  getRecommendations,
+  getSimilarMemes,
+  getUserPreferences,
+  updateUserPreferencesSettings,
+  getRecommendationMetrics,
+  trackRecommendationClick,
+  getTrendingTags,
+  getPersonalizedFeed,
+  resetRecommendations,
+
+  // 現有的函數
   getHotRecommendations,
   getLatestRecommendations,
   getSimilarRecommendations,

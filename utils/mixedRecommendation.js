@@ -63,7 +63,7 @@ class VersionedCacheProcessor {
             return {
               data: parsedData.data,
               version: parsedData.version,
-              fromCache: true
+              fromCache: true,
             }
           }
         }
@@ -76,7 +76,7 @@ class VersionedCacheProcessor {
       const versionedData = {
         data: freshData,
         version: currentVersion,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       }
 
       // 設定快取（包含版本資訊）
@@ -85,7 +85,7 @@ class VersionedCacheProcessor {
       return {
         data: freshData,
         version: currentVersion,
-        fromCache: false
+        fromCache: false,
       }
     } catch (error) {
       logger.error(`版本控制快取處理失敗 (${cacheKey}):`, error)
@@ -151,7 +151,7 @@ class VersionedCacheProcessor {
       const results = await cacheVersionManager.batchUpdateVersions(cacheKeys, level)
 
       // 清除所有相關快取
-      const cachePromises = cacheKeys.map(key => this.redis.del(key))
+      const cachePromises = cacheKeys.map((key) => this.redis.del(key))
       await Promise.all(cachePromises)
 
       logger.info(`批量快取失效完成: ${cacheKeys.length} 個鍵`)
@@ -928,7 +928,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
             userId,
             adjustedLimit,
             weights,
-            tags
+            tags,
           )
 
           return {
@@ -938,10 +938,10 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
             algorithm: 'mixed',
             userAuthenticated: !!userId,
             appliedTags: tags,
-            generatedAt: Date.now()
+            generatedAt: Date.now(),
           }
         },
-        { ttl: CACHE_CONFIG.mixedRecommendations }
+        { ttl: CACHE_CONFIG.mixedRecommendations },
       )
 
       // 從快取中取得完整的推薦列表，然後進行分頁處理
@@ -961,87 +961,86 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       // 確保分頁結果依照總分由高至低排序
       paginatedRecommendations.sort((a, b) => b.total_score - a.total_score)
 
-        // 如果需要社交層分數，為每個迷因計算詳細的社交分數
-        if (includeSocialScores && userId) {
-          const memeIds = paginatedRecommendations.map((rec) => rec._id)
-          const socialScores = await calculateMultipleMemeSocialScores(userId, memeIds, {
-            includeDistance: true,
-            includeInfluence: true,
-            includeInteractions: true,
-            maxDistance: 3,
-          })
+      // 如果需要社交層分數，為每個迷因計算詳細的社交分數
+      if (includeSocialScores && userId) {
+        const memeIds = paginatedRecommendations.map((rec) => rec._id)
+        const socialScores = await calculateMultipleMemeSocialScores(userId, memeIds, {
+          includeDistance: true,
+          includeInfluence: true,
+          includeInteractions: true,
+          maxDistance: 3,
+        })
 
-          // 將社交分數整合到推薦結果中
-          const socialScoreMap = new Map()
-          socialScores.forEach((score) => {
-            socialScoreMap.set(score.memeId, score)
-          })
+        // 將社交分數整合到推薦結果中
+        const socialScoreMap = new Map()
+        socialScores.forEach((score) => {
+          socialScoreMap.set(score.memeId, score)
+        })
 
-          paginatedRecommendations.forEach((rec) => {
-            const socialScore = socialScoreMap.get(rec._id)
-            if (socialScore) {
-              rec.social_score = socialScore.socialScore
-              rec.social_interactions = socialScore.socialInteractions
-              rec.social_reasons = socialScore.reasons
-              rec.social_distance_score = socialScore.distanceScore
-              rec.social_influence_score = socialScore.influenceScore
-              rec.social_interaction_score = socialScore.interactionScore
-            }
-          })
+        paginatedRecommendations.forEach((rec) => {
+          const socialScore = socialScoreMap.get(rec._id)
+          if (socialScore) {
+            rec.social_score = socialScore.socialScore
+            rec.social_interactions = socialScore.socialInteractions
+            rec.social_reasons = socialScore.reasons
+            rec.social_distance_score = socialScore.distanceScore
+            rec.social_influence_score = socialScore.influenceScore
+            rec.social_interaction_score = socialScore.interactionScore
+          }
+        })
 
-          // 重新按 total_score 排序，確保社交分數計算不會影響原始排序
-          sortByTotalScoreDesc(paginatedRecommendations)
-        }
+        // 重新按 total_score 排序，確保社交分數計算不會影響原始排序
+        sortByTotalScoreDesc(paginatedRecommendations)
+      }
 
-        // 生成推薦原因
-        if (includeRecommendationReasons && userId) {
-          for (const rec of paginatedRecommendations) {
-            if (rec.social_reasons && rec.social_reasons.length > 0) {
-              rec.recommendation_reason = rec.social_reasons[0].text
-              rec.recommendation_reasons = rec.social_reasons
-            } else {
-              // 根據演算法類型生成通用推薦原因
-              rec.recommendation_reason = generateGenericRecommendationReason(rec)
-            }
+      // 生成推薦原因
+      if (includeRecommendationReasons && userId) {
+        for (const rec of paginatedRecommendations) {
+          if (rec.social_reasons && rec.social_reasons.length > 0) {
+            rec.recommendation_reason = rec.social_reasons[0].text
+            rec.recommendation_reasons = rec.social_reasons
+          } else {
+            // 根據演算法類型生成通用推薦原因
+            rec.recommendation_reason = generateGenericRecommendationReason(rec)
           }
         }
-
-        // 計算多樣性
-        let diversity = null
-        if (includeDiversity) {
-          diversity = calculateRecommendationDiversity(paginatedRecommendations)
-        }
-
-        const result = {
-          recommendations: paginatedRecommendations,
-          weights: cached.weights,
-          coldStartStatus: cached.coldStartStatus,
-          diversity,
-          algorithm: 'mixed',
-          userAuthenticated: !!userId,
-          appliedTags: tags,
-          // 新增：分頁資訊
-          pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            skip,
-            total: cachedRecommendations.length,
-            hasMore: skip + limit < cachedRecommendations.length,
-            totalPages: Math.ceil(cachedRecommendations.length / limit),
-          },
-          // 新增：顯示實際查詢的數量
-          queryInfo: {
-            requestedLimit: limit,
-            adjustedLimit: adjustedLimit,
-            coldStartMultiplier: COLD_START_CONFIG.coldStartMultiplier,
-            isColdStart: !userId || (cached.coldStartStatus && cached.coldStartStatus.isColdStart),
-            excludedCount: excludeIds ? excludeIds.length : 0,
-          },
-        }
-
-        performanceMonitor.end('mixed_recommendations')
-        return result
       }
+
+      // 計算多樣性
+      let diversity = null
+      if (includeDiversity) {
+        diversity = calculateRecommendationDiversity(paginatedRecommendations)
+      }
+
+      const result = {
+        recommendations: paginatedRecommendations,
+        weights: cached.weights,
+        coldStartStatus: cached.coldStartStatus,
+        diversity,
+        algorithm: 'mixed',
+        userAuthenticated: !!userId,
+        appliedTags: tags,
+        // 新增：分頁資訊
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          skip,
+          total: cachedRecommendations.length,
+          hasMore: skip + limit < cachedRecommendations.length,
+          totalPages: Math.ceil(cachedRecommendations.length / limit),
+        },
+        // 新增：顯示實際查詢的數量
+        queryInfo: {
+          requestedLimit: limit,
+          adjustedLimit: adjustedLimit,
+          coldStartMultiplier: COLD_START_CONFIG.coldStartMultiplier,
+          isColdStart: !userId || (cached.coldStartStatus && cached.coldStartStatus.isColdStart),
+          excludedCount: excludeIds ? excludeIds.length : 0,
+        },
+      }
+
+      performanceMonitor.end('mixed_recommendations')
+      return result
     }
 
     // 如果快取不存在或未使用快取，重新計算推薦
@@ -1049,7 +1048,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       userId,
       adjustedLimit,
       weights,
-      tags
+      tags,
     )
 
     // 排除已顯示的項目
@@ -1125,7 +1124,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
         userId,
         adjustedLimit,
         weights,
-        tags
+        tags,
       )
     }
 
@@ -1560,7 +1559,7 @@ export const clearMixedRecommendationCache = async (userId = null, level = 'patc
 
     logger.info(`已清除混合推薦快取並更新版本 ${userId ? `(用戶: ${userId})` : '(匿名用戶)'}`, {
       level,
-      results
+      results,
     })
 
     return results
@@ -1588,7 +1587,7 @@ export const getRecommendationCacheStatus = async (userId = null, options = {}) 
       cacheKey,
       version: currentVersion,
       cacheExists,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     }
   } catch (error) {
     logger.error('取得推薦快取狀態失敗:', error)
@@ -1596,7 +1595,7 @@ export const getRecommendationCacheStatus = async (userId = null, options = {}) 
       cacheKey: null,
       version: null,
       cacheExists: false,
-      error: error.message
+      error: error.message,
     }
   }
 }

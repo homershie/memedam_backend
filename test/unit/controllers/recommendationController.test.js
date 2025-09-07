@@ -32,6 +32,12 @@ vi.mock('../../../models/Like.js', () => ({
   },
 }))
 
+vi.mock('../../../models/Follow.js', () => ({
+  default: {
+    find: vi.fn(),
+  },
+}))
+
 vi.mock('../../../models/RecommendationMetrics.js', () => ({
   default: {
     create: vi.fn(),
@@ -43,6 +49,7 @@ vi.mock('../../../models/RecommendationMetrics.js', () => ({
 vi.mock('../../../utils/mixedRecommendation.js', () => ({
   getMixedRecommendations: vi.fn(),
   getInfiniteScrollRecommendations: vi.fn(),
+  clearMixedRecommendationCache: vi.fn(),
 }))
 
 vi.mock('../../../utils/collaborativeFiltering.js', () => ({
@@ -51,6 +58,7 @@ vi.mock('../../../utils/collaborativeFiltering.js', () => ({
 
 vi.mock('../../../utils/contentBased.js', () => ({
   getContentBasedRecommendations: vi.fn(),
+  calculateUserTagPreferences: vi.fn(),
 }))
 
 vi.mock('../../../utils/socialScoreCalculator.js', () => ({
@@ -255,7 +263,7 @@ describe('Recommendation Controller', () => {
       const mixedRecommendation = await import('../../../utils/mixedRecommendation.js')
       mixedRecommendation.getInfiniteScrollRecommendations.mockResolvedValue(mockRecommendations)
 
-      await recommendationController.getInfiniteScrollRecommendations(req, res, next)
+      await recommendationController.getInfiniteScrollRecommendationsController(req, res, next)
 
       expect(mixedRecommendation.getInfiniteScrollRecommendations).toHaveBeenCalledWith(
         'user123',
@@ -299,7 +307,7 @@ describe('Recommendation Controller', () => {
       const mixedRecommendation = await import('../../../utils/mixedRecommendation.js')
       mixedRecommendation.getInfiniteScrollRecommendations.mockResolvedValue(mockRecommendations)
 
-      await recommendationController.getInfiniteScrollRecommendations(req, res, next)
+      await recommendationController.getInfiniteScrollRecommendationsController(req, res, next)
 
       expect(mixedRecommendation.getInfiniteScrollRecommendations).toHaveBeenCalledWith(
         null,
@@ -338,21 +346,19 @@ describe('Recommendation Controller', () => {
 
       Meme.findById.mockResolvedValue(mockSourceMeme)
 
-      const contentBased = await import('../../../utils/contentBased.js')
-      contentBased.getContentBasedRecommendations.mockResolvedValue({
-        recommendations: mockSimilarMemes,
+      // Mock Meme.find for similar memes query
+      Meme.find.mockReturnValue({
+        sort: vi.fn().mockReturnThis(),
+        skip: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockSimilarMemes),
       })
 
       await recommendationController.getSimilarMemes(req, res, next)
 
       expect(Meme.findById).toHaveBeenCalledWith('meme123')
-      expect(contentBased.getContentBasedRecommendations).toHaveBeenCalledWith(
-        null,
-        expect.objectContaining({
-          sourceMeme: mockSourceMeme,
-          limit: 5,
-        }),
-      )
+      expect(Meme.find).toHaveBeenCalled()
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -401,9 +407,22 @@ describe('Recommendation Controller', () => {
         { tags: ['cat', 'cute'], count: 12 },
       ]
 
+      const mockPreferences = {
+        preferences: {
+          funny: 0.8,
+          meme: 0.6,
+          cat: 0.7,
+        },
+        totalInteractions: 35,
+        confidence: 0.85,
+      }
+
       User.findById.mockResolvedValue(mockUser)
       View.aggregate.mockResolvedValue(mockViewHistory)
       Like.aggregate.mockResolvedValue(mockLikeHistory)
+
+      const contentBased = await import('../../../utils/contentBased.js')
+      contentBased.calculateUserTagPreferences.mockResolvedValue(mockPreferences)
 
       await recommendationController.getUserPreferences(req, res, next)
 
@@ -445,7 +464,7 @@ describe('Recommendation Controller', () => {
 
       User.findByIdAndUpdate.mockResolvedValue(mockUpdatedUser)
 
-      await recommendationController.updateUserPreferences(req, res, next)
+      await recommendationController.updateUserPreferencesSettings(req, res, next)
 
       expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
         'user123',
@@ -496,7 +515,11 @@ describe('Recommendation Controller', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          metrics: mockMetrics,
+          data: expect.objectContaining({
+            period: '7d',
+            summary: expect.any(Object),
+            daily_metrics: mockMetrics,
+          }),
         }),
       )
     })
@@ -512,6 +535,15 @@ describe('Recommendation Controller', () => {
         score: 0.85,
       }
 
+      const mockMeme = {
+        _id: 'meme123',
+        title: 'Test Meme',
+        type: 'image',
+        tags_cache: ['funny', 'meme'],
+        hot_score: 100,
+        createdAt: new Date(),
+      }
+
       const mockMetric = {
         _id: 'metric123',
         userId: 'user123',
@@ -523,6 +555,7 @@ describe('Recommendation Controller', () => {
         timestamp: new Date(),
       }
 
+      Meme.findById.mockResolvedValue(mockMeme)
       RecommendationMetrics.create.mockResolvedValue(mockMetric)
 
       await recommendationController.trackRecommendationClick(req, res, next)
@@ -569,7 +602,10 @@ describe('Recommendation Controller', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          tags: mockTrendingTags,
+          data: expect.objectContaining({
+            tags: expect.any(Array),
+            total_tags: 4,
+          }),
         }),
       )
     })
@@ -611,17 +647,41 @@ describe('Recommendation Controller', () => {
         },
       }
 
-      const socialScore = await import('../../../utils/socialScoreCalculator.js')
-      socialScore.getSocialRecommendations.mockResolvedValue(mockFeed)
+      const mixedRecommendation = await import('../../../utils/mixedRecommendation.js')
+      mixedRecommendation.getMixedRecommendations.mockResolvedValue({
+        recommendations: mockFeed.posts.filter((p) => !p.isFromFollowing),
+        pagination: mockFeed.pagination,
+        weights: { hot: 0.3, latest: 0.2, collaborative: 0.3, content: 0.2 },
+        algorithm: 'mixed',
+      })
+
+      // Mock Follow.find for following users
+      const Follow = (await import('../../../models/Follow.js')).default
+      Follow.find.mockResolvedValue([{ following_id: 'user456' }])
+
+      // Mock Meme.find for following posts
+      Meme.find.mockReturnValue({
+        populate: vi.fn().mockReturnThis(),
+        sort: vi.fn().mockReturnThis(),
+        skip: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue([
+          {
+            _id: 'meme1',
+            title: 'Following User Meme',
+            author_id: { _id: 'user456', username: 'friend1' },
+            createdAt: new Date(),
+          },
+        ]),
+      })
 
       await recommendationController.getPersonalizedFeed(req, res, next)
 
-      expect(socialScore.getSocialRecommendations).toHaveBeenCalledWith(
+      expect(mixedRecommendation.getMixedRecommendations).toHaveBeenCalledWith(
         'user123',
         expect.objectContaining({
+          limit: 10, // remaining limit after following posts
           page: 1,
-          limit: 15,
-          includeFollowing: true,
+          excludeIds: ['meme1'],
         }),
       )
 
@@ -638,11 +698,20 @@ describe('Recommendation Controller', () => {
     it('應該重置用戶推薦緩存', async () => {
       req.user = { id: 'user123' }
 
+      const mockUser = {
+        _id: 'user123',
+        preferences: {},
+      }
+
+      User.findById.mockResolvedValue(mockUser)
       User.findByIdAndUpdate.mockResolvedValue({
         _id: 'user123',
         recommendationCache: null,
         lastRecommendationReset: new Date(),
       })
+
+      const mixedRecommendation = await import('../../../utils/mixedRecommendation.js')
+      mixedRecommendation.clearMixedRecommendationCache.mockResolvedValue(true)
 
       await recommendationController.resetRecommendations(req, res, next)
 

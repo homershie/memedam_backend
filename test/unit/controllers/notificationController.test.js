@@ -35,6 +35,18 @@ vi.mock('../../../models/Notification.js', () => ({
 
 vi.mock('../../../utils/notificationUtils.js')
 
+vi.mock('../../../utils/smartCacheInvalidator.js', () => ({
+  default: {
+    invalidateByOperation: vi.fn().mockResolvedValue(true),
+  },
+  CACHE_OPERATIONS: {
+    NOTIFICATION_READ: 'NOTIFICATION_READ',
+    NOTIFICATION_DELETED: 'NOTIFICATION_DELETED',
+    NOTIFICATION_MARKED_READ: 'NOTIFICATION_MARKED_READ',
+    NOTIFICATION_ARCHIVED: 'NOTIFICATION_ARCHIVED',
+  },
+}))
+
 import NotificationReceipt from '../../../models/NotificationReceipt.js'
 
 describe('通知控制器', () => {

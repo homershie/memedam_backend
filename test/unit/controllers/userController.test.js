@@ -35,6 +35,20 @@ vi.mock('../../../services/uploadService.js', () => ({
   deleteImage: vi.fn(),
 }))
 
+vi.mock('../../../utils/smartCacheInvalidator.js', () => ({
+  default: {
+    invalidateByOperation: vi.fn().mockResolvedValue(true),
+  },
+  CACHE_OPERATIONS: {
+    USER_FOLLOWED: 'USER_FOLLOWED',
+    USER_UNFOLLOWED: 'USER_UNFOLLOWED',
+    USER_PROFILE_UPDATED: 'USER_PROFILE_UPDATED',
+    USER_DELETED: 'USER_DELETED',
+    SOCIAL_RELATIONSHIP: 'SOCIAL_RELATIONSHIP',
+    COLLABORATIVE_UPDATE: 'COLLABORATIVE_UPDATE',
+  },
+}))
+
 describe('User Controller', () => {
   let req, res, next
   let User, Meme, Follow
