@@ -76,7 +76,6 @@ const safeJsonStringify = (data) => {
 import { handleQueryError } from './errorHandler.js'
 import cacheVersionManager from './cacheVersionManager.js'
 import redisCache from '../config/redis.js'
-import mongoose from 'mongoose'
 
 /**
  * 資料庫連線健康檢查
@@ -2080,12 +2079,7 @@ export const getSocialCollaborativeFilteringStats = async (userId) => {
     const userInteractions = interactionMatrix[userIdStr] || {}
     const userSocialData = socialGraph[userIdStr] || {}
 
-    const socialSimilarUsersResult = await findSocialSimilarUsers(
-      userIdStr,
-      socialGraph,
-      0.1,
-      100,
-    )
+    const socialSimilarUsersResult = await findSocialSimilarUsers(userIdStr, socialGraph, 0.1, 100)
     const socialSimilarUsers = Array.isArray(socialSimilarUsersResult)
       ? socialSimilarUsersResult
       : []
