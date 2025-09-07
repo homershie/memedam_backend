@@ -7,6 +7,7 @@ import RecommendationMetrics from '../models/RecommendationMetrics.js'
 import ABTest from '../models/ABTest.js'
 import { logger } from '../utils/logger.js'
 import redisCache from '../config/redis.js'
+import cacheVersionManager from '../utils/cacheVersionManager.js'
 
 class AnalyticsMonitor {
   constructor() {
@@ -101,7 +102,7 @@ class AnalyticsMonitor {
   }
 
   /**
-   * 更新指標快取
+   * 更新指標快取（支援版本控制）
    */
   async updateMetricsCache() {
     try {
@@ -111,21 +112,44 @@ class AnalyticsMonitor {
 
       // 更新即時指標（最近一小時）
       const realtimeStats = await this.getRealtimeStats(oneHourAgo, now)
-      await redisCache.set(`${this.cachePrefix}realtime_stats`, JSON.stringify(realtimeStats), 300) // 5分鐘過期
+      const realtimeCacheKey = `${this.cachePrefix}realtime_stats`
+      const realtimeVersionedData = {
+        data: realtimeStats,
+        version: await cacheVersionManager.getVersion(realtimeCacheKey),
+        timestamp: Date.now(),
+      }
+      await redisCache.set(realtimeCacheKey, JSON.stringify(realtimeVersionedData), 300)
+
+      // 更新版本號
+      await cacheVersionManager.updateVersion(realtimeCacheKey)
 
       // 更新日指標（最近24小時）
       const dailyStats = await this.getDailyStats(oneDayAgo, now)
-      await redisCache.set(`${this.cachePrefix}daily_stats`, JSON.stringify(dailyStats), 3600) // 1小時過期
+      const dailyCacheKey = `${this.cachePrefix}daily_stats`
+      const dailyVersionedData = {
+        data: dailyStats,
+        version: await cacheVersionManager.getVersion(dailyCacheKey),
+        timestamp: Date.now(),
+      }
+      await redisCache.set(dailyCacheKey, JSON.stringify(dailyVersionedData), 3600)
+
+      // 更新版本號
+      await cacheVersionManager.updateVersion(dailyCacheKey)
 
       // 更新演算法比較
       const algorithmComparison = await this.getAlgorithmComparison(oneDayAgo, now)
-      await redisCache.set(
-        `${this.cachePrefix}algorithm_comparison`,
-        JSON.stringify(algorithmComparison),
-        3600,
-      )
+      const algorithmCacheKey = `${this.cachePrefix}algorithm_comparison`
+      const algorithmVersionedData = {
+        data: algorithmComparison,
+        version: await cacheVersionManager.getVersion(algorithmCacheKey),
+        timestamp: Date.now(),
+      }
+      await redisCache.set(algorithmCacheKey, JSON.stringify(algorithmVersionedData), 3600)
 
-      logger.debug('指標快取更新完成')
+      // 更新版本號
+      await cacheVersionManager.updateVersion(algorithmCacheKey)
+
+      logger.debug('指標快取更新完成（包含版本控制）')
     } catch (error) {
       logger.error('更新指標快取失敗:', error)
     }
@@ -380,7 +404,7 @@ class AnalyticsMonitor {
   }
 
   /**
-   * 取得快取統計
+   * 取得快取統計（支援版本控制）
    */
   async getCachedStats() {
     try {
@@ -391,20 +415,51 @@ class AnalyticsMonitor {
           daily_stats: null,
           algorithm_comparison: null,
           active_tests_count: this.activeTests.size,
+          cache_versions: {},
         }
       }
 
+      const cacheKeys = [
+        `${this.cachePrefix}realtime_stats`,
+        `${this.cachePrefix}daily_stats`,
+        `${this.cachePrefix}algorithm_comparison`,
+      ]
+
       const [realtimeStats, dailyStats, algorithmComparison] = await Promise.all([
-        redisCache.get(`${this.cachePrefix}realtime_stats`),
-        redisCache.get(`${this.cachePrefix}daily_stats`),
-        redisCache.get(`${this.cachePrefix}algorithm_comparison`),
+        redisCache.get(cacheKeys[0]),
+        redisCache.get(cacheKeys[1]),
+        redisCache.get(cacheKeys[2]),
       ])
 
+      // 處理版本控制的快取數據
+      const parseVersionedCache = (cacheData, cacheKey) => {
+        if (!cacheData) return null
+
+        try {
+          const parsed = JSON.parse(cacheData)
+          // 如果是舊格式的快取，進行遷移
+          if (!parsed.version) {
+            return parsed
+          }
+          return parsed.data
+        } catch (error) {
+          logger.warn(`解析快取數據失敗 (${cacheKey}):`, error)
+          return null
+        }
+      }
+
+      // 取得快取版本資訊
+      const cacheVersions = {}
+      for (const key of cacheKeys) {
+        cacheVersions[key] = await cacheVersionManager.getVersion(key)
+      }
+
       return {
-        realtime_stats: realtimeStats ? JSON.parse(realtimeStats) : null,
-        daily_stats: dailyStats ? JSON.parse(dailyStats) : null,
-        algorithm_comparison: algorithmComparison ? JSON.parse(algorithmComparison) : null,
+        realtime_stats: parseVersionedCache(realtimeStats, cacheKeys[0]),
+        daily_stats: parseVersionedCache(dailyStats, cacheKeys[1]),
+        algorithm_comparison: parseVersionedCache(algorithmComparison, cacheKeys[2]),
         active_tests_count: this.activeTests.size,
+        cache_versions: cacheVersions,
       }
     } catch (error) {
       logger.error('取得快取統計失敗:', error)
@@ -413,6 +468,7 @@ class AnalyticsMonitor {
         daily_stats: null,
         algorithm_comparison: null,
         active_tests_count: this.activeTests.size,
+        cache_versions: {},
       }
     }
   }
@@ -536,6 +592,73 @@ class AnalyticsMonitor {
     } catch (error) {
       logger.error('更新互動事件失敗:', error)
       throw error
+    }
+  }
+
+  /**
+   * 清除分析快取（支援版本控制）
+   * @param {string} level - 版本更新層級
+   */
+  async clearAnalyticsCache(level = 'patch') {
+    try {
+      const cacheKeys = [
+        `${this.cachePrefix}realtime_stats`,
+        `${this.cachePrefix}daily_stats`,
+        `${this.cachePrefix}algorithm_comparison`,
+        `${this.cachePrefix}ab_test_notification:*`,
+      ]
+
+      // 使用版本控制批量更新
+      const results = await cacheVersionManager.batchUpdateVersions(cacheKeys, level)
+
+      // 清除所有相關快取
+      const cachePromises = cacheKeys.map((key) => redisCache.del(key))
+      await Promise.all(cachePromises)
+
+      logger.info(`清除分析快取並更新版本完成: ${cacheKeys.length} 個鍵`)
+      return results
+    } catch (error) {
+      logger.error('清除分析快取失敗:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 檢查快取版本狀態
+   * @returns {Object} 版本狀態資訊
+   */
+  async getCacheVersionStatus() {
+    try {
+      const cacheKeys = [
+        `${this.cachePrefix}realtime_stats`,
+        `${this.cachePrefix}daily_stats`,
+        `${this.cachePrefix}algorithm_comparison`,
+      ]
+
+      const versionStatus = {}
+      for (const key of cacheKeys) {
+        const version = await cacheVersionManager.getVersion(key)
+        const exists = await redisCache.exists(key)
+        versionStatus[key] = {
+          version,
+          exists,
+          timestamp: Date.now(),
+        }
+      }
+
+      return {
+        cache_status: versionStatus,
+        total_keys: cacheKeys.length,
+        monitoring_active: this.isMonitoring,
+      }
+    } catch (error) {
+      logger.error('取得快取版本狀態失敗:', error)
+      return {
+        cache_status: {},
+        total_keys: 0,
+        monitoring_active: this.isMonitoring,
+        error: error.message,
+      }
     }
   }
 

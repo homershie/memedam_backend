@@ -11,6 +11,7 @@ import { logger } from './logger.js'
  * 快取操作類型常量
  */
 export const CACHE_OPERATIONS = {
+  // 原有的操作類型
   MEME_CREATED: 'MEME_CREATED',
   MEME_UPDATED: 'MEME_UPDATED',
   MEME_DELETED: 'MEME_DELETED',
@@ -21,6 +22,15 @@ export const CACHE_OPERATIONS = {
   USER_FOLLOWED: 'USER_FOLLOWED',
   USER_UNFOLLOWED: 'USER_UNFOLLOWED',
   USER_ACTIVITY_CHANGED: 'USER_ACTIVITY_CHANGED',
+
+  // 新增的快取操作類型
+  SOCIAL_RELATIONSHIP: 'SOCIAL_RELATIONSHIP',
+  COLLABORATIVE_UPDATE: 'COLLABORATIVE_UPDATE',
+  SOCIAL_COLLABORATIVE_UPDATE: 'SOCIAL_COLLABORATIVE_UPDATE',
+  CONTENT_INTERACTION: 'CONTENT_INTERACTION',
+  HOT_SCORE_UPDATE: 'HOT_SCORE_UPDATE',
+  POPULAR_CONTENT: 'POPULAR_CONTENT',
+  USER_ACTIVITY: 'USER_ACTIVITY',
 }
 
 /**
@@ -85,6 +95,34 @@ class SmartCacheInvalidator {
 
         case CACHE_OPERATIONS.USER_ACTIVITY_CHANGED:
           await this.handleUserActivityChanged(params)
+          break
+
+        case CACHE_OPERATIONS.SOCIAL_RELATIONSHIP:
+          await this.handleSocialRelationship(params)
+          break
+
+        case CACHE_OPERATIONS.COLLABORATIVE_UPDATE:
+          await this.handleCollaborativeUpdate(params)
+          break
+
+        case CACHE_OPERATIONS.SOCIAL_COLLABORATIVE_UPDATE:
+          await this.handleSocialCollaborativeUpdate(params)
+          break
+
+        case CACHE_OPERATIONS.CONTENT_INTERACTION:
+          await this.handleContentInteraction(params)
+          break
+
+        case CACHE_OPERATIONS.HOT_SCORE_UPDATE:
+          await this.handleHotScoreUpdate(params)
+          break
+
+        case CACHE_OPERATIONS.POPULAR_CONTENT:
+          await this.handlePopularContent(params)
+          break
+
+        case CACHE_OPERATIONS.USER_ACTIVITY:
+          await this.handleUserActivity(params)
           break
 
         default:
@@ -359,6 +397,171 @@ class SmartCacheInvalidator {
     // 2. 清除用戶活躍度快取
     await this.invalidatePattern(`user_activity:${userId}`)
     await this.invalidatePattern(`cold_start:${userId}`)
+  }
+
+  /**
+   * 處理社交關係變化
+   * @param {Object} params - 參數
+   */
+  async handleSocialRelationship(params) {
+    const { userId, targetUserId, reason } = params
+
+    if (!userId || !targetUserId) {
+      logger.warn('SOCIAL_RELATIONSHIP 操作缺少必要參數', params)
+      return
+    }
+
+    logger.info('處理社交關係變化快取失效', { userId, targetUserId, reason })
+
+    // 1. 清除雙方用戶的個人化推薦快取
+    await this.invalidatePattern(`mixed_recommendations:${userId}:*`)
+    await this.invalidatePattern(`mixed_recommendations:${targetUserId}:*`)
+
+    // 2. 清除社交協同過濾快取
+    await this.invalidatePattern(`social_collaborative_filtering:${userId}:*`)
+    await this.invalidatePattern(`social_collaborative_filtering:${targetUserId}:*`)
+
+    // 3. 清除協同過濾快取（因為社交圖譜發生變化）
+    await this.invalidatePattern(`collaborative_filtering:${userId}:*`)
+    await this.invalidatePattern(`collaborative_filtering:${targetUserId}:*`)
+  }
+
+  /**
+   * 處理協同過濾更新
+   * @param {Object} params - 參數
+   */
+  async handleCollaborativeUpdate(params) {
+    const { userId, memeId, reason } = params
+
+    logger.info('處理協同過濾更新快取失效', { userId, memeId, reason })
+
+    if (userId) {
+      // 清除特定用戶的協同過濾快取
+      await this.invalidatePattern(`collaborative_filtering:${userId}:*`)
+      await this.invalidatePattern(`mixed_recommendations:${userId}:*`)
+    } else {
+      // 廣泛清除協同過濾快取（用於重大更新）
+      await this.invalidatePattern('collaborative_filtering:*')
+      await this.invalidatePattern('mixed_recommendations:*')
+    }
+  }
+
+  /**
+   * 處理社交協同過濾更新
+   * @param {Object} params - 參數
+   */
+  async handleSocialCollaborativeUpdate(params) {
+    const { userId, reason } = params
+
+    if (!userId) {
+      logger.warn('SOCIAL_COLLABORATIVE_UPDATE 操作缺少必要參數', params)
+      return
+    }
+
+    logger.info('處理社交協同過濾更新快取失效', { userId, reason })
+
+    // 1. 清除用戶的社交協同過濾快取
+    await this.invalidatePattern(`social_collaborative_filtering:${userId}:*`)
+
+    // 2. 清除用戶的混合推薦快取
+    await this.invalidatePattern(`mixed_recommendations:${userId}:*`)
+
+    // 3. 清除協同過濾快取
+    await this.invalidatePattern(`collaborative_filtering:${userId}:*`)
+  }
+
+  /**
+   * 處理內容互動
+   * @param {Object} params - 參數
+   */
+  async handleContentInteraction(params) {
+    const { userId, memeId, reason } = params
+
+    logger.info('處理內容互動快取失效', { userId, memeId, reason })
+
+    if (userId) {
+      // 1. 清除用戶的內容基礎推薦快取
+      await this.invalidatePattern(`content_based:${userId}:*`)
+      await this.invalidatePattern(`mixed_recommendations:${userId}:*`)
+
+      // 2. 清除用戶活躍度快取
+      await this.invalidatePattern(`user_activity:${userId}`)
+      await this.invalidatePattern(`cold_start:${userId}`)
+    }
+
+    if (memeId) {
+      // 3. 清除包含特定迷因的推薦快取
+      await this.invalidatePattern(`*:*${memeId}*`)
+    }
+  }
+
+  /**
+   * 處理熱門分數更新
+   * @param {Object} params - 參數
+   */
+  async handleHotScoreUpdate(params) {
+    const { memeId, reason } = params
+
+    logger.info('處理熱門分數更新快取失效', { memeId, reason })
+
+    // 1. 清除熱門推薦快取
+    await this.invalidatePattern('hot_recommendations:*')
+    await this.invalidatePattern('updated_recommendations:*')
+
+    // 2. 清除熱門內容快取
+    await this.invalidatePattern('popular_content:*')
+
+    if (memeId) {
+      // 3. 清除包含特定迷因的快取
+      await this.invalidatePattern(`*:*${memeId}*`)
+    }
+  }
+
+  /**
+   * 處理熱門內容更新
+   * @param {Object} params - 參數
+   */
+  async handlePopularContent(params) {
+    const { memeId, reason } = params
+
+    logger.info('處理熱門內容更新快取失效', { memeId, reason })
+
+    // 1. 清除熱門內容快取
+    await this.invalidatePattern('popular_content:*')
+    await this.invalidatePattern('hot_recommendations:*')
+    await this.invalidatePattern('latest_recommendations:*')
+
+    if (memeId) {
+      // 2. 清除包含特定迷因的快取
+      await this.invalidatePattern(`*:*${memeId}*`)
+    }
+  }
+
+  /**
+   * 處理用戶活動
+   * @param {Object} params - 參數
+   */
+  async handleUserActivity(params) {
+    const { userId, reason } = params
+
+    if (!userId) {
+      logger.warn('USER_ACTIVITY 操作缺少必要參數', params)
+      return
+    }
+
+    logger.info('處理用戶活動快取失效', { userId, reason })
+
+    // 1. 清除用戶的個人化推薦快取
+    await this.invalidatePattern(`mixed_recommendations:${userId}:*`)
+    await this.invalidatePattern(`content_based:${userId}:*`)
+    await this.invalidatePattern(`collaborative_filtering:${userId}:*`)
+
+    // 2. 清除用戶活躍度快取
+    await this.invalidatePattern(`user_activity:${userId}`)
+    await this.invalidatePattern(`cold_start:${userId}`)
+
+    // 3. 清除用戶的瀏覽歷史快取
+    await this.invalidatePattern(`user_view_history:${userId}`)
   }
 
   /**

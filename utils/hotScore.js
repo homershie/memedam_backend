@@ -1,7 +1,136 @@
 /**
  * 熱門分數演算法工具函數
  * 提供多種熱門分數計算方法，用於推薦系統
+ * 包含版本控制快取支援
  */
+
+import cacheVersionManager from './cacheVersionManager.js'
+import redisCache from '../config/redis.js'
+
+/**
+ * 熱門分數快取配置
+ */
+const HOT_SCORE_CACHE_CONFIG = {
+  batchUpdate: 1800, // 30分鐘
+  memeHotScore: 3600, // 1小時
+}
+
+/**
+ * 熱門分數版本控制快取處理器
+ */
+class HotScoreVersionedCacheProcessor {
+  constructor() {
+    this.redis = redisCache
+  }
+
+  /**
+   * 帶版本控制的快取處理
+   * @param {string} cacheKey - 快取鍵
+   * @param {Function} fetchFunction - 數據獲取函數
+   * @param {Object} options - 選項
+   * @returns {Object} 包含數據和版本資訊的結果
+   */
+  async processWithVersion(cacheKey, fetchFunction, options = {}) {
+    const ttl = options.ttl || 3600
+    const forceRefresh = options.forceRefresh || false
+
+    try {
+      // 取得當前版本
+      const currentVersion = await cacheVersionManager.getVersion(cacheKey)
+
+      if (!forceRefresh) {
+        // 嘗試從快取取得數據
+        const cachedData = await this.redis.get(cacheKey)
+
+        if (cachedData !== null) {
+          const parsedData = JSON.parse(cachedData)
+
+          // 如果快取包含版本資訊且版本匹配，返回快取數據
+          if (parsedData.version && parsedData.version === currentVersion) {
+            return {
+              data: parsedData.data,
+              version: parsedData.version,
+              fromCache: true,
+            }
+          }
+        }
+      }
+
+      // 獲取新數據
+      const freshData = await fetchFunction()
+
+      // 準備帶版本的快取數據
+      const versionedData = {
+        data: freshData,
+        version: currentVersion,
+        timestamp: Date.now(),
+      }
+
+      // 設定快取（包含版本資訊）
+      await this.redis.set(cacheKey, JSON.stringify(versionedData), ttl)
+
+      return {
+        data: freshData,
+        version: currentVersion,
+        fromCache: false,
+      }
+    } catch (error) {
+      console.error(`熱門分數版本控制快取處理失敗 (${cacheKey}):`, error)
+
+      // 降級到普通快取處理
+      try {
+        if (!forceRefresh) {
+          const cached = await this.redis.get(cacheKey)
+          if (cached !== null) {
+            return {
+              data: JSON.parse(cached),
+              version: '1.0.0',
+              fromCache: true,
+            }
+          }
+        }
+
+        const data = await fetchFunction()
+        await this.redis.set(cacheKey, JSON.stringify(data), ttl)
+
+        return {
+          data: data,
+          version: '1.0.0',
+          fromCache: false,
+        }
+      } catch (fallbackError) {
+        console.error('降級快取處理也失敗:', fallbackError)
+        throw error
+      }
+    }
+  }
+
+  /**
+   * 清除熱門分數相關快取並更新版本
+   * @param {string} level - 版本更新層級
+   */
+  async invalidateHotScoreCache(level = 'patch') {
+    try {
+      const cacheKeys = ['hot_score_batch:*', 'meme_hot_score:*']
+
+      // 使用版本控制批量更新
+      const results = await cacheVersionManager.batchUpdateVersions(cacheKeys, level)
+
+      // 清除所有相關快取
+      const cachePromises = cacheKeys.map((key) => this.redis.del(key))
+      await Promise.all(cachePromises)
+
+      console.log(`清除熱門分數快取並更新版本完成: ${cacheKeys.length} 個鍵`)
+      return results
+    } catch (error) {
+      console.error('清除熱門分數快取失敗:', error)
+      throw error
+    }
+  }
+}
+
+// 建立熱門分數版本控制快取處理器實例
+const hotScoreCacheProcessor = new HotScoreVersionedCacheProcessor()
 
 /**
  * Reddit 風格的熱門分數演算法
@@ -56,7 +185,7 @@ export const calculateHNHotScore = (upvotes, createdAt, now = new Date()) => {
  * @param {Date} now - 當前時間（可選）
  * @returns {number} 熱門分數
  */
-export const calculateMemeHotScore = (memeData, now = new Date()) => {
+export const calculateMemeHotScore = async (memeData, now = new Date()) => {
   try {
     // 驗證輸入參數
     if (!memeData || typeof memeData !== 'object') {
@@ -67,68 +196,91 @@ export const calculateMemeHotScore = (memeData, now = new Date()) => {
       now = new Date()
     }
 
-    // 安全地提取數值，確保都是數字類型
-    const like_count = Math.max(0, parseInt(memeData.like_count) || 0)
-    const dislike_count = Math.max(0, parseInt(memeData.dislike_count) || 0)
-    const views = Math.max(0, parseInt(memeData.views) || 0)
-    const comment_count = Math.max(0, parseInt(memeData.comment_count) || 0)
-    const collection_count = Math.max(0, parseInt(memeData.collection_count) || 0)
-    const share_count = Math.max(0, parseInt(memeData.share_count) || 0)
+    // 生成快取鍵 - 基於迷因ID和時間戳
+    const memeId = memeData._id || memeData.id || 'unknown'
+    const timeKey = Math.floor(now.getTime() / (1000 * 60 * 5)) // 5分鐘粒度
+    const cacheKey = `meme_hot_score:${memeId}:${timeKey}`
 
-    // 驗證時間欄位
-    let createdAt = memeData.createdAt
-    let modified_at = memeData.modified_at
+    // 嘗試從快取取得數據
+    const cacheResult = await hotScoreCacheProcessor.processWithVersion(
+      cacheKey,
+      async () => {
+        console.log(`快取未命中，重新計算迷因熱門分數，ID: ${memeId}...`)
 
-    if (!(createdAt instanceof Date) || isNaN(createdAt.getTime())) {
-      throw new Error('無效的創建時間')
+        // 安全地提取數值，確保都是數字類型
+        const like_count = Math.max(0, parseInt(memeData.like_count) || 0)
+        const dislike_count = Math.max(0, parseInt(memeData.dislike_count) || 0)
+        const views = Math.max(0, parseInt(memeData.views) || 0)
+        const comment_count = Math.max(0, parseInt(memeData.comment_count) || 0)
+        const collection_count = Math.max(0, parseInt(memeData.collection_count) || 0)
+        const share_count = Math.max(0, parseInt(memeData.share_count) || 0)
+
+        // 驗證時間欄位
+        let createdAt = memeData.createdAt
+        let modified_at = memeData.modified_at
+
+        if (!(createdAt instanceof Date) || isNaN(createdAt.getTime())) {
+          throw new Error('無效的創建時間')
+        }
+
+        if (modified_at && (!(modified_at instanceof Date) || isNaN(modified_at.getTime()))) {
+          // 如果修改時間無效，忽略它
+          modified_at = null
+        }
+
+        // 權重設定
+        const weights = {
+          like: 1.0,
+          dislike: -0.5, // 噓數會降低分數
+          view: 0.1, // 瀏覽數權重較低
+          comment: 2.0, // 留言權重較高
+          collection: 3.0, // 收藏權重最高
+          share: 2.5, // 分享權重很高
+        }
+
+        // 計算基礎分數
+        const baseScore =
+          like_count * weights.like +
+          dislike_count * weights.dislike +
+          views * weights.view +
+          comment_count * weights.comment +
+          collection_count * weights.collection +
+          share_count * weights.share
+
+        // 使用有效時間（優先使用修改時間，提升更新內容的排名）
+        const effectiveDate = modified_at || createdAt
+        const timeDiff = Math.max(0, (now - effectiveDate) / (1000 * 60 * 60 * 24)) // 轉換為天
+
+        // 時間衰減因子（使用對數衰減）
+        let timeDecay = 1 / (1 + Math.log(timeDiff + 1))
+
+        // 如果內容曾被修改，給予額外的新鮮度加成
+        if (modified_at && modified_at !== createdAt) {
+          const freshnesBonus = 1.2 // 20% 新鮮度加成
+          timeDecay *= freshnesBonus
+        }
+
+        // 最終熱門分數
+        const hotScore = baseScore * timeDecay
+
+        // 驗證計算結果
+        if (typeof hotScore !== 'number' || isNaN(hotScore) || !isFinite(hotScore)) {
+          throw new Error(`熱門分數計算結果無效: ${hotScore}`)
+        }
+
+        return Math.max(hotScore, 0)
+      },
+      { ttl: HOT_SCORE_CACHE_CONFIG.memeHotScore },
+    )
+
+    // 如果是從快取取得的數據，直接返回
+    if (cacheResult.fromCache) {
+      console.log(`從快取取得迷因熱門分數，ID: ${memeId}`)
+      return cacheResult.data
     }
 
-    if (modified_at && (!(modified_at instanceof Date) || isNaN(modified_at.getTime()))) {
-      // 如果修改時間無效，忽略它
-      modified_at = null
-    }
-
-    // 權重設定
-    const weights = {
-      like: 1.0,
-      dislike: -0.5, // 噓數會降低分數
-      view: 0.1, // 瀏覽數權重較低
-      comment: 2.0, // 留言權重較高
-      collection: 3.0, // 收藏權重最高
-      share: 2.5, // 分享權重很高
-    }
-
-    // 計算基礎分數
-    const baseScore =
-      like_count * weights.like +
-      dislike_count * weights.dislike +
-      views * weights.view +
-      comment_count * weights.comment +
-      collection_count * weights.collection +
-      share_count * weights.share
-
-    // 使用有效時間（優先使用修改時間，提升更新內容的排名）
-    const effectiveDate = modified_at || createdAt
-    const timeDiff = Math.max(0, (now - effectiveDate) / (1000 * 60 * 60 * 24)) // 轉換為天
-
-    // 時間衰減因子（使用對數衰減）
-    let timeDecay = 1 / (1 + Math.log(timeDiff + 1))
-
-    // 如果內容曾被修改，給予額外的新鮮度加成
-    if (modified_at && modified_at !== createdAt) {
-      const freshnesBonus = 1.2 // 20% 新鮮度加成
-      timeDecay *= freshnesBonus
-    }
-
-    // 最終熱門分數
-    const hotScore = baseScore * timeDecay
-
-    // 驗證計算結果
-    if (typeof hotScore !== 'number' || isNaN(hotScore) || !isFinite(hotScore)) {
-      throw new Error(`熱門分數計算結果無效: ${hotScore}`)
-    }
-
-    return Math.max(hotScore, 0)
+    console.log(`迷因熱門分數計算完成並已快取，ID: ${memeId}`)
+    return cacheResult.data
   } catch (error) {
     // 記錄錯誤並返回預設值
     console.error('計算熱門分數時發生錯誤:', {
@@ -158,11 +310,48 @@ export const calculateMemeHotScore = (memeData, now = new Date()) => {
  * @param {Date} now - 當前時間（可選）
  * @returns {Array} 更新後的迷因資料陣列
  */
-export const batchUpdateHotScores = (memes, now = new Date()) => {
-  return memes.map((meme) => ({
-    ...meme,
-    hot_score: calculateMemeHotScore(meme, now),
-  }))
+export const batchUpdateHotScores = async (memes, now = new Date()) => {
+  try {
+    // 生成快取鍵 - 基於迷因數量和時間戳
+    const memeIds = memes.map((m) => m._id || m.id || 'unknown').sort()
+    const timeKey = Math.floor(now.getTime() / (1000 * 60 * 10)) // 10分鐘粒度
+    const cacheKey = `hot_score_batch:${memeIds.length}:${timeKey}`
+
+    // 嘗試從快取取得數據
+    const cacheResult = await hotScoreCacheProcessor.processWithVersion(
+      cacheKey,
+      async () => {
+        console.log(`快取未命中，重新計算批次熱門分數，數量: ${memes.length}...`)
+
+        // 並行計算所有迷因的熱門分數
+        const updatedMemes = await Promise.all(
+          memes.map(async (meme) => ({
+            ...meme,
+            hot_score: await calculateMemeHotScore(meme, now),
+          })),
+        )
+
+        return updatedMemes
+      },
+      { ttl: HOT_SCORE_CACHE_CONFIG.batchUpdate },
+    )
+
+    // 如果是從快取取得的數據，直接返回
+    if (cacheResult.fromCache) {
+      console.log(`從快取取得批次熱門分數，數量: ${memes.length}`)
+      return cacheResult.data
+    }
+
+    console.log(`批次熱門分數計算完成並已快取，數量: ${memes.length}`)
+    return cacheResult.data
+  } catch (error) {
+    console.error('批次更新熱門分數時發生錯誤:', error)
+    // 降級到同步計算
+    return memes.map((meme) => ({
+      ...meme,
+      hot_score: 0, // 返回預設分數
+    }))
+  }
 }
 
 /**

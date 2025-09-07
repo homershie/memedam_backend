@@ -28,9 +28,6 @@ vi.mock('../../../models/Meme.js', () => {
   }
 })
 
-// 獲取 mock 實例
-import Meme from '../../../models/Meme.js'
-
 vi.mock('../../../models/User.js', () => ({
   default: {
     findById: vi.fn(),
@@ -204,7 +201,6 @@ describe('Meme Controller', () => {
       }
       req.user = { role: 'admin' } // 設置為特權用戶
 
-      const mockMemes = []
       Meme.countDocuments.mockResolvedValue(0)
 
       await memeController.getMemes(req, res, next)
@@ -306,20 +302,6 @@ describe('Meme Controller', () => {
           filename: 'meme.jpg',
         },
       ]
-
-      const mockMeme = {
-        _id: 'newmeme123',
-        title: 'New Meme',
-        content: 'Test description',
-        image_url: 'uploads/meme.jpg',
-        author_id: 'user123',
-        tags_cache: ['funny', 'test'],
-        populate: vi.fn().mockResolvedValue({
-          _id: 'newmeme123',
-          title: 'New Meme',
-          author_id: { _id: 'user123', username: 'testuser' },
-        }),
-      }
 
       User.findByIdAndUpdate.mockResolvedValue({})
 

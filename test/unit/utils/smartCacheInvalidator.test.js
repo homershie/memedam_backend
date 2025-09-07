@@ -225,6 +225,176 @@ describe('智慧快取失效器', () => {
     })
   })
 
+  describe('社交關係操作', () => {
+    it('應該為社交關係變化失效相關快取', async () => {
+      mockRedis.delPattern.mockResolvedValue(4)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.SOCIAL_RELATIONSHIP, {
+        userId: 'user123',
+        targetUserId: 'user456',
+        reason: '用戶追隨行為影響社交推薦',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('mixed_recommendations:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('mixed_recommendations:user456:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('social_collaborative_filtering:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('collaborative_filtering:user123:*')
+    })
+
+    it('應該處理缺少必要參數的社交關係操作', async () => {
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.SOCIAL_RELATIONSHIP, {
+        userId: 'user123',
+      })
+
+      expect(mockRedis.delPattern).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('協同過濾更新操作', () => {
+    it('應該為特定用戶協同過濾更新失效相關快取', async () => {
+      mockRedis.delPattern.mockResolvedValue(2)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.COLLABORATIVE_UPDATE, {
+        userId: 'user123',
+        memeId: 'meme456',
+        reason: '用戶分享影響協同過濾',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('collaborative_filtering:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('mixed_recommendations:user123:*')
+    })
+
+    it('應該為廣泛協同過濾更新失效所有相關快取', async () => {
+      mockRedis.delPattern.mockResolvedValue(2)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.COLLABORATIVE_UPDATE, {
+        reason: '重大更新影響所有協同過濾',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('collaborative_filtering:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('mixed_recommendations:*')
+    })
+  })
+
+  describe('社交協同過濾更新操作', () => {
+    it('應該為社交協同過濾更新失效相關快取', async () => {
+      mockRedis.delPattern.mockResolvedValue(3)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.SOCIAL_COLLABORATIVE_UPDATE, {
+        userId: 'user123',
+        reason: '社交關係變化影響社交協同過濾',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('social_collaborative_filtering:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('mixed_recommendations:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('collaborative_filtering:user123:*')
+    })
+
+    it('應該處理缺少用戶ID的社交協同過濾更新', async () => {
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.SOCIAL_COLLABORATIVE_UPDATE, {
+        reason: '測試',
+      })
+
+      expect(mockRedis.delPattern).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('內容互動操作', () => {
+    it('應該為內容互動失效相關快取', async () => {
+      mockRedis.delPattern.mockResolvedValue(4)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.CONTENT_INTERACTION, {
+        userId: 'user123',
+        memeId: 'meme456',
+        reason: '用戶分享行為',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('content_based:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('mixed_recommendations:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('user_activity:user123')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('cold_start:user123')
+    })
+
+    it('應該處理只有迷因ID的內容互動', async () => {
+      mockRedis.delPattern.mockResolvedValue(1)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.CONTENT_INTERACTION, {
+        memeId: 'meme456',
+        reason: '測試',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('*:*meme456*')
+    })
+  })
+
+  describe('熱門分數更新操作', () => {
+    it('應該為熱門分數更新失效相關快取', async () => {
+      mockRedis.delPattern.mockResolvedValue(4)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.HOT_SCORE_UPDATE, {
+        memeId: 'meme456',
+        reason: '分享行為大幅提升熱門分數',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('hot_recommendations:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('updated_recommendations:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('popular_content:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('*:*meme456*')
+    })
+
+    it('應該處理沒有特定迷因ID的熱門分數更新', async () => {
+      mockRedis.delPattern.mockResolvedValue(3)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.HOT_SCORE_UPDATE, {
+        reason: '一般熱門分數更新',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('hot_recommendations:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('updated_recommendations:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('popular_content:*')
+    })
+  })
+
+  describe('熱門內容更新操作', () => {
+    it('應該為熱門內容更新失效相關快取', async () => {
+      mockRedis.delPattern.mockResolvedValue(4)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.POPULAR_CONTENT, {
+        memeId: 'meme456',
+        reason: '迷因瀏覽數更新',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('popular_content:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('hot_recommendations:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('latest_recommendations:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('*:*meme456*')
+    })
+  })
+
+  describe('用戶活動操作', () => {
+    it('應該為用戶活動失效相關快取', async () => {
+      mockRedis.delPattern.mockResolvedValue(4)
+
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.USER_ACTIVITY, {
+        userId: 'user123',
+        reason: '用戶瀏覽行為',
+      })
+
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('mixed_recommendations:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('content_based:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('collaborative_filtering:user123:*')
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('user_activity:user123')
+    })
+
+    it('應該處理缺少用戶ID的用戶活動操作', async () => {
+      await invalidator.invalidateByOperation(CACHE_OPERATIONS.USER_ACTIVITY, {
+        reason: '測試',
+      })
+
+      expect(mockRedis.delPattern).not.toHaveBeenCalled()
+    })
+  })
+
   describe('錯誤處理', () => {
     it('應該處理無效的操作類型', async () => {
       await invalidator.invalidateByOperation('INVALID_OPERATION', {})

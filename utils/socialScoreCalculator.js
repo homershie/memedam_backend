@@ -12,6 +12,8 @@ import Collection from '../models/Collection.js'
 import View from '../models/View.js'
 import User from '../models/User.js'
 import Meme from '../models/Meme.js'
+import cacheVersionManager from './cacheVersionManager.js'
+import redisCache from '../config/redis.js'
 
 /**
  * 社交分數配置
@@ -65,6 +67,138 @@ const SOCIAL_SCORE_CONFIG = {
     },
   },
 }
+
+/**
+ * 社交分數快取配置
+ */
+const SOCIAL_SCORE_CACHE_CONFIG = {
+  socialGraph: 1800, // 30分鐘
+  memeSocialScore: 900, // 15分鐘
+  batchSocialScores: 1800, // 30分鐘
+  userInfluenceStats: 3600, // 1小時
+}
+
+/**
+ * 社交分數版本控制快取處理器
+ */
+class SocialScoreVersionedCacheProcessor {
+  constructor() {
+    this.redis = redisCache
+  }
+
+  /**
+   * 帶版本控制的快取處理
+   * @param {string} cacheKey - 快取鍵
+   * @param {Function} fetchFunction - 數據獲取函數
+   * @param {Object} options - 選項
+   * @returns {Object} 包含數據和版本資訊的結果
+   */
+  async processWithVersion(cacheKey, fetchFunction, options = {}) {
+    const ttl = options.ttl || 3600
+    const forceRefresh = options.forceRefresh || false
+
+    try {
+      // 取得當前版本
+      const currentVersion = await cacheVersionManager.getVersion(cacheKey)
+
+      if (!forceRefresh) {
+        // 嘗試從快取取得數據
+        const cachedData = await this.redis.get(cacheKey)
+
+        if (cachedData !== null) {
+          const parsedData = JSON.parse(cachedData)
+
+          // 如果快取包含版本資訊且版本匹配，返回快取數據
+          if (parsedData.version && parsedData.version === currentVersion) {
+            return {
+              data: parsedData.data,
+              version: parsedData.version,
+              fromCache: true,
+            }
+          }
+        }
+      }
+
+      // 獲取新數據
+      const freshData = await fetchFunction()
+
+      // 準備帶版本的快取數據
+      const versionedData = {
+        data: freshData,
+        version: currentVersion,
+        timestamp: Date.now(),
+      }
+
+      // 設定快取（包含版本資訊）
+      await this.redis.set(cacheKey, JSON.stringify(versionedData), ttl)
+
+      return {
+        data: freshData,
+        version: currentVersion,
+        fromCache: false,
+      }
+    } catch (error) {
+      console.error(`社交分數版本控制快取處理失敗 (${cacheKey}):`, error)
+
+      // 降級到普通快取處理
+      try {
+        if (!forceRefresh) {
+          const cached = await this.redis.get(cacheKey)
+          if (cached !== null) {
+            return {
+              data: JSON.parse(cached),
+              version: '1.0.0',
+              fromCache: true,
+            }
+          }
+        }
+
+        const data = await fetchFunction()
+        await this.redis.set(cacheKey, JSON.stringify(data), ttl)
+
+        return {
+          data: data,
+          version: '1.0.0',
+          fromCache: false,
+        }
+      } catch (fallbackError) {
+        console.error('降級快取處理也失敗:', fallbackError)
+        throw error
+      }
+    }
+  }
+
+  /**
+   * 清除社交分數相關快取並更新版本
+   * @param {string} level - 版本更新層級
+   */
+  async invalidateSocialScoreCache(level = 'patch') {
+    try {
+      const cacheKeys = [
+        'social_graph:*',
+        'meme_social_score:*',
+        'batch_social_scores:*',
+        'user_influence_stats:*',
+      ]
+
+      // 使用版本控制批量更新
+      const results = await cacheVersionManager.batchUpdateVersions(cacheKeys, level)
+
+      // 清除所有相關快取
+      const cachePromises = cacheKeys.map((key) => this.redis.del(key))
+      await Promise.all(cachePromises)
+
+      console.log(`清除社交分數快取並更新版本完成: ${cacheKeys.length} 個鍵`)
+      return results
+    } catch (error) {
+      console.error('清除社交分數快取失敗:', error)
+      throw error
+    }
+  }
+}
+
+// 建立社交分數版本控制快取處理器實例
+const socialScoreCacheProcessor = new SocialScoreVersionedCacheProcessor()
 
 /**
  * 計算社交距離
@@ -167,159 +301,181 @@ export const buildSocialGraph = async (userIds = []) => {
   try {
     console.log('開始建立社交圖譜...')
 
-    // 如果沒有提供用戶ID，取得所有活躍用戶
-    let targetUserIds = userIds
-    if (userIds.length === 0) {
-      const activeUsers = await User.find({ status: 'active' }).select('_id').limit(1000)
-      targetUserIds = activeUsers.map((user) => user._id)
-    } else {
-      // 確保所有用戶ID都是ObjectId格式
-      targetUserIds = userIds
-        .map((id) => {
-          if (id instanceof mongoose.Types.ObjectId) return id
-          if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
-            return new mongoose.Types.ObjectId(id)
+    // 生成快取鍵
+    const userIdsKey = userIds.length > 0 ? userIds.sort().join('_') : 'all'
+    const cacheKey = `social_graph:${userIdsKey}`
+
+    // 嘗試從快取取得數據
+    const cacheResult = await socialScoreCacheProcessor.processWithVersion(
+      cacheKey,
+      async () => {
+        console.log('快取未命中，重新計算社交圖譜...')
+
+        // 如果沒有提供用戶ID，取得所有活躍用戶
+        let targetUserIds = userIds
+        if (userIds.length === 0) {
+          const activeUsers = await User.find({ status: 'active' }).select('_id').limit(1000)
+          targetUserIds = activeUsers.map((user) => user._id)
+        } else {
+          // 確保所有用戶ID都是ObjectId格式
+          targetUserIds = userIds
+            .map((id) => {
+              if (id instanceof mongoose.Types.ObjectId) return id
+              if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+                return new mongoose.Types.ObjectId(id)
+              }
+              console.warn(`無效的用戶ID格式: ${id}`)
+              return null
+            })
+            .filter(Boolean) // 過濾掉無效的ID
+        }
+
+        // 確保 targetUserIds 是純 ObjectId 數組
+        targetUserIds = targetUserIds
+          .map((id) => {
+            if (id instanceof mongoose.Types.ObjectId) {
+              return id
+            }
+            if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+              return new mongoose.Types.ObjectId(id)
+            }
+            console.warn(`無效的用戶ID格式: ${id}`)
+            return null
+          })
+          .filter(Boolean) // 過濾掉無效的ID
+
+        // 如果沒有有效的用戶ID，返回空的社交圖譜
+        if (targetUserIds.length === 0) {
+          console.log('沒有有效的用戶ID，返回空的社交圖譜')
+          return {}
+        }
+
+        // 額外驗證：確保所有ID都是有效的ObjectId
+        const validObjectIds = targetUserIds.filter((id) => {
+          const isValid = mongoose.Types.ObjectId.isValid(id)
+          if (!isValid) {
+            console.error(`發現無效的ObjectId: ${id}, 類型: ${typeof id}`)
           }
-          console.warn(`無效的用戶ID格式: ${id}`)
-          return null
+          return isValid
         })
-        .filter(Boolean) // 過濾掉無效的ID
-    }
 
-    // 確保 targetUserIds 是純 ObjectId 數組
-    targetUserIds = targetUserIds
-      .map((id) => {
-        if (id instanceof mongoose.Types.ObjectId) {
-          return id
+        if (validObjectIds.length !== targetUserIds.length) {
+          console.warn(`過濾掉 ${targetUserIds.length - validObjectIds.length} 個無效的ObjectId`)
+          targetUserIds = validObjectIds
         }
-        if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
-          return new mongoose.Types.ObjectId(id)
+
+        // 如果過濾後沒有有效的用戶ID，返回空的社交圖譜
+        if (targetUserIds.length === 0) {
+          console.log('過濾後沒有有效的用戶ID，返回空的社交圖譜')
+          return {}
         }
-        console.warn(`無效的用戶ID格式: ${id}`)
-        return null
-      })
-      .filter(Boolean) // 過濾掉無效的ID
 
-    // 如果沒有有效的用戶ID，返回空的社交圖譜
-    if (targetUserIds.length === 0) {
-      console.log('沒有有效的用戶ID，返回空的社交圖譜')
-      return {}
-    }
+        console.log(`準備查詢 ${targetUserIds.length} 個有效用戶ID的關注關係`)
 
-    // 額外驗證：確保所有ID都是有效的ObjectId
-    const validObjectIds = targetUserIds.filter((id) => {
-      const isValid = mongoose.Types.ObjectId.isValid(id)
-      if (!isValid) {
-        console.error(`發現無效的ObjectId: ${id}, 類型: ${typeof id}`)
-      }
-      return isValid
-    })
+        // 取得所有關注關係
+        // 使用 mongoose.trusted 完全避免 CastError
+        const safeUserIds = targetUserIds.map((id) =>
+          id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id),
+        )
 
-    if (validObjectIds.length !== targetUserIds.length) {
-      console.warn(`過濾掉 ${targetUserIds.length - validObjectIds.length} 個無效的ObjectId`)
-      targetUserIds = validObjectIds
-    }
+        // 使用 mongoose.trusted 完全避免 CastError (參考 mixedRecommendation.js)
+        // 分離查詢：先查詢 follower_id - 使用 mongoose.trusted
+        const followerFollows = await Follow.find(
+          mongoose.trusted({
+            follower_id: mongoose.trusted({ $in: safeUserIds }),
+            status: 'active',
+          }),
+        )
 
-    // 如果過濾後沒有有效的用戶ID，返回空的社交圖譜
-    if (targetUserIds.length === 0) {
-      console.log('過濾後沒有有效的用戶ID，返回空的社交圖譜')
-      return {}
-    }
+        // 再查詢 following_id - 使用 mongoose.trusted
+        const followingFollows = await Follow.find(
+          mongoose.trusted({
+            following_id: mongoose.trusted({ $in: safeUserIds }),
+            status: 'active',
+          }),
+        )
 
-    console.log(`準備查詢 ${targetUserIds.length} 個有效用戶ID的關注關係`)
+        // 合併結果並去重
+        const followsMap = new Map()
+        ;(followerFollows || []).forEach((follow) => {
+          if (!follow || !follow.follower_id || !follow.following_id) {
+            console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
+            return
+          }
+          const key = `${follow.follower_id}-${follow.following_id}`
+          followsMap.set(key, follow)
+        })
+        ;(followingFollows || []).forEach((follow) => {
+          if (!follow || !follow.follower_id || !follow.following_id) {
+            console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
+            return
+          }
+          const key = `${follow.follower_id}-${follow.following_id}`
+          followsMap.set(key, follow)
+        })
+        const follows = Array.from(followsMap.values())
 
-    // 取得所有關注關係
-    // 使用 mongoose.trusted 完全避免 CastError
-    const safeUserIds = targetUserIds.map((id) =>
-      id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id),
-    )
+        // 建立社交圖譜
+        const socialGraph = {}
 
-    // 使用 mongoose.trusted 完全避免 CastError (參考 mixedRecommendation.js)
-    // 分離查詢：先查詢 follower_id - 使用 mongoose.trusted
-    const followerFollows = await Follow.find(
-      mongoose.trusted({
-        follower_id: mongoose.trusted({ $in: safeUserIds }),
-        status: 'active',
-      }),
-    )
+        for (const follow of follows) {
+          if (!follow || !follow.follower_id || !follow.following_id) {
+            console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
+            continue
+          }
+          const followerId = follow.follower_id.toString()
+          const followingId = follow.following_id.toString()
 
-    // 再查詢 following_id - 使用 mongoose.trusted
-    const followingFollows = await Follow.find(
-      mongoose.trusted({
-        following_id: mongoose.trusted({ $in: safeUserIds }),
-        status: 'active',
-      }),
-    )
+          // 初始化用戶社交數據
+          if (!socialGraph[followerId]) {
+            socialGraph[followerId] = {
+              followers: [],
+              following: [],
+              mutualFollows: [],
+            }
+          }
+          if (!socialGraph[followingId]) {
+            socialGraph[followingId] = {
+              followers: [],
+              following: [],
+              mutualFollows: [],
+            }
+          }
 
-    // 合併結果並去重
-    const followsMap = new Map()
-    ;(followerFollows || []).forEach((follow) => {
-      if (!follow || !follow.follower_id || !follow.following_id) {
-        console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
-        return
-      }
-      const key = `${follow.follower_id}-${follow.following_id}`
-      followsMap.set(key, follow)
-    })
-    ;(followingFollows || []).forEach((follow) => {
-      if (!follow || !follow.follower_id || !follow.following_id) {
-        console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
-        return
-      }
-      const key = `${follow.follower_id}-${follow.following_id}`
-      followsMap.set(key, follow)
-    })
-    const follows = Array.from(followsMap.values())
-
-    // 建立社交圖譜
-    const socialGraph = {}
-
-    for (const follow of follows) {
-      if (!follow || !follow.follower_id || !follow.following_id) {
-        console.warn('跳過無效的關注記錄，follower_id 或 following_id 為 null:', follow?._id)
-        continue
-      }
-      const followerId = follow.follower_id.toString()
-      const followingId = follow.following_id.toString()
-
-      // 初始化用戶社交數據
-      if (!socialGraph[followerId]) {
-        socialGraph[followerId] = {
-          followers: [],
-          following: [],
-          mutualFollows: [],
-        }
-      }
-      if (!socialGraph[followingId]) {
-        socialGraph[followingId] = {
-          followers: [],
-          following: [],
-          mutualFollows: [],
-        }
-      }
-
-      // 添加關注關係
-      if (!socialGraph[followerId].following.includes(followingId)) {
-        socialGraph[followerId].following.push(followingId)
-      }
-      if (!socialGraph[followingId].followers.includes(followerId)) {
-        socialGraph[followingId].followers.push(followerId)
-      }
-    }
-
-    // 計算互相關注關係
-    for (const userId in socialGraph) {
-      for (const followingId of socialGraph[userId].following) {
-        if (socialGraph[followingId] && socialGraph[followingId].following.includes(userId)) {
-          if (!socialGraph[userId].mutualFollows.includes(followingId)) {
-            socialGraph[userId].mutualFollows.push(followingId)
+          // 添加關注關係
+          if (!socialGraph[followerId].following.includes(followingId)) {
+            socialGraph[followerId].following.push(followingId)
+          }
+          if (!socialGraph[followingId].followers.includes(followerId)) {
+            socialGraph[followingId].followers.push(followerId)
           }
         }
-      }
+
+        // 計算互相關注關係
+        for (const userId in socialGraph) {
+          for (const followingId of socialGraph[userId].following) {
+            if (socialGraph[followingId] && socialGraph[followingId].following.includes(userId)) {
+              if (!socialGraph[userId].mutualFollows.includes(followingId)) {
+                socialGraph[userId].mutualFollows.push(followingId)
+              }
+            }
+          }
+        }
+
+        console.log(`社交圖譜建立完成，包含 ${Object.keys(socialGraph).length} 個用戶`)
+        return socialGraph
+      },
+      { ttl: SOCIAL_SCORE_CACHE_CONFIG.socialGraph },
+    )
+
+    // 如果是從快取取得的數據，直接返回
+    if (cacheResult.fromCache) {
+      console.log('從快取取得社交圖譜數據')
+      return cacheResult.data
     }
 
-    console.log(`社交圖譜建立完成，包含 ${Object.keys(socialGraph).length} 個用戶`)
-    return socialGraph
+    console.log('社交圖譜計算完成並已快取')
+    return cacheResult.data
   } catch (error) {
     console.error('建立社交圖譜時發生錯誤:', error)
     return {}
@@ -394,303 +550,328 @@ export const calculateMemeSocialScore = async (userId, memeId, options = {}) => 
 
     console.log(`開始計算迷因 ${memeId} 對用戶 ${userId} 的社交層分數...`)
 
-    // 建立社交圖譜 - 確保用戶ID格式正確
-    const userIdObj =
-      userId instanceof mongoose.Types.ObjectId
-        ? userId
-        : typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
-          ? new mongoose.Types.ObjectId(userId)
-          : null
+    // 生成快取鍵
+    const optionsKey = `${includeDistance}_${includeInfluence}_${includeInteractions}_${maxDistance}`
+    const cacheKey = `meme_social_score:${userId}:${memeId}:${optionsKey}`
 
-    if (!userIdObj) {
-      console.warn(`calculateMultipleMemeSocialScores: 無效的用戶ID格式: ${userId}`)
-      return []
-    }
+    // 嘗試從快取取得數據
+    const cacheResult = await socialScoreCacheProcessor.processWithVersion(
+      cacheKey,
+      async () => {
+        console.log(`快取未命中，重新計算迷因 ${memeId} 的社交分數...`)
 
-    const socialGraph = await buildSocialGraph([userIdObj])
-    const userIdStr = userIdObj.toString()
-    const userSocialData = socialGraph[userIdStr]
+        // 建立社交圖譜 - 確保用戶ID格式正確
+        const userIdObj =
+          userId instanceof mongoose.Types.ObjectId
+            ? userId
+            : typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+              ? new mongoose.Types.ObjectId(userId)
+              : null
 
-    if (!userSocialData) {
-      return {
-        socialScore: 0,
-        distanceScore: 0,
-        influenceScore: 0,
-        interactionScore: 0,
-        reasons: [],
-        socialInteractions: [],
-      }
-    }
-
-    let totalSocialScore = 0
-    let distanceScore = 0
-    let influenceScore = 0
-    let interactionScore = 0
-    const reasons = []
-    const socialInteractions = []
-
-    // 取得迷因的所有互動
-    const [likes, comments, shares, collections, views] = await Promise.all([
-      Like.find({ meme_id: memeId }).populate('user_id', 'username display_name'),
-      Comment.find({ meme_id: memeId, status: 'normal' }).populate(
-        'user_id',
-        'username display_name',
-      ),
-      Share.find({ meme_id: memeId }).populate('user_id', 'username display_name'),
-      Collection.find({ meme_id: memeId }).populate('user_id', 'username display_name'),
-      View.find({ meme_id: memeId }).populate('user_id', 'username display_name'),
-    ])
-
-    // 取得迷因作者
-    const meme = await Meme.findById(memeId).populate('author_id', 'username display_name')
-    const authorId = meme?.author_id?._id?.toString()
-
-    // 處理所有互動用戶
-    const allInteractingUsers = new Map()
-
-    // 添加作者
-    if (authorId && authorId !== userId) {
-      allInteractingUsers.set(authorId, {
-        type: 'publish',
-        user: meme.author_id,
-        weight: SOCIAL_SCORE_CONFIG.interactions.publish,
-      })
-    }
-
-    // 添加按讚用戶
-    ;(likes || []).forEach((like) => {
-      if (!like) {
-        console.warn('跳過無效的按讚記錄，記錄本身為空')
-        return
-      }
-
-      // 檢查 populate 後的用戶對象是否存在
-      if (!like.user_id) {
-        console.warn(
-          '跳過無效的按讚記錄，用戶已被刪除或不存在，原始user_id:',
-          like.user_id,
-          '記錄ID:',
-          like._id,
-        )
-        return
-      }
-
-      // 檢查用戶對象是否有 _id 屬性
-      if (!like.user_id._id) {
-        console.warn('跳過無效的按讚記錄，用戶對象缺少_id，記錄ID:', like._id)
-        return
-      }
-
-      const likeUserId = like.user_id._id.toString()
-      if (likeUserId !== userId) {
-        allInteractingUsers.set(likeUserId, {
-          type: 'like',
-          user: like.user_id,
-          weight: SOCIAL_SCORE_CONFIG.interactions.like,
-        })
-      }
-    })
-
-    // 添加留言用戶
-    ;(comments || []).forEach((comment) => {
-      if (!comment) {
-        console.warn('跳過無效的留言記錄，記錄本身為空')
-        return
-      }
-
-      if (!comment.user_id) {
-        console.warn('跳過無效的留言記錄，用戶已被刪除或不存在，記錄ID:', comment._id)
-        return
-      }
-
-      if (!comment.user_id._id) {
-        console.warn('跳過無效的留言記錄，用戶對象缺少_id，記錄ID:', comment._id)
-        return
-      }
-      const commentUserId = comment.user_id._id.toString()
-      if (commentUserId !== userId) {
-        allInteractingUsers.set(commentUserId, {
-          type: 'comment',
-          user: comment.user_id,
-          weight: SOCIAL_SCORE_CONFIG.interactions.comment,
-        })
-      }
-    })
-
-    // 添加分享用戶
-    ;(shares || []).forEach((share) => {
-      if (!share) {
-        console.warn('跳過無效的分享記錄，記錄本身為空')
-        return
-      }
-
-      if (!share.user_id) {
-        console.warn('跳過無效的分享記錄，用戶已被刪除或不存在，記錄ID:', share._id)
-        return
-      }
-
-      if (!share.user_id._id) {
-        console.warn('跳過無效的分享記錄，用戶對象缺少_id，記錄ID:', share._id)
-        return
-      }
-      const shareUserId = share.user_id._id.toString()
-      if (shareUserId !== userId) {
-        allInteractingUsers.set(shareUserId, {
-          type: 'share',
-          user: share.user_id,
-          weight: SOCIAL_SCORE_CONFIG.interactions.share,
-        })
-      }
-    })
-
-    // 添加收藏用戶
-    ;(collections || []).forEach((collection) => {
-      if (!collection) {
-        console.warn('跳過無效的收藏記錄，記錄本身為空')
-        return
-      }
-
-      if (!collection.user_id) {
-        console.warn('跳過無效的收藏記錄，用戶已被刪除或不存在，記錄ID:', collection._id)
-        return
-      }
-
-      if (!collection.user_id._id) {
-        console.warn('跳過無效的收藏記錄，用戶對象缺少_id，記錄ID:', collection._id)
-        return
-      }
-      const collectionUserId = collection.user_id._id.toString()
-      if (collectionUserId !== userId) {
-        allInteractingUsers.set(collectionUserId, {
-          type: 'collect',
-          user: collection.user_id,
-          weight: SOCIAL_SCORE_CONFIG.interactions.collect,
-        })
-      }
-    })
-
-    // 添加瀏覽用戶
-    ;(views || []).forEach((view) => {
-      if (!view) {
-        // 靜默跳過，不記錄警告
-        return
-      }
-
-      // 跳過匿名瀏覽記錄（user_id 為 null）
-      if (!view.user_id) {
-        // 靜默跳過，不記錄警告，因為這是預期的行為
-        return
-      }
-
-      // 檢查用戶是否存在
-      if (!view.user_id._id) {
-        // 靜默跳過，不記錄警告，因為用戶可能已被刪除
-        return
-      }
-      const viewUserId = view.user_id._id.toString()
-      if (viewUserId !== userId) {
-        allInteractingUsers.set(viewUserId, {
-          type: 'view',
-          user: view.user_id,
-          weight: SOCIAL_SCORE_CONFIG.interactions.view,
-        })
-      }
-    })
-
-    // 計算每個互動用戶的社交分數
-    for (const [interactingUserId, interactionData] of allInteractingUsers) {
-      const { type, user, weight } = interactionData
-
-      // 計算社交距離
-      const distanceInfo = await calculateSocialDistance(userId, interactingUserId, socialGraph)
-
-      if (distanceInfo.distance <= maxDistance) {
-        // 計算社交影響力
-        const interactingUserSocialData = socialGraph[interactingUserId]
-        const influenceInfo = includeInfluence
-          ? calculateSocialInfluenceScore(interactingUserSocialData)
-          : { score: 0, level: 'none' }
-
-        // 計算互動分數
-        const baseInteractionScore = weight * distanceInfo.weight
-        const influenceMultiplier = 1 + influenceInfo.score / 100
-        const finalInteractionScore = baseInteractionScore * influenceMultiplier
-
-        // 累計分數
-        if (includeInteractions) {
-          interactionScore += finalInteractionScore
-        }
-        if (includeDistance) {
-          distanceScore += distanceInfo.weight
-        }
-        if (includeInfluence) {
-          influenceScore += influenceInfo.score
+        if (!userIdObj) {
+          console.warn(`calculateMultipleMemeSocialScores: 無效的用戶ID格式: ${userId}`)
+          return []
         }
 
-        // 記錄社交互動
-        socialInteractions.push({
-          userId: interactingUserId,
-          username: user.username,
-          displayName: user.display_name,
-          action: type,
-          weight: finalInteractionScore,
-          distance: distanceInfo.distance,
-          distanceType: distanceInfo.type,
-          influenceScore: influenceInfo.score,
-          influenceLevel: influenceInfo.level,
-        })
+        const socialGraph = await buildSocialGraph([userIdObj])
+        const userIdStr = userIdObj.toString()
+        const userSocialData = socialGraph[userIdStr]
 
-        // 生成推薦原因
-        if (finalInteractionScore >= SOCIAL_SCORE_CONFIG.reasonConfig.minScoreForReason) {
-          const reasonTemplate = SOCIAL_SCORE_CONFIG.reasonConfig.reasonTemplates[type]
-          if (reasonTemplate) {
-            reasons.push({
-              type,
-              text: reasonTemplate.replace('{username}', user.display_name || user.username),
-              weight: finalInteractionScore,
-              userId: interactingUserId,
-              username: user.username,
-            })
+        if (!userSocialData) {
+          return {
+            socialScore: 0,
+            distanceScore: 0,
+            influenceScore: 0,
+            interactionScore: 0,
+            reasons: [],
+            socialInteractions: [],
           }
         }
-      }
-    }
 
-    // 計算總社交分數
-    totalSocialScore = interactionScore + distanceScore + influenceScore
+        let totalSocialScore = 0
+        let distanceScore = 0
+        let influenceScore = 0
+        let interactionScore = 0
+        const reasons = []
+        const socialInteractions = []
 
-    // 限制最大社交分數
-    totalSocialScore = Math.min(totalSocialScore, SOCIAL_SCORE_CONFIG.scoreLimits.maxSocialScore)
+        // 取得迷因的所有互動
+        const [likes, comments, shares, collections, views] = await Promise.all([
+          Like.find({ meme_id: memeId }).populate('user_id', 'username display_name'),
+          Comment.find({ meme_id: memeId, status: 'normal' }).populate(
+            'user_id',
+            'username display_name',
+          ),
+          Share.find({ meme_id: memeId }).populate('user_id', 'username display_name'),
+          Collection.find({ meme_id: memeId }).populate('user_id', 'username display_name'),
+          View.find({ meme_id: memeId }).populate('user_id', 'username display_name'),
+        ])
 
-    // 排序推薦原因（按權重降序）
-    reasons.sort((a, b) => b.weight - a.weight)
-    reasons.splice(SOCIAL_SCORE_CONFIG.reasonConfig.maxReasons)
+        // 取得迷因作者
+        const meme = await Meme.findById(memeId).populate('author_id', 'username display_name')
+        const authorId = meme?.author_id?._id?.toString()
 
-    // 排序社交互動（按權重降序）
-    socialInteractions.sort((a, b) => b.weight - a.weight)
+        // 處理所有互動用戶
+        const allInteractingUsers = new Map()
 
-    console.log(
-      `迷因 ${memeId} 的社交層分數計算完成：總分 ${totalSocialScore}，互動分數 ${interactionScore}，距離分數 ${distanceScore}，影響力分數 ${influenceScore}`,
+        // 添加作者
+        if (authorId && authorId !== userId) {
+          allInteractingUsers.set(authorId, {
+            type: 'publish',
+            user: meme.author_id,
+            weight: SOCIAL_SCORE_CONFIG.interactions.publish,
+          })
+        }
+
+        // 添加按讚用戶
+        ;(likes || []).forEach((like) => {
+          if (!like) {
+            console.warn('跳過無效的按讚記錄，記錄本身為空')
+            return
+          }
+
+          // 檢查 populate 後的用戶對象是否存在
+          if (!like.user_id) {
+            console.warn(
+              '跳過無效的按讚記錄，用戶已被刪除或不存在，原始user_id:',
+              like.user_id,
+              '記錄ID:',
+              like._id,
+            )
+            return
+          }
+
+          // 檢查用戶對象是否有 _id 屬性
+          if (!like.user_id._id) {
+            console.warn('跳過無效的按讚記錄，用戶對象缺少_id，記錄ID:', like._id)
+            return
+          }
+
+          const likeUserId = like.user_id._id.toString()
+          if (likeUserId !== userId) {
+            allInteractingUsers.set(likeUserId, {
+              type: 'like',
+              user: like.user_id,
+              weight: SOCIAL_SCORE_CONFIG.interactions.like,
+            })
+          }
+        })
+
+        // 添加留言用戶
+        ;(comments || []).forEach((comment) => {
+          if (!comment) {
+            console.warn('跳過無效的留言記錄，記錄本身為空')
+            return
+          }
+
+          if (!comment.user_id) {
+            console.warn('跳過無效的留言記錄，用戶已被刪除或不存在，記錄ID:', comment._id)
+            return
+          }
+
+          if (!comment.user_id._id) {
+            console.warn('跳過無效的留言記錄，用戶對象缺少_id，記錄ID:', comment._id)
+            return
+          }
+          const commentUserId = comment.user_id._id.toString()
+          if (commentUserId !== userId) {
+            allInteractingUsers.set(commentUserId, {
+              type: 'comment',
+              user: comment.user_id,
+              weight: SOCIAL_SCORE_CONFIG.interactions.comment,
+            })
+          }
+        })
+
+        // 添加分享用戶
+        ;(shares || []).forEach((share) => {
+          if (!share) {
+            console.warn('跳過無效的分享記錄，記錄本身為空')
+            return
+          }
+
+          if (!share.user_id) {
+            console.warn('跳過無效的分享記錄，用戶已被刪除或不存在，記錄ID:', share._id)
+            return
+          }
+
+          if (!share.user_id._id) {
+            console.warn('跳過無效的分享記錄，用戶對象缺少_id，記錄ID:', share._id)
+            return
+          }
+          const shareUserId = share.user_id._id.toString()
+          if (shareUserId !== userId) {
+            allInteractingUsers.set(shareUserId, {
+              type: 'share',
+              user: share.user_id,
+              weight: SOCIAL_SCORE_CONFIG.interactions.share,
+            })
+          }
+        })
+
+        // 添加收藏用戶
+        ;(collections || []).forEach((collection) => {
+          if (!collection) {
+            console.warn('跳過無效的收藏記錄，記錄本身為空')
+            return
+          }
+
+          if (!collection.user_id) {
+            console.warn('跳過無效的收藏記錄，用戶已被刪除或不存在，記錄ID:', collection._id)
+            return
+          }
+
+          if (!collection.user_id._id) {
+            console.warn('跳過無效的收藏記錄，用戶對象缺少_id，記錄ID:', collection._id)
+            return
+          }
+          const collectionUserId = collection.user_id._id.toString()
+          if (collectionUserId !== userId) {
+            allInteractingUsers.set(collectionUserId, {
+              type: 'collect',
+              user: collection.user_id,
+              weight: SOCIAL_SCORE_CONFIG.interactions.collect,
+            })
+          }
+        })
+
+        // 添加瀏覽用戶
+        ;(views || []).forEach((view) => {
+          if (!view) {
+            // 靜默跳過，不記錄警告
+            return
+          }
+
+          // 跳過匿名瀏覽記錄（user_id 為 null）
+          if (!view.user_id) {
+            // 靜默跳過，不記錄警告，因為這是預期的行為
+            return
+          }
+
+          // 檢查用戶是否存在
+          if (!view.user_id._id) {
+            // 靜默跳過，不記錄警告，因為用戶可能已被刪除
+            return
+          }
+          const viewUserId = view.user_id._id.toString()
+          if (viewUserId !== userId) {
+            allInteractingUsers.set(viewUserId, {
+              type: 'view',
+              user: view.user_id,
+              weight: SOCIAL_SCORE_CONFIG.interactions.view,
+            })
+          }
+        })
+
+        // 計算每個互動用戶的社交分數
+        for (const [interactingUserId, interactionData] of allInteractingUsers) {
+          const { type, user, weight } = interactionData
+
+          // 計算社交距離
+          const distanceInfo = await calculateSocialDistance(userId, interactingUserId, socialGraph)
+
+          if (distanceInfo.distance <= maxDistance) {
+            // 計算社交影響力
+            const interactingUserSocialData = socialGraph[interactingUserId]
+            const influenceInfo = includeInfluence
+              ? calculateSocialInfluenceScore(interactingUserSocialData)
+              : { score: 0, level: 'none' }
+
+            // 計算互動分數
+            const baseInteractionScore = weight * distanceInfo.weight
+            const influenceMultiplier = 1 + influenceInfo.score / 100
+            const finalInteractionScore = baseInteractionScore * influenceMultiplier
+
+            // 累計分數
+            if (includeInteractions) {
+              interactionScore += finalInteractionScore
+            }
+            if (includeDistance) {
+              distanceScore += distanceInfo.weight
+            }
+            if (includeInfluence) {
+              influenceScore += influenceInfo.score
+            }
+
+            // 記錄社交互動
+            socialInteractions.push({
+              userId: interactingUserId,
+              username: user.username,
+              displayName: user.display_name,
+              action: type,
+              weight: finalInteractionScore,
+              distance: distanceInfo.distance,
+              distanceType: distanceInfo.type,
+              influenceScore: influenceInfo.score,
+              influenceLevel: influenceInfo.level,
+            })
+
+            // 生成推薦原因
+            if (finalInteractionScore >= SOCIAL_SCORE_CONFIG.reasonConfig.minScoreForReason) {
+              const reasonTemplate = SOCIAL_SCORE_CONFIG.reasonConfig.reasonTemplates[type]
+              if (reasonTemplate) {
+                reasons.push({
+                  type,
+                  text: reasonTemplate.replace('{username}', user.display_name || user.username),
+                  weight: finalInteractionScore,
+                  userId: interactingUserId,
+                  username: user.username,
+                })
+              }
+            }
+          }
+        }
+
+        // 計算總社交分數
+        totalSocialScore = interactionScore + distanceScore + influenceScore
+
+        // 限制最大社交分數
+        totalSocialScore = Math.min(
+          totalSocialScore,
+          SOCIAL_SCORE_CONFIG.scoreLimits.maxSocialScore,
+        )
+
+        // 排序推薦原因（按權重降序）
+        reasons.sort((a, b) => b.weight - a.weight)
+        reasons.splice(SOCIAL_SCORE_CONFIG.reasonConfig.maxReasons)
+
+        // 排序社交互動（按權重降序）
+        socialInteractions.sort((a, b) => b.weight - a.weight)
+
+        console.log(
+          `迷因 ${memeId} 的社交層分數計算完成：總分 ${totalSocialScore}，互動分數 ${interactionScore}，距離分數 ${distanceScore}，影響力分數 ${influenceScore}`,
+        )
+
+        return {
+          socialScore: totalSocialScore,
+          distanceScore,
+          influenceScore,
+          interactionScore,
+          reasons,
+          socialInteractions,
+          algorithm_details: {
+            description: '基於社交關係的詳細分數計算',
+            features: [
+              '考慮社交距離（直接關注、互相關注、二度關係、三度關係）',
+              '計算社交影響力分數',
+              '分析不同類型的社交互動（發佈、按讚、留言、分享、收藏、瀏覽）',
+              '生成具體的推薦原因說明',
+              '限制分數上限避免單一迷因爆分',
+            ],
+          },
+        }
+      },
+      { ttl: SOCIAL_SCORE_CACHE_CONFIG.memeSocialScore },
     )
 
-    return {
-      socialScore: totalSocialScore,
-      distanceScore,
-      influenceScore,
-      interactionScore,
-      reasons,
-      socialInteractions,
-      algorithm_details: {
-        description: '基於社交關係的詳細分數計算',
-        features: [
-          '考慮社交距離（直接關注、互相關注、二度關係、三度關係）',
-          '計算社交影響力分數',
-          '分析不同類型的社交互動（發佈、按讚、留言、分享、收藏、瀏覽）',
-          '生成具體的推薦原因說明',
-          '限制分數上限避免單一迷因爆分',
-        ],
-      },
+    // 如果是從快取取得的數據，直接返回
+    if (cacheResult.fromCache) {
+      console.log(`從快取取得迷因 ${memeId} 的社交分數`)
+      return cacheResult.data
     }
+
+    console.log(`迷因 ${memeId} 的社交分數計算完成並已快取`)
+    return cacheResult.data
   } catch (error) {
     console.error('計算迷因社交層分數時發生錯誤:', error)
     return {
@@ -715,27 +896,51 @@ export const calculateMultipleMemeSocialScores = async (userId, memeIds, options
   try {
     console.log(`開始批量計算 ${memeIds.length} 個迷因的社交層分數...`)
 
-    const results = []
-    const batchSize = 10 // 批次處理大小
+    // 生成快取鍵
+    const memeIdsKey = memeIds.sort().join('_')
+    const optionsKey = JSON.stringify(options).replace(/[^a-zA-Z0-9]/g, '_')
+    const cacheKey = `batch_social_scores:${userId}:${memeIdsKey}:${optionsKey}`
 
-    for (let i = 0; i < memeIds.length; i += batchSize) {
-      const batch = memeIds.slice(i, i + batchSize)
-      const batchPromises = batch.map((memeId) => calculateMemeSocialScore(userId, memeId, options))
-      const batchResults = await Promise.all(batchPromises)
+    // 嘗試從快取取得數據
+    const cacheResult = await socialScoreCacheProcessor.processWithVersion(
+      cacheKey,
+      async () => {
+        console.log(`快取未命中，重新批量計算社交分數...`)
 
-      results.push(
-        ...batchResults.map((result, index) => ({
-          memeId: batch[index],
-          ...result,
-        })),
-      )
+        const results = []
+        const batchSize = 10 // 批次處理大小
+
+        for (let i = 0; i < memeIds.length; i += batchSize) {
+          const batch = memeIds.slice(i, i + batchSize)
+          const batchPromises = batch.map((memeId) =>
+            calculateMemeSocialScore(userId, memeId, options),
+          )
+          const batchResults = await Promise.all(batchPromises)
+
+          results.push(
+            ...batchResults.map((result, index) => ({
+              memeId: batch[index],
+              ...result,
+            })),
+          )
+        }
+
+        // 按社交分數排序
+        results.sort((a, b) => b.socialScore - a.socialScore)
+
+        return results
+      },
+      { ttl: SOCIAL_SCORE_CACHE_CONFIG.batchSocialScores },
+    )
+
+    // 如果是從快取取得的數據，直接返回
+    if (cacheResult.fromCache) {
+      console.log(`從快取取得批量社交分數，數量: ${memeIds.length}`)
+      return cacheResult.data
     }
 
-    // 按社交分數排序
-    results.sort((a, b) => b.socialScore - a.socialScore)
-
-    console.log(`批量計算完成，處理了 ${results.length} 個迷因`)
-    return results
+    console.log(`批量社交分數計算完成並已快取，數量: ${memeIds.length}`)
+    return cacheResult.data
   } catch (error) {
     console.error('批量計算迷因社交層分數時發生錯誤:', error)
     return []
@@ -749,59 +954,80 @@ export const calculateMultipleMemeSocialScores = async (userId, memeIds, options
  */
 export const getUserSocialInfluenceStats = async (userId) => {
   try {
-    // 確保用戶ID格式正確
-    const userIdObj =
-      userId instanceof mongoose.Types.ObjectId
-        ? userId
-        : typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
-          ? new mongoose.Types.ObjectId(userId)
-          : null
+    // 生成快取鍵
+    const cacheKey = `user_influence_stats:${userId}`
 
-    if (!userIdObj) {
-      console.warn(`getUserSocialInfluenceStats: 無效的用戶ID格式: ${userId}`)
-      return {
-        influenceScore: 0,
-        influenceLevel: 'none',
-        followers: 0,
-        following: 0,
-        mutualConnections: 0,
-      }
+    // 嘗試從快取取得數據
+    const cacheResult = await socialScoreCacheProcessor.processWithVersion(
+      cacheKey,
+      async () => {
+        console.log(`快取未命中，重新計算用戶 ${userId} 的社交影響力統計...`)
+
+        // 確保用戶ID格式正確
+        const userIdObj =
+          userId instanceof mongoose.Types.ObjectId
+            ? userId
+            : typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+              ? new mongoose.Types.ObjectId(userId)
+              : null
+
+        if (!userIdObj) {
+          console.warn(`getUserSocialInfluenceStats: 無效的用戶ID格式: ${userId}`)
+          return {
+            influenceScore: 0,
+            influenceLevel: 'none',
+            followers: 0,
+            following: 0,
+            mutualConnections: 0,
+          }
+        }
+
+        const socialGraph = await buildSocialGraph([userIdObj])
+        const userIdStr = userIdObj.toString()
+        const userSocialData = socialGraph[userIdStr]
+
+        if (!userSocialData) {
+          return {
+            influenceScore: 0,
+            influenceLevel: 'none',
+            followers: 0,
+            following: 0,
+            mutualFollows: 0,
+            networkDensity: 0,
+            socialReach: 0,
+          }
+        }
+
+        const influenceInfo = calculateSocialInfluenceScore(userSocialData)
+
+        // 計算網路密度
+        const totalConnections = userSocialData.followers.length + userSocialData.following.length
+        const networkDensity = totalConnections > 0 ? totalConnections / 100 : 0
+
+        // 計算社交影響範圍
+        const socialReach = userSocialData.followers.length + userSocialData.mutualFollows.length
+
+        return {
+          influenceScore: influenceInfo.score,
+          influenceLevel: influenceInfo.level,
+          followers: influenceInfo.followers,
+          following: influenceInfo.following,
+          mutualFollows: influenceInfo.mutualFollows,
+          networkDensity,
+          socialReach,
+        }
+      },
+      { ttl: SOCIAL_SCORE_CACHE_CONFIG.userInfluenceStats },
+    )
+
+    // 如果是從快取取得的數據，直接返回
+    if (cacheResult.fromCache) {
+      console.log(`從快取取得用戶 ${userId} 的社交影響力統計`)
+      return cacheResult.data
     }
 
-    const socialGraph = await buildSocialGraph([userIdObj])
-    const userIdStr = userIdObj.toString()
-    const userSocialData = socialGraph[userIdStr]
-
-    if (!userSocialData) {
-      return {
-        influenceScore: 0,
-        influenceLevel: 'none',
-        followers: 0,
-        following: 0,
-        mutualFollows: 0,
-        networkDensity: 0,
-        socialReach: 0,
-      }
-    }
-
-    const influenceInfo = calculateSocialInfluenceScore(userSocialData)
-
-    // 計算網路密度
-    const totalConnections = userSocialData.followers.length + userSocialData.following.length
-    const networkDensity = totalConnections > 0 ? totalConnections / 100 : 0
-
-    // 計算社交影響範圍
-    const socialReach = userSocialData.followers.length + userSocialData.mutualFollows.length
-
-    return {
-      influenceScore: influenceInfo.score,
-      influenceLevel: influenceInfo.level,
-      followers: influenceInfo.followers,
-      following: influenceInfo.following,
-      mutualFollows: influenceInfo.mutualFollows,
-      networkDensity,
-      socialReach,
-    }
+    console.log(`用戶 ${userId} 的社交影響力統計計算完成並已快取`)
+    return cacheResult.data
   } catch (error) {
     console.error('取得用戶社交影響力統計時發生錯誤:', error)
     return {

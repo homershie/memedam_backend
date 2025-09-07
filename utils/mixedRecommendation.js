@@ -26,6 +26,145 @@ import redisCache from '../config/redis.js'
 import { cacheProcessor, performanceMonitor } from '../services/asyncProcessor.js'
 import { logger } from './logger.js'
 import { sortByTotalScoreDesc } from './sortHelpers.js'
+import cacheVersionManager from './cacheVersionManager.js'
+
+/**
+ * 整合版本控制的快取處理器
+ */
+class VersionedCacheProcessor {
+  constructor() {
+    this.redis = redisCache
+  }
+
+  /**
+   * 帶版本控制的快取處理
+   * @param {string} cacheKey - 快取鍵
+   * @param {Function} fetchFunction - 數據獲取函數
+   * @param {Object} options - 選項
+   * @returns {Object} 包含數據和版本資訊的結果
+   */
+  async processWithVersion(cacheKey, fetchFunction, options = {}) {
+    const ttl = options.ttl || 3600
+    const forceRefresh = options.forceRefresh || false
+
+    try {
+      // 取得當前版本
+      const currentVersion = await cacheVersionManager.getVersion(cacheKey)
+
+      if (!forceRefresh) {
+        // 嘗試從快取取得數據
+        const cachedData = await this.redis.get(cacheKey)
+
+        if (cachedData !== null) {
+          const parsedData = JSON.parse(cachedData)
+
+          // 如果快取包含版本資訊且版本匹配，返回快取數據
+          if (parsedData.version && parsedData.version === currentVersion) {
+            return {
+              data: parsedData.data,
+              version: parsedData.version,
+              fromCache: true
+            }
+          }
+        }
+      }
+
+      // 獲取新數據
+      const freshData = await fetchFunction()
+
+      // 準備帶版本的快取數據
+      const versionedData = {
+        data: freshData,
+        version: currentVersion,
+        timestamp: Date.now()
+      }
+
+      // 設定快取（包含版本資訊）
+      await this.redis.set(cacheKey, JSON.stringify(versionedData), ttl)
+
+      return {
+        data: freshData,
+        version: currentVersion,
+        fromCache: false
+      }
+    } catch (error) {
+      logger.error(`版本控制快取處理失敗 (${cacheKey}):`, error)
+
+      // 降級到普通快取處理
+      try {
+        return await cacheProcessor.processWithCache(cacheKey, fetchFunction, options)
+      } catch (fallbackError) {
+        logger.error('降級快取處理也失敗:', fallbackError)
+        throw error
+      }
+    }
+  }
+
+  /**
+   * 檢查快取版本是否過時
+   * @param {string} cacheKey - 快取鍵
+   * @param {string} clientVersion - 客戶端版本
+   * @returns {boolean} 是否過時
+   */
+  async isCacheStale(cacheKey, clientVersion) {
+    return await cacheVersionManager.isCacheStale(cacheKey, clientVersion)
+  }
+
+  /**
+   * 更新快取版本
+   * @param {string} cacheKey - 快取鍵
+   * @param {string} level - 版本遞增層級
+   * @returns {string} 新版本號
+   */
+  async updateCacheVersion(cacheKey, level = 'patch') {
+    return await cacheVersionManager.updateVersion(cacheKey)
+  }
+
+  /**
+   * 清除快取並更新版本
+   * @param {string} cacheKey - 快取鍵
+   * @param {string} level - 版本遞增層級
+   */
+  async invalidateCache(cacheKey, level = 'patch') {
+    try {
+      // 更新版本號
+      const newVersion = await cacheVersionManager.updateVersion(cacheKey)
+
+      // 清除舊快取
+      await this.redis.del(cacheKey)
+
+      logger.info(`快取失效並更新版本: ${cacheKey} -> ${newVersion}`)
+      return newVersion
+    } catch (error) {
+      logger.error(`快取失效失敗 (${cacheKey}):`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 批量更新多個快取版本
+   * @param {string[]} cacheKeys - 快取鍵列表
+   * @param {string} level - 版本遞增層級
+   */
+  async batchInvalidateCaches(cacheKeys, level = 'patch') {
+    try {
+      const results = await cacheVersionManager.batchUpdateVersions(cacheKeys, level)
+
+      // 清除所有相關快取
+      const cachePromises = cacheKeys.map(key => this.redis.del(key))
+      await Promise.all(cachePromises)
+
+      logger.info(`批量快取失效完成: ${cacheKeys.length} 個鍵`)
+      return results
+    } catch (error) {
+      logger.error('批量快取失效失敗:', error)
+      throw error
+    }
+  }
+}
+
+// 建立版本控制快取處理器實例
+const versionedCacheProcessor = new VersionedCacheProcessor()
 
 /**
  * 演算法權重配置
@@ -780,24 +919,47 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     const cacheKey = `mixed_recommendations:${userId || 'anonymous'}:${adjustedLimit}:${JSON.stringify(customWeights)}:${JSON.stringify(tags)}`
 
     if (useCache) {
-      const cached = await redisCache.get(cacheKey)
-      if (cached !== null) {
-        // 從快取中取得完整的推薦列表，然後進行分頁處理
-        let cachedRecommendations = cached.recommendations || []
-
-        // 排除已顯示的項目
-        if (excludeIds && excludeIds.length > 0) {
-          const excludeSet = new Set(excludeIds.map((id) => id.toString()))
-          cachedRecommendations = cachedRecommendations.filter(
-            (rec) => !excludeSet.has(rec._id.toString()),
+      // 使用版本控制的快取處理
+      const cacheResult = await versionedCacheProcessor.processWithVersion(
+        cacheKey,
+        async () => {
+          // 如果快取不存在或版本過時，重新計算推薦
+          const recommendations = await generateMixedRecommendations(
+            userId,
+            adjustedLimit,
+            weights,
+            tags
           )
-        }
 
-        // 計算分頁
-        const skip = (page - 1) * limit
-        const paginatedRecommendations = cachedRecommendations.slice(skip, skip + limit)
-        // 確保分頁結果依照總分由高至低排序
-        paginatedRecommendations.sort((a, b) => b.total_score - a.total_score)
+          return {
+            recommendations: recommendations,
+            weights,
+            coldStartStatus,
+            algorithm: 'mixed',
+            userAuthenticated: !!userId,
+            appliedTags: tags,
+            generatedAt: Date.now()
+          }
+        },
+        { ttl: CACHE_CONFIG.mixedRecommendations }
+      )
+
+      // 從快取中取得完整的推薦列表，然後進行分頁處理
+      let cachedRecommendations = cacheResult.data.recommendations || []
+
+      // 排除已顯示的項目
+      if (excludeIds && excludeIds.length > 0) {
+        const excludeSet = new Set(excludeIds.map((id) => id.toString()))
+        cachedRecommendations = cachedRecommendations.filter(
+          (rec) => !excludeSet.has(rec._id.toString()),
+        )
+      }
+
+      // 計算分頁
+      const skip = (page - 1) * limit
+      const paginatedRecommendations = cachedRecommendations.slice(skip, skip + limit)
+      // 確保分頁結果依照總分由高至低排序
+      paginatedRecommendations.sort((a, b) => b.total_score - a.total_score)
 
         // 如果需要社交層分數，為每個迷因計算詳細的社交分數
         if (includeSocialScores && userId) {
@@ -882,77 +1044,13 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       }
     }
 
-    // 並行取得各種推薦
-    const recommendationTasks = []
-
-    // 熱門推薦
-    if (weights.hot > 0) {
-      recommendationTasks.push(
-        getHotRecommendations({
-          limit: Math.ceil(adjustedLimit * weights.hot),
-          days: 7,
-          tags,
-        }),
-      )
-    }
-
-    // 最新推薦
-    if (weights.latest > 0) {
-      recommendationTasks.push(
-        getLatestRecommendations({
-          limit: Math.ceil(adjustedLimit * weights.latest),
-          hours: 24,
-          tags,
-        }),
-      )
-    }
-
-    // 更新內容推薦
-    if (weights.updated > 0) {
-      recommendationTasks.push(
-        getUpdatedRecommendations({
-          limit: Math.ceil(adjustedLimit * weights.updated),
-          days: 30,
-          tags,
-        }),
-      )
-    }
-
-    // 內容基礎推薦（需要登入）
-    if (userId && weights.content_based > 0) {
-      recommendationTasks.push(
-        getContentBasedRecommendations(userId, {
-          limit: Math.ceil(adjustedLimit * weights.content_based),
-          tags,
-        }),
-      )
-    }
-
-    // 協同過濾推薦（需要登入）
-    if (userId && weights.collaborative_filtering > 0) {
-      recommendationTasks.push(
-        getCollaborativeFilteringRecommendations(userId, {
-          limit: Math.ceil(adjustedLimit * weights.collaborative_filtering),
-          tags,
-        }),
-      )
-    }
-
-    // 社交協同過濾推薦（需要登入）
-    if (userId && weights.social_collaborative_filtering > 0) {
-      recommendationTasks.push(
-        getSocialCollaborativeFilteringRecommendations(userId, {
-          limit: Math.ceil(adjustedLimit * weights.social_collaborative_filtering),
-          tags,
-        }),
-      )
-    }
-
-    // 並行執行所有推薦任務
-    const recommendations = await Promise.all(recommendationTasks)
-
-    // 合併推薦結果
-    let mergedRecommendations = mergeRecommendations(recommendations, weights)
+    // 如果快取不存在或未使用快取，重新計算推薦
+    let mergedRecommendations = await generateMixedRecommendations(
+      userId,
+      adjustedLimit,
+      weights,
+      tags
+    )
 
     // 排除已顯示的項目
     if (excludeIds && excludeIds.length > 0) {
@@ -1021,17 +1119,14 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       diversity = calculateRecommendationDiversity(paginatedRecommendations)
     }
 
-    // 設定快取（儲存完整的推薦列表）
-    if (useCache) {
-      const cacheData = {
-        recommendations: mergedRecommendations, // 儲存完整的推薦列表
+    // 如果沒有使用快取或者快取處理失敗，這裡處理原始邏輯
+    if (!useCache) {
+      mergedRecommendations = await this.generateMixedRecommendations(
+        userId,
+        adjustedLimit,
         weights,
-        coldStartStatus,
-        algorithm: 'mixed',
-        userAuthenticated: !!userId,
-        appliedTags: tags,
-      }
-      await redisCache.set(cacheKey, cacheData, CACHE_CONFIG.mixedRecommendations)
+        tags
+      )
     }
 
     const result = {
@@ -1068,6 +1163,88 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     logger.error('混合推薦失敗:', error)
     throw error
   }
+}
+
+/**
+ * 生成混合推薦（內部方法，用於版本控制快取）
+ * @param {string} userId - 用戶ID
+ * @param {number} limit - 限制數量
+ * @param {Object} weights - 權重配置
+ * @param {Array} tags - 標籤篩選
+ * @returns {Array} 推薦結果
+ */
+const generateMixedRecommendations = async (userId, limit, weights, tags) => {
+  // 並行取得各種推薦
+  const recommendationTasks = []
+
+  // 熱門推薦
+  if (weights.hot > 0) {
+    recommendationTasks.push(
+      getHotRecommendations({
+        limit: Math.ceil(limit * weights.hot),
+        days: 7,
+        tags,
+      }),
+    )
+  }
+
+  // 最新推薦
+  if (weights.latest > 0) {
+    recommendationTasks.push(
+      getLatestRecommendations({
+        limit: Math.ceil(limit * weights.latest),
+        hours: 24,
+        tags,
+      }),
+    )
+  }
+
+  // 更新內容推薦
+  if (weights.updated > 0) {
+    recommendationTasks.push(
+      getUpdatedRecommendations({
+        limit: Math.ceil(limit * weights.updated),
+        days: 30,
+        tags,
+      }),
+    )
+  }
+
+  // 內容基礎推薦（需要登入）
+  if (userId && weights.content_based > 0) {
+    recommendationTasks.push(
+      getContentBasedRecommendations(userId, {
+        limit: Math.ceil(limit * weights.content_based),
+        tags,
+      }),
+    )
+  }
+
+  // 協同過濾推薦（需要登入）
+  if (userId && weights.collaborative_filtering > 0) {
+    recommendationTasks.push(
+      getCollaborativeFilteringRecommendations(userId, {
+        limit: Math.ceil(limit * weights.collaborative_filtering),
+        tags,
+      }),
+    )
+  }
+
+  // 社交協同過濾推薦（需要登入）
+  if (userId && weights.social_collaborative_filtering > 0) {
+    recommendationTasks.push(
+      getSocialCollaborativeFilteringRecommendations(userId, {
+        limit: Math.ceil(limit * weights.social_collaborative_filtering),
+        tags,
+      }),
+    )
+  }
+
+  // 並行執行所有推薦任務
+  const recommendations = await Promise.all(recommendationTasks)
+
+  // 合併推薦結果
+  return mergeRecommendations(recommendations, weights)
 }
 
 /**
@@ -1358,39 +1535,69 @@ export const clearUserCache = async (userId) => {
 }
 
 /**
- * 清除混合推薦快取
+ * 清除混合推薦快取（支援版本控制）
  * @param {string} userId - 用戶ID（可選）
+ * @param {string} level - 版本更新層級
  */
-export const clearMixedRecommendationCache = async (userId = null) => {
+export const clearMixedRecommendationCache = async (userId = null, level = 'patch') => {
   try {
-    const patterns = [
-      `mixed_recommendations:*`, // 清理所有混合推薦快取
+    const cacheKeys = [
+      `mixed_recommendations:${userId || 'anonymous'}:*`,
       `hot_recommendations:*`,
       `latest_recommendations:*`,
       `updated_recommendations:*`,
-      `social_scores:*`, // 清理社交分數快取
-      `user_activity:*`, // 清理所有用戶活躍度快取
-      `cold_start:*`, // 清理所有冷啟動快取
-      `content_based:*`, // 清理內容基礎推薦快取
-      `collaborative_filtering:*`, // 清理協同過濾推薦快取
-      `recommendation_stats:*`, // 清理推薦統計快取
-      `recommendation_strategy:*`, // 清理推薦策略快取
+      `social_scores:*`,
+      `user_activity:*`,
+      `cold_start:*`,
+      `content_based:*`,
+      `collaborative_filtering:*`,
+      `recommendation_stats:*`,
+      `recommendation_strategy:*`,
     ]
 
-    const results = await Promise.all(
-      patterns.map(async (pattern) => {
-        try {
-          const count = await redisCache.delPattern(pattern)
-          return { pattern, count }
-        } catch (error) {
-          return { pattern, error: error.message }
-        }
-      }),
-    )
+    // 使用版本控制的批量快取失效
+    const results = await versionedCacheProcessor.batchInvalidateCaches(cacheKeys, level)
 
-    logger.info(`已清除混合推薦快取 ${userId ? `(用戶: ${userId})` : '(匿名用戶)'}`, { results })
+    logger.info(`已清除混合推薦快取並更新版本 ${userId ? `(用戶: ${userId})` : '(匿名用戶)'}`, {
+      level,
+      results
+    })
+
+    return results
   } catch (error) {
     logger.error('清除混合推薦快取失敗:', error)
+    throw error
+  }
+}
+
+/**
+ * 檢查推薦快取版本狀態
+ * @param {string} userId - 用戶ID（可選）
+ * @param {Object} options - 選項
+ * @returns {Object} 版本狀態資訊
+ */
+export const getRecommendationCacheStatus = async (userId = null, options = {}) => {
+  try {
+    const { customWeights = {}, tags = [] } = options
+    const cacheKey = `mixed_recommendations:${userId || 'anonymous'}:30:${JSON.stringify(customWeights)}:${JSON.stringify(tags)}`
+
+    const currentVersion = await cacheVersionManager.getVersion(cacheKey)
+    const cacheExists = await redisCache.exists(cacheKey)
+
+    return {
+      cacheKey,
+      version: currentVersion,
+      cacheExists,
+      timestamp: Date.now()
+    }
+  } catch (error) {
+    logger.error('取得推薦快取狀態失敗:', error)
+    return {
+      cacheKey: null,
+      version: null,
+      cacheExists: false,
+      error: error.message
+    }
   }
 }
 

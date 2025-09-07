@@ -5,6 +5,7 @@ import User from '../models/User.js'
 import { executeTransaction } from '../utils/transaction.js'
 import notificationQueue from '../services/notificationQueue.js'
 import { logger } from '../utils/logger.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 追隨用戶
 export const followUser = async (req, res) => {
@@ -112,6 +113,44 @@ export const followUser = async (req, res) => {
       )
     }
 
+    // 智慧快取失效 - 追隨行為會對社交協同過濾推薦產生重大影響
+    try {
+      const follower_id_str = follower_id.toString()
+      const following_id_str = followingId.toString()
+
+      // 失效追隨者的推薦快取
+      await smartCacheInvalidator.invalidate({
+        operation: CACHE_OPERATIONS.SOCIAL_RELATIONSHIP,
+        userId: follower_id_str,
+        targetUserId: following_id_str,
+        reason: '用戶追隨行為影響社交推薦',
+      })
+
+      // 失效被追隨者的推薦快取
+      await smartCacheInvalidator.invalidate({
+        operation: CACHE_OPERATIONS.SOCIAL_RELATIONSHIP,
+        userId: following_id_str,
+        targetUserId: follower_id_str,
+        reason: '被追隨用戶的社交關係變化',
+      })
+
+      // 失效協同過濾快取（因為社交圖譜發生變化）
+      await smartCacheInvalidator.invalidate({
+        operation: CACHE_OPERATIONS.COLLABORATIVE_UPDATE,
+        userId: follower_id_str,
+        reason: '追隨行為影響協同過濾推薦',
+      })
+
+      // 失效社交協同過濾快取
+      await smartCacheInvalidator.invalidate({
+        operation: CACHE_OPERATIONS.SOCIAL_COLLABORATIVE_UPDATE,
+        userId: follower_id_str,
+        reason: '社交關係變化影響社交協同過濾',
+      })
+    } catch (cacheError) {
+      logger.warn('追隨操作的智慧快取失效失敗，但不影響追隨操作:', cacheError.message)
+    }
+
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: '成功追隨用戶',
@@ -193,6 +232,44 @@ export const unfollowUser = async (req, res) => {
 
       return { action: 'unfollowed' }
     })
+
+    // 智慧快取失效 - 取消追隨也會影響社交協同過濾推薦
+    try {
+      const follower_id_str = follower_id.toString()
+      const following_id_str = followingId.toString()
+
+      // 失效追隨者的推薦快取
+      await smartCacheInvalidator.invalidate({
+        operation: CACHE_OPERATIONS.SOCIAL_RELATIONSHIP,
+        userId: follower_id_str,
+        targetUserId: following_id_str,
+        reason: '用戶取消追隨影響社交推薦',
+      })
+
+      // 失效被追隨者的推薦快取
+      await smartCacheInvalidator.invalidate({
+        operation: CACHE_OPERATIONS.SOCIAL_RELATIONSHIP,
+        userId: following_id_str,
+        targetUserId: follower_id_str,
+        reason: '被取消追隨用戶的社交關係變化',
+      })
+
+      // 失效協同過濾快取（因為社交圖譜發生變化）
+      await smartCacheInvalidator.invalidate({
+        operation: CACHE_OPERATIONS.COLLABORATIVE_UPDATE,
+        userId: follower_id_str,
+        reason: '取消追隨影響協同過濾推薦',
+      })
+
+      // 失效社交協同過濾快取
+      await smartCacheInvalidator.invalidate({
+        operation: CACHE_OPERATIONS.SOCIAL_COLLABORATIVE_UPDATE,
+        userId: follower_id_str,
+        reason: '取消追隨影響社交協同過濾',
+      })
+    } catch (cacheError) {
+      logger.warn('取消追隨操作的智慧快取失效失敗，但不影響取消追隨操作:', cacheError.message)
+    }
 
     res.json({
       success: true,

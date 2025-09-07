@@ -2,6 +2,7 @@ import View from '../models/View.js'
 import Meme from '../models/Meme.js'
 import { executeTransaction } from '../utils/transaction.js'
 import mongoose from 'mongoose'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 記錄瀏覽
 export const recordView = async (req, res) => {
@@ -63,6 +64,36 @@ export const recordView = async (req, res) => {
       // 只有非重複瀏覽才更新迷因的瀏覽數
       if (!isDuplicate) {
         await Meme.findByIdAndUpdate(meme_id, { $inc: { views: 1 } }, { session })
+
+        // 智慧快取失效 - 瀏覽行為會影響推薦系統
+        try {
+          const user_id = req.user?._id?.toString()
+          if (user_id) {
+            // 失效用戶的個人化推薦快取
+            await smartCacheInvalidator.invalidate({
+              operation: CACHE_OPERATIONS.USER_ACTIVITY,
+              userId: user_id,
+              memeId: meme_id,
+              reason: '用戶瀏覽行為',
+            })
+          }
+
+          // 失效熱門迷因快取（因為瀏覽數變化）
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.POPULAR_CONTENT,
+            memeId: meme_id,
+            reason: '迷因瀏覽數更新',
+          })
+
+          // 失效熱門分數快取
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.HOT_SCORE_UPDATE,
+            memeId: meme_id,
+            reason: '熱門分數受瀏覽影響',
+          })
+        } catch (cacheError) {
+          console.warn('快取失效處理失敗:', cacheError.message)
+        }
       }
 
       return {

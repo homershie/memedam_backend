@@ -11,6 +11,7 @@ import {
   batchUpdateCollaborativeFilteringCache,
   batchUpdateSocialCollaborativeFilteringCache,
 } from '../utils/collaborativeFilteringScheduler.js'
+import cacheVersionManager from '../utils/cacheVersionManager.js'
 
 /**
  * 更新配置
@@ -255,6 +256,10 @@ export const updateHotScores = async (options = {}) => {
   const maxRetries = 3
 
   try {
+    // 生成版本控制鍵並更新版本（表示開始新的更新週期）
+    const versionKey = 'scheduler:hot_score_update'
+    await cacheVersionManager.updateVersion(versionKey, 'minor')
+    logger.info('Hot Score 更新開始，新版本已標記')
     logger.info('開始更新 Hot Score...')
     const startTime = Date.now()
 
@@ -327,6 +332,10 @@ export const updateContentBasedCache = async (options = {}) => {
   }
 
   try {
+    // 生成版本控制鍵並更新版本（表示開始新的更新週期）
+    const versionKey = 'scheduler:content_based_update'
+    await cacheVersionManager.updateVersion(versionKey, 'minor')
+    logger.info('Content-Based 快取更新開始，新版本已標記')
     logger.info('開始更新 Content-Based 推薦快取...')
     const startTime = Date.now()
 
@@ -366,6 +375,10 @@ export const updateCollaborativeFilteringCacheScheduler = async (options = {}) =
   }
 
   try {
+    // 生成版本控制鍵並更新版本（表示開始新的更新週期）
+    const versionKey = 'scheduler:collaborative_filtering_update'
+    await cacheVersionManager.updateVersion(versionKey, 'minor')
+    logger.info('Collaborative Filtering 快取更新開始，新版本已標記')
     logger.info('開始更新 Collaborative Filtering 快取...')
     const startTime = Date.now()
 

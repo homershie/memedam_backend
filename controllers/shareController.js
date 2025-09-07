@@ -2,6 +2,7 @@ import Share from '../models/Share.js'
 import Meme from '../models/Meme.js'
 import User from '../models/User.js'
 import { executeTransaction } from '../utils/transaction.js'
+import smartCacheInvalidator, { CACHE_OPERATIONS } from '../utils/smartCacheInvalidator.js'
 
 // 建立分享
 export const createShare = async (req, res) => {
@@ -38,6 +39,52 @@ export const createShare = async (req, res) => {
 
       // 更新用戶的分享數
       await User.findByIdAndUpdate(req.user._id, { $inc: { share_count: 1 } }, { session })
+
+      // 智慧快取失效 - 分享行為會對推薦系統和熱門分數產生重大影響
+      try {
+        const user_id = req.user._id.toString()
+
+        if (meme_id) {
+          // 失效內容基礎推薦快取（因為用戶互動發生變化）
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.CONTENT_INTERACTION,
+            userId: user_id,
+            memeId: meme_id,
+            reason: '用戶分享行為',
+          })
+
+          // 失效協同過濾推薦快取
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.COLLABORATIVE_UPDATE,
+            userId: user_id,
+            memeId: meme_id,
+            reason: '用戶分享影響協同過濾',
+          })
+
+          // 失效熱門分數快取（分享有很高的權重）
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.HOT_SCORE_UPDATE,
+            memeId: meme_id,
+            reason: '分享行為大幅提升熱門分數',
+          })
+
+          // 失效熱門內容快取
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.POPULAR_CONTENT,
+            memeId: meme_id,
+            reason: '分享數變化影響熱門內容',
+          })
+        }
+
+        // 失效用戶的個人化推薦快取
+        await smartCacheInvalidator.invalidate({
+          operation: CACHE_OPERATIONS.USER_ACTIVITY,
+          userId: user_id,
+          reason: '用戶分享行為影響個人推薦',
+        })
+      } catch (cacheError) {
+        console.warn('快取失效處理失敗:', cacheError.message)
+      }
 
       return share
     })
@@ -133,6 +180,50 @@ export const deleteShare = async (req, res) => {
 
       // 更新用戶的分享數（減少）
       await User.findByIdAndUpdate(user_id, { $inc: { share_count: -1 } }, { session })
+
+      // 智慧快取失效 - 刪除分享也會影響統計和推薦
+      try {
+        if (meme_id) {
+          // 失效內容基礎推薦快取
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.CONTENT_INTERACTION,
+            userId: user_id.toString(),
+            memeId: meme_id.toString(),
+            reason: '用戶刪除分享行為',
+          })
+
+          // 失效協同過濾推薦快取
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.COLLABORATIVE_UPDATE,
+            userId: user_id.toString(),
+            memeId: meme_id.toString(),
+            reason: '刪除分享影響協同過濾',
+          })
+
+          // 失效熱門分數快取
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.HOT_SCORE_UPDATE,
+            memeId: meme_id.toString(),
+            reason: '刪除分享降低熱門分數',
+          })
+
+          // 失效熱門內容快取
+          await smartCacheInvalidator.invalidate({
+            operation: CACHE_OPERATIONS.POPULAR_CONTENT,
+            memeId: meme_id.toString(),
+            reason: '分享數減少影響熱門內容',
+          })
+        }
+
+        // 失效用戶的個人化推薦快取
+        await smartCacheInvalidator.invalidate({
+          operation: CACHE_OPERATIONS.USER_ACTIVITY,
+          userId: user_id.toString(),
+          reason: '用戶刪除分享影響個人推薦',
+        })
+      } catch (cacheError) {
+        console.warn('快取失效處理失敗:', cacheError.message)
+      }
 
       return { message: '分享已刪除' }
     })

@@ -98,6 +98,7 @@ beforeAll(async () => {
       if (UserModule?.default?.startSession) {
         vi.spyOn(UserModule.default, 'startSession').mockResolvedValue(fakeSession)
       }
+      // 注意：Meme.startSession 會在測試文件中通過 vi.mock 處理
       // 也防禦性覆寫 mongoose.startSession
       if (typeof mongoose.startSession === 'function') {
         vi.spyOn(mongoose, 'startSession').mockResolvedValue(fakeSession)
