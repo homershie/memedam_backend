@@ -6,11 +6,12 @@ import cacheVersionManager from './cacheVersionManager.js'
  * 統一快取管理器 - 整合所有快取操作的統一介面
  */
 class CacheManager {
-  constructor(redisClient) {
+  constructor(redisClient = null, options = {}) {
     this.redis = redisClient
     this.monitor = cacheMonitor
     this.versionManager = cacheVersionManager
-    this.isEnabled = process.env.NODE_ENV !== 'test'
+    this.isEnabled =
+      options.isEnabled !== undefined ? options.isEnabled : process.env.NODE_ENV !== 'test'
     this.defaultTTL = 3600 // 預設 1 小時
   }
 
@@ -159,10 +160,14 @@ class CacheManager {
   /**
    * 刪除快取
    * @param {string} cacheKey - 快取鍵
+   * @param {boolean} throwOnError - 是否在錯誤時拋出異常
    * @returns {Promise<boolean>} 是否成功
    */
-  async del(cacheKey) {
+  async del(cacheKey, throwOnError = false) {
     if (!this.isEnabled || !this.redis?.isConnected) {
+      if (throwOnError) {
+        throw new Error('Redis not enabled or not connected')
+      }
       return false
     }
 
@@ -174,9 +179,13 @@ class CacheManager {
       // 清除記憶體快取
       this.versionManager.clearMemoryCache(cacheKey)
 
+      // 返回是否至少刪除了一個鍵
       return result1 || result2
     } catch (error) {
       this.monitor.recordError('del', cacheKey, error)
+      if (throwOnError) {
+        throw error
+      }
       return false
     }
   }
@@ -195,7 +204,7 @@ class CacheManager {
 
     for (const cacheKey of cacheKeys) {
       try {
-        const success = await this.del(cacheKey)
+        const success = await this.del(cacheKey, true) // 讓 del 在錯誤時拋出異常
         if (success) results.deleted++
       } catch (error) {
         results.errors.push({ key: cacheKey, error: error.message })
@@ -255,7 +264,7 @@ class CacheManager {
 
     try {
       return await this.redis.exists(cacheKey)
-    } catch (error) {
+    } catch {
       return false
     }
   }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest'
 import integratedCache from '../../config/cache.js'
 
 // Mock Redis for integration tests
@@ -33,11 +33,20 @@ const mockRedisCache = {
 }
 
 describe('Integrated Cache System', () => {
+  beforeAll(() => {
+    // Setup mock instances before all tests
+    integratedCache.redis = mockRedisCache
+    integratedCache.manager.redis = mockRedisCache
+    integratedCache.versionManager.redis = mockRedisCache
+    integratedCache.manager.isEnabled = true
+    integratedCache.monitor.setEnabled(true) // Enable monitoring for integration tests
+  })
+
   beforeEach(() => {
     // Reset mocks
     vi.clearAllMocks()
 
-    // Setup mock Redis
+    // Setup mock Redis client
     mockRedisClient.get.mockResolvedValue(null)
     mockRedisClient.set.mockResolvedValue(true)
     mockRedisClient.setex.mockResolvedValue(true)
@@ -51,9 +60,34 @@ describe('Integrated Cache System', () => {
     mockRedisClient.quit.mockResolvedValue(true)
     mockRedisClient.connect.mockResolvedValue(true)
 
-    mockRedisCache.connect.mockResolvedValue(true)
-    mockRedisCache.disconnect.mockResolvedValue(true)
-    mockRedisCache.getStats.mockResolvedValue({
+    // Re-setup mock Redis cache after clearing mocks
+    mockRedisCache.connect = vi.fn().mockResolvedValue(true)
+    mockRedisCache.disconnect = vi.fn().mockResolvedValue(true)
+    mockRedisCache.get = vi.fn().mockImplementation(async (key) => {
+      const value = await mockRedisClient.get(key)
+      if (!value) return null
+
+      try {
+        return JSON.parse(value)
+      } catch {
+        return value
+      }
+    })
+    mockRedisCache.set = vi.fn().mockImplementation(async (key, value, ttl = 3600) => {
+      const serializedValue = typeof value === 'string' ? value : JSON.stringify(value)
+      await mockRedisClient.setex(key, ttl, serializedValue)
+      return true
+    })
+    mockRedisCache.del = vi.fn().mockImplementation(async (key) => {
+      await mockRedisClient.del(key)
+      return true
+    })
+    mockRedisCache.exists = vi.fn().mockImplementation(async (key) => {
+      const result = await mockRedisClient.exists(key)
+      return result === 1
+    })
+    mockRedisCache.ping = vi.fn().mockResolvedValue('PONG')
+    mockRedisCache.getStats = vi.fn().mockResolvedValue({
       connected: true,
       enabled: true,
       keys: 10,
@@ -64,6 +98,7 @@ describe('Integrated Cache System', () => {
   describe('initialization', () => {
     it('應該成功初始化整合快取系統', async () => {
       mockRedisCache.isConnected = true
+      mockRedisCache.connect.mockResolvedValue(true)
 
       const result = await integratedCache.initialize()
 
@@ -228,7 +263,10 @@ describe('Integrated Cache System', () => {
 
     it('應該支援重新連接', async () => {
       mockRedisCache.isConnected = false
-      mockRedisCache.connect.mockResolvedValue(true)
+      mockRedisCache.connect.mockImplementation(async () => {
+        mockRedisCache.isConnected = true
+        return true
+      })
 
       const result = await integratedCache.reconnect()
 

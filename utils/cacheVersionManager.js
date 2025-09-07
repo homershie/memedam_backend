@@ -11,7 +11,7 @@ import { logger } from './logger.js'
  * - 統一的錯誤處理策略
  */
 class CacheVersionManager {
-  constructor(redisClient) {
+  constructor(redisClient = null) {
     this.redis = redisClient
     this.versions = new Map() // 記憶體中的版本快取
     this.isEnabled = process.env.NODE_ENV !== 'test'
@@ -357,7 +357,8 @@ class CacheVersionManager {
 
     try {
       const pattern = `${this.cachePrefix}*`
-      const keys = await this.redis.keys(pattern)
+      // 使用 Redis client 直接操作
+      const keys = await this.redis.client.keys(pattern)
       const versions = {}
 
       for (const key of keys) {

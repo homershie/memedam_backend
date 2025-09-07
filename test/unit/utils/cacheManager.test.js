@@ -24,13 +24,25 @@ const mockRedisCache = {
   isConnected: true,
   connect: vi.fn(),
   disconnect: vi.fn(),
-  set: vi.fn(),
-  get: vi.fn(),
-  del: vi.fn(),
-  exists: vi.fn(),
+  set: vi.fn().mockResolvedValue(true),
+  get: vi.fn().mockImplementation(async (key) => {
+    const value = await mockRedisClient.get(key)
+    if (!value) return null
+
+    try {
+      return JSON.parse(value)
+    } catch {
+      return value
+    }
+  }),
+  del: vi.fn().mockResolvedValue(true),
+  exists: vi.fn().mockImplementation(async (key) => {
+    const result = await mockRedisClient.exists(key)
+    return result === 1
+  }),
   delPattern: vi.fn(),
   getStats: vi.fn(),
-  ping: vi.fn(),
+  ping: vi.fn().mockResolvedValue('PONG'),
 }
 
 describe('CacheManager', () => {
@@ -38,7 +50,7 @@ describe('CacheManager', () => {
     // Reset mocks
     vi.clearAllMocks()
 
-    // Setup mock Redis
+    // Setup mock Redis client
     mockRedisClient.get.mockResolvedValue(null)
     mockRedisClient.set.mockResolvedValue(true)
     mockRedisClient.setex.mockResolvedValue(true)
@@ -51,8 +63,41 @@ describe('CacheManager', () => {
     mockRedisClient.expire.mockResolvedValue(true)
     mockRedisClient.quit.mockResolvedValue(true)
 
+    // Re-setup mock Redis cache after clearing mocks
+    mockRedisCache.get = vi.fn().mockImplementation(async (key) => {
+      const value = await mockRedisClient.get(key)
+      if (!value) return null
+
+      try {
+        return JSON.parse(value)
+      } catch {
+        return value
+      }
+    })
+    mockRedisCache.set = vi.fn().mockImplementation(async (key, value, ttl = 3600) => {
+      const serializedValue = typeof value === 'string' ? value : JSON.stringify(value)
+      await mockRedisClient.setex(key, ttl, serializedValue)
+      return true
+    })
+    mockRedisCache.del = vi.fn().mockImplementation(async (key) => {
+      await mockRedisClient.del(key)
+      return true
+    })
+    mockRedisCache.exists = vi.fn().mockImplementation(async (key) => {
+      const result = await mockRedisClient.exists(key)
+      return result === 1
+    })
+    mockRedisCache.ping = vi.fn().mockResolvedValue('PONG')
+    mockRedisCache.getStats = vi.fn().mockResolvedValue({
+      connected: true,
+      enabled: true,
+      keys: 10,
+      info: { redis_version: '6.2.0' },
+    })
+
     // Setup cache manager with mock Redis
     cacheManager.redis = mockRedisCache
+    cacheManager.isEnabled = true // Enable cache manager for tests
     cacheVersionManager.redis = mockRedisCache
 
     // Enable monitoring for tests
@@ -232,7 +277,12 @@ describe('CacheManager', () => {
 
     it('應該處理刪除錯誤', async () => {
       const cacheKeys = ['test:key1', 'test:key2']
-      mockRedisClient.del.mockRejectedValueOnce(new Error('Delete failed'))
+
+      // Mock del to reject on first call
+      mockRedisCache.del = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Delete failed'))
+        .mockResolvedValue(true)
 
       const result = await cacheManager.delMulti(cacheKeys)
 

@@ -6,8 +6,6 @@
  */
 
 import integratedCache from '../config/cache.js'
-import cacheVersionManager from '../utils/cacheVersionManager.js'
-import { logger } from '../utils/logger.js'
 
 async function testCacheSystem() {
   console.log('🚀 開始測試整合快取系統...\n')
@@ -96,7 +94,7 @@ async function testCacheSystem() {
 
     // 測試批量操作
     console.log('   測試批量版本更新...')
-    const bulkResult = await cacheVersionManager.batchUpdateVersions(
+    const bulkResult = await integratedCache.versionManager.batchUpdateVersions(
       ['test:key1', 'test:key2'],
       'minor',
     )
@@ -104,19 +102,19 @@ async function testCacheSystem() {
 
     // 測試統計功能
     console.log('   測試版本統計...')
-    const versionStats = await cacheVersionManager.getVersionStats()
+    const versionStats = await integratedCache.versionManager.getVersionStats()
     console.log(`   版本統計: ${versionStats ? '✅ 成功' : '❌ 失敗'}`)
     console.log(`   總快取鍵數: ${versionStats?.total_cache_keys || 0}`)
     console.log(`   記憶體快取大小: ${versionStats?.memory_cache_size || 0}`)
 
     // 測試清除功能
     console.log('   測試清除功能...')
-    await cacheVersionManager.clearVersion('test:key1')
+    await integratedCache.versionManager.clearVersion('test:key1')
     console.log('   清除版本: ✅ 完成')
 
     // 測試重置功能
     console.log('   測試重置功能...')
-    await cacheVersionManager.resetAllVersions()
+    await integratedCache.versionManager.resetAllVersions()
     console.log('   重置所有版本: ✅ 完成')
 
     // 7. 清理測試
@@ -156,9 +154,10 @@ async function testCacheSystem() {
       cleanupResult.deleted >= 0,
     ].filter(Boolean).length
 
-    console.log(`\n🏆 總分: ${successCount}/7 項測試通過`)
+    const totalTests = 8
+    console.log(`\n🏆 總分: ${successCount}/${totalTests} 項測試通過`)
 
-    if (successCount === 7) {
+    if (successCount === totalTests) {
       console.log('🎯 恭喜！統一快取管理器運行正常！')
       process.exit(0)
     } else {
