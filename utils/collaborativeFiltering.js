@@ -76,6 +76,62 @@ const safeJsonStringify = (data) => {
 import { handleQueryError } from './errorHandler.js'
 import cacheVersionManager from './cacheVersionManager.js'
 import redisCache from '../config/redis.js'
+import mongoose from 'mongoose'
+
+/**
+ * 資料庫連線健康檢查
+ * @returns {boolean} 連線是否正常
+ */
+const checkDatabaseHealth = async () => {
+  try {
+    // 檢查連線狀態
+    if (mongoose.connection.readyState !== 1) {
+      console.error(`資料庫連線狀態異常: ${mongoose.connection.readyState}`)
+      return false
+    }
+
+    // 執行簡單的查詢來測試連線
+    await mongoose.connection.db.admin().ping()
+    return true
+  } catch (error) {
+    console.error('資料庫健康檢查失敗:', error)
+    return false
+  }
+}
+
+/**
+ * 重新連線到資料庫
+ * @returns {boolean} 重連是否成功
+ */
+const reconnectDatabase = async () => {
+  try {
+    console.log('嘗試重新連線到資料庫...')
+
+    // 如果連線已關閉，重新連線
+    if (mongoose.connection.readyState === 0) {
+      await mongoose.connect(process.env.MONGO_PROD_URI || process.env.MONGO_DEV_URI, {
+        maxPoolSize: 20,
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 60000,
+        connectTimeoutMS: 15000,
+        retryWrites: true,
+        retryReads: true,
+      })
+    }
+
+    // 等待連線恢復
+    let retries = 0
+    while (mongoose.connection.readyState !== 1 && retries < 5) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      retries++
+    }
+
+    return mongoose.connection.readyState === 1
+  } catch (error) {
+    console.error('資料庫重連失敗:', error)
+    return false
+  }
+}
 
 /**
  * 互動權重配置
@@ -138,8 +194,7 @@ class CollaborativeVersionedCacheProcessor {
 
         if (cachedData !== null) {
           try {
-            const parsedData =
-              typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
+            const parsedData = typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
 
             // 如果快取包含版本資訊且版本匹配，返回快取數據
             if (parsedData.version && parsedData.version === currentVersion) {
@@ -1624,13 +1679,67 @@ export const getSocialCollaborativeFilteringRecommendations = async (
 
         // 建立互動矩陣和社交圖譜
         console.log('準備建立互動矩陣和社交圖譜，目標用戶ID:', targetUserIdObj.toString())
+
+        // 先檢查資料庫連線健康狀態
+        const isHealthy = await checkDatabaseHealth()
+        if (!isHealthy) {
+          console.log('資料庫連線異常，嘗試重新連線...')
+          const reconnected = await reconnectDatabase()
+          if (!reconnected) {
+            console.error('無法恢復資料庫連線，使用備用推薦')
+            // 返回熱門推薦作為備用
+            const filter = { status: 'public' }
+            if (tags && tags.length > 0) {
+              filter.tags_cache = { $in: tags }
+            }
+            const hotMemes = await Meme.find(filter)
+              .sort({ hot_score: -1 })
+              .limit(parseInt(limit))
+              .populate('author_id', 'username display_name avatar')
+            return hotMemes.map((meme) => ({
+              ...meme.toObject(),
+              recommendation_score: meme.hot_score,
+              recommendation_type: 'social_collaborative_fallback_db_error',
+              social_collaborative_score: 0,
+              similar_users_count: 0,
+              social_influence_score: 0,
+            }))
+          }
+        }
+
         const [interactionMatrix, socialGraph] = await Promise.all([
-          buildInteractionMatrix([targetUserIdObj]).catch((error) => {
+          buildInteractionMatrix([targetUserIdObj]).catch(async (error) => {
             console.error('建立互動矩陣時發生錯誤:', error)
+            // 如果是連線超時錯誤，嘗試重連後重試一次
+            if (error.message && error.message.includes('buffering timed out')) {
+              console.log('檢測到資料庫連線超時，嘗試重新連線...')
+              const reconnected = await reconnectDatabase()
+              if (reconnected) {
+                console.log('重新連線成功，重試建立互動矩陣...')
+                try {
+                  return await buildInteractionMatrix([targetUserIdObj])
+                } catch (retryError) {
+                  console.error('重試建立互動矩陣失敗:', retryError)
+                }
+              }
+            }
             return {} // 返回空的互動矩陣而不是拋出錯誤
           }),
-          buildSocialGraph([targetUserIdObj]).catch((error) => {
+          buildSocialGraph([targetUserIdObj]).catch(async (error) => {
             console.error('建立社交圖譜時發生錯誤:', error)
+            // 如果是連線超時錯誤，嘗試重連後重試一次
+            if (error.message && error.message.includes('buffering timed out')) {
+              console.log('檢測到資料庫連線超時，嘗試重新連線...')
+              const reconnected = await reconnectDatabase()
+              if (reconnected) {
+                console.log('重新連線成功，重試建立社交圖譜...')
+                try {
+                  return await buildSocialGraph([targetUserIdObj])
+                } catch (retryError) {
+                  console.error('重試建立社交圖譜失敗:', retryError)
+                }
+              }
+            }
             return {} // 返回空的社交圖譜而不是拋出錯誤
           }),
         ])
