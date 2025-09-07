@@ -34,7 +34,6 @@ const SourceSchema = new mongoose.Schema(
       trim: true,
       minlength: [1, '標題不能為空'],
       maxlength: [200, '標題長度不能超過200個字元'],
-      index: true,
       // 作品標題（必填）
     },
     alt_titles: [
@@ -189,7 +188,6 @@ const SourceSchema = new mongoose.Schema(
         },
         message: 'Slug只能包含小寫字母、數字和連字號',
       },
-      index: true,
       // SEO友善網址
     },
     tags: [

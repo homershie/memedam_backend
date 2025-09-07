@@ -128,7 +128,6 @@ const SceneSchema = new mongoose.Schema(
         },
         message: 'Slug只能包含小寫字母、數字和連字號',
       },
-      index: true,
       // SEO友善網址
     },
     tags: [
