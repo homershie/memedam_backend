@@ -5,7 +5,21 @@ import uploadService from '../services/uploadService.js'
 // 建立公告
 export const validateCreateAnnouncement = [
   body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
-  body('content').isLength({ min: 1, max: 2000 }).withMessage('內容必填，且長度需在 1~2000 字'),
+  body('content').custom((value) => {
+    if (typeof value === 'string') {
+      if (value.trim().length < 1) throw new Error('內容不能為空')
+      if (value.length > 10000) throw new Error('內容長度不能超過10000字')
+    } else if (typeof value === 'object') {
+      if (!value) throw new Error('JSON內容不能為空')
+    } else {
+      throw new Error('內容格式不正確')
+    }
+    return true
+  }),
+  body('content_format')
+    .optional()
+    .isIn(['plain', 'json'])
+    .withMessage('內容格式必須是 plain 或 json'),
 ]
 
 export const createAnnouncement = async (req, res) => {
@@ -19,10 +33,11 @@ export const createAnnouncement = async (req, res) => {
   session.startTransaction()
 
   try {
-    const { title, content, status, category, image } = req.body
+    const { title, content, content_format, status, category, image } = req.body
     const announcement = new Announcement({
       title,
       content,
+      content_format: content_format || 'plain', // 預設為 plain
       status,
       category,
       author_id: req.user?._id,

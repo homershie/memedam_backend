@@ -10,13 +10,31 @@ const AnnouncementSchema = new mongoose.Schema(
       minlength: [1, '公告標題不能為空'],
       maxlength: [200, '公告標題長度不能超過200字'],
     },
-    // 公告內容（可存文字或HTML）
+    // 公告內容（支援純文字或結構化JSON）
     content: {
-      type: String,
+      type: mongoose.Schema.Types.Mixed, // 支援純文字或JSON物件
       required: [true, '公告內容為必填'],
-      trim: true,
-      minlength: [1, '公告內容不能為空'],
-      maxlength: [5000, '公告內容長度不能超過5000字'],
+      validate: {
+        validator: function (v) {
+          if (v === null || v === undefined) return false
+          if (typeof v === 'string') {
+            return v.trim().length >= 1 && v.length <= 10000 // 純文字長度限制
+          }
+          if (typeof v === 'object') {
+            return v && typeof v === 'object' // JSON格式驗證
+          }
+          return false
+        },
+        message: '公告內容格式不正確',
+      },
+    },
+
+    // 內容格式類型（用於區分純文字或JSON）
+    content_format: {
+      type: String,
+      enum: ['plain', 'json'],
+      default: 'plain',
+      required: true,
     },
     // 發布者 user id
     author_id: {
