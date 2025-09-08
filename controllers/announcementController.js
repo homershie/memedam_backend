@@ -99,6 +99,10 @@ export const getAnnouncements = async (req, res) => {
       filter.status = 'public'
     }
     if (req.query.category) filter.category = req.query.category
+    // 排除特定公告ID
+    if (req.query.exclude) {
+      filter._id = { $ne: req.query.exclude }
+    }
     // 關鍵字搜尋（標題或內容）
     if (req.query.q) {
       const keyword = req.query.q.trim()
