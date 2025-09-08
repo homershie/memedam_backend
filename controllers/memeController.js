@@ -159,7 +159,36 @@ export const createMeme = async (req, res) => {
     if (!req.body) {
       logger.error('req.body 為 undefined 或 null')
     } else {
-      logger.info('req.body 存在，詳細內容:', JSON.stringify(req.body, null, 2))
+      try {
+        logger.info('req.body 存在，詳細內容:', JSON.stringify(req.body, null, 2))
+      } catch (jsonError) {
+        logger.warn('req.body 序列化失敗:', jsonError.message)
+        logger.info('req.body 存在但無法序列化，鍵值:', Object.keys(req.body))
+        logger.info('req.body type:', typeof req.body)
+      }
+    }
+
+    // 檢查檔案資訊
+    if (req.files) {
+      logger.info('req.files 存在，結構:', {
+        hasImage: !!req.files.image,
+        hasImages: !!req.files.images,
+        imageCount: req.files.image ? req.files.image.length : 0,
+        imagesCount: req.files.images ? req.files.images.length : 0,
+        fileKeys: Object.keys(req.files),
+      })
+
+      if (req.files.image && req.files.image.length > 0) {
+        logger.info('第一個 image 檔案資訊:', {
+          fieldname: req.files.image[0].fieldname,
+          originalname: req.files.image[0].originalname,
+          mimetype: req.files.image[0].mimetype,
+          size: req.files.image[0].size,
+          hasPath: !!req.files.image[0].path,
+        })
+      }
+    } else {
+      logger.warn('req.files 不存在或為空')
     }
 
     // 取得圖片網址（支援檔案上傳和URL兩種方式）
