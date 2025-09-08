@@ -144,13 +144,23 @@ export const createMeme = async (req, res) => {
     // 添加詳細日誌追蹤
     logger.info('=== 開始創建迷因 ===')
     logger.info('請求體內容:', {
-      type: req.body.type,
-      title: req.body.title,
-      content: req.body.content,
-      image_url: req.body.image_url,
+      type: req.body?.type,
+      title: req.body?.title,
+      content: req.body?.content,
+      image_url: req.body?.image_url,
       hasFiles: !!req.files,
       filesCount: req.files ? req.files.length : 0,
+      bodyKeys: req.body ? Object.keys(req.body) : 'req.body is undefined',
+      bodyType: typeof req.body,
+      headers: req.headers['content-type'],
     })
+
+    // 更詳細的調試日誌
+    if (!req.body) {
+      logger.error('req.body 為 undefined 或 null')
+    } else {
+      logger.info('req.body 存在，詳細內容:', JSON.stringify(req.body, null, 2))
+    }
 
     // 取得圖片網址（多圖上傳，僅取第一張作為主圖）
     let image_url = ''

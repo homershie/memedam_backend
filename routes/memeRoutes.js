@@ -324,7 +324,7 @@ const router = express.Router()
  *                   type: string
  *                   description: 使用的搜尋演算法
  */
-router.post('/', token, isUser, blockBannedUser, uploadImages, validateCreateMeme, createMeme)
+router.post('/', token, isUser, blockBannedUser, validateCreateMeme, createMeme)
 // 允許帶 Bearer token 辨識管理者（匿名亦可存取）
 router.get('/', optionalToken, getMemes)
 
