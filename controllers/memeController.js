@@ -162,14 +162,17 @@ export const createMeme = async (req, res) => {
       logger.info('req.body 存在，詳細內容:', JSON.stringify(req.body, null, 2))
     }
 
-    // 取得圖片網址（多圖上傳，僅取第一張作為主圖）
+    // 取得圖片網址（支援檔案上傳和URL兩種方式）
     let image_url = ''
-    if (req.files && req.files.length > 0) {
-      image_url = req.files[0].path || req.files[0].url || req.files[0].secure_url || ''
-      logger.info('從 req.files 取得圖片 URL:', image_url)
+    if (req.files && req.files.image && req.files.image.length > 0) {
+      // 從上傳的檔案取得 URL
+      image_url =
+        req.files.image[0].path || req.files.image[0].url || req.files.image[0].secure_url || ''
+      logger.info('從上傳檔案取得圖片 URL:', image_url)
     } else if (req.body.image_url) {
+      // 從請求體取得現有 URL
       image_url = req.body.image_url
-      logger.info('從 req.body.image_url 取得圖片 URL:', image_url)
+      logger.info('從請求體取得圖片 URL:', image_url)
     }
 
     // 檢查是否提供圖片

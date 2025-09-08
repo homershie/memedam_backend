@@ -180,6 +180,12 @@ const upload = multer({
   limits: limits,
 })
 
+// 處理多檔案上傳並保留文字欄位
+export const uploadImagesWithFields = upload.fields([
+  { name: 'images', maxCount: 5 },
+  { name: 'image', maxCount: 1 },
+])
+
 // 單一檔案上傳
 export const singleUpload = (fieldName = 'image') => {
   return upload.single(fieldName)
@@ -201,6 +207,12 @@ export const uploadCoverImage = singleUpload('cover_image')
 
 // 上傳多張圖片
 export const uploadImages = arrayUpload('images', 5)
+
+// 處理迷因創建的上傳（支援檔案 + 表單資料）
+export const uploadMemeData = upload.fields([
+  { name: 'images', maxCount: 5 },
+  { name: 'image', maxCount: 1 },
+])
 
 // 上傳公告圖片
 export const uploadAnnouncementImage = (req, res, next) => {
