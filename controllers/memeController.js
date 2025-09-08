@@ -204,13 +204,33 @@ export const createMeme = async (req, res) => {
       logger.info('從請求體取得圖片 URL:', image_url)
     }
 
-    // 檢查是否提供圖片
-    if (!image_url) {
-      logger.warn('沒有提供圖片 URL，請求失敗')
+    // 檢查是否提供圖片（只有圖片類型才需要）
+    if (type === 'image' && !image_url) {
+      logger.warn('圖片類型但沒有提供圖片 URL，請求失敗')
       return res.status(400).json({
         success: false,
         data: null,
-        error: '請提供圖片檔案或圖片網址',
+        error: '圖片型態的迷因必須提供圖片檔案或圖片網址',
+      })
+    }
+
+    // 檢查是否提供影片（只有影片類型才需要）
+    if (type === 'video' && !video_url) {
+      logger.warn('影片類型但沒有提供影片 URL，請求失敗')
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '影片型態的迷因必須提供影片連結',
+      })
+    }
+
+    // 檢查是否提供音訊（只有音訊類型才需要）
+    if (type === 'audio' && !audio_url) {
+      logger.warn('音訊類型但沒有提供音訊 URL，請求失敗')
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '音訊型態的迷因必須提供音訊連結',
       })
     }
 
