@@ -135,60 +135,42 @@ export const createMeme = async (req, res) => {
   }
 
   // 使用 session 來確保原子性操作
-  const session = await Meme.startSession()
-  if (session) {
-    session.startTransaction()
-  }
-
+  let session
   try {
-    // 添加詳細日誌追蹤
-    logger.info('=== 開始創建迷因 ===')
-    logger.info('請求體內容:', {
-      type: req.body?.type,
-      title: req.body?.title,
-      content: req.body?.content,
-      image_url: req.body?.image_url,
-      hasFiles: !!req.files,
-      filesCount: req.files ? req.files.length : 0,
-      bodyKeys: req.body ? Object.keys(req.body) : 'req.body is undefined',
-      bodyType: typeof req.body,
-      headers: req.headers['content-type'],
-    })
-
-    // 更詳細的調試日誌
-    if (!req.body) {
-      logger.error('req.body 為 undefined 或 null')
+    session = await Meme.startSession()
+    if (session) {
+      session.startTransaction()
+      logger.info('資料庫 session 已啟動並開始交易')
     } else {
-      try {
-        logger.info('req.body 存在，詳細內容:', JSON.stringify(req.body, null, 2))
-      } catch (jsonError) {
-        logger.warn('req.body 序列化失敗:', jsonError.message)
-        logger.info('req.body 存在但無法序列化，鍵值:', Object.keys(req.body))
-        logger.info('req.body type:', typeof req.body)
-      }
+      logger.warn('無法啟動資料庫 session')
+    }
+
+    // 開始創建迷因
+    logger.info('開始創建迷因')
+
+    // 基本驗證
+    if (!req.body || typeof req.body !== 'object') {
+      logger.error('請求體無效')
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '請求體無效',
+      })
+    }
+
+    // 驗證請求體基本結構
+    if (!req.body) {
+      logger.error('請求體為空')
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '請求體為空',
+      })
     }
 
     // 檢查檔案資訊
-    if (req.files) {
-      logger.info('req.files 存在，結構:', {
-        hasImage: !!req.files.image,
-        hasImages: !!req.files.images,
-        imageCount: req.files.image ? req.files.image.length : 0,
-        imagesCount: req.files.images ? req.files.images.length : 0,
-        fileKeys: Object.keys(req.files),
-      })
-
-      if (req.files.image && req.files.image.length > 0) {
-        logger.info('第一個 image 檔案資訊:', {
-          fieldname: req.files.image[0].fieldname,
-          originalname: req.files.image[0].originalname,
-          mimetype: req.files.image[0].mimetype,
-          size: req.files.image[0].size,
-          hasPath: !!req.files.image[0].path,
-        })
-      }
-    } else {
-      logger.warn('req.files 不存在或為空')
+    if (!req.files) {
+      logger.info('未上傳檔案，使用請求體中的URL')
     }
 
     // 取得圖片網址（支援檔案上傳和URL兩種方式）
@@ -198,14 +180,21 @@ export const createMeme = async (req, res) => {
       image_url =
         req.files.image[0].path || req.files.image[0].url || req.files.image[0].secure_url || ''
       logger.info('從上傳檔案取得圖片 URL:', image_url)
-    } else if (req.body.image_url) {
-      // 從請求體取得現有 URL
-      image_url = req.body.image_url
-      logger.info('從請求體取得圖片 URL:', image_url)
+    } else if (req.body.image_url || req.body.cover_image) {
+      // 從請求體取得現有 URL（支援 image_url 或 cover_image）
+      image_url = req.body.image_url || req.body.cover_image
+      logger.info('從請求體取得圖片 URL')
+    }
+
+    // 先進行基本的欄位檢查和解構
+    const basicFields = {
+      type: req.body?.type || 'text',
+      video_url: req.body?.video_url || '',
+      audio_url: req.body?.audio_url || '',
     }
 
     // 檢查是否提供圖片（只有圖片類型才需要）
-    if (type === 'image' && !image_url) {
+    if (basicFields.type === 'image' && !image_url) {
       logger.warn('圖片類型但沒有提供圖片 URL，請求失敗')
       return res.status(400).json({
         success: false,
@@ -215,7 +204,7 @@ export const createMeme = async (req, res) => {
     }
 
     // 檢查是否提供影片（只有影片類型才需要）
-    if (type === 'video' && !video_url) {
+    if (basicFields.type === 'video' && !basicFields.video_url) {
       logger.warn('影片類型但沒有提供影片 URL，請求失敗')
       return res.status(400).json({
         success: false,
@@ -225,7 +214,7 @@ export const createMeme = async (req, res) => {
     }
 
     // 檢查是否提供音訊（只有音訊類型才需要）
-    if (type === 'audio' && !audio_url) {
+    if (basicFields.type === 'audio' && !basicFields.audio_url) {
       logger.warn('音訊類型但沒有提供音訊 URL，請求失敗')
       return res.status(400).json({
         success: false,
@@ -234,22 +223,20 @@ export const createMeme = async (req, res) => {
       })
     }
 
-    logger.info('最終圖片 URL:', image_url)
-
-    // 其他欄位
+    // 其他欄位 - 添加默認值以避免解構錯誤
     const {
-      title,
+      title = '', // 新增默認值
       content = '',
-      type,
-      detail_markdown,
-      detail_content, // 新增：詳細內容 (JSON 格式)
+      type = 'text', // 新增默認值
+      detail_markdown = '', // 新增默認值
+      detail_content = null, // 新增：詳細內容 (JSON 格式)
       detail_images = [], // 新增：詳細內容中的圖片
       tags_cache = [],
       source_url = '',
       video_url = '',
       audio_url = '',
       cover_image = '', // 新增：主圖連結
-      slug,
+      slug = '', // 新增默認值
       nsfw = false, // 新增：NSFW 標記
       language = 'zh', // 新增：語言
       sources = [], // 新增：引用來源
@@ -258,14 +245,24 @@ export const createMeme = async (req, res) => {
       variant_of = null, // 新增：變體來源
     } = req.body
 
-    // 添加類型和圖片 URL 驗證日誌
-    logger.info('驗證類型和媒體 URL:', {
-      type,
-      hasImageUrl: !!image_url,
-      hasVideoUrl: !!video_url,
-      hasAudioUrl: !!audio_url,
-      image_url: image_url ? image_url.substring(0, 100) + '...' : null,
-    })
+    // 確保必要欄位存在
+    if (!title || !title.trim()) {
+      logger.error('❌ 標題為空或不存在:', { title: title })
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '標題為必填欄位且不能為空',
+      })
+    }
+
+    if (!type) {
+      logger.error('❌ 類型不存在:', { type: type })
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '類型為必填欄位',
+      })
+    }
 
     // 預先驗證類型和媒體 URL 的對應關係
     const validationErrors = []
@@ -289,6 +286,15 @@ export const createMeme = async (req, res) => {
     }
 
     // 從認證中間件獲取用戶ID
+    if (!req.user || !req.user._id) {
+      logger.error('用戶未認證或用戶ID不存在')
+      return res.status(401).json({
+        success: false,
+        data: null,
+        error: '用戶未認證，請先登入',
+      })
+    }
+
     const author_id = req.user._id
 
     // tags_cache 可能是字串（單一標籤），也可能是陣列
@@ -364,10 +370,36 @@ export const createMeme = async (req, res) => {
     })
 
     // 使用 session 保存迷因
-    await meme.save({ session })
+    logger.info('開始保存迷因到資料庫...')
+    try {
+      await meme.save({ session })
+      logger.info('✅ 迷因保存成功')
+    } catch (saveError) {
+      logger.error('❌ 迷因保存失敗:', saveError.message)
+      logger.error('保存錯誤詳情:', {
+        name: saveError.name,
+        code: saveError.code,
+        errors: saveError.errors,
+      })
+      throw saveError
+    }
 
     // 使用原子操作更新用戶迷因數量統計，避免 race condition
-    await User.findByIdAndUpdate(author_id, { $inc: { meme_count: 1 } }, { session, new: true })
+    logger.info(`開始更新用戶 ${author_id} 的迷因數量統計...`)
+    try {
+      const updatedUser = await User.findByIdAndUpdate(
+        author_id,
+        { $inc: { meme_count: 1 } },
+        { session, new: true },
+      )
+      if (!updatedUser) {
+        throw new Error(`用戶 ${author_id} 不存在`)
+      }
+      logger.info('✅ 用戶迷因數量統計更新成功')
+    } catch (userError) {
+      logger.error('❌ 用戶統計更新失敗:', userError.message)
+      throw userError
+    }
 
     // 更新場景統計數據（如果有指定場景）
     if (scene_id) {
@@ -434,7 +466,13 @@ export const createMeme = async (req, res) => {
       })
     }
 
-    logger.error('未知錯誤:', err.message)
+    logger.error('未知錯誤:', {
+      message: err.message,
+      name: err.name,
+      code: err.code,
+      stack: err.stack,
+      fullError: JSON.stringify(err, Object.getOwnPropertyNames(err)),
+    })
     res.status(500).json({ success: false, data: null, error: err.message })
   } finally {
     // 結束 session
