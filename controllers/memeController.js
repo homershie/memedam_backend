@@ -109,6 +109,9 @@ export const exportMemesCsv = async (req, res) => {
 export const validateCreateMeme = [
   body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
   body('content').optional().isLength({ max: 1000 }).withMessage('內容長度最多 1000 字'),
+  body('type')
+    .isIn(['text', 'image', 'video', 'audio'])
+    .withMessage('迷因型態必須是 text、image、video 或 audio'),
 ]
 
 // 更新迷因驗證
@@ -138,22 +141,38 @@ export const createMeme = async (req, res) => {
   }
 
   try {
+    // 添加詳細日誌追蹤
+    logger.info('=== 開始創建迷因 ===')
+    logger.info('請求體內容:', {
+      type: req.body.type,
+      title: req.body.title,
+      content: req.body.content,
+      image_url: req.body.image_url,
+      hasFiles: !!req.files,
+      filesCount: req.files ? req.files.length : 0,
+    })
+
     // 取得圖片網址（多圖上傳，僅取第一張作為主圖）
     let image_url = ''
     if (req.files && req.files.length > 0) {
       image_url = req.files[0].path || req.files[0].url || req.files[0].secure_url || ''
+      logger.info('從 req.files 取得圖片 URL:', image_url)
     } else if (req.body.image_url) {
       image_url = req.body.image_url
+      logger.info('從 req.body.image_url 取得圖片 URL:', image_url)
     }
 
     // 檢查是否提供圖片
     if (!image_url) {
+      logger.warn('沒有提供圖片 URL，請求失敗')
       return res.status(400).json({
         success: false,
         data: null,
         error: '請提供圖片檔案或圖片網址',
       })
     }
+
+    logger.info('最終圖片 URL:', image_url)
 
     // 其他欄位
     const {
@@ -176,6 +195,36 @@ export const createMeme = async (req, res) => {
       scene_id = null, // 新增：場景 ID
       variant_of = null, // 新增：變體來源
     } = req.body
+
+    // 添加類型和圖片 URL 驗證日誌
+    logger.info('驗證類型和媒體 URL:', {
+      type,
+      hasImageUrl: !!image_url,
+      hasVideoUrl: !!video_url,
+      hasAudioUrl: !!audio_url,
+      image_url: image_url ? image_url.substring(0, 100) + '...' : null,
+    })
+
+    // 預先驗證類型和媒體 URL 的對應關係
+    const validationErrors = []
+    if (type === 'image' && !image_url) {
+      validationErrors.push('圖片型態的迷因必須提供圖片連結')
+    }
+    if (type === 'video' && !video_url) {
+      validationErrors.push('影片型態的迷因必須提供影片連結')
+    }
+    if (type === 'audio' && !audio_url) {
+      validationErrors.push('音訊型態的迷因必須提供音訊連結')
+    }
+
+    if (validationErrors.length > 0) {
+      logger.warn('預先驗證失敗:', validationErrors)
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: validationErrors.join('; '),
+      })
+    }
 
     // 從認證中間件獲取用戶ID
     const author_id = req.user._id
@@ -286,6 +335,18 @@ export const createMeme = async (req, res) => {
 
     res.status(201).json({ success: true, data: meme, error: null })
   } catch (err) {
+    // 添加詳細錯誤日誌
+    logger.error('創建迷因時發生錯誤:', {
+      error: err.message,
+      stack: err.stack,
+      name: err.name,
+      code: err.code,
+      type: req.body.type,
+      title: req.body.title,
+      hasImageUrl: !!req.body.image_url,
+      imageUrl: req.body.image_url,
+    })
+
     // 回滾事務
     if (session) {
       await session.abortTransaction()
@@ -293,6 +354,7 @@ export const createMeme = async (req, res) => {
 
     // 處理重複鍵錯誤
     if (err.code === 11000) {
+      logger.warn('迷因重複錯誤:', err.message)
       return res.status(409).json({
         success: false,
         data: null,
@@ -302,13 +364,15 @@ export const createMeme = async (req, res) => {
 
     // 處理其他 MongoDB 錯誤
     if (err.name === 'ValidationError') {
+      logger.warn('驗證錯誤:', err.message)
       return res.status(400).json({
         success: false,
         data: null,
-        error: err.message,
+        error: `資料驗證失敗: ${err.message}`,
       })
     }
 
+    logger.error('未知錯誤:', err.message)
     res.status(500).json({ success: false, data: null, error: err.message })
   } finally {
     // 結束 session
