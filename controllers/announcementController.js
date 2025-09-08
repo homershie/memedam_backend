@@ -5,7 +5,7 @@ import { extractImageUrlsFromContent } from '../services/uploadService.js'
 
 // 建立公告
 export const validateCreateAnnouncement = [
-  body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
+  body('title').isLength({ min: 1, max: 200 }).withMessage('標題必填，且長度需在 1~200 字'),
   body('content').custom((value) => {
     if (typeof value === 'string') {
       if (value.trim().length < 1) throw new Error('內容不能為空')
@@ -39,7 +39,7 @@ export const createAnnouncement = async (req, res) => {
     // 提取content中的圖片URL
     const contentImages = extractImageUrlsFromContent(content)
 
-    const announcement = new Announcement({
+    const announcementData = {
       title,
       content,
       content_format: content_format || 'plain', // 預設為 plain
@@ -49,7 +49,9 @@ export const createAnnouncement = async (req, res) => {
       content_images: contentImages, // 儲存content中使用的圖片URL
       // 如果有上傳圖片，使用上傳的檔案路徑；否則使用外部連結
       ...(req.file ? { image: req.file.path } : image ? { image } : {}),
-    })
+    }
+
+    const announcement = new Announcement(announcementData)
     await announcement.save({ session })
 
     // 提交事務

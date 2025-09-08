@@ -117,19 +117,44 @@ const AnnouncementSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator: function (v) {
-          if (!Array.isArray(v)) return false
+          if (!Array.isArray(v)) {
+            return false
+          }
+
+          // 如果陣列為空，允許通過
+          if (v.length === 0) {
+            return true
+          }
+
           // 驗證每個URL的格式
           return v.every((url) => {
-            if (!url || typeof url !== 'string') return false
-            // 允許 Cloudinary URL 或一般圖片 URL
+            if (!url || typeof url !== 'string') {
+              return false
+            }
+
+            // 允許 Cloudinary URL、一般圖片 URL，或任何有效的圖片URL（因為內容中的圖片URL格式多樣）
             const cloudinaryPattern = /^https:\/\/res\.cloudinary\.com\/.*\/image\/upload\/.*$/
-            const imagePatterns = [
-              /^https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif)(\?.*)?$/i,
-              /^https?:\/\/[^\s]+\/[^\s]*\?(.*&)?auto=format(&.*)?$/i,
-              /^https?:\/\/[^\s]+\/[^\s]*(format|image|photo|picture|img)[^\s]*$/i,
-              /^https?:\/\/(images\.unsplash\.com|plus\.unsplash\.com|i\.imgur\.com|cdn\.pixabay\.com|images\.pexels\.com)[^\s]*$/i,
-            ]
-            return cloudinaryPattern.test(url) || imagePatterns.some((pattern) => pattern.test(url))
+            const imageExtensionPattern =
+              /^https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif)(\?.*)?$/i
+            const generalUrlPattern = /^https?:\/\/[^\s]+$/i
+            const blobUrlPattern = /^blob:/
+
+            // 如果是 Cloudinary URL 或帶圖片副檔名的 URL，直接允許
+            if (cloudinaryPattern.test(url) || imageExtensionPattern.test(url)) {
+              return true
+            }
+
+            // 如果是一般的 HTTP/HTTPS URL（沒有明顯的非圖片特徵），也允許
+            const generalUrlValid =
+              generalUrlPattern.test(url) &&
+              !url.includes('.css') &&
+              !url.includes('.js') &&
+              !url.includes('.html')
+
+            // 如果是 blob URL（臨時檔案URL），也允許（前端會處理上傳）
+            const blobUrlValid = blobUrlPattern.test(url)
+
+            return generalUrlValid || blobUrlValid
           })
         },
         message: 'content_images 必須是有效的圖片URL陣列',
