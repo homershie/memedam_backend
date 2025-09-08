@@ -1,6 +1,7 @@
 import Announcement from '../models/Announcement.js'
 import { body, validationResult } from 'express-validator'
-import uploadService from '../services/uploadService.js'
+import uploadService, { deleteImageByUrl } from '../services/uploadService.js'
+import { extractImageUrlsFromContent } from '../services/uploadService.js'
 
 // 建立公告
 export const validateCreateAnnouncement = [
@@ -34,6 +35,10 @@ export const createAnnouncement = async (req, res) => {
 
   try {
     const { title, content, content_format, status, category, image } = req.body
+
+    // 提取content中的圖片URL
+    const contentImages = extractImageUrlsFromContent(content)
+
     const announcement = new Announcement({
       title,
       content,
@@ -41,6 +46,7 @@ export const createAnnouncement = async (req, res) => {
       status,
       category,
       author_id: req.user?._id,
+      content_images: contentImages, // 儲存content中使用的圖片URL
       // 如果有上傳圖片，使用上傳的檔案路徑；否則使用外部連結
       ...(req.file ? { image: req.file.path } : image ? { image } : {}),
     })
@@ -152,6 +158,12 @@ export const updateAnnouncement = async (req, res) => {
   try {
     const updateData = { ...req.body }
 
+    // 如果更新了content，提取其中的圖片URL
+    if (updateData.content) {
+      const contentImages = extractImageUrlsFromContent(updateData.content)
+      updateData.content_images = contentImages
+    }
+
     // 處理圖片更新
     if (req.file) {
       // 如果有上傳新檔案，使用上傳的檔案路徑
@@ -261,7 +273,20 @@ export const deleteAnnouncement = async (req, res) => {
         const publicId = urlParts[urlParts.length - 1].split('.')[0]
         await uploadService.deleteImage(publicId)
       } catch (error) {
-        console.warn('刪除圖片失敗:', error)
+        console.warn('刪除主圖失敗:', error)
+      }
+    }
+
+    // 清理content中的Cloudinary圖片
+    if (announcement.content_images && Array.isArray(announcement.content_images)) {
+      for (const imageUrl of announcement.content_images) {
+        if (imageUrl && imageUrl.includes('cloudinary.com')) {
+          try {
+            await deleteImageByUrl(imageUrl)
+          } catch (error) {
+            console.warn('刪除content圖片失敗:', imageUrl, error.message)
+          }
+        }
       }
     }
 

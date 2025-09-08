@@ -24,6 +24,22 @@ const parseFormDataFields = (req, res, next) => {
     req.body.memeId = req.query.memeId
   }
 
+  // 解析上傳參數
+  if (req.body.folder) {
+    req.uploadFolder = req.body.folder
+  }
+  if (req.body.transformation) {
+    try {
+      req.uploadTransformation = JSON.parse(req.body.transformation)
+    } catch (error) {
+      // 如果解析失敗，使用預設值
+      req.uploadTransformation = undefined
+    }
+  }
+  if (req.body.public_id) {
+    req.uploadPublicId = req.body.public_id
+  }
+
   next()
 }
 

@@ -111,6 +111,30 @@ const AnnouncementSchema = new mongoose.Schema(
         message: '圖片必須是有效的 Cloudinary URL 或圖片連結',
       },
     },
+    // 內容中使用的圖片URL列表（用於清理和管理）
+    content_images: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: function (v) {
+          if (!Array.isArray(v)) return false
+          // 驗證每個URL的格式
+          return v.every((url) => {
+            if (!url || typeof url !== 'string') return false
+            // 允許 Cloudinary URL 或一般圖片 URL
+            const cloudinaryPattern = /^https:\/\/res\.cloudinary\.com\/.*\/image\/upload\/.*$/
+            const imagePatterns = [
+              /^https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif)(\?.*)?$/i,
+              /^https?:\/\/[^\s]+\/[^\s]*\?(.*&)?auto=format(&.*)?$/i,
+              /^https?:\/\/[^\s]+\/[^\s]*(format|image|photo|picture|img)[^\s]*$/i,
+              /^https?:\/\/(images\.unsplash\.com|plus\.unsplash\.com|i\.imgur\.com|cdn\.pixabay\.com|images\.pexels\.com)[^\s]*$/i,
+            ]
+            return cloudinaryPattern.test(url) || imagePatterns.some((pattern) => pattern.test(url))
+          })
+        },
+        message: 'content_images 必須是有效的圖片URL陣列',
+      },
+    },
   },
   {
     collection: 'announcements',

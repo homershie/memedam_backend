@@ -152,11 +152,26 @@ const storage = new CloudinaryStorage({
       ]
     }
 
-    return {
+    // 檢查是否有動態上傳參數（優先級最高）
+    if (req.uploadFolder) {
+      folder = req.uploadFolder
+    }
+    if (req.uploadTransformation && Array.isArray(req.uploadTransformation)) {
+      transformation = req.uploadTransformation
+    }
+
+    const result = {
       folder,
       allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
       transformation,
     }
+
+    // 如果有動態 public_id，加入結果
+    if (req.uploadPublicId) {
+      result.public_id = req.uploadPublicId
+    }
+
+    return result
   },
 })
 
@@ -239,8 +254,64 @@ export const uploadAnnouncementImage = (req, res, next) => {
     // 重新設定類型（因為 multer 可能會重置 req.body）
     req.body.type = 'announcement'
 
+    // 處理 JSON 內容：如果 content 是字串且看起來像是 JSON，則解析它
+    if (req.body.content && typeof req.body.content === 'string') {
+      try {
+        // 檢查是否是 JSON 格式的內容（檢查是否有 JSON 特徵）
+        const contentStr = req.body.content.trim()
+        if (
+          contentStr.startsWith('{') ||
+          contentStr.startsWith('[') ||
+          contentStr.includes('"type":') ||
+          contentStr.includes('"content":')
+        ) {
+          const parsedContent = JSON.parse(contentStr)
+          req.body.content = parsedContent
+          logger.info('成功解析 JSON 內容格式')
+        }
+      } catch (error) {
+        // 如果解析失敗，保持原字串格式（可能是純文字）
+        logger.info('內容保持為字串格式（非 JSON）:', error.message)
+      }
+    }
+
     next()
   })
+}
+
+// 從內容中提取圖片URL
+export const extractImageUrlsFromContent = (content) => {
+  const imageUrls = []
+
+  if (!content || typeof content !== 'object') {
+    return imageUrls
+  }
+
+  // 遞歸遍歷JSON結構，查找image節點
+  const traverseContent = (node) => {
+    if (!node || typeof node !== 'object') return
+
+    // 如果是image節點，提取src
+    if (node.type === 'image' && node.attrs && node.attrs.src) {
+      const src = node.attrs.src
+      if (src && typeof src === 'string' && !imageUrls.includes(src)) {
+        imageUrls.push(src)
+      }
+    }
+
+    // 如果有content陣列，遞歸處理
+    if (node.content && Array.isArray(node.content)) {
+      node.content.forEach(traverseContent)
+    }
+
+    // 如果有子節點，遞歸處理
+    if (node.children && Array.isArray(node.children)) {
+      node.children.forEach(traverseContent)
+    }
+  }
+
+  traverseContent(content)
+  return imageUrls
 }
 
 // 刪除圖片
@@ -419,6 +490,7 @@ export default {
   uploadAnnouncementImage,
   deleteImage,
   deleteImageByUrl,
+  extractImageUrlsFromContent,
   getImageUrl,
   uploadMiddleware,
 }
