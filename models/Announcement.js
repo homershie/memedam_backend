@@ -76,10 +76,19 @@ const AnnouncementSchema = new mongoose.Schema(
       validate: {
         validator: function (v) {
           if (!v) return true // 允許空值
-          // 允許 Cloudinary URL 或一般圖片 URL
+          // 允許 Cloudinary URL 或一般圖片 URL（支援各種格式）
           const cloudinaryPattern = /^https:\/\/res\.cloudinary\.com\/.*\/image\/upload\/.*$/
-          const imageUrlPattern = /^https?:\/\/.*\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i
-          return cloudinaryPattern.test(v) || imageUrlPattern.test(v)
+          const imagePatterns = [
+            // 有副檔名的圖片URL
+            /^https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif)(\?.*)?$/i,
+            // Unsplash等服務的URL（沒有副檔名但有圖片參數）
+            /^https?:\/\/[^\s]+\/[^\s]*\?(.*&)?auto=format(&.*)?$/i,
+            // 其他圖片服務的URL（檢查常見圖片相關關鍵字）
+            /^https?:\/\/[^\s]+\/[^\s]*(format|image|photo|picture|img)[^\s]*$/i,
+            // 允許沒有副檔名的圖片URL（只要是圖片服務域名）
+            /^https?:\/\/(images\.unsplash\.com|plus\.unsplash\.com|i\.imgur\.com|cdn\.pixabay\.com|images\.pexels\.com)[^\s]*$/i,
+          ]
+          return cloudinaryPattern.test(v) || imagePatterns.some((pattern) => pattern.test(v))
         },
         message: '圖片必須是有效的 Cloudinary URL 或圖片連結',
       },

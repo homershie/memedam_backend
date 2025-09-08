@@ -19,15 +19,15 @@ export const createAnnouncement = async (req, res) => {
   session.startTransaction()
 
   try {
-    const { title, content, status, category } = req.body
+    const { title, content, status, category, image } = req.body
     const announcement = new Announcement({
       title,
       content,
       status,
       category,
       author_id: req.user?._id,
-      // 如果有上傳圖片，加入圖片 URL
-      ...(req.file && { image: req.file.path }),
+      // 如果有上傳圖片，使用上傳的檔案路徑；否則使用外部連結
+      ...(req.file ? { image: req.file.path } : image ? { image } : {}),
     })
     await announcement.save({ session })
 
@@ -137,8 +137,9 @@ export const updateAnnouncement = async (req, res) => {
   try {
     const updateData = { ...req.body }
 
-    // 如果有上傳新圖片，加入圖片 URL
+    // 處理圖片更新
     if (req.file) {
+      // 如果有上傳新檔案，使用上傳的檔案路徑
       updateData.image = req.file.path
 
       // 如果有舊圖片且是 Cloudinary 圖片，刪除舊圖片
@@ -157,7 +158,28 @@ export const updateAnnouncement = async (req, res) => {
           console.warn('刪除舊圖片失敗:', error)
         }
       }
+    } else if (updateData.image === null || updateData.image === '') {
+      // 如果前端明確設定 image 為 null 或空字串，清除圖片
+      updateData.image = null
+
+      // 如果有舊圖片且是 Cloudinary 圖片，刪除舊圖片
+      const existingAnnouncement = await Announcement.findById(req.params.id)
+      if (
+        existingAnnouncement &&
+        existingAnnouncement.image &&
+        existingAnnouncement.image.includes('cloudinary.com')
+      ) {
+        try {
+          // 從 URL 中提取 public_id
+          const urlParts = existingAnnouncement.image.split('/')
+          const publicId = urlParts[urlParts.length - 1].split('.')[0]
+          await uploadService.deleteImage(publicId)
+        } catch (error) {
+          console.warn('刪除舊圖片失敗:', error)
+        }
+      }
     }
+    // 如果沒有 req.file 且 image 不是 null/空字串，保持原有的外部連結圖片
 
     const announcement = await Announcement.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
