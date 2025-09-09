@@ -12,6 +12,7 @@ import {
   batchUpdateSocialCollaborativeFilteringCache,
 } from '../utils/collaborativeFilteringScheduler.js'
 import cacheVersionManager from '../utils/cacheVersionManager.js'
+import { preOperationHealthCheck } from '../utils/dbHealthCheck.js'
 
 /**
  * 更新配置
@@ -249,6 +250,14 @@ export const updateHotScores = async (options = {}) => {
   if (!config.enabled) {
     logger.info('Hot Score 更新已停用')
     return { success: false, message: 'Hot Score 更新已停用' }
+  }
+
+  // 執行資料庫健康檢查
+  const isHealthy = await preOperationHealthCheck('Hot Score 更新')
+  if (!isHealthy) {
+    const errorMessage = '資料庫健康檢查失敗，無法執行熱門分數更新'
+    logger.error(errorMessage)
+    throw new Error(errorMessage)
   }
 
   // 初始化重試計數器

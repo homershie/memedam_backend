@@ -1,11 +1,27 @@
 import Announcement from '../models/Announcement.js'
 import { body, validationResult } from 'express-validator'
-import uploadService from '../services/uploadService.js'
+import mongoose from 'mongoose'
+import uploadService, { deleteImageByUrl } from '../services/uploadService.js'
+import { extractImageUrlsFromContent } from '../services/uploadService.js'
 
 // 建立公告
 export const validateCreateAnnouncement = [
-  body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
-  body('content').isLength({ min: 1, max: 2000 }).withMessage('內容必填，且長度需在 1~2000 字'),
+  body('title').isLength({ min: 1, max: 200 }).withMessage('標題必填，且長度需在 1~200 字'),
+  body('content').custom((value) => {
+    if (typeof value === 'string') {
+      if (value.trim().length < 1) throw new Error('內容不能為空')
+      if (value.length > 10000) throw new Error('內容長度不能超過10000字')
+    } else if (typeof value === 'object') {
+      if (!value) throw new Error('JSON內容不能為空')
+    } else {
+      throw new Error('內容格式不正確')
+    }
+    return true
+  }),
+  body('content_format')
+    .optional()
+    .isIn(['plain', 'json'])
+    .withMessage('內容格式必須是 plain 或 json'),
 ]
 
 export const createAnnouncement = async (req, res) => {
@@ -19,16 +35,24 @@ export const createAnnouncement = async (req, res) => {
   session.startTransaction()
 
   try {
-    const { title, content, status, category, image } = req.body
-    const announcement = new Announcement({
+    const { title, content, content_format, status, category, image } = req.body
+
+    // 提取content中的圖片URL
+    const contentImages = extractImageUrlsFromContent(content)
+
+    const announcementData = {
       title,
       content,
+      content_format: content_format || 'plain', // 預設為 plain
       status,
       category,
       author_id: req.user?._id,
+      content_images: contentImages, // 儲存content中使用的圖片URL
       // 如果有上傳圖片，使用上傳的檔案路徑；否則使用外部連結
       ...(req.file ? { image: req.file.path } : image ? { image } : {}),
-    })
+    }
+
+    const announcement = new Announcement(announcementData)
     await announcement.save({ session })
 
     // 提交事務
@@ -76,6 +100,21 @@ export const getAnnouncements = async (req, res) => {
       filter.status = 'public'
     }
     if (req.query.category) filter.category = req.query.category
+    // 排除特定公告ID
+    if (req.query.exclude) {
+      try {
+        // 確保 exclude 是有效的 ObjectId
+        if (mongoose.Types.ObjectId.isValid(req.query.exclude)) {
+          const excludeObjectId = req.query.exclude
+          filter._id = mongoose.trusted({ $ne: excludeObjectId })
+        } else {
+          console.warn('Invalid exclude ID format:', req.query.exclude)
+        }
+      } catch (error) {
+        console.warn('Error processing exclude ID:', req.query.exclude, error)
+        // 如果處理失敗，忽略這個過濾條件
+      }
+    }
     // 關鍵字搜尋（標題或內容）
     if (req.query.q) {
       const keyword = req.query.q.trim()
@@ -136,6 +175,12 @@ export const updateAnnouncement = async (req, res) => {
 
   try {
     const updateData = { ...req.body }
+
+    // 如果更新了content，提取其中的圖片URL
+    if (updateData.content) {
+      const contentImages = extractImageUrlsFromContent(updateData.content)
+      updateData.content_images = contentImages
+    }
 
     // 處理圖片更新
     if (req.file) {
@@ -246,7 +291,20 @@ export const deleteAnnouncement = async (req, res) => {
         const publicId = urlParts[urlParts.length - 1].split('.')[0]
         await uploadService.deleteImage(publicId)
       } catch (error) {
-        console.warn('刪除圖片失敗:', error)
+        console.warn('刪除主圖失敗:', error)
+      }
+    }
+
+    // 清理content中的Cloudinary圖片
+    if (announcement.content_images && Array.isArray(announcement.content_images)) {
+      for (const imageUrl of announcement.content_images) {
+        if (imageUrl && imageUrl.includes('cloudinary.com')) {
+          try {
+            await deleteImageByUrl(imageUrl)
+          } catch (error) {
+            console.warn('刪除content圖片失敗:', imageUrl, error.message)
+          }
+        }
       }
     }
 

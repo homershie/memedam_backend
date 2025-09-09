@@ -36,7 +36,8 @@ export const batchUpdateHotScores = async (options = {}) => {
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
       query.$or = [
-        { updatedAt: { $gte: oneWeekAgo } },
+        { modified_at: { $gte: oneWeekAgo } },
+        { createdAt: { $gte: oneWeekAgo } },
         { hot_score: { $exists: false } },
         { hot_score: 0 },
       ]
@@ -80,7 +81,7 @@ export const batchUpdateHotScores = async (options = {}) => {
               continue
             }
 
-            const hotScore = calculateMemeHotScore(meme)
+            const hotScore = await calculateMemeHotScore(meme)
 
             // 驗證計算結果
             if (typeof hotScore !== 'number' || isNaN(hotScore)) {
@@ -190,7 +191,7 @@ export const updateSingleMemeHotScore = async (memeId) => {
       throw new Error('找不到迷因')
     }
 
-    const hotScore = calculateMemeHotScore(meme)
+    const hotScore = await calculateMemeHotScore(meme)
     const hotLevel = getHotScoreLevel(hotScore)
 
     meme.hot_score = hotScore

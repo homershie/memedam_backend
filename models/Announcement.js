@@ -10,13 +10,31 @@ const AnnouncementSchema = new mongoose.Schema(
       minlength: [1, '公告標題不能為空'],
       maxlength: [200, '公告標題長度不能超過200字'],
     },
-    // 公告內容（可存文字或HTML）
+    // 公告內容（支援純文字或結構化JSON）
     content: {
-      type: String,
+      type: mongoose.Schema.Types.Mixed, // 支援純文字或JSON物件
       required: [true, '公告內容為必填'],
-      trim: true,
-      minlength: [1, '公告內容不能為空'],
-      maxlength: [5000, '公告內容長度不能超過5000字'],
+      validate: {
+        validator: function (v) {
+          if (v === null || v === undefined) return false
+          if (typeof v === 'string') {
+            return v.trim().length >= 1 && v.length <= 10000 // 純文字長度限制
+          }
+          if (typeof v === 'object') {
+            return v && typeof v === 'object' // JSON格式驗證
+          }
+          return false
+        },
+        message: '公告內容格式不正確',
+      },
+    },
+
+    // 內容格式類型（用於區分純文字或JSON）
+    content_format: {
+      type: String,
+      enum: ['plain', 'json'],
+      default: 'plain',
+      required: true,
     },
     // 發布者 user id
     author_id: {
@@ -91,6 +109,55 @@ const AnnouncementSchema = new mongoose.Schema(
           return cloudinaryPattern.test(v) || imagePatterns.some((pattern) => pattern.test(v))
         },
         message: '圖片必須是有效的 Cloudinary URL 或圖片連結',
+      },
+    },
+    // 內容中使用的圖片URL列表（用於清理和管理）
+    content_images: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: function (v) {
+          if (!Array.isArray(v)) {
+            return false
+          }
+
+          // 如果陣列為空，允許通過
+          if (v.length === 0) {
+            return true
+          }
+
+          // 驗證每個URL的格式
+          return v.every((url) => {
+            if (!url || typeof url !== 'string') {
+              return false
+            }
+
+            // 允許 Cloudinary URL、一般圖片 URL，或任何有效的圖片URL（因為內容中的圖片URL格式多樣）
+            const cloudinaryPattern = /^https:\/\/res\.cloudinary\.com\/.*\/image\/upload\/.*$/
+            const imageExtensionPattern =
+              /^https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif)(\?.*)?$/i
+            const generalUrlPattern = /^https?:\/\/[^\s]+$/i
+            const blobUrlPattern = /^blob:/
+
+            // 如果是 Cloudinary URL 或帶圖片副檔名的 URL，直接允許
+            if (cloudinaryPattern.test(url) || imageExtensionPattern.test(url)) {
+              return true
+            }
+
+            // 如果是一般的 HTTP/HTTPS URL（沒有明顯的非圖片特徵），也允許
+            const generalUrlValid =
+              generalUrlPattern.test(url) &&
+              !url.includes('.css') &&
+              !url.includes('.js') &&
+              !url.includes('.html')
+
+            // 如果是 blob URL（臨時檔案URL），也允許（前端會處理上傳）
+            const blobUrlValid = blobUrlPattern.test(url)
+
+            return generalUrlValid || blobUrlValid
+          })
+        },
+        message: 'content_images 必須是有效的圖片URL陣列',
       },
     },
   },
