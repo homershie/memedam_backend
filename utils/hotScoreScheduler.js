@@ -36,7 +36,8 @@ export const batchUpdateHotScores = async (options = {}) => {
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
       query.$or = [
-        { updatedAt: { $gte: oneWeekAgo } },
+        { modified_at: { $gte: oneWeekAgo } },
+        { createdAt: { $gte: oneWeekAgo } },
         { hot_score: { $exists: false } },
         { hot_score: 0 },
       ]

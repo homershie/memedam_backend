@@ -35,11 +35,12 @@ export default defineConfig({
     // 測試超時 - 診斷腳本需要更長的時間
     testTimeout: 30000,
 
-    // 並行執行
-    pool: 'forks',
+    // 串行執行以確保資料庫連接穩定
+    pool: 'threads',
     poolOptions: {
-      forks: {
-        singleFork: true,
+      threads: {
+        singleThread: true,
+        useAtomics: false,
       },
     },
 

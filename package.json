@@ -27,7 +27,8 @@
     "test:seo:watch": "vitest --watch test/unit/controllers/seoController.test.js test/integration/api/seo-routes.test.js",
     "diagnose:notifications": "vitest run scripts/diagnostics/diagnose-notifications.js",
     "diagnose:redis-queue": "vitest run scripts/diagnostics/diagnose-redis-queue.js",
-    "diagnose:all": "vitest run scripts/diagnostics/**/*diagnose*.js"
+    "diagnose:all": "vitest run scripts/diagnostics/**/*diagnose*.js",
+    "diagnose:hot-score": "node scripts/diagnostics/test-hot-score-scheduler.js"
   },
   "keywords": [],
   "author": "homershie",

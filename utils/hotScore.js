@@ -363,10 +363,14 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
         // 安全地提取數值，確保都是數字類型
         const like_count = Math.max(0, parseInt(memeData.like_count) || 0)
         const dislike_count = Math.max(0, parseInt(memeData.dislike_count) || 0)
-        const views = Math.max(0, parseInt(memeData.views) || 0)
+        const views = Math.max(0, parseInt(memeData.views || memeData.view_count) || 0)
         const comment_count = Math.max(0, parseInt(memeData.comment_count) || 0)
         const collection_count = Math.max(0, parseInt(memeData.collection_count) || 0)
         const share_count = Math.max(0, parseInt(memeData.share_count) || 0)
+
+        console.log(
+          `熱門分數計算輸入 - like: ${like_count}, dislike: ${dislike_count}, views: ${views}, comment: ${comment_count}, collection: ${collection_count}, share: ${share_count}`,
+        )
 
         // 驗證時間欄位 - 如果無效直接返回預設值
         let createdAt = memeData.createdAt
@@ -422,8 +426,9 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
         const effectiveDate = modified_at || createdAt
         const timeDiff = Math.max(0, (now - effectiveDate) / (1000 * 60 * 60 * 24)) // 轉換為天
 
-        // 時間衰減因子（使用對數衰減）
-        let timeDecay = 1 / (1 + Math.log(timeDiff + 1))
+        // 時間衰減因子（使用指數衰減，更適合熱門分數）
+        // 時間差異越小，衰減因子越大（新內容分數更高）
+        let timeDecay = Math.exp(-timeDiff / 7) // 7天半衰期
 
         // 如果內容曾被修改，給予額外的新鮮度加成
         if (modified_at && modified_at !== createdAt) {
@@ -463,7 +468,7 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
         _id: memeData ? memeData._id : 'undefined',
         like_count: memeData ? memeData.like_count : 'undefined',
         dislike_count: memeData ? memeData.dislike_count : 'undefined',
-        views: memeData ? memeData.views : 'undefined',
+        views: memeData ? memeData.views || memeData.view_count : 'undefined',
         comment_count: memeData ? memeData.comment_count : 'undefined',
         collection_count: memeData ? memeData.collection_count : 'undefined',
         share_count: memeData ? memeData.share_count : 'undefined',
