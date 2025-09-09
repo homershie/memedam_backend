@@ -478,8 +478,25 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
       })
     }
 
-    // 如果用戶存在，更新用戶的贊助統計
+    // 如果用戶存在，更新用戶的個人資料和贊助統計
     if (user) {
+      // 更新用戶個人資料（顯示名稱等）
+      try {
+        const kofiUserData = {
+          display_name: display_name,
+          from_name: from_name,
+          email: email,
+        }
+        await kofiService.updateUserProfile(user._id, kofiUserData, session)
+      } catch (profileError) {
+        logger.warn('Ko-fi Webhook: 用戶個人資料更新失敗，但繼續處理', {
+          error: profileError.message,
+          userId: user._id,
+        })
+        // 不阻擋主要處理流程
+      }
+
+      // 更新用戶贊助統計
       try {
         await kofiService.updateUserSponsorStats(user._id, sponsorData, session)
       } catch (statsError) {

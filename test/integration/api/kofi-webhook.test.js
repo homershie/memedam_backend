@@ -2,6 +2,7 @@ import request from 'supertest'
 import { app } from '../../../index.js'
 import { clearProcessedMessage } from '../../../middleware/kofiWebhookValidation.js'
 import { describe, beforeAll, beforeEach, test, expect } from 'vitest'
+import User from '../../../models/User.js'
 
 /**
  * Ko-fi Webhook 測試
@@ -203,6 +204,78 @@ describe('Ko-fi Shop Order Webhook', () => {
       expect(response.status).toBe(400)
       expect(response.body.success).toBe(false)
       expect(response.body.error).toBe('無效的金額')
+    })
+  })
+
+  describe('用戶整合功能', () => {
+    test('應該更新現有用戶的顯示名稱', async () => {
+      // 創建測試用戶（沒有 display_name）
+      const testUser = new User({
+        username: 'test_user_profile_update',
+        email: 'profile_test@example.com',
+        password: 'hashed_password',
+        display_name: '', // 空的顯示名稱
+      })
+      await testUser.save()
+
+      const payload = {
+        ...validShopOrderPayload,
+        message_id: 'test_profile_update',
+        kofi_transaction_id: `test_txn_profile_${Date.now()}`,
+        email: 'profile_test@example.com',
+        display_name: 'Ko-fi 測試用戶',
+        from_name: 'Test User from Ko-fi',
+      }
+
+      const response = await request(app)
+        .post('/api/sponsors/webhooks/kofi/shop-orders')
+        .set('Content-Type', 'application/json')
+        .send(payload)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+
+      // 驗證用戶的 display_name 是否被更新
+      const updatedUser = await User.findById(testUser._id)
+      expect(updatedUser.display_name).toBe('Ko-fi 測試用戶')
+
+      // 清理測試數據
+      await User.findByIdAndDelete(testUser._id)
+    })
+
+    test('不應該覆蓋已有的顯示名稱', async () => {
+      // 創建測試用戶（已有 display_name）
+      const testUser = new User({
+        username: 'test_user_existing_display',
+        email: 'existing_display_test@example.com',
+        password: 'hashed_password',
+        display_name: '現有顯示名稱',
+      })
+      await testUser.save()
+
+      const payload = {
+        ...validShopOrderPayload,
+        message_id: 'test_existing_display',
+        kofi_transaction_id: `test_txn_existing_${Date.now()}`,
+        email: 'existing_display_test@example.com',
+        display_name: 'Ko-fi 新名稱',
+        from_name: 'Test User from Ko-fi',
+      }
+
+      const response = await request(app)
+        .post('/api/sponsors/webhooks/kofi/shop-orders')
+        .set('Content-Type', 'application/json')
+        .send(payload)
+
+      expect(response.status).toBe(200)
+      expect(response.body.success).toBe(true)
+
+      // 驗證用戶的 display_name 不應該被改變
+      const updatedUser = await User.findById(testUser._id)
+      expect(updatedUser.display_name).toBe('現有顯示名稱') // 應該保持原有的
+
+      // 清理測試數據
+      await User.findByIdAndDelete(testUser._id)
     })
   })
 

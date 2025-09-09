@@ -35,6 +35,53 @@ class KofiService {
   }
 
   /**
+   * 更新用戶個人資料
+   * @param {string} userId - 用戶 ID
+   * @param {Object} kofiData - Ko-fi Webhook 資料
+   * @param {Object} session - MongoDB session
+   */
+  async updateUserProfile(userId, kofiData, session = null) {
+    try {
+      const User = (await import('../models/User.js')).default
+
+      // 準備要更新的數據
+      const updateData = {}
+
+      // 如果 Ko-fi 提供了 display_name，且用戶當前的 display_name 為空或不同，則更新
+      if (kofiData.display_name && kofiData.display_name.trim()) {
+        const currentUser = await User.findById(userId).select('display_name').session(session)
+        if (!currentUser.display_name || currentUser.display_name.trim() === '') {
+          updateData.display_name = kofiData.display_name.trim()
+        }
+      }
+
+      // 如果 Ko-fi 提供了 from_name 作為備選，且 display_name 為空
+      if (!updateData.display_name && kofiData.from_name && kofiData.from_name.trim()) {
+        const currentUser = await User.findById(userId).select('display_name').session(session)
+        if (!currentUser.display_name || currentUser.display_name.trim() === '') {
+          updateData.display_name = kofiData.from_name.trim()
+        }
+      }
+
+      // 如果有數據要更新
+      if (Object.keys(updateData).length > 0) {
+        await User.findByIdAndUpdate(userId, updateData, { session })
+
+        logger.info('用戶個人資料已更新', {
+          userId,
+          updatedFields: Object.keys(updateData),
+          newDisplayName: updateData.display_name || '未更新',
+        })
+      } else {
+        logger.debug('用戶個人資料無需更新', { userId })
+      }
+    } catch (error) {
+      logger.error('更新用戶個人資料失敗:', error)
+      // 不拋出錯誤，因為這不應該影響主要的贊助處理流程
+    }
+  }
+
+  /**
    * 更新用戶贊助統計
    * @param {string} userId - 用戶 ID
    * @param {Object} sponsorData - 贊助資料
