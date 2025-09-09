@@ -1,5 +1,6 @@
 import integratedCache from '../config/cache.js'
 import { logger } from '../utils/logger.js'
+import fetch from 'node-fetch'
 
 /**
  * 匯率快取服務
@@ -126,37 +127,137 @@ class ExchangeRateService {
   }
 
   /**
-   * 從外部API獲取匯率（模擬）
-   * 實際應用中應該調用真實的匯率API，如：
-   * - Fixer API
-   * - ExchangeRate-API
-   * - CurrencyAPI
-   * - 中央銀行API
+   * 從台灣央行API獲取匯率
    */
   async fetchFromExternalAPI(fromCurrency, toCurrency) {
     try {
-      // 模擬API調用延遲
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // 台灣央行API基礎資訊
 
-      // 在實際應用中，這裡會調用真實的API
-      // 例如：
-      // const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${fromCurrency}`)
-      // const data = await response.json()
-      // return data.rates[toCurrency]
+      // 根據幣別對選擇適當的項目代號
+      let fileName = null
+      let rateField = null
 
-      // 目前使用備用匯率模擬API回應
-      if (fromCurrency === 'USD') {
-        return this.fallbackRates[toCurrency] || null
-      } else if (toCurrency === 'USD') {
-        return this.fallbackRates[fromCurrency] || null
+      // 處理不同幣別對的映射
+      if (
+        (fromCurrency === 'USD' && toCurrency === 'TWD') ||
+        (fromCurrency === 'TWD' && toCurrency === 'USD')
+      ) {
+        // 美元對新台幣
+        fileName = 'EG51D01' // 美元即期匯率日資料
+        rateField = '即期匯率'
+      } else if (fromCurrency === 'USD' || toCurrency === 'USD') {
+        // 其他幣別對美元
+        fileName = 'BP01D01' // 我國與主要貿易對手通貨對美元之匯率日資料
+        rateField = '匯率'
       } else {
-        // 跨幣別轉換：X -> USD -> Y
-        const toUSD = this.fallbackRates[fromCurrency]
-        const fromUSD = this.fallbackRates[toCurrency]
-        return toUSD / fromUSD
+        // 跨幣別轉換：先轉換為美元，再轉換到目標幣別
+        const toUSDRate = await this.fetchRateFromCB(fromCurrency, 'USD')
+        if (!toUSDRate) return null
+
+        const fromUSDRate = await this.fetchRateFromCB('USD', toCurrency)
+        if (!fromUSDRate) return null
+
+        return toUSDRate / fromUSDRate
       }
+
+      return await this.fetchRateFromCB(fromCurrency, toCurrency, fileName, rateField)
     } catch (error) {
-      logger.error('從外部API獲取匯率失敗:', error)
+      logger.error('從台灣央行API獲取匯率失敗:', error)
+      return null
+    }
+  }
+
+  /**
+   * 從台灣央行API獲取特定匯率
+   */
+  async fetchRateFromCB(fromCurrency, toCurrency, fileName = null) {
+    try {
+      const baseURL = 'https://cpx.cbc.gov.tw/API/DataAPI/Get'
+
+      // 如果沒有指定項目代號，自動選擇
+      if (!fileName) {
+        if (
+          (fromCurrency === 'USD' && toCurrency === 'TWD') ||
+          (fromCurrency === 'TWD' && toCurrency === 'USD')
+        ) {
+          fileName = 'EG51D01'
+        } else {
+          fileName = 'BP01D01'
+        }
+      }
+
+      const apiURL = `${baseURL}?FileName=${fileName}`
+      logger.info(`調用台灣央行API: ${apiURL}`)
+
+      const response = await fetch(apiURL, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Memedam-Backend/1.0',
+        },
+        timeout: 10000, // 10秒超時
+      })
+
+      if (!response.ok) {
+        throw new Error(`央行API回應錯誤: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      // 解析央行API的實際資料格式
+      if (!data.data || !data.data.length) {
+        logger.warn('央行API返回空資料')
+        return null
+      }
+
+      // 央行API的資料結構：
+      // data[0] 是匯率資料陣列
+      // data[1] 是資料結構定義
+      const exchangeData = data.data[0] // 實際的匯率資料
+
+      if (!exchangeData || !exchangeData.length) {
+        logger.warn('央行API匯率資料為空')
+        return null
+      }
+
+      // 找到最新的匯率資料（通常是陣列的第一筆）
+      const latestData = exchangeData[0] // 格式: [日期, 買進, 賣出, 收盤, 日平均, 遠期利率]
+
+      logger.debug('最新央行匯率資料:', latestData)
+
+      // 根據幣別對提取匯率
+      let rate = null
+
+      if (fileName === 'EG51D01' && fromCurrency === 'USD' && toCurrency === 'TWD') {
+        // 美元對新台幣匯率
+        // 使用日平均匯率 (第4個欄位，索引3)
+        const avgRate = parseFloat(latestData[3]) // 日平均匯率
+        if (avgRate > 0) {
+          rate = avgRate
+          logger.info(`從央行API獲取 USD/TWD 匯率: ${rate} (日平均)`)
+        }
+      } else if (fileName === 'BP01D01') {
+        // 其他幣別對美元匯率
+        // BP01D01 包含多種幣別對美元的匯率
+        logger.warn('BP01D01 格式需要額外處理，目前使用備用匯率')
+        return null // 暫時返回null，使用備用匯率
+      }
+
+      if (rate && rate > 0) {
+        // 如果是反向轉換（TWD到USD），需要取倒數
+        if (fromCurrency === 'TWD' && toCurrency === 'USD') {
+          rate = 1 / rate
+          logger.info(`從央行API獲取 TWD/USD 匯率: ${rate} (反向計算)`)
+        }
+
+        logger.info(`從央行API獲取匯率成功: ${fromCurrency}/${toCurrency} = ${rate}`)
+        return rate
+      }
+
+      logger.warn(`無法從央行API提取匯率: ${fromCurrency}/${toCurrency}`)
+      return null
+    } catch (error) {
+      logger.error('調用台灣央行API失敗:', error)
       return null
     }
   }
