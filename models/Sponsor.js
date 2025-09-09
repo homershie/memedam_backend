@@ -19,7 +19,7 @@ const SponsorSchema = new mongoose.Schema(
       default: 'pending',
       enum: {
         values: ['pending', 'success', 'failed', 'refunded'],
-        message: '狀態必須是 pending、success、failed、refunded',
+        message: '狀態必須是',
       },
     },
     // 金額
@@ -148,7 +148,7 @@ const SponsorSchema = new mongoose.Schema(
       default: 'soy',
       enum: {
         values: ['soy', 'chicken', 'coffee'],
-        message: '贊助等級必須是 soy、chicken、coffee',
+        message: '贊助等級必須是',
       },
     },
     badge_earned: {
@@ -216,6 +216,20 @@ const SponsorSchema = new mongoose.Schema(
         ],
         message: '無效的過濾原因',
       },
+      validate: {
+        validator: function (v) {
+          if (v === null) return true
+          return [
+            'message_too_long',
+            'inappropriate_content',
+            'advertisement_content',
+            'repeated_content',
+            'too_many_special_chars',
+            'review_error',
+          ].includes(v)
+        },
+        message: '無效的過濾原因',
+      },
       comment: '訊息過濾原因',
     },
     message_filter_severity: {
@@ -223,6 +237,12 @@ const SponsorSchema = new mongoose.Schema(
       default: 'low',
       enum: {
         values: ['low', 'medium', 'high'],
+        message: '無效的過濾嚴重程度',
+      },
+      validate: {
+        validator: function (v) {
+          return ['low', 'medium', 'high'].includes(v)
+        },
         message: '無效的過濾嚴重程度',
       },
       comment: '訊息過濾嚴重程度',
@@ -264,6 +284,13 @@ const SponsorSchema = new mongoose.Schema(
       default: null,
       enum: {
         values: ['highest', 'sum', 'average', null],
+        message: '無效的合併規則',
+      },
+      validate: {
+        validator: function (v) {
+          if (v === null) return true
+          return ['highest', 'sum', 'average'].includes(v)
+        },
         message: '無效的合併規則',
       },
       comment: 'Shop Items 合併規則',

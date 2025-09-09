@@ -819,3 +819,4 @@ if (process.env.NODE_ENV === 'test') {
 
 // 導出 app 實例供測試使用
 export { app }
+export default app

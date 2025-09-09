@@ -605,6 +605,7 @@ class KofiService {
           original_length: trimmedMessage.length,
           sponsor_level: sponsorData.sponsor_level,
         })
+        return reviewResult
       }
 
       // 2. 檢查是否有不適當的語言
@@ -620,7 +621,7 @@ class KofiService {
             detected_word: word,
             sponsor_level: sponsorData.sponsor_level,
           })
-          break
+          return reviewResult
         }
       }
 
@@ -637,7 +638,7 @@ class KofiService {
             pattern: pattern.toString(),
             sponsor_level: sponsorData.sponsor_level,
           })
-          break
+          return reviewResult
         }
       }
 
@@ -651,6 +652,7 @@ class KofiService {
         logger.info('檢測到重複內容，已隱藏訊息', {
           sponsor_level: sponsorData.sponsor_level,
         })
+        return reviewResult
       }
 
       // 5. 檢查是否有過多的特殊字符
@@ -666,6 +668,7 @@ class KofiService {
           special_char_ratio: specialCharRatio.toFixed(2),
           sponsor_level: sponsorData.sponsor_level,
         })
+        return reviewResult
       }
 
       return reviewResult
@@ -715,10 +718,10 @@ class KofiService {
   getAdvertisementPatterns() {
     return [
       /\b(?:http|https|www\.)\S+/i, // URL
-      /\b(?:微信|QQ|電話|手機|聯繫方式|聯系方式)\b/i,
-      /\b(?:買|賣|售|購|價|價格|優惠|折扣)\b/i,
+      /(?:微信|QQ|電話|手機|聯繫方式|聯系方式|聯絡方式|連絡方式|WeChat|WhatsApp|Telegram|Line)/i,
+      /(?:買|賣|售|購|價|價格|優惠|折扣|購買|銷售|販賣|販售)/i,
       /\b(?:招聘|求職|兼職|工作)\b/i,
-      /\b(?:廣告|推銷|推薦|介紹)\b/i,
+      /(?:廣告|推銷|推薦|介紹|宣傳|促銷)/i,
       // 可以根據需要擴展
     ]
   }
@@ -729,20 +732,21 @@ class KofiService {
    * @returns {Boolean} 是否有重複內容
    */
   hasRepeatedContent(message) {
-    if (message.length < 10) return false
-
     // 檢查連續重複的字符
     const repeatedChars = /(.)\1{4,}/
     if (repeatedChars.test(message)) {
       return true
     }
 
+    // 如果訊息太短，跳過詞彙重複檢查
+    if (message.length < 10) return false
+
     // 檢查重複的詞彙
     const words = message.split(/\s+/)
     const wordCount = {}
     for (const word of words) {
-      if (word.length > 2) {
-        // 只檢查長度大於2的詞
+      if (word.length >= 2) {
+        // 只檢查長度大於等於2的詞
         wordCount[word] = (wordCount[word] || 0) + 1
         if (wordCount[word] > 3) {
           // 同一個詞重複超過3次
@@ -857,15 +861,19 @@ class KofiService {
    * @param {Array} currencyConversions - 轉換請求數組
    * @returns {Array} 轉換結果數組
    */
-  batchConvertCurrency(currencyConversions) {
+  async batchConvertCurrency(currencyConversions) {
     if (!Array.isArray(currencyConversions)) {
       return []
     }
 
-    return currencyConversions.map((conversion) => {
+    const results = []
+    for (const conversion of currencyConversions) {
       const { amount, fromCurrency, toCurrency } = conversion
-      return this.convertCurrency(amount, fromCurrency, toCurrency)
-    })
+      const result = await this.convertCurrency(amount, fromCurrency, toCurrency)
+      results.push(result)
+    }
+
+    return results
   }
 
   /**

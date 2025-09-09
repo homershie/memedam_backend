@@ -2,7 +2,7 @@ import integratedCache from '../config/cache.js'
 import { logger } from '../utils/logger.js'
 
 // Ko-fi 驗證 token（從環境變數取得，支援動態更新）
-const getKofiVerificationToken = () => {
+export const getKofiVerificationToken = () => {
   // 在測試環境中，如果沒有設置token，使用預設測試token
   if (process.env.NODE_ENV === 'test' && !process.env.KOFI_VERIFICATION_TOKEN) {
     return 'test_token'
@@ -90,10 +90,17 @@ export const validateKofiWebhook = async (req, res, next) => {
     }
 
     // 4. 檢查重複處理（使用 message_id）
-    if (message_id && process.env.NODE_ENV !== 'test') {
+    if (message_id) {
       try {
         const processedKey = `kofi:processed:${message_id}`
-        const isProcessed = await integratedCache.get(processedKey)
+
+        // 在測試環境中使用記憶體快取，在生產環境使用 Redis 快取
+        let isProcessed
+        if (process.env.NODE_ENV === 'test') {
+          isProcessed = global.testProcessedMessages && global.testProcessedMessages[processedKey]
+        } else {
+          isProcessed = await integratedCache.get(processedKey)
+        }
 
         if (isProcessed) {
           logger.info('Ko-fi Webhook: 訊息已處理，跳過重複處理', { message_id })
@@ -104,8 +111,15 @@ export const validateKofiWebhook = async (req, res, next) => {
           })
         }
 
-        // 標記為已處理（快取 24 小時）
-        await integratedCache.set(processedKey, '1', 86400)
+        // 標記為已處理
+        if (process.env.NODE_ENV === 'test') {
+          if (!global.testProcessedMessages) {
+            global.testProcessedMessages = {}
+          }
+          global.testProcessedMessages[processedKey] = true
+        } else {
+          await integratedCache.set(processedKey, '1', 86400)
+        }
       } catch (cacheError) {
         logger.warn('Ko-fi Webhook: 快取操作失敗，但繼續處理', {
           message_id,
@@ -114,23 +128,6 @@ export const validateKofiWebhook = async (req, res, next) => {
         })
         // 在測試環境中，如果快取失敗，我們繼續處理而不是阻擋
       }
-    } else if (message_id && process.env.NODE_ENV === 'test') {
-      // 在測試環境中，使用簡單的記憶體快取來模擬重複檢查
-      const processedKey = `kofi:processed:${message_id}`
-      if (global.testProcessedMessages && global.testProcessedMessages[processedKey]) {
-        logger.info('Ko-fi Webhook: 測試環境 - 訊息已處理，跳過重複處理', { message_id })
-        return res.status(200).json({
-          success: true,
-          message: '訊息已處理',
-          message_id,
-        })
-      }
-
-      // 初始化測試用的記憶體快取
-      if (!global.testProcessedMessages) {
-        global.testProcessedMessages = {}
-      }
-      global.testProcessedMessages[processedKey] = true
     }
 
     // 5. 驗證 direct_link_code
@@ -216,7 +213,7 @@ export const validateKofiWebhook = async (req, res, next) => {
  * @param {Object} req - Express 請求物件
  * @returns {string} 客戶端 IP 位址
  */
-function getClientIP(req) {
+export function getClientIP(req) {
   // 優先檢查 X-Forwarded-For（代理伺服器）
   const xForwardedFor = req.headers['x-forwarded-for']
   if (xForwardedFor) {
@@ -246,7 +243,10 @@ function getClientIP(req) {
  * @returns {Object|null} 商品資訊或 null
  */
 export const getProductInfo = (directLinkCode) => {
-  return SUPPORTED_PRODUCTS[directLinkCode?.toUpperCase()] || null
+  if (!directLinkCode) return null
+  // 支援大小寫不敏感的匹配
+  const code = directLinkCode.toLowerCase()
+  return SUPPORTED_PRODUCTS[code] || null
 }
 
 /**
