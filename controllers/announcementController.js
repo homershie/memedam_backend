@@ -1,5 +1,6 @@
 import Announcement from '../models/Announcement.js'
 import { body, validationResult } from 'express-validator'
+import mongoose from 'mongoose'
 import uploadService, { deleteImageByUrl } from '../services/uploadService.js'
 import { extractImageUrlsFromContent } from '../services/uploadService.js'
 
@@ -101,7 +102,18 @@ export const getAnnouncements = async (req, res) => {
     if (req.query.category) filter.category = req.query.category
     // 排除特定公告ID
     if (req.query.exclude) {
-      filter._id = { $ne: req.query.exclude }
+      try {
+        // 確保 exclude 是有效的 ObjectId
+        if (mongoose.Types.ObjectId.isValid(req.query.exclude)) {
+          const excludeObjectId = req.query.exclude
+          filter._id = mongoose.trusted({ $ne: excludeObjectId })
+        } else {
+          console.warn('Invalid exclude ID format:', req.query.exclude)
+        }
+      } catch (error) {
+        console.warn('Error processing exclude ID:', req.query.exclude, error)
+        // 如果處理失敗，忽略這個過濾條件
+      }
     }
     // 關鍵字搜尋（標題或內容）
     if (req.query.q) {
