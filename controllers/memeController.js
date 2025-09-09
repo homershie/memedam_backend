@@ -787,7 +787,7 @@ export const getMemeById = async (req, res) => {
     }
 
     // 計算各種分數
-    const hotScore = calculateMemeHotScore(meme)
+    const hotScore = await calculateMemeHotScore(meme)
     const hotLevel = getHotScoreLevel(hotScore)
     const engagementScore = calculateEngagementScore(meme)
     const qualityScore = calculateQualityScore(meme)
@@ -2046,7 +2046,7 @@ export const updateMemeHotScore = async (req, res) => {
     }
 
     // 計算新的熱門分數
-    const hotScore = calculateMemeHotScore(meme)
+    const hotScore = await calculateMemeHotScore(meme)
     const hotLevel = getHotScoreLevel(hotScore)
     const engagementScore = calculateEngagementScore(meme)
     const qualityScore = calculateQualityScore(meme)
@@ -2086,7 +2086,7 @@ export const batchUpdateHotScores = async (req, res) => {
     const results = []
 
     for (const meme of memes) {
-      const hotScore = calculateMemeHotScore(meme)
+      const hotScore = await calculateMemeHotScore(meme)
       const hotLevel = getHotScoreLevel(hotScore)
 
       // 更新熱門分數
@@ -2230,7 +2230,7 @@ export const getMemeScoreAnalysis = async (req, res) => {
     }
 
     const memeObj = meme.toObject()
-    const hotScore = calculateMemeHotScore(memeObj)
+    const hotScore = await calculateMemeHotScore(memeObj)
     const hotLevel = getHotScoreLevel(hotScore)
     const engagementScore = calculateEngagementScore(memeObj)
     const qualityScore = calculateQualityScore(memeObj)
@@ -2361,7 +2361,7 @@ export const getRandomMeme = async (req, res) => {
     const meme = randomMeme[0]
 
     // 計算熱門分數和等級
-    const hotScore = calculateMemeHotScore(meme)
+    const hotScore = await calculateMemeHotScore(meme)
     const hotLevel = getHotScoreLevel(hotScore)
     const engagementScore = calculateEngagementScore(meme)
     const qualityScore = calculateQualityScore(meme)

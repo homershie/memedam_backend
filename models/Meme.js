@@ -611,8 +611,8 @@ MemeSchema.pre('validate', function (next) {
 })
 
 // 添加實例方法：計算並更新熱門分數
-MemeSchema.methods.updateHotScore = function () {
-  const hotScore = calculateMemeHotScore(this)
+MemeSchema.methods.updateHotScore = async function () {
+  const hotScore = await calculateMemeHotScore(this)
   this.hot_score = hotScore
   return this.save()
 }
@@ -656,7 +656,7 @@ MemeSchema.statics.batchUpdateHotScores = async function () {
   const memes = await this.find({ status: { $ne: 'deleted' } })
 
   const updatePromises = memes.map(async (meme) => {
-    const hotScore = calculateMemeHotScore(meme)
+    const hotScore = await calculateMemeHotScore(meme)
     return this.findByIdAndUpdate(meme._id, { hot_score: hotScore }, { new: true })
   })
 

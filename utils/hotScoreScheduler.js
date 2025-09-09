@@ -80,7 +80,7 @@ export const batchUpdateHotScores = async (options = {}) => {
               continue
             }
 
-            const hotScore = calculateMemeHotScore(meme)
+            const hotScore = await calculateMemeHotScore(meme)
 
             // 驗證計算結果
             if (typeof hotScore !== 'number' || isNaN(hotScore)) {
@@ -190,7 +190,7 @@ export const updateSingleMemeHotScore = async (memeId) => {
       throw new Error('找不到迷因')
     }
 
-    const hotScore = calculateMemeHotScore(meme)
+    const hotScore = await calculateMemeHotScore(meme)
     const hotLevel = getHotScoreLevel(hotScore)
 
     meme.hot_score = hotScore
