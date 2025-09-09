@@ -31,6 +31,8 @@ class IntegratedCache {
 
       // 設定版本管理器的 Redis 實例
       this.versionManager.redis = this.redis
+      // 設定快取管理器的 Redis 實例
+      this.manager.redis = this.redis
 
       logger.info('整合快取系統初始化成功')
       return true
@@ -110,6 +112,29 @@ class IntegratedCache {
    */
   async clearAll() {
     return await this.manager.clearAll()
+  }
+
+  /**
+   * 設定快取
+   * @param {string} cacheKey - 快取鍵
+   * @param {any} value - 快取值
+   * @param {object} options - 選項
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async set(cacheKey, value, options = {}) {
+    const { ttl = 3600, useVersion = false } = options
+    return await this.manager.set(cacheKey, value, { ttl, useVersion })
+  }
+
+  /**
+   * 取得快取
+   * @param {string} cacheKey - 快取鍵
+   * @param {object} options - 選項
+   * @returns {Promise<any>} 快取值
+   */
+  async get(cacheKey, options = {}) {
+    const { useVersion = false, clientVersion = null } = options
+    return await this.manager.get(cacheKey, { useVersion, clientVersion })
   }
 
   /**

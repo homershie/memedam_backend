@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js'
 import integratedCache from '../config/cache.js'
 import notificationQueue from './notificationQueue.js'
 import currency from 'currency.js'
+import exchangeRateService from './exchangeRateService.js'
 
 /**
  * Ko-fi 服務類
@@ -774,7 +775,7 @@ class KofiService {
    * @param {String} toCurrency - 目標幣別 (預設為 USD)
    * @returns {Object} 換匯結果
    */
-  convertCurrency(amount, fromCurrency, toCurrency = 'USD') {
+  async convertCurrency(amount, fromCurrency, toCurrency = 'USD') {
     try {
       if (!amount || amount <= 0) {
         return {
@@ -799,7 +800,7 @@ class KofiService {
       }
 
       // 使用currency.js進行轉換
-      const exchangeRate = this.getExchangeRate(fromCurrency, toCurrency)
+      const exchangeRate = await this.getExchangeRate(fromCurrency, toCurrency)
       if (!exchangeRate) {
         return {
           success: false,
@@ -811,8 +812,12 @@ class KofiService {
         }
       }
 
-      // 創建來源貨幣實例並進行轉換
-      const sourceCurrency = currency(amount, { fromCents: false })
+      // 使用 currency.js 進行精確的貨幣計算
+      // currency.js 提供更好的浮點數處理，避免 JavaScript 浮點誤差
+      const sourceCurrency = currency(amount, {
+        fromCents: false,
+        precision: 2, // 設定小數點精度
+      })
       const convertedAmount = sourceCurrency.multiply(exchangeRate).value
 
       return {
@@ -837,82 +842,14 @@ class KofiService {
   }
 
   /**
-   * 獲取匯率（基於USD）
-   * 支援的幣別：USD, TWD, HKD, JPY, CNY, SGD, CAD, AUD, EUR, GBP
+   * 獲取匯率（使用快取服務）
+   * 支援的幣別：USD, TWD, HKD, MOP, JPY, CNY, SGD, KRW, THB, IDR, PHP, VND, MYR, CAD, AUD, EUR, GBP
    * @param {String} fromCurrency - 來源幣別
    * @param {String} toCurrency - 目標幣別
    * @returns {Number|null} 匯率或null
    */
-  getExchangeRate(fromCurrency, toCurrency) {
-    // 匯率表（每單位外幣兌換USD的數量）
-    // 注意：實際應用中應該從可靠的API獲取實時匯率
-    const exchangeRatesToUSD = {
-      // 東亞、中文圈國家
-      TWD: 1 / 32.5, // 新台幣 (1 TWD ≈ 0.0308 USD)
-      HKD: 1 / 7.8, // 港幣 (1 HKD ≈ 0.1282 USD)
-      MOP: 1 / 8.0, // 澳門幣 (1 MOP ≈ 0.125 USD)
-      JPY: 1 / 150, // 日幣 (1 JPY ≈ 0.0067 USD)
-      CNY: 1 / 7.2, // 人民幣 (1 CNY ≈ 0.1389 USD)
-      SGD: 1 / 1.35, // 新加坡幣 (1 SGD ≈ 0.7407 USD)
-      KRW: 1 / 1350, // 韓幣 (1 KRW ≈ 0.00074 USD)
-
-      // 東南亞國家
-      THB: 1 / 36.5, // 泰銖 (1 THB ≈ 0.0274 USD)
-      IDR: 1 / 15500, // 印尼盾 (1 IDR ≈ 0.0000645 USD)
-      PHP: 1 / 56.0, // 菲律賓比索 (1 PHP ≈ 0.01786 USD)
-      VND: 1 / 23000, // 越南盾 (1 VND ≈ 0.0000435 USD)
-      MYR: 1 / 4.5, // 馬來西亞令吉 (1 MYR ≈ 0.2222 USD)
-
-      // 美加等國
-      USD: 1, // 美元 (基準幣別)
-      CAD: 0.73, // 加幣 (1 CAD ≈ 0.73 USD)
-      AUD: 0.65, // 澳幣 (1 AUD ≈ 0.65 USD)
-
-      // 歐洲主要貨幣
-      EUR: 1.08, // 歐元 (1 EUR ≈ 1.08 USD)
-      GBP: 1.27, // 英鎊 (1 GBP ≈ 1.27 USD)
-    }
-
-    // 驗證支援的幣別
-    const supportedCurrencies = Object.keys(exchangeRatesToUSD)
-    if (!supportedCurrencies.includes(fromCurrency) || !supportedCurrencies.includes(toCurrency)) {
-      logger.warn(`不支援的幣別: ${fromCurrency} 或 ${toCurrency}`)
-      return null
-    }
-
-    // 如果都是USD，直接返回1
-    if (fromCurrency === 'USD' && toCurrency === 'USD') {
-      return 1
-    }
-
-    // 計算從來源幣別到目標幣別的匯率
-    const fromToUSD = exchangeRatesToUSD[fromCurrency]
-    const toToUSD = exchangeRatesToUSD[toCurrency]
-
-    if (!fromToUSD || !toToUSD) {
-      logger.warn(`無法獲取匯率: ${fromCurrency} -> ${toCurrency}`)
-      return null
-    }
-
-    // 計算匯率：來源幣別 -> USD -> 目標幣別
-    // 例如：TWD -> USD = fromToUSD (因為fromToUSD已經是1 TWD = X USD)
-    //       USD -> TWD = 1 / fromToUSD (因為1 USD = 1/X TWD，所以需要反轉)
-    let rate
-    if (fromCurrency === 'USD') {
-      // 從USD轉換到其他幣別
-      rate = 1 / toToUSD
-    } else if (toCurrency === 'USD') {
-      // 從其他幣別轉換到USD
-      rate = fromToUSD
-    } else {
-      // 從其他幣別轉換到其他幣別
-      rate = fromToUSD / toToUSD
-    }
-
-    logger.debug(
-      `匯率計算: ${fromCurrency} -> ${toCurrency} = ${rate} (fromToUSD: ${fromToUSD}, toToUSD: ${toToUSD})`,
-    )
-    return rate
+  async getExchangeRate(fromCurrency, toCurrency) {
+    return await exchangeRateService.getExchangeRate(fromCurrency, toCurrency)
   }
 
   /**

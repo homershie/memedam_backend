@@ -125,11 +125,8 @@ class RedisCache {
       const value = await this.client.get(key)
       if (!value) return null
 
-      try {
-        return JSON.parse(value)
-      } catch {
-        return value
-      }
+      // 返回原始字串，讓 CacheManager 處理解析
+      return value
     } catch (error) {
       logger.error('Redis 取得快取失敗:', error)
       return null

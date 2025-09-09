@@ -11,6 +11,9 @@ import {
   handleKofiShopOrderWebhook,
   getSupportedCurrencies,
   convertCurrency,
+  getExchangeRateCacheStats,
+  clearExchangeRateCache,
+  updateExchangeRate,
 } from '../controllers/sponsorController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
 import { validateKofiWebhook } from '../middleware/kofiWebhookValidation.js'
@@ -295,6 +298,11 @@ router.post('/log-access', logSponsorPageAccess)
 // 幣別相關功能
 router.get('/currencies/supported', getSupportedCurrencies)
 router.post('/currencies/convert', convertCurrency)
+
+// 匯率管理功能（管理員專用）
+router.get('/currencies/exchange-rates/cache/stats', token, isManager, getExchangeRateCacheStats)
+router.post('/currencies/exchange-rates/cache/clear', token, isManager, clearExchangeRateCache)
+router.put('/currencies/exchange-rates/:from/:to', token, isManager, updateExchangeRate)
 
 // Ko-fi Shop Order Webhook（使用 Ko-fi 驗證）
 router.post('/webhooks/kofi/shop-orders', validateKofiWebhook, handleKofiShopOrderWebhook)

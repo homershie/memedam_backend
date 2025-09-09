@@ -1,6 +1,7 @@
 import Sponsor from '../models/Sponsor.js'
 import { logger } from '../utils/logger.js'
 import kofiService from '../services/kofiService.js'
+import exchangeRateService from '../services/exchangeRateService.js'
 
 // 建立贊助
 export const createSponsor = async (req, res) => {
@@ -882,4 +883,110 @@ function getCurrencyRegion(currency) {
     GBP: '歐洲',
   }
   return regions[currency] || '其他'
+}
+
+// 獲取匯率快取統計資訊
+export const getExchangeRateCacheStats = async (req, res) => {
+  try {
+    const stats = await exchangeRateService.getCacheStats()
+    res.json({
+      success: true,
+      data: stats,
+      error: null,
+    })
+  } catch (error) {
+    logger.error('獲取匯率快取統計失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}
+
+// 清除匯率快取
+export const clearExchangeRateCache = async (req, res) => {
+  try {
+    const { from, to } = req.query
+
+    let result
+    if (from && to) {
+      // 清除特定幣別對的快取
+      result = await exchangeRateService.clearCache(from.toUpperCase(), to.toUpperCase())
+    } else {
+      // 清除所有匯率快取
+      result = await exchangeRateService.clearAllCache()
+    }
+
+    if (result) {
+      res.json({
+        success: true,
+        message: from && to ? `已清除 ${from}/${to} 匯率快取` : '已清除所有匯率快取',
+        error: null,
+      })
+    } else {
+      res.status(500).json({
+        success: false,
+        message: '清除快取失敗',
+        error: null,
+      })
+    }
+  } catch (error) {
+    logger.error('清除匯率快取失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}
+
+// 更新匯率
+export const updateExchangeRate = async (req, res) => {
+  try {
+    const { from, to } = req.params
+    const { rate, ttl } = req.body
+
+    if (!rate || rate <= 0) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '請提供有效的匯率值',
+      })
+    }
+
+    const success = await exchangeRateService.updateExchangeRate(
+      from.toUpperCase(),
+      to.toUpperCase(),
+      parseFloat(rate),
+      ttl || exchangeRateService.defaultCacheTime,
+    )
+
+    if (success) {
+      res.json({
+        success: true,
+        message: `已更新 ${from}/${to} 匯率為 ${rate}`,
+        data: {
+          from_currency: from.toUpperCase(),
+          to_currency: to.toUpperCase(),
+          rate: parseFloat(rate),
+          updated_at: new Date().toISOString(),
+        },
+        error: null,
+      })
+    } else {
+      res.status(500).json({
+        success: false,
+        message: '更新匯率失敗',
+        error: null,
+      })
+    }
+  } catch (error) {
+    logger.error('更新匯率失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
 }
