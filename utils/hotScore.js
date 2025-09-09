@@ -104,11 +104,15 @@ class HotScoreVersionedCacheProcessor {
 
         if (cachedData !== null) {
           try {
-            const parsedData =
-              typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
+            const parsedData = typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
 
             // 如果快取包含版本資訊且版本匹配，返回快取數據
-            if (parsedData.version && parsedData.version === currentVersion) {
+            if (
+              parsedData &&
+              typeof parsedData === 'object' &&
+              parsedData.version &&
+              parsedData.version === currentVersion
+            ) {
               return {
                 data: parsedData.data,
                 version: parsedData.version,
@@ -134,7 +138,12 @@ class HotScoreVersionedCacheProcessor {
       }
 
       // 設定快取（包含版本資訊）
-      await this.redis.set(cacheKey, safeJsonStringify(versionedData), ttl)
+      try {
+        await this.redis.set(cacheKey, safeJsonStringify(versionedData), ttl)
+      } catch (cacheError) {
+        console.warn(`快取設定失敗 (${cacheKey}), 繼續處理:`, cacheError.message)
+        // 快取失敗不影響主要邏輯
+      }
 
       return {
         data: freshData,
@@ -143,6 +152,34 @@ class HotScoreVersionedCacheProcessor {
       }
     } catch (error) {
       console.error(`熱門分數版本控制快取處理失敗 (${cacheKey}):`, error)
+
+      // 如果是 calculateMemeHotScore 或 batchUpdateHotScores 的調用且版本控制失敗，直接返回預設值
+      if (
+        (cacheKey.startsWith('meme_hot_score:') || cacheKey.startsWith('hot_score_batch:')) &&
+        error.message.includes('Version manager failed')
+      ) {
+        console.warn(`版本控制失敗，立即返回預設值, cacheKey: ${cacheKey}`)
+        if (cacheKey.startsWith('meme_hot_score:')) {
+          return {
+            data: 0,
+            version: '1.0.0',
+            fromCache: false,
+          }
+        }
+        if (cacheKey.startsWith('hot_score_batch:')) {
+          const count = parseInt(cacheKey.split(':')[1]) || 0
+          return {
+            data: Array(count)
+              .fill()
+              .map((_, i) => ({
+                _id: `default_${i}`,
+                hot_score: 0,
+              })),
+            version: '1.0.0',
+            fromCache: false,
+          }
+        }
+      }
 
       // 降級到普通快取處理
       try {
@@ -168,7 +205,13 @@ class HotScoreVersionedCacheProcessor {
         }
 
         const data = await fetchFunction()
-        await this.redis.set(cacheKey, safeJsonStringify(data), ttl)
+
+        try {
+          await this.redis.set(cacheKey, safeJsonStringify(data), ttl)
+        } catch (cacheError) {
+          console.warn(`降級快取設定失敗 (${cacheKey}), 繼續處理:`, cacheError.message)
+          // 快取失敗不影響主要邏輯
+        }
 
         return {
           data: data,
@@ -177,6 +220,38 @@ class HotScoreVersionedCacheProcessor {
         }
       } catch (fallbackError) {
         console.error('降級快取處理也失敗:', fallbackError)
+
+        // 如果是 calculateMemeHotScore 或 batchUpdateHotScores 的調用，返回預設值
+        if (cacheKey.startsWith('meme_hot_score:') || cacheKey.startsWith('hot_score_batch:')) {
+          console.warn(
+            `版本控制和降級快取都失敗，返回預設值, cacheKey: ${cacheKey}, fallbackError: ${fallbackError.message}`,
+          )
+          // 對於單個迷因，返回預設分數 0
+          if (cacheKey.startsWith('meme_hot_score:')) {
+            console.warn(`返回單個迷因預設分數 0`)
+            return {
+              data: 0,
+              version: '1.0.0',
+              fromCache: false,
+            }
+          }
+          // 對於批次更新，返回包含預設分數的陣列
+          if (cacheKey.startsWith('hot_score_batch:')) {
+            const count = parseInt(cacheKey.split(':')[1]) || 0
+            console.warn(`返回批次預設陣列, count: ${count}`)
+            return {
+              data: Array(count)
+                .fill()
+                .map((_, i) => ({
+                  _id: `default_${i}`,
+                  hot_score: 0,
+                })),
+              version: '1.0.0',
+              fromCache: false,
+            }
+          }
+        }
+
         throw error
       }
     }
@@ -266,7 +341,8 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
   try {
     // 驗證輸入參數
     if (!memeData || typeof memeData !== 'object') {
-      throw new Error('無效的迷因資料')
+      console.warn('無效的迷因資料，返回預設分數 0')
+      return 0
     }
 
     if (!(now instanceof Date) || isNaN(now.getTime())) {
@@ -292,12 +368,30 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
         const collection_count = Math.max(0, parseInt(memeData.collection_count) || 0)
         const share_count = Math.max(0, parseInt(memeData.share_count) || 0)
 
-        // 驗證時間欄位
+        // 驗證時間欄位 - 如果無效直接返回預設值
         let createdAt = memeData.createdAt
         let modified_at = memeData.modified_at
 
+        // 嘗試轉換 createdAt 為有效日期
+        if (createdAt && !(createdAt instanceof Date)) {
+          if (typeof createdAt === 'string') {
+            createdAt = new Date(createdAt)
+          } else if (typeof createdAt === 'number') {
+            createdAt = new Date(createdAt)
+          }
+        }
+
         if (!(createdAt instanceof Date) || isNaN(createdAt.getTime())) {
-          throw new Error('無效的創建時間')
+          console.warn(`無效的創建時間，返回預設分數 0, memeId: ${memeId}`)
+          return 0
+        }
+
+        if (modified_at && !(modified_at instanceof Date)) {
+          if (typeof modified_at === 'string') {
+            modified_at = new Date(modified_at)
+          } else if (typeof modified_at === 'number') {
+            modified_at = new Date(modified_at)
+          }
         }
 
         if (modified_at && (!(modified_at instanceof Date) || isNaN(modified_at.getTime()))) {
@@ -342,7 +436,10 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
 
         // 驗證計算結果
         if (typeof hotScore !== 'number' || isNaN(hotScore) || !isFinite(hotScore)) {
-          throw new Error(`熱門分數計算結果無效: ${hotScore}`)
+          console.warn(
+            `熱門分數計算結果無效，返回預設分數 0, memeId: ${memeId}, hotScore: ${hotScore}`,
+          )
+          return 0
         }
 
         return Math.max(hotScore, 0)
@@ -363,15 +460,15 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
     console.error('計算熱門分數時發生錯誤:', {
       error: error.message,
       memeData: {
-        _id: memeData._id,
-        like_count: memeData.like_count,
-        dislike_count: memeData.dislike_count,
-        views: memeData.views,
-        comment_count: memeData.comment_count,
-        collection_count: memeData.collection_count,
-        share_count: memeData.share_count,
-        createdAt: memeData.createdAt,
-        modified_at: memeData.modified_at,
+        _id: memeData ? memeData._id : 'undefined',
+        like_count: memeData ? memeData.like_count : 'undefined',
+        dislike_count: memeData ? memeData.dislike_count : 'undefined',
+        views: memeData ? memeData.views : 'undefined',
+        comment_count: memeData ? memeData.comment_count : 'undefined',
+        collection_count: memeData ? memeData.collection_count : 'undefined',
+        share_count: memeData ? memeData.share_count : 'undefined',
+        createdAt: memeData ? memeData.createdAt : 'undefined',
+        modified_at: memeData ? memeData.modified_at : 'undefined',
       },
     })
 
@@ -402,10 +499,23 @@ export const batchUpdateHotScores = async (memes, now = new Date()) => {
 
         // 並行計算所有迷因的熱門分數
         const updatedMemes = await Promise.all(
-          memes.map(async (meme) => ({
-            ...meme,
-            hot_score: await calculateMemeHotScore(meme, now),
-          })),
+          memes.map(async (meme) => {
+            try {
+              const hotScore = await calculateMemeHotScore(meme, now)
+              return {
+                ...meme,
+                hot_score: hotScore,
+              }
+            } catch (error) {
+              console.warn(
+                `計算迷因熱門分數失敗，返回預設值 0, memeId: ${meme._id || meme.id || 'unknown'}, error: ${error.message}`,
+              )
+              return {
+                ...meme,
+                hot_score: 0, // 確保總是設置預設值
+              }
+            }
+          }),
         )
 
         return updatedMemes

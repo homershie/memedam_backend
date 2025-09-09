@@ -357,8 +357,16 @@ describe('熱門分數系統測試', () => {
         .fn()
         .mockRejectedValue(new Error('Version manager failed'))
 
+      // Mock Redis 確保沒有快取數據
+      const redisCache = await import('../../../config/redis.js')
+      const originalGet = redisCache.default.get
+      const originalSet = redisCache.default.set
+
+      redisCache.default.get = vi.fn().mockResolvedValue(null) // 確保快取未命中
+      redisCache.default.set = vi.fn().mockResolvedValue('OK')
+
       const memeData = {
-        _id: 'test_version_fail',
+        _id: 'test_version_fail_unique_' + Date.now(), // 使用唯一ID避免快取污染
         like_count: 10,
         dislike_count: 0,
         views: 50,
@@ -371,9 +379,12 @@ describe('熱門分數系統測試', () => {
       // 應該不會拋出錯誤，而是繼續處理
       const hotScore = await calculateMemeHotScore(memeData)
       expect(typeof hotScore).toBe('number')
+      expect(hotScore).toBe(0) // 應該返回預設值 0
 
       // 恢復原始方法
       cacheVersionManager.default.getVersion = originalGetVersion
+      redisCache.default.get = originalGet
+      redisCache.default.set = originalSet
     })
   })
 
