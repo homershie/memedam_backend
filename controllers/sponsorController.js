@@ -425,6 +425,17 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
       requires_manual_review: messageReview.requires_manual_review,
     })
 
+    // 解析金額
+    const parsedAmount = parseFloat(amount)
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      logger.error('Ko-fi Webhook: 無效的金額', { amount, parsedAmount })
+      if (session) await session.abortTransaction()
+      return res.status(400).json({
+        success: false,
+        error: '無效的金額',
+      })
+    }
+
     // 幣別換匯處理
     const finalAmount = shopItemsInfo.merged ? shopItemsInfo.total_amount : parsedAmount
     let currencyConversion, twdConversion
@@ -475,15 +486,6 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
     }
 
     // 建立新的贊助記錄
-    const parsedAmount = parseFloat(amount)
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      logger.error('Ko-fi Webhook: 無效的金額', { amount, parsedAmount })
-      await session.abortTransaction()
-      return res.status(400).json({
-        success: false,
-        error: '無效的金額',
-      })
-    }
 
     const sponsorData = {
       user_id: user?._id || null,
