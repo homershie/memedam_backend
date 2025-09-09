@@ -32,6 +32,22 @@ class ExchangeRateService {
       'EUR',
       'GBP',
     ]
+
+    // CurrencyAPI 免費版限制控制
+    this.currencyApiLimits = {
+      monthlyLimit: 300, // 每月300次請求
+      perMinuteLimit: 10, // 每分鐘10次請求
+      requestCount: 0, // 當前請求計數
+      lastRequestTime: 0, // 最後請求時間
+      requestHistory: [], // 請求歷史記錄
+      isLimitExceeded: false, // 是否超過限制
+    }
+
+    // 請求間隔控制（每分鐘最多10次）
+    this.minRequestInterval = 6000 // 6秒 = 60秒/10次
+
+    // 當超過限制時，延長快取時間
+    this.extendedCacheTime = 172800 // 48小時（超過限制時）
   }
 
   /**
@@ -133,37 +149,203 @@ class ExchangeRateService {
     try {
       // 台灣央行API基礎資訊
 
-      // 根據幣別對選擇適當的項目代號
-      let fileName = null
-      let rateField = null
+      // 多來源備援策略
+      let rate = null
 
-      // 處理不同幣別對的映射
+      // 1. 優先嘗試台灣央行API（台灣相關幣別）
       if (
         (fromCurrency === 'USD' && toCurrency === 'TWD') ||
         (fromCurrency === 'TWD' && toCurrency === 'USD')
       ) {
-        // 美元對新台幣
-        fileName = 'EG51D01' // 美元即期匯率日資料
-        rateField = '即期匯率'
-      } else if (fromCurrency === 'USD' || toCurrency === 'USD') {
-        // 其他幣別對美元
-        fileName = 'BP01D01' // 我國與主要貿易對手通貨對美元之匯率日資料
-        rateField = '匯率'
-      } else {
-        // 跨幣別轉換：先轉換為美元，再轉換到目標幣別
-        const toUSDRate = await this.fetchRateFromCB(fromCurrency, 'USD')
-        if (!toUSDRate) return null
-
-        const fromUSDRate = await this.fetchRateFromCB('USD', toCurrency)
-        if (!fromUSDRate) return null
-
-        return toUSDRate / fromUSDRate
+        rate = await this.fetchFromCB(fromCurrency, toCurrency)
+        if (rate) return rate
       }
 
-      return await this.fetchRateFromCB(fromCurrency, toCurrency, fileName, rateField)
+      // 2. 嘗試CurrencyAPI（國際幣別）
+      rate = await this.fetchFromCurrencyAPI(fromCurrency, toCurrency)
+      if (rate) return rate
+
+      // 3. 使用靜態備用匯率
+      return this.getFallbackRate(fromCurrency, toCurrency)
     } catch (error) {
       logger.error('從台灣央行API獲取匯率失敗:', error)
       return null
+    }
+  }
+
+  /**
+   * 從台灣央行API獲取匯率（簡化版本）
+   */
+  async fetchFromCB(fromCurrency, toCurrency) {
+    try {
+      // 參數驗證（避免ESLint未使用變數警告）
+      if (!fromCurrency || !toCurrency) {
+        logger.error('fetchFromCB: 缺少必要參數')
+        return null
+      }
+
+      // 目前只支援 USD/TWD
+      if (fromCurrency !== 'USD' || toCurrency !== 'TWD') {
+        logger.warn(`fetchFromCB: 不支援的幣別對 ${fromCurrency}/${toCurrency}，只支援 USD/TWD`)
+        return null
+      }
+
+      const baseURL = 'https://cpx.cbc.gov.tw/API/DataAPI/Get'
+      const fileName = 'EG51D01' // USD/TWD 專用
+      const apiURL = `${baseURL}?FileName=${fileName}`
+
+      const response = await fetch(apiURL, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Memedam-Backend/1.0',
+        },
+        timeout: 10000,
+      })
+
+      if (!response.ok) {
+        throw new Error(`央行API錯誤: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (!data.data || !data.data[0] || !data.data[0].length) {
+        return null
+      }
+
+      // 使用日平均匯率（索引3）
+      const latestData = data.data[0][0]
+      const avgRate = parseFloat(latestData[3])
+
+      return avgRate > 0 ? avgRate : null
+    } catch (error) {
+      logger.error('台灣央行API調用失敗:', error)
+      return null
+    }
+  }
+
+  /**
+   * 檢查是否可以進行 CurrencyAPI 請求
+   */
+  canMakeCurrencyAPIRequest() {
+    const now = Date.now()
+    const limits = this.currencyApiLimits
+
+    // 檢查每月限制
+    if (limits.requestCount >= limits.monthlyLimit) {
+      logger.warn(
+        `CurrencyAPI 每月請求限制已達上限 (${limits.requestCount}/${limits.monthlyLimit})`,
+      )
+      limits.isLimitExceeded = true
+      return false
+    }
+
+    // 檢查每分鐘限制
+    const timeSinceLastRequest = now - limits.lastRequestTime
+    if (timeSinceLastRequest < this.minRequestInterval) {
+      const waitTime = Math.ceil((this.minRequestInterval - timeSinceLastRequest) / 1000)
+      logger.debug(`CurrencyAPI 請求間隔限制，需等待 ${waitTime} 秒`)
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * 記錄 CurrencyAPI 請求
+   */
+  recordCurrencyAPIRequest() {
+    const now = Date.now()
+    const limits = this.currencyApiLimits
+
+    limits.requestCount++
+    limits.lastRequestTime = now
+    limits.requestHistory.push(now)
+
+    // 清理舊的請求記錄（保留最近24小時的記錄）
+    const oneDayAgo = now - 24 * 60 * 60 * 1000
+    limits.requestHistory = limits.requestHistory.filter((time) => time > oneDayAgo)
+
+    logger.debug(`CurrencyAPI 請求計數: ${limits.requestCount}/${limits.monthlyLimit}`)
+  }
+
+  /**
+   * 從CurrencyAPI獲取匯率
+   */
+  async fetchFromCurrencyAPI(fromCurrency, toCurrency) {
+    try {
+      const apiKey = process.env.CURRENCYAPI_KEY
+      if (!apiKey) {
+        logger.debug('CURRENCYAPI_KEY 未設定')
+        return null
+      }
+
+      // 檢查請求限制
+      if (!this.canMakeCurrencyAPIRequest()) {
+        logger.warn('CurrencyAPI 請求被限制，改用備用匯率')
+        return null
+      }
+
+      // CurrencyAPI v3 格式：只需要 API key，返回所有幣別對 USD 的匯率
+      const url = `https://api.currencyapi.com/v3/latest?apikey=${apiKey}`
+
+      logger.debug(`調用 CurrencyAPI: ${url}`)
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Memedam-Backend/1.0',
+        },
+        timeout: 10000,
+      })
+
+      if (!response.ok) {
+        throw new Error(`CurrencyAPI錯誤: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (!data.data) return null
+
+      let rate = null
+      if (fromCurrency === 'USD') {
+        rate = data.data[toCurrency]?.value
+      } else if (toCurrency === 'USD') {
+        rate = data.data[fromCurrency]?.value
+      } else {
+        const fromRate = data.data[fromCurrency]?.value
+        const toRate = data.data[toCurrency]?.value
+        rate = fromRate && toRate ? toRate / fromRate : null
+      }
+
+      if (rate && rate > 0) {
+        // 記錄成功請求
+        this.recordCurrencyAPIRequest()
+        logger.info(`從CurrencyAPI獲取匯率成功: ${fromCurrency}/${toCurrency} = ${rate}`)
+        return rate
+      }
+
+      logger.warn(`CurrencyAPI 無法提供 ${fromCurrency}/${toCurrency} 匯率`)
+      return null
+    } catch (error) {
+      // 記錄失敗請求（仍然計入限制）
+      this.recordCurrencyAPIRequest()
+      logger.error('CurrencyAPI調用失敗:', error)
+      return null
+    }
+  }
+
+  /**
+   * 獲取靜態備用匯率
+   */
+  getFallbackRate(fromCurrency, toCurrency) {
+    if (fromCurrency === 'USD') {
+      return this.fallbackRates[toCurrency] || null
+    } else if (toCurrency === 'USD') {
+      return this.fallbackRates[fromCurrency] || null
+    } else {
+      const toUSD = this.fallbackRates[fromCurrency]
+      const fromUSD = this.fallbackRates[toCurrency]
+      return toUSD && fromUSD ? toUSD / fromUSD : null
     }
   }
 
