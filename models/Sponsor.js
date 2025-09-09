@@ -195,11 +195,111 @@ const SponsorSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    message_original: {
+      type: String,
+      default: '',
+      maxlength: [2000, '原始訊息長度不能超過2000字'],
+      comment: '原始訊息內容（過濾前）',
+    },
+    message_filter_reason: {
+      type: String,
+      default: null,
+      enum: {
+        values: [
+          'message_too_long',
+          'inappropriate_content',
+          'advertisement_content',
+          'repeated_content',
+          'too_many_special_chars',
+          'review_error',
+          null,
+        ],
+        message: '無效的過濾原因',
+      },
+      comment: '訊息過濾原因',
+    },
+    message_filter_severity: {
+      type: String,
+      default: 'low',
+      enum: {
+        values: ['low', 'medium', 'high'],
+        message: '無效的過濾嚴重程度',
+      },
+      comment: '訊息過濾嚴重程度',
+    },
+    requires_manual_review: {
+      type: Boolean,
+      default: false,
+      comment: '是否需要人工審核',
+    },
+
+    // Shop Items 處理資訊
+    shop_items_parsed: {
+      type: Boolean,
+      default: false,
+      comment: '是否已解析 Shop Items 數據',
+    },
+    shop_items_merged: {
+      type: Boolean,
+      default: false,
+      comment: '是否合併了多個 Shop Items',
+    },
+    shop_items_quantity: {
+      type: Number,
+      default: 1,
+      comment: 'Shop Items 總數量',
+    },
+    shop_items_total_amount: {
+      type: Number,
+      default: null,
+      comment: 'Shop Items 總金額（合併後）',
+    },
+    shop_items_raw_total_amount: {
+      type: Number,
+      default: null,
+      comment: 'Shop Items 原始總金額（合併前）',
+    },
+    shop_items_merge_rule: {
+      type: String,
+      default: null,
+      enum: {
+        values: ['highest', 'sum', 'average', null],
+        message: '無效的合併規則',
+      },
+      comment: 'Shop Items 合併規則',
+    },
 
     // 多幣別支援
     amount_twd: {
       type: Number,
       default: null,
+      comment: '台幣金額',
+    },
+    amount_usd: {
+      type: Number,
+      default: null,
+      comment: '美元金額（統一基準）',
+    },
+    amount_original: {
+      type: Number,
+      default: null,
+      comment: '原始金額（原始幣別）',
+    },
+    currency_original: {
+      type: String,
+      default: '',
+      maxlength: [10, '原始幣別代碼長度不能超過10字'],
+      comment: '原始幣別代碼',
+    },
+    exchange_rate: {
+      type: Number,
+      default: null,
+      comment: '換匯匯率（相對於USD）',
+    },
+    exchange_rate_used: {
+      type: String,
+      default: '',
+      comment: '使用的匯率資訊',
     },
 
     // 統計與分析欄位

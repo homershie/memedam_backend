@@ -9,6 +9,8 @@ import {
   getSponsorByTransactionId,
   logSponsorPageAccess,
   handleKofiShopOrderWebhook,
+  getSupportedCurrencies,
+  convertCurrency,
 } from '../controllers/sponsorController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
 import { validateKofiWebhook } from '../middleware/kofiWebhookValidation.js'
@@ -289,6 +291,10 @@ router.post('/callback/buy-me-a-coffee', handleBuyMeACoffeeCallback)
 router.get('/transaction/:transaction_id', getSponsorByTransactionId)
 // 記錄贊助頁面訪問（無需認證）
 router.post('/log-access', logSponsorPageAccess)
+
+// 幣別相關功能
+router.get('/currencies/supported', getSupportedCurrencies)
+router.post('/currencies/convert', convertCurrency)
 
 // Ko-fi Shop Order Webhook（使用 Ko-fi 驗證）
 router.post('/webhooks/kofi/shop-orders', validateKofiWebhook, handleKofiShopOrderWebhook)

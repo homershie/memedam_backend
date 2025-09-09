@@ -398,6 +398,66 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
       })
     }
 
+    // 解析 Shop Items 數據並應用合併規則
+    const shopItemsInfo = await kofiService.parseShopItems(shop_items, direct_link_code)
+    logger.info('Ko-fi Webhook: Shop Items 解析完成', {
+      direct_link_code: shopItemsInfo.direct_link_code,
+      sponsor_level: shopItemsInfo.sponsor_level,
+      quantity: shopItemsInfo.quantity,
+      total_amount: shopItemsInfo.total_amount,
+      merged: shopItemsInfo.merged,
+      merge_rule: shopItemsInfo.merge_rule,
+      item_count: shopItemsInfo.items.length,
+    })
+
+    // 自動審核和過濾訊息內容
+    const messageReview = kofiService.reviewAndFilterMessage(message, {
+      sponsor_level: shopItemsInfo.level_key,
+      from_name: from_name,
+      email: email,
+    })
+    logger.info('Ko-fi Webhook: 訊息審核完成', {
+      reviewed: messageReview.reviewed,
+      filtered: messageReview.filtered,
+      filter_reason: messageReview.filter_reason,
+      severity: messageReview.severity,
+      requires_manual_review: messageReview.requires_manual_review,
+    })
+
+    // 幣別換匯處理
+    const finalAmount = shopItemsInfo.merged ? shopItemsInfo.total_amount : parsedAmount
+    let currencyConversion, twdConversion
+
+    try {
+      currencyConversion = kofiService.convertCurrency(finalAmount, currency, 'USD')
+      twdConversion = kofiService.convertCurrency(finalAmount, currency, 'TWD')
+
+      logger.info('Ko-fi Webhook: 幣別換匯完成', {
+        original_amount: finalAmount,
+        original_currency: currency,
+        usd_amount: currencyConversion.success ? currencyConversion.converted_amount : null,
+        twd_amount: twdConversion.success ? twdConversion.converted_amount : null,
+        exchange_rate: currencyConversion.success ? currencyConversion.exchange_rate : null,
+      })
+
+      if (!currencyConversion.success) {
+        logger.warn('Ko-fi Webhook: 幣別換匯失敗，將使用原始金額', {
+          error: currencyConversion.error,
+          original_currency: currency,
+          amount: finalAmount,
+        })
+      }
+    } catch (conversionError) {
+      logger.error('Ko-fi Webhook: 幣別換匯處理異常', {
+        error: conversionError.message,
+        original_currency: currency,
+        amount: finalAmount,
+      })
+      // 如果換匯失敗，使用默認值
+      currencyConversion = { success: false, converted_amount: null, exchange_rate: null }
+      twdConversion = { success: false, converted_amount: null }
+    }
+
     // 嘗試根據 email 找到現有用戶
     let user = null
     if (email) {
@@ -426,8 +486,8 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
 
     const sponsorData = {
       user_id: user?._id || null,
-      amount: parsedAmount,
-      message: message || '',
+      amount: shopItemsInfo.merged ? shopItemsInfo.total_amount : parsedAmount, // 使用解析後的總金額
+      message: messageReview.filtered ? messageReview.filtered_message : message || '', // 使用過濾後的訊息
       payment_method: 'ko-fi',
       transaction_id: kofi_transaction_id,
       status: 'success',
@@ -441,12 +501,39 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
       discord_userid: req.body.discord_userid || '',
       currency: currency || 'USD',
       type: 'Shop Order',
-      direct_link_code: direct_link_code ? direct_link_code.toUpperCase() : '',
-      shop_items: shop_items || [],
+      direct_link_code:
+        shopItemsInfo.direct_link_code || (direct_link_code ? direct_link_code.toUpperCase() : ''),
+      shop_items: shopItemsInfo.items, // 使用解析後的項目數據
       shipping: shipping || {},
       is_public: is_public !== undefined ? is_public : true,
-      sponsor_level: productInfo.level,
-      badge_earned: true, // Shop Order 預設獲得徽章
+      sponsor_level: shopItemsInfo.level_key || productInfo.level,
+      badge_earned: shopItemsInfo.level_key === 'coffee', // 只有咖啡等級獲得徽章
+
+      // Shop Items 處理資訊
+      shop_items_parsed: true,
+      shop_items_merged: shopItemsInfo.merged,
+      shop_items_quantity: shopItemsInfo.quantity,
+      shop_items_total_amount: shopItemsInfo.total_amount,
+      shop_items_raw_total_amount: shopItemsInfo.raw_total_amount || null,
+      shop_items_merge_rule: shopItemsInfo.merge_rule || null,
+
+      // 訊息審核資訊
+      message_reviewed: messageReview.reviewed,
+      message_auto_filtered: messageReview.filtered,
+      message_original: messageReview.original_message,
+      message_filter_reason: messageReview.filter_reason,
+      message_filter_severity: messageReview.severity,
+      requires_manual_review: messageReview.requires_manual_review,
+
+      // 幣別換匯資訊
+      amount_original: finalAmount,
+      currency_original: currency,
+      amount_usd: currencyConversion.success ? currencyConversion.converted_amount : null,
+      amount_twd: twdConversion.success ? twdConversion.converted_amount : null,
+      exchange_rate: currencyConversion.success ? currencyConversion.exchange_rate : null,
+      exchange_rate_used: currencyConversion.success
+        ? `${currency}/${currencyConversion.to_currency}@${currencyConversion.exchange_rate}`
+        : '',
 
       // IP 和處理資訊
       created_ip: clientIP,
@@ -549,8 +636,25 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
       data: {
         kofi_transaction_id,
         sponsor_id: sponsor._id,
-        sponsor_level: productInfo.level,
-        amount,
+        sponsor_level: shopItemsInfo.level_key,
+        amount: shopItemsInfo.merged ? shopItemsInfo.total_amount : amount,
+        shop_items_processed: true,
+        shop_items_count: shopItemsInfo.items.length,
+        shop_items_merged: shopItemsInfo.merged,
+        shop_items_quantity: shopItemsInfo.quantity,
+        shop_items_merge_rule: shopItemsInfo.merge_rule,
+        message_reviewed: messageReview.reviewed,
+        message_filtered: messageReview.filtered,
+        message_filter_reason: messageReview.filter_reason,
+        requires_manual_review: messageReview.requires_manual_review,
+        currency_conversion: {
+          success: currencyConversion.success,
+          original_amount: finalAmount,
+          original_currency: currency,
+          usd_amount: currencyConversion.success ? currencyConversion.converted_amount : null,
+          twd_amount: twdConversion.success ? twdConversion.converted_amount : null,
+          exchange_rate: currencyConversion.success ? currencyConversion.exchange_rate : null,
+        },
       },
     })
   } catch (error) {
@@ -615,4 +719,167 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
       }
     }
   }
+}
+
+// 獲取支援的幣別列表
+export const getSupportedCurrencies = async (req, res) => {
+  try {
+    const supportedCurrencies = kofiService.getSupportedCurrencies()
+
+    // 為每個幣別添加顯示資訊
+    const currenciesInfo = supportedCurrencies.map((currency) => ({
+      code: currency,
+      name: getCurrencyName(currency),
+      symbol: getCurrencySymbol(currency),
+      region: getCurrencyRegion(currency),
+    }))
+
+    res.json({
+      success: true,
+      data: currenciesInfo,
+      error: null,
+    })
+  } catch (error) {
+    logger.error('獲取支援幣別列表失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}
+
+// 測試幣別轉換
+export const convertCurrency = async (req, res) => {
+  try {
+    const { amount, from_currency, to_currency } = req.body
+
+    if (!amount || !from_currency || !to_currency) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: '缺少必要參數：amount, from_currency, to_currency',
+      })
+    }
+
+    const conversion = kofiService.convertCurrency(amount, from_currency, to_currency)
+
+    if (!conversion.success) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: conversion.error,
+      })
+    }
+
+    res.json({
+      success: true,
+      data: {
+        conversion,
+        formatted_original: kofiService.formatCurrency(conversion.original_amount, from_currency),
+        formatted_converted: kofiService.formatCurrency(conversion.converted_amount, to_currency),
+      },
+      error: null,
+    })
+  } catch (error) {
+    logger.error('幣別轉換測試失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
+}
+
+// 獲取幣別名稱
+function getCurrencyName(currency) {
+  const names = {
+    // 東亞、中文圈國家
+    USD: '美元',
+    TWD: '新台幣',
+    HKD: '港幣',
+    MOP: '澳門幣',
+    JPY: '日幣',
+    CNY: '人民幣',
+    SGD: '新加坡幣',
+    KRW: '韓幣',
+
+    // 東南亞國家
+    THB: '泰銖',
+    IDR: '印尼盾',
+    PHP: '菲律賓比索',
+    VND: '越南盾',
+    MYR: '馬來西亞令吉',
+
+    // 美加等國
+    CAD: '加幣',
+    AUD: '澳幣',
+
+    // 歐洲主要貨幣
+    EUR: '歐元',
+    GBP: '英鎊',
+  }
+  return names[currency] || currency
+}
+
+// 獲取幣別符號
+function getCurrencySymbol(currency) {
+  const symbols = {
+    // 東亞、中文圈國家
+    USD: '$',
+    TWD: 'NT$',
+    HKD: 'HK$',
+    MOP: 'MOP$',
+    JPY: '¥',
+    CNY: '¥',
+    SGD: 'S$',
+    KRW: '₩',
+
+    // 東南亞國家
+    THB: '฿',
+    IDR: 'Rp',
+    PHP: '₱',
+    VND: '₫',
+    MYR: 'RM',
+
+    // 美加等國
+    CAD: 'C$',
+    AUD: 'A$',
+
+    // 歐洲主要貨幣
+    EUR: '€',
+    GBP: '£',
+  }
+  return symbols[currency] || currency
+}
+
+// 獲取幣別地區
+function getCurrencyRegion(currency) {
+  const regions = {
+    // 東亞、中文圈國家
+    USD: '美洲',
+    TWD: '亞洲',
+    HKD: '亞洲',
+    MOP: '亞洲',
+    JPY: '亞洲',
+    CNY: '亞洲',
+    SGD: '亞洲',
+    KRW: '亞洲',
+
+    // 東南亞國家
+    THB: '亞洲',
+    IDR: '亞洲',
+    PHP: '亞洲',
+    VND: '亞洲',
+    MYR: '亞洲',
+
+    // 美加等國
+    CAD: '美洲',
+    AUD: '大洋洲',
+
+    // 歐洲主要貨幣
+    EUR: '歐洲',
+    GBP: '歐洲',
+  }
+  return regions[currency] || '其他'
 }

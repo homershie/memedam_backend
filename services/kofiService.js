@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger.js'
 import integratedCache from '../config/cache.js'
 import notificationQueue from './notificationQueue.js'
+import currency from 'currency.js'
 
 /**
  * Ko-fi 服務類
@@ -359,6 +360,664 @@ class KofiService {
     } finally {
       session.endSession()
     }
+  }
+
+  /**
+   * 解析 Shop Items 數據並應用合併規則
+   * @param {Array} shopItems - Ko-fi 的 shop_items 數組
+   * @param {String} defaultDirectLinkCode - 默認的商品代碼
+   * @returns {Object} 解析後的商品資訊
+   */
+  async parseShopItems(shopItems, defaultDirectLinkCode = null) {
+    try {
+      // 如果沒有 shop_items 或為空數組，使用默認商品代碼
+      if (!shopItems || !Array.isArray(shopItems) || shopItems.length === 0) {
+        const levelInfo = this.getSponsorLevelInfo(defaultDirectLinkCode)
+        return {
+          direct_link_code: defaultDirectLinkCode,
+          sponsor_level: levelInfo?.name || '未知',
+          level_key: this.getLevelKey(defaultDirectLinkCode),
+          quantity: 1,
+          total_amount: levelInfo?.amount || 0,
+          items: [],
+          merged: false,
+        }
+      }
+
+      // 處理多項目訂單
+      const parsedItems = []
+      let highestLevel = { key: 'soy', amount: 1, directLinkCode: null } // 默認最低等級
+      let totalQuantity = 0
+      let combineRule = 'highest' // 默認合併規則
+
+      for (const item of shopItems) {
+        if (!item.direct_link_code) continue
+
+        const levelInfo = this.getSponsorLevelInfo(item.direct_link_code)
+        if (!levelInfo) continue
+
+        const quantity = parseInt(item.quantity) || 1
+        const itemLevel = this.getLevelKey(item.direct_link_code)
+
+        parsedItems.push({
+          direct_link_code: item.direct_link_code,
+          variation_name: item.variation_name || '',
+          quantity: quantity,
+          level: levelInfo.name,
+          level_key: itemLevel,
+          amount: levelInfo.amount * quantity,
+        })
+
+        totalQuantity += quantity
+
+        // 比較等級決定最高等級
+        if (this.compareLevels(itemLevel, highestLevel.key) > 0) {
+          highestLevel = {
+            key: itemLevel,
+            amount: levelInfo.amount,
+            directLinkCode: item.direct_link_code,
+          }
+        }
+      }
+
+      // 如果只有一個項目，返回該項目資訊
+      if (parsedItems.length === 1) {
+        const item = parsedItems[0]
+        return {
+          direct_link_code: item.direct_link_code,
+          sponsor_level: item.level,
+          level_key: item.level_key,
+          quantity: item.quantity,
+          total_amount: item.amount,
+          items: parsedItems,
+          merged: false,
+        }
+      }
+
+      // 多項目時，嘗試從最高等級商品讀取合併規則
+      if (highestLevel.directLinkCode) {
+        try {
+          const SponsorshipProducts = (await import('../models/SponsorshipProducts.js')).default
+          const product = await SponsorshipProducts.findOne({
+            direct_link_code: highestLevel.directLinkCode.toUpperCase(),
+          })
+
+          if (product && product.combine_rule) {
+            combineRule = product.combine_rule
+            logger.info('使用商品合併規則', {
+              direct_link_code: highestLevel.directLinkCode,
+              combine_rule: combineRule,
+            })
+          }
+        } catch (error) {
+          logger.warn('讀取商品合併規則失敗，使用默認規則', {
+            direct_link_code: highestLevel.directLinkCode,
+            error: error.message,
+          })
+        }
+      }
+
+      // 根據合併規則計算最終金額
+      let finalAmount = 0
+      const totalAmount = parsedItems.reduce((sum, item) => sum + item.amount, 0)
+      const averageAmount = totalAmount / totalQuantity
+
+      switch (combineRule) {
+        case 'highest':
+          // 使用最高等級的商品金額（不考慮數量）
+          finalAmount = highestLevel.amount
+          break
+        case 'sum':
+          // 總金額
+          finalAmount = totalAmount
+          break
+        case 'average':
+          // 平均金額
+          finalAmount = averageAmount
+          break
+        default:
+          // 默認使用最高等級
+          finalAmount = highestLevel.amount
+          combineRule = 'highest'
+      }
+
+      return {
+        direct_link_code:
+          highestLevel.directLinkCode || this.getDirectLinkCodeFromLevel(highestLevel.key),
+        sponsor_level: this.getLevelName(highestLevel.key),
+        level_key: highestLevel.key,
+        quantity: totalQuantity,
+        total_amount: finalAmount,
+        raw_total_amount: totalAmount, // 保存原始總金額供參考
+        average_amount: averageAmount,
+        items: parsedItems,
+        merged: true,
+        merge_rule: combineRule,
+      }
+    } catch (error) {
+      logger.error('解析 Shop Items 失敗:', error)
+      // 返回默認值
+      const levelInfo = this.getSponsorLevelInfo(defaultDirectLinkCode)
+      return {
+        direct_link_code: defaultDirectLinkCode,
+        sponsor_level: levelInfo?.name || '未知',
+        level_key: this.getLevelKey(defaultDirectLinkCode),
+        quantity: 1,
+        total_amount: levelInfo?.amount || 0,
+        items: [],
+        merged: false,
+        error: error.message,
+      }
+    }
+  }
+
+  /**
+   * 根據等級鍵獲取商品代碼
+   * @param {String} levelKey - 等級鍵 (soy, chicken, coffee)
+   * @returns {String} 商品代碼
+   */
+  getDirectLinkCodeFromLevel(levelKey) {
+    const levelMap = {
+      soy: 'c4043b71a4',
+      chicken: 'b7e4575bf6',
+      coffee: '25678099a7',
+    }
+    return levelMap[levelKey] || 'c4043b71a4'
+  }
+
+  /**
+   * 根據等級鍵獲取等級名稱
+   * @param {String} levelKey - 等級鍵
+   * @returns {String} 等級名稱
+   */
+  getLevelName(levelKey) {
+    const nameMap = {
+      soy: '豆漿贊助',
+      chicken: '雞肉贊助',
+      coffee: '咖啡贊助',
+    }
+    return nameMap[levelKey] || '未知贊助'
+  }
+
+  /**
+   * 比較兩個贊助等級的高低
+   * @param {String} levelA - 等級鍵A
+   * @param {String} levelB - 等級鍵B
+   * @returns {Number} 比較結果 (-1: A低於B, 0: A等於B, 1: A高於B)
+   */
+  compareLevels(levelA, levelB) {
+    const levelOrder = { soy: 1, chicken: 2, coffee: 3 }
+    const orderA = levelOrder[levelA] || 0
+    const orderB = levelOrder[levelB] || 0
+    return orderA - orderB
+  }
+
+  /**
+   * 從商品代碼獲取等級鍵
+   * @param {String} directLinkCode - 商品代碼
+   * @returns {String} 等級鍵
+   */
+  getLevelKey(directLinkCode) {
+    const levelMap = {
+      c4043b71a4: 'soy',
+      b7e4575bf6: 'chicken',
+      '25678099a7': 'coffee',
+    }
+    return levelMap[directLinkCode] || 'soy'
+  }
+
+  /**
+   * 自動審核和過濾訊息內容
+   * @param {String} message - 訊息內容
+   * @param {Object} sponsorData - 贊助者資料
+   * @returns {Object} 審核結果
+   */
+  reviewAndFilterMessage(message, sponsorData = {}) {
+    try {
+      const reviewResult = {
+        reviewed: true,
+        filtered: false,
+        original_message: message,
+        filtered_message: message,
+        filter_reason: null,
+        severity: 'low', // low, medium, high
+        requires_manual_review: false,
+      }
+
+      if (!message || typeof message !== 'string') {
+        return reviewResult
+      }
+
+      const trimmedMessage = message.trim()
+      if (!trimmedMessage) {
+        return reviewResult
+      }
+
+      // 1. 檢查訊息長度
+      if (trimmedMessage.length > 500) {
+        reviewResult.filtered = true
+        reviewResult.filtered_message = trimmedMessage.substring(0, 500) + '...'
+        reviewResult.filter_reason = 'message_too_long'
+        reviewResult.severity = 'medium'
+        reviewResult.requires_manual_review = true
+        logger.warn('訊息過長，已自動截斷', {
+          original_length: trimmedMessage.length,
+          sponsor_level: sponsorData.sponsor_level,
+        })
+      }
+
+      // 2. 檢查是否有不適當的語言
+      const inappropriateWords = this.getInappropriateWords()
+      for (const word of inappropriateWords) {
+        if (trimmedMessage.toLowerCase().includes(word.toLowerCase())) {
+          reviewResult.filtered = true
+          reviewResult.filtered_message = '[訊息包含不適當內容，已隱藏]'
+          reviewResult.filter_reason = 'inappropriate_content'
+          reviewResult.severity = 'high'
+          reviewResult.requires_manual_review = true
+          logger.warn('檢測到不適當內容，已隱藏訊息', {
+            detected_word: word,
+            sponsor_level: sponsorData.sponsor_level,
+          })
+          break
+        }
+      }
+
+      // 3. 檢查是否有廣告或推銷內容
+      const advertisementPatterns = this.getAdvertisementPatterns()
+      for (const pattern of advertisementPatterns) {
+        if (pattern.test(trimmedMessage)) {
+          reviewResult.filtered = true
+          reviewResult.filtered_message = '[訊息包含推銷內容，已隱藏]'
+          reviewResult.filter_reason = 'advertisement_content'
+          reviewResult.severity = 'high'
+          reviewResult.requires_manual_review = true
+          logger.warn('檢測到推銷內容，已隱藏訊息', {
+            pattern: pattern.toString(),
+            sponsor_level: sponsorData.sponsor_level,
+          })
+          break
+        }
+      }
+
+      // 4. 檢查是否有重複內容（簡單的重複字檢查）
+      if (this.hasRepeatedContent(trimmedMessage)) {
+        reviewResult.filtered = true
+        reviewResult.filtered_message = '[訊息包含重複內容，已隱藏]'
+        reviewResult.filter_reason = 'repeated_content'
+        reviewResult.severity = 'medium'
+        reviewResult.requires_manual_review = false
+        logger.info('檢測到重複內容，已隱藏訊息', {
+          sponsor_level: sponsorData.sponsor_level,
+        })
+      }
+
+      // 5. 檢查是否有過多的特殊字符
+      const specialCharRatio = this.getSpecialCharacterRatio(trimmedMessage)
+      if (specialCharRatio > 0.3) {
+        // 30%的字符是特殊字符
+        reviewResult.filtered = true
+        reviewResult.filtered_message = '[訊息包含過多特殊字符，已隱藏]'
+        reviewResult.filter_reason = 'too_many_special_chars'
+        reviewResult.severity = 'medium'
+        reviewResult.requires_manual_review = true
+        logger.warn('檢測到過多特殊字符，已隱藏訊息', {
+          special_char_ratio: specialCharRatio.toFixed(2),
+          sponsor_level: sponsorData.sponsor_level,
+        })
+      }
+
+      return reviewResult
+    } catch (error) {
+      logger.error('訊息審核失敗:', error)
+      return {
+        reviewed: false,
+        filtered: false,
+        original_message: message,
+        filtered_message: message,
+        filter_reason: 'review_error',
+        severity: 'low',
+        requires_manual_review: true,
+        error: error.message,
+      }
+    }
+  }
+
+  /**
+   * 獲取不適當詞彙列表
+   * @returns {Array} 不適當詞彙
+   */
+  getInappropriateWords() {
+    return [
+      'fuck',
+      'shit',
+      'damn',
+      'bitch',
+      'asshole',
+      '操',
+      '幹',
+      '靠',
+      '媽的',
+      '王八蛋',
+      '垃圾',
+      '白癡',
+      '智障',
+      '弱智',
+      // 可以根據需要擴展
+    ]
+  }
+
+  /**
+   * 獲取廣告模式列表
+   * @returns {Array} 正則表達式模式
+   */
+  getAdvertisementPatterns() {
+    return [
+      /\b(?:http|https|www\.)\S+/i, // URL
+      /\b(?:微信|QQ|電話|手機|聯繫方式|聯系方式)\b/i,
+      /\b(?:買|賣|售|購|價|價格|優惠|折扣)\b/i,
+      /\b(?:招聘|求職|兼職|工作)\b/i,
+      /\b(?:廣告|推銷|推薦|介紹)\b/i,
+      // 可以根據需要擴展
+    ]
+  }
+
+  /**
+   * 檢查是否有重複內容
+   * @param {String} message - 訊息內容
+   * @returns {Boolean} 是否有重複內容
+   */
+  hasRepeatedContent(message) {
+    if (message.length < 10) return false
+
+    // 檢查連續重複的字符
+    const repeatedChars = /(.)\1{4,}/
+    if (repeatedChars.test(message)) {
+      return true
+    }
+
+    // 檢查重複的詞彙
+    const words = message.split(/\s+/)
+    const wordCount = {}
+    for (const word of words) {
+      if (word.length > 2) {
+        // 只檢查長度大於2的詞
+        wordCount[word] = (wordCount[word] || 0) + 1
+        if (wordCount[word] > 3) {
+          // 同一個詞重複超過3次
+          return true
+        }
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * 計算特殊字符比例
+   * @param {String} message - 訊息內容
+   * @returns {Number} 特殊字符比例 (0-1)
+   */
+  getSpecialCharacterRatio(message) {
+    if (!message || message.length === 0) return 0
+
+    const specialChars = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/g
+    const matches = message.match(specialChars)
+    return matches ? matches.length / message.length : 0
+  }
+
+  /**
+   * 幣別換匯服務
+   * 支援東亞、中文圈國家與美加幣別轉換
+   * @param {Number} amount - 原始金額
+   * @param {String} fromCurrency - 來源幣別
+   * @param {String} toCurrency - 目標幣別 (預設為 USD)
+   * @returns {Object} 換匯結果
+   */
+  convertCurrency(amount, fromCurrency, toCurrency = 'USD') {
+    try {
+      if (!amount || amount <= 0) {
+        return {
+          success: false,
+          error: '無效的金額',
+          original_amount: amount,
+          converted_amount: null,
+          from_currency: fromCurrency,
+          to_currency: toCurrency,
+        }
+      }
+
+      if (fromCurrency === toCurrency) {
+        return {
+          success: true,
+          original_amount: amount,
+          converted_amount: amount,
+          exchange_rate: 1,
+          from_currency: fromCurrency,
+          to_currency: toCurrency,
+        }
+      }
+
+      // 使用currency.js進行轉換
+      const exchangeRate = this.getExchangeRate(fromCurrency, toCurrency)
+      if (!exchangeRate) {
+        return {
+          success: false,
+          error: `不支援的幣別轉換: ${fromCurrency} -> ${toCurrency}`,
+          original_amount: amount,
+          converted_amount: null,
+          from_currency: fromCurrency,
+          to_currency: toCurrency,
+        }
+      }
+
+      // 創建來源貨幣實例並進行轉換
+      const sourceCurrency = currency(amount, { fromCents: false })
+      const convertedAmount = sourceCurrency.multiply(exchangeRate).value
+
+      return {
+        success: true,
+        original_amount: amount,
+        converted_amount: convertedAmount,
+        exchange_rate: exchangeRate,
+        from_currency: fromCurrency,
+        to_currency: toCurrency,
+      }
+    } catch (error) {
+      logger.error('幣別換匯失敗:', error)
+      return {
+        success: false,
+        error: error.message,
+        original_amount: amount,
+        converted_amount: null,
+        from_currency: fromCurrency,
+        to_currency: toCurrency,
+      }
+    }
+  }
+
+  /**
+   * 獲取匯率（基於USD）
+   * 支援的幣別：USD, TWD, HKD, JPY, CNY, SGD, CAD, AUD, EUR, GBP
+   * @param {String} fromCurrency - 來源幣別
+   * @param {String} toCurrency - 目標幣別
+   * @returns {Number|null} 匯率或null
+   */
+  getExchangeRate(fromCurrency, toCurrency) {
+    // 匯率表（每單位外幣兌換USD的數量）
+    // 注意：實際應用中應該從可靠的API獲取實時匯率
+    const exchangeRatesToUSD = {
+      // 東亞、中文圈國家
+      TWD: 1 / 32.5, // 新台幣 (1 TWD ≈ 0.0308 USD)
+      HKD: 1 / 7.8, // 港幣 (1 HKD ≈ 0.1282 USD)
+      MOP: 1 / 8.0, // 澳門幣 (1 MOP ≈ 0.125 USD)
+      JPY: 1 / 150, // 日幣 (1 JPY ≈ 0.0067 USD)
+      CNY: 1 / 7.2, // 人民幣 (1 CNY ≈ 0.1389 USD)
+      SGD: 1 / 1.35, // 新加坡幣 (1 SGD ≈ 0.7407 USD)
+      KRW: 1 / 1350, // 韓幣 (1 KRW ≈ 0.00074 USD)
+
+      // 東南亞國家
+      THB: 1 / 36.5, // 泰銖 (1 THB ≈ 0.0274 USD)
+      IDR: 1 / 15500, // 印尼盾 (1 IDR ≈ 0.0000645 USD)
+      PHP: 1 / 56.0, // 菲律賓比索 (1 PHP ≈ 0.01786 USD)
+      VND: 1 / 23000, // 越南盾 (1 VND ≈ 0.0000435 USD)
+      MYR: 1 / 4.5, // 馬來西亞令吉 (1 MYR ≈ 0.2222 USD)
+
+      // 美加等國
+      USD: 1, // 美元 (基準幣別)
+      CAD: 0.73, // 加幣 (1 CAD ≈ 0.73 USD)
+      AUD: 0.65, // 澳幣 (1 AUD ≈ 0.65 USD)
+
+      // 歐洲主要貨幣
+      EUR: 1.08, // 歐元 (1 EUR ≈ 1.08 USD)
+      GBP: 1.27, // 英鎊 (1 GBP ≈ 1.27 USD)
+    }
+
+    // 驗證支援的幣別
+    const supportedCurrencies = Object.keys(exchangeRatesToUSD)
+    if (!supportedCurrencies.includes(fromCurrency) || !supportedCurrencies.includes(toCurrency)) {
+      logger.warn(`不支援的幣別: ${fromCurrency} 或 ${toCurrency}`)
+      return null
+    }
+
+    // 如果都是USD，直接返回1
+    if (fromCurrency === 'USD' && toCurrency === 'USD') {
+      return 1
+    }
+
+    // 計算從來源幣別到目標幣別的匯率
+    const fromToUSD = exchangeRatesToUSD[fromCurrency]
+    const toToUSD = exchangeRatesToUSD[toCurrency]
+
+    if (!fromToUSD || !toToUSD) {
+      logger.warn(`無法獲取匯率: ${fromCurrency} -> ${toCurrency}`)
+      return null
+    }
+
+    // 計算匯率：來源幣別 -> USD -> 目標幣別
+    // 例如：TWD -> USD = fromToUSD (因為fromToUSD已經是1 TWD = X USD)
+    //       USD -> TWD = 1 / fromToUSD (因為1 USD = 1/X TWD，所以需要反轉)
+    let rate
+    if (fromCurrency === 'USD') {
+      // 從USD轉換到其他幣別
+      rate = 1 / toToUSD
+    } else if (toCurrency === 'USD') {
+      // 從其他幣別轉換到USD
+      rate = fromToUSD
+    } else {
+      // 從其他幣別轉換到其他幣別
+      rate = fromToUSD / toToUSD
+    }
+
+    logger.debug(
+      `匯率計算: ${fromCurrency} -> ${toCurrency} = ${rate} (fromToUSD: ${fromToUSD}, toToUSD: ${toToUSD})`,
+    )
+    return rate
+  }
+
+  /**
+   * 批量幣別轉換
+   * @param {Array} currencyConversions - 轉換請求數組
+   * @returns {Array} 轉換結果數組
+   */
+  batchConvertCurrency(currencyConversions) {
+    if (!Array.isArray(currencyConversions)) {
+      return []
+    }
+
+    return currencyConversions.map((conversion) => {
+      const { amount, fromCurrency, toCurrency } = conversion
+      return this.convertCurrency(amount, fromCurrency, toCurrency)
+    })
+  }
+
+  /**
+   * 獲取支援的幣別列表
+   * @returns {Array} 支援的幣別代碼
+   */
+  getSupportedCurrencies() {
+    return [
+      'USD',
+      'TWD',
+      'HKD',
+      'MOP',
+      'JPY',
+      'CNY',
+      'SGD',
+      'KRW',
+      'THB',
+      'IDR',
+      'PHP',
+      'VND',
+      'MYR',
+      'CAD',
+      'AUD',
+      'EUR',
+      'GBP',
+    ]
+  }
+
+  /**
+   * 格式化金額顯示
+   * @param {Number} amount - 金額
+   * @param {String} currencyCode - 幣別代碼
+   * @returns {String} 格式化的金額字串
+   */
+  formatCurrency(amount, currencyCode) {
+    if (!amount || !currencyCode) return '0'
+
+    try {
+      // 使用currency.js進行格式化
+      const currencyObj = currency(amount, {
+        fromCents: false,
+        symbol: this.getCurrencySymbol(currencyCode),
+        precision: 2,
+      })
+
+      return currencyObj.format()
+    } catch (error) {
+      logger.warn('貨幣格式化失敗，使用備用方法:', error.message)
+
+      // 備用格式化方法
+      const symbol = this.getCurrencySymbol(currencyCode)
+      return `${symbol}${amount.toFixed(2)}`
+    }
+  }
+
+  /**
+   * 獲取幣別符號
+   * @param {String} currencyCode - 幣別代碼
+   * @returns {String} 幣別符號
+   */
+  getCurrencySymbol(currencyCode) {
+    const currencySymbols = {
+      // 東亞、中文圈國家
+      USD: '$',
+      TWD: 'NT$',
+      HKD: 'HK$',
+      MOP: 'MOP$',
+      JPY: '¥',
+      CNY: '¥',
+      SGD: 'S$',
+      KRW: '₩',
+
+      // 東南亞國家
+      THB: '฿',
+      IDR: 'Rp',
+      PHP: '₱',
+      VND: '₫',
+      MYR: 'RM',
+
+      // 美加等國
+      CAD: 'C$',
+      AUD: 'A$',
+
+      // 歐洲主要貨幣
+      EUR: '€',
+      GBP: '£',
+    }
+
+    return currencySymbols[currencyCode] || currencyCode
   }
 
   /**
