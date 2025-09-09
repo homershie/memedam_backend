@@ -111,6 +111,15 @@ class IntegratedCache {
   async clearAll() {
     return await this.manager.clearAll()
   }
+
+  /**
+   * 刪除快取鍵
+   * @param {string} cacheKey - 要刪除的快取鍵
+   * @param {boolean} throwOnError - 錯誤時是否拋出異常
+   */
+  async del(cacheKey, throwOnError = false) {
+    return await this.manager.del(cacheKey, throwOnError)
+  }
 }
 
 // 創建單例實例

@@ -1,4 +1,6 @@
 import Sponsor from '../models/Sponsor.js'
+import { logger } from '../utils/logger.js'
+import kofiService from '../services/kofiService.js'
 
 // 建立贊助
 export const createSponsor = async (req, res) => {
@@ -333,5 +335,267 @@ export const logSponsorPageAccess = async (req, res) => {
       data: null,
       error: error.message,
     })
+  }
+}
+
+// 處理 Ko-fi Shop Order Webhook
+export const handleKofiShopOrderWebhook = async (req, res) => {
+  let session = null
+  // 在測試環境中完全禁用事務，因為 MongoDB Memory Server 不支援事務
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      session = await Sponsor.startSession()
+      session.startTransaction()
+    } catch (sessionError) {
+      logger.warn('Ko-fi Webhook: 會話創建失敗，使用無會話模式', { error: sessionError.message })
+      session = null
+    }
+  }
+
+  try {
+    const {
+      kofi_transaction_id,
+      from_name,
+      display_name,
+      email,
+      amount,
+      currency,
+      message,
+      direct_link_code,
+      shop_items,
+      shipping,
+      is_public,
+      message_id,
+    } = req.body
+
+    const { productInfo, clientIP } = req.kofiData || {}
+
+    // 如果沒有 kofiData，說明中間件驗證失敗
+    if (!req.kofiData || !productInfo) {
+      logger.error('Ko-fi Webhook: 缺少必要的驗證數據', {
+        hasKofiData: !!req.kofiData,
+        hasProductInfo: !!productInfo,
+        message_id: req.body.message_id,
+      })
+      return res.status(500).json({
+        success: false,
+        error: '中間件驗證數據缺失',
+      })
+    }
+
+    // 檢查是否已存在相同交易ID的贊助
+    const existingSponsor = session
+      ? await Sponsor.findOne({ kofi_transaction_id }).session(session)
+      : await Sponsor.findOne({ kofi_transaction_id })
+
+    if (existingSponsor) {
+      if (session) await session.abortTransaction()
+      logger.info('Ko-fi Webhook: 交易已存在，跳過處理', { kofi_transaction_id, message_id })
+      return res.status(200).json({
+        success: true,
+        message: '交易已存在',
+        kofi_transaction_id,
+      })
+    }
+
+    // 嘗試根據 email 找到現有用戶
+    let user = null
+    if (email) {
+      try {
+        const User = (await import('../models/User.js')).default
+        user = session
+          ? await User.findOne({ email: email.toLowerCase() }).session(session)
+          : await User.findOne({ email: email.toLowerCase() })
+      } catch (error) {
+        logger.warn('Ko-fi Webhook: 用戶查找失敗，使用 null', { email, error: error.message })
+        // 在測試環境中，如果模型導入失敗，我們繼續處理但不關聯用戶
+        user = null
+      }
+    }
+
+    // 建立新的贊助記錄
+    const parsedAmount = parseFloat(amount)
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      logger.error('Ko-fi Webhook: 無效的金額', { amount, parsedAmount })
+      await session.abortTransaction()
+      return res.status(400).json({
+        success: false,
+        error: '無效的金額',
+      })
+    }
+
+    const sponsorData = {
+      user_id: user?._id || null,
+      amount: parsedAmount,
+      message: message || '',
+      payment_method: 'ko-fi',
+      transaction_id: kofi_transaction_id,
+      status: 'success',
+
+      // Ko-fi 特定字段
+      kofi_transaction_id,
+      from_name: from_name || '',
+      display_name: display_name || '',
+      email: email || '',
+      discord_username: req.body.discord_username || '',
+      discord_userid: req.body.discord_userid || '',
+      currency: currency || 'USD',
+      type: 'Shop Order',
+      direct_link_code: direct_link_code ? direct_link_code.toUpperCase() : '',
+      shop_items: shop_items || [],
+      shipping: shipping || {},
+      is_public: is_public !== undefined ? is_public : true,
+      sponsor_level: productInfo.level,
+      badge_earned: true, // Shop Order 預設獲得徽章
+
+      // IP 和處理資訊
+      created_ip: clientIP,
+      processed_at: new Date(),
+      message_id: message_id || null,
+    }
+
+    let sponsor
+    try {
+      sponsor = new Sponsor(sponsorData)
+      await sponsor.save(session ? { session } : {})
+
+      // 確保 sponsor 有 _id
+      if (!sponsor._id) {
+        throw new Error('贊助記錄保存後沒有獲得 ID')
+      }
+    } catch (saveError) {
+      logger.error('Ko-fi Webhook: 保存贊助記錄失敗', {
+        error: saveError.message,
+        kofi_transaction_id,
+        amount: parsedAmount,
+        validationErrors: saveError.errors,
+      })
+      if (session) await session.abortTransaction()
+      return res.status(500).json({
+        success: false,
+        error: '保存贊助記錄失敗',
+        details: saveError.message,
+      })
+    }
+
+    // 如果用戶存在，更新用戶的贊助統計
+    if (user) {
+      try {
+        await kofiService.updateUserSponsorStats(user._id, sponsorData, session)
+      } catch (statsError) {
+        logger.warn('Ko-fi Webhook: 用戶統計更新失敗，但繼續處理', {
+          error: statsError.message,
+          userId: user._id,
+        })
+        // 不阻擋主要處理流程
+      }
+    }
+
+    // 提交事務（如果有會話）
+    if (session) await session.commitTransaction()
+
+    // 非同步處理通知和快取更新（不影響主要回應）
+    setImmediate(async () => {
+      try {
+        // 發送通知
+        try {
+          await kofiService.sendSponsorNotification(sponsor, user)
+        } catch (notifyError) {
+          logger.warn('Ko-fi Webhook: 通知發送失敗', { error: notifyError.message })
+        }
+
+        // 更新全域統計快取
+        try {
+          await kofiService.updateSponsorStatsCache(sponsor)
+        } catch (cacheError) {
+          logger.warn('Ko-fi Webhook: 快取更新失敗', { error: cacheError.message })
+        }
+
+        logger.info('Ko-fi Webhook 後續處理完成', { kofi_transaction_id })
+      } catch (error) {
+        logger.error('Ko-fi Webhook 後續處理失敗:', error)
+        // 在測試環境中，這種錯誤很常見，不影響主要功能
+      }
+    })
+
+    logger.info('Ko-fi Shop Order Webhook 處理成功', {
+      kofi_transaction_id,
+      message_id,
+      sponsor_level: productInfo.level,
+      amount,
+      user_found: !!user,
+    })
+
+    res.status(200).json({
+      success: true,
+      message: 'Shop Order 處理成功',
+      data: {
+        kofi_transaction_id,
+        sponsor_id: sponsor._id,
+        sponsor_level: productInfo.level,
+        amount,
+      },
+    })
+  } catch (error) {
+    // 回滾事務（如果有會話）
+    if (session) {
+      try {
+        await session.abortTransaction()
+      } catch (abortError) {
+        logger.warn('Ko-fi Webhook: 事務回滾失敗', { error: abortError.message })
+      }
+    }
+
+    logger.error('Ko-fi Shop Order Webhook 處理失敗:', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      message_id: req.body.message_id,
+      kofi_transaction_id: req.body.kofi_transaction_id,
+      amount: req.body.amount,
+      direct_link_code: req.body.direct_link_code,
+      reqBody: req.body,
+      kofiData: req.kofiData,
+      productInfo: req.kofiData?.productInfo,
+    })
+
+    // 處理驗證錯誤
+    if (error.name === 'ValidationError') {
+      logger.error('Ko-fi Webhook: 資料驗證錯誤詳情', {
+        validationErrors: error.errors,
+        message_id: req.body.message_id,
+      })
+      return res.status(400).json({
+        success: false,
+        error: '資料驗證錯誤',
+        details: error.message,
+        validationErrors: Object.keys(error.errors || {}),
+      })
+    }
+
+    // 處理重複鍵錯誤
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        error: '交易ID重複',
+      })
+    }
+
+    res.status(500).json({
+      success: false,
+      error: '處理 Shop Order 時發生錯誤',
+      message_id: req.body.message_id,
+      details: error.message,
+    })
+  } finally {
+    // 清理會話（如果有會話）
+    if (session) {
+      try {
+        session.endSession()
+      } catch (endError) {
+        logger.warn('Ko-fi Webhook: 會話清理失敗', { error: endError.message })
+      }
+    }
   }
 }

@@ -1,6 +1,10 @@
 // 強制設置 UTF-8 編碼和繁體中文語言環境
-process.stdout.setEncoding('utf8')
-process.stderr.setEncoding('utf8')
+// 注意：在測試環境中不需要手動設置 stdout/stderr 編碼
+if (process.env.NODE_ENV !== 'test') {
+  // 在非測試環境中設置編碼（如果需要）
+  // process.stdout.setEncoding('utf8')
+  // process.stderr.setEncoding('utf8')
+}
 // 設置繁體中文語言環境確保正確的中文顯示
 process.env.LANG = process.env.LANG || 'zh_TW.UTF-8'
 process.env.LC_ALL = process.env.LC_ALL || 'zh_TW.UTF-8'

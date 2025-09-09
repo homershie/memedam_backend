@@ -8,8 +8,10 @@ import {
   handleBuyMeACoffeeCallback,
   getSponsorByTransactionId,
   logSponsorPageAccess,
+  handleKofiShopOrderWebhook,
 } from '../controllers/sponsorController.js'
 import { token, isUser, isManager } from '../middleware/auth.js'
+import { validateKofiWebhook } from '../middleware/kofiWebhookValidation.js'
 
 const router = express.Router()
 
@@ -287,5 +289,8 @@ router.post('/callback/buy-me-a-coffee', handleBuyMeACoffeeCallback)
 router.get('/transaction/:transaction_id', getSponsorByTransactionId)
 // 記錄贊助頁面訪問（無需認證）
 router.post('/log-access', logSponsorPageAccess)
+
+// Ko-fi Shop Order Webhook（使用 Ko-fi 驗證）
+router.post('/webhooks/kofi/shop-orders', validateKofiWebhook, handleKofiShopOrderWebhook)
 
 export default router
