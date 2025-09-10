@@ -3,6 +3,7 @@ import integratedCache from '../config/cache.js'
 import notificationQueue from './notificationQueue.js'
 import currency from 'currency.js'
 import exchangeRateService from './exchangeRateService.js'
+import mongoose from 'mongoose'
 
 /**
  * Ko-fi 服務類
@@ -30,6 +31,10 @@ class KofiService {
       case 'b7e4575bf6':
         return this.SPONSOR_LEVELS.chicken
       case '25678099a7':
+        return this.SPONSOR_LEVELS.coffee
+      case '1a2b3c4d5e':
+        return this.SPONSOR_LEVELS.coffee
+      case 'a1b2c3d4e5':
         return this.SPONSOR_LEVELS.coffee
       default:
         return null
@@ -74,8 +79,6 @@ class KofiService {
           updatedFields: Object.keys(updateData),
           newDisplayName: updateData.display_name || '未更新',
         })
-      } else {
-        logger.debug('用戶個人資料無需更新', { userId })
       }
     } catch (error) {
       logger.error('更新用戶個人資料失敗:', error)
@@ -160,11 +163,16 @@ class KofiService {
     try {
       const levelInfo = this.getSponsorLevelInfo(sponsor.direct_link_code)
 
+      // 如果沒有找到等級資訊，使用預設值
+      const sponsorLevelName = levelInfo?.name || '未知贊助'
+
       // 準備通知資料
       const notificationData = {
-        type: 'sponsor_received',
-        title: `收到新的 ${levelInfo.name} 贊助！`,
-        message: `${sponsor.from_name || '匿名贊助者'} 透過 Ko-fi 購買了 ${levelInfo.name} 商品`,
+        verb: 'system', // 系統通知
+        object_type: 'user', // 使用 user 類型，因為贊助是與用戶相關的
+        object_id: user?._id || sponsor._id, // 用戶ID或贊助記錄ID
+        title: `收到新的 ${sponsorLevelName} 贊助！`,
+        message: `${sponsor.from_name || '匿名贊助者'} 透過 Ko-fi 購買了 ${sponsorLevelName} 商品`,
         data: {
           sponsor_id: sponsor._id,
           kofi_transaction_id: sponsor.kofi_transaction_id,
@@ -173,7 +181,8 @@ class KofiService {
           from_name: sponsor.from_name,
           message: sponsor.message,
         },
-        priority: 'normal',
+        url: `/`, // 跳轉到首頁
+        action_text: '查看詳情',
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 天後過期
       }
 
@@ -205,20 +214,50 @@ class KofiService {
       const User = (await import('../models/User.js')).default
 
       // 找到所有管理員
-      const admins = await User.find({
-        role: { $in: ['admin', 'manager'] },
-        is_active: true,
-      }).select('_id nickname')
+      let admins = []
+      try {
+        admins = await User.find({
+          role: mongoose.trusted({ $in: ['admin', 'manager'] }),
+          status: 'active',
+        }).select('_id username email display_name')
 
-      if (admins.length === 0) {
-        logger.warn('沒有找到管理員用戶，跳過管理員通知')
+        if (admins.length === 0) {
+          logger.warn('沒有找到管理員用戶，跳過管理員通知', {
+            sponsor_id: sponsor._id,
+            sponsor_level: sponsor.sponsor_level,
+          })
+          return
+        }
+      } catch (adminQueryError) {
+        logger.error(
+          {
+            err: adminQueryError,
+            sponsor_id: sponsor?._id,
+            mongoose_state:
+              typeof mongoose?.connection?.readyState === 'number'
+                ? mongoose.connection.readyState
+                : 'unknown',
+          },
+          '查詢管理員用戶失敗',
+        )
+        // 如果無法查詢管理員，記錄錯誤但不拋出異常
         return
       }
 
+      // 如果沒有找到等級資訊，使用預設值
+      const sponsorLevelName = levelInfo?.name || '未知贊助'
+      const sponsorLevelBadge = levelInfo?.badge || '💰'
+
+      // 生成通知用的絕對網址（避免 URL 驗證失敗）
+      const siteBaseUrl =
+        process.env.SITE_URL || process.env.APP_ORIGIN || 'https://www.memedam.com'
+
       const adminNotification = {
-        type: 'admin_sponsor_alert',
-        title: `🔔 新贊助通知: ${levelInfo.badge} ${levelInfo.name}`,
-        message: `${sponsor.from_name || '匿名'} 購買了 ${levelInfo.name} ($${sponsor.amount})`,
+        verb: 'system', // 系統通知
+        object_type: 'user', // 使用 user 類型，因為贊助是與用戶相關的
+        object_id: sponsor._id, // 贊助記錄ID
+        title: `🔔 新贊助通知: ${sponsorLevelBadge} ${sponsorLevelName}`,
+        message: `${sponsor.from_name || '匿名'} 購買了 ${sponsorLevelName} ($${sponsor.amount})`,
         data: {
           sponsor_id: sponsor._id,
           kofi_transaction_id: sponsor.kofi_transaction_id,
@@ -230,21 +269,56 @@ class KofiService {
           message: sponsor.message,
           discord_username: sponsor.discord_username,
         },
-        priority: 'high',
+        url: `${siteBaseUrl}/`, // 必須是絕對URL以通過驗證
+        action_text: '查看詳情',
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 天後過期
       }
 
       // 發送給所有管理員
+      let successCount = 0
+      let failureCount = 0
+
       for (const admin of admins) {
-        await notificationQueue.addNotification(admin._id, adminNotification)
+        try {
+          await notificationQueue.addNotification(admin._id, adminNotification)
+          successCount++
+        } catch (notificationError) {
+          logger.error(
+            {
+              err: notificationError,
+              adminId: admin._id,
+              sponsor_id: sponsor._id,
+            },
+            `發送管理員通知失敗 (${admin.username || admin.display_name || admin.email})`,
+          )
+          failureCount++
+          // 繼續發送給其他管理員，不中斷整個流程
+        }
       }
 
-      logger.info('管理員贊助通知已發送', {
-        admin_count: admins.length,
-        sponsor_level: sponsor.sponsor_level,
-      })
+      if (successCount > 0) {
+        logger.info('管理員贊助通知已發送', {
+          admin_count: admins.length,
+          success_count: successCount,
+          failure_count: failureCount,
+          sponsor_level: sponsor.sponsor_level,
+          sponsor_id: sponsor._id,
+        })
+      } else {
+        logger.warn('所有管理員通知發送都失敗了', {
+          admin_count: admins.length,
+          sponsor_id: sponsor._id,
+          sponsor_level: sponsor.sponsor_level,
+        })
+      }
     } catch (error) {
-      logger.error('發送管理員通知失敗:', error)
+      logger.error('發送管理員通知失敗:', {
+        sponsor_id: sponsor._id,
+        sponsor_level: sponsor.sponsor_level,
+        error: error.message,
+        stack: error.stack,
+      })
+      // 不拋出錯誤，因為通知失敗不應該影響主要的贊助處理流程
     }
   }
 
@@ -256,9 +330,9 @@ class KofiService {
     try {
       const cacheKey = 'sponsor:stats:global'
 
-      // 取得當前統計
+      // 取得當前統計（integratedCache.get 已回傳物件，無需再 JSON.parse）
       let stats = await integratedCache.get(cacheKey)
-      if (!stats) {
+      if (!stats || typeof stats !== 'object') {
         stats = {
           total_amount: 0,
           total_count: 0,
@@ -268,22 +342,6 @@ class KofiService {
             coffee: 0,
           },
           last_updated: new Date().toISOString(),
-        }
-      } else {
-        try {
-          stats = JSON.parse(stats)
-        } catch (parseError) {
-          logger.warn('快取數據解析失敗，重置統計', { cacheKey, error: parseError.message })
-          stats = {
-            total_amount: 0,
-            total_count: 0,
-            level_counts: {
-              soy: 0,
-              chicken: 0,
-              coffee: 0,
-            },
-            last_updated: new Date().toISOString(),
-          }
         }
       }
 
@@ -295,7 +353,7 @@ class KofiService {
       stats.last_updated = new Date().toISOString()
 
       // 儲存到快取（7 天過期）
-      await integratedCache.set(cacheKey, JSON.stringify(stats), 604800)
+      await integratedCache.set(cacheKey, stats, { ttl: 604800 })
 
       logger.info('全域贊助統計快取已更新', {
         total_amount: stats.total_amount,
@@ -975,7 +1033,8 @@ class KofiService {
       let stats = await integratedCache.get(cacheKey)
 
       if (stats) {
-        return JSON.parse(stats)
+        // integratedCache.get 已回傳物件
+        return stats
       }
 
       // 如果快取中沒有，從資料庫計算
@@ -1022,7 +1081,7 @@ class KofiService {
       }
 
       // 儲存到快取
-      await integratedCache.set(cacheKey, JSON.stringify(statsData), 604800)
+      await integratedCache.set(cacheKey, statsData, { ttl: 604800 })
 
       return statsData
     } catch (error) {

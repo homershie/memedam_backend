@@ -122,7 +122,10 @@ class IntegratedCache {
    * @returns {Promise<boolean>} 是否成功
    */
   async set(cacheKey, value, options = {}) {
-    const { ttl = 3600, useVersion = false } = options
+    // 向後相容：若第三參數傳入數字 TTL，轉為 options
+    const normalizedOptions =
+      typeof options === 'number' ? { ttl: options, useVersion: false } : options
+    const { ttl = 3600, useVersion = false } = normalizedOptions
     return await this.manager.set(cacheKey, value, { ttl, useVersion })
   }
 

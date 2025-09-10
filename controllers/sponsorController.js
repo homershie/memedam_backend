@@ -388,8 +388,8 @@ export const handleKofiShopOrderWebhook = async (req, res) => {
     let currencyConversion, twdConversion
 
     try {
-      currencyConversion = kofiService.convertCurrency(finalAmount, currency, 'USD')
-      twdConversion = kofiService.convertCurrency(finalAmount, currency, 'TWD')
+      currencyConversion = await kofiService.convertCurrency(finalAmount, currency, 'USD')
+      twdConversion = await kofiService.convertCurrency(finalAmount, currency, 'TWD')
 
       logger.info('Ko-fi Webhook: 幣別換匯完成', {
         original_amount: finalAmount,
@@ -712,7 +712,7 @@ export const convertCurrency = async (req, res) => {
       })
     }
 
-    const conversion = kofiService.convertCurrency(amount, from_currency, to_currency)
+    const conversion = await kofiService.convertCurrency(amount, from_currency, to_currency)
 
     if (!conversion.success) {
       return res.status(400).json({

@@ -343,9 +343,17 @@ class ExchangeRateService {
     } else if (toCurrency === 'USD') {
       return this.fallbackRates[fromCurrency] || null
     } else {
-      const toUSD = this.fallbackRates[fromCurrency]
-      const fromUSD = this.fallbackRates[toCurrency]
-      return toUSD && fromUSD ? toUSD / fromUSD : null
+      // 跨幣別轉換：先轉換為 USD，再轉換為目標幣別
+      const fromToUSD = this.fallbackRates[fromCurrency] // fromCurrency 對 USD 的匯率
+      const usdToTarget = this.fallbackRates[toCurrency] // toCurrency 對 USD 的匯率
+
+      if (fromToUSD && usdToTarget) {
+        // 例如：TWD -> HKD = (TWD -> USD) * (USD -> HKD)
+        // 但我們的 fallbackRates 存儲的是各幣別對 USD 的匯率
+        // 所以 TWD -> HKD = (1 / fromToUSD) * usdToTarget
+        return (1 / fromToUSD) * usdToTarget
+      }
+      return null
     }
   }
 
@@ -489,16 +497,7 @@ class ExchangeRateService {
 
       // 3. API失敗，使用備用匯率
       logger.warn(`使用備用匯率: ${fromCurrency} -> ${toCurrency}`)
-      if (fromCurrency === 'USD') {
-        rate = this.fallbackRates[toCurrency]
-      } else if (toCurrency === 'USD') {
-        rate = this.fallbackRates[fromCurrency]
-      } else {
-        // 跨幣別轉換
-        const toUSD = this.fallbackRates[fromCurrency]
-        const fromUSD = this.fallbackRates[toCurrency]
-        rate = toUSD / fromUSD
-      }
+      rate = this.getFallbackRate(fromCurrency, toCurrency)
 
       if (rate) {
         // 即使使用備用匯率也要快取（短時間）
