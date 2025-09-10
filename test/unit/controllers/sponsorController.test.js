@@ -8,7 +8,6 @@ import {
   handleBuyMeACoffeeCallback,
   getSponsorByTransactionId,
   logSponsorPageAccess,
-  handleKofiShopOrderWebhook,
   getSupportedCurrencies,
   convertCurrency,
   getExchangeRateCacheStats,
@@ -16,7 +15,6 @@ import {
   updateExchangeRate,
 } from '../../../controllers/sponsorController.js'
 import Sponsor from '../../../models/Sponsor.js'
-import { logger } from '../../../utils/logger.js'
 import kofiService from '../../../services/kofiService.js'
 import exchangeRateService from '../../../services/exchangeRateService.js'
 

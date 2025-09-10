@@ -214,59 +214,6 @@ export const deleteSponsor = async (req, res) => {
   }
 }
 
-// Buy Me a Coffee 回調處理
-export const handleBuyMeACoffeeCallback = async (req, res) => {
-  try {
-    const {
-      transaction_id,
-      amount,
-      message,
-      payment_method,
-      user_id, // 從 URL 參數傳遞的用戶ID
-    } = req.body
-
-    // 驗證必要參數
-    if (!transaction_id || !amount || !user_id) {
-      return res.status(400).json({
-        success: false,
-        data: null,
-        error: '缺少必要參數',
-      })
-    }
-
-    // 檢查是否已存在相同交易ID的贊助
-    const existingSponsor = await Sponsor.findOne({ transaction_id })
-    if (existingSponsor) {
-      return res.status(409).json({
-        success: false,
-        data: null,
-        error: '此交易已存在',
-      })
-    }
-
-    // 建立新的贊助記錄
-    const sponsor = new Sponsor({
-      user_id,
-      amount: parseFloat(amount),
-      message: message || '',
-      payment_method: payment_method || 'buy_me_a_coffee',
-      transaction_id,
-      status: 'success',
-      created_ip: req.ip || req.headers['x-forwarded-for'] || '',
-    })
-
-    await sponsor.save()
-
-    // 重定向到成功頁面
-    res.redirect(`/sponsor/success?transaction_id=${transaction_id}`)
-  } catch (error) {
-    console.error('Buy Me a Coffee 回調錯誤:', error)
-
-    // 重定向到錯誤頁面
-    res.redirect('/sponsor/error?message=處理贊助時發生錯誤')
-  }
-}
-
 // 根據交易ID取得贊助資訊
 export const getSponsorByTransactionId = async (req, res) => {
   try {
