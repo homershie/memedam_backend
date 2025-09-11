@@ -16,6 +16,9 @@ import MemeVersion from '../models/MemeVersion.js'
 import MemeEditProposal from '../models/MemeEditProposal.js'
 import Announcement from '../models/Announcement.js'
 import Sponsor from '../models/Sponsor.js'
+import SponsorshipLogs from '../models/SponsorshipLogs.js'
+import UserSponsorshipStats from '../models/UserSponsorshipStats.js'
+import SponsorshipProducts from '../models/SponsorshipProducts.js'
 import VerificationToken from '../models/VerificationToken.js'
 import RecommendationMetrics from '../models/RecommendationMetrics.js'
 import ABTest from '../models/ABTest.js'
@@ -44,6 +47,9 @@ export {
   MemeEditProposal,
   Announcement,
   Sponsor,
+  SponsorshipLogs,
+  UserSponsorshipStats,
+  SponsorshipProducts,
   VerificationToken,
   RecommendationMetrics,
   ABTest,

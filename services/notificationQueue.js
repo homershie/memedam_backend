@@ -1,4 +1,5 @@
 import Queue from 'bull'
+import mongoose from 'mongoose'
 import { logger } from '../utils/logger.js'
 import {
   createNewLikeNotification,
@@ -566,6 +567,86 @@ class NotificationQueueService {
     } else {
       // 如果未初始化，直接初始化
       return await this.initialize()
+    }
+  }
+
+  /**
+   * 添加一般通知到隊列
+   * @param {string} userId - 用戶ID
+   * @param {Object} notificationData - 通知資料
+   */
+  async addNotification(userId, notificationData) {
+    if (!this.isInitialized) await this.initialize()
+
+    try {
+      // 直接創建通知記錄，不使用隊列（因為這是即時通知）
+      const Notification = (await import('../models/Notification.js')).default
+      const NotificationReceipt = (await import('../models/NotificationReceipt.js')).default
+
+      logger.debug('準備創建通知', {
+        userId,
+        userIdType: typeof userId,
+        userIdValid: mongoose.Types.ObjectId.isValid(userId),
+        notificationData: {
+          verb: notificationData.verb,
+          object_type: notificationData.object_type,
+          title: notificationData.title,
+          hasData: !!notificationData.data,
+          object_id: notificationData.object_id,
+          object_idValid: mongoose.Types.ObjectId.isValid(
+            notificationData.object_id || notificationData.data?.sponsor_id || userId,
+          ),
+        },
+      })
+
+      // 創建通知事件
+      const notification = new Notification({
+        actor_id: userId, // 使用接收者作為觸發者（系統通知）
+        verb: notificationData.verb || 'system', // 預設為系統通知
+        object_type: notificationData.object_type || 'user', // 預設為用戶類型
+        object_id: notificationData.object_id || notificationData.data?.sponsor_id || userId,
+        payload: notificationData.data || {},
+        title: notificationData.title,
+        content: notificationData.message,
+        url: notificationData.url || '', // 空字串是允許的
+        action_text: notificationData.action_text || '查看',
+        expire_at: notificationData.expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天後過期
+      })
+
+      await notification.save()
+
+      // 創建通知收據
+      const receipt = new NotificationReceipt({
+        notification_id: notification._id,
+        user_id: userId,
+        read_at: null,
+        deleted_at: null,
+        archived_at: null,
+      })
+
+      await receipt.save()
+
+      logger.info(`通知已創建`, {
+        notificationId: notification._id,
+        receiptId: receipt._id,
+        userId,
+        verb: notification.verb,
+        event: 'notification_created',
+      })
+
+      return { notification, receipt }
+    } catch (error) {
+      logger.error('創建通知失敗:', {
+        error: error.message,
+        stack: error.stack,
+        userId,
+        notificationData: {
+          verb: notificationData.verb,
+          object_type: notificationData.object_type,
+          title: notificationData.title,
+        },
+      })
+      throw error
     }
   }
 

@@ -80,6 +80,7 @@ export default defineConfig({
       '@middleware': resolve(__dirname, './middleware'),
       '@routes': resolve(__dirname, './routes'),
       '@config': resolve(__dirname, './config'),
+      '@services': resolve(__dirname, './services'),
     },
   },
 })

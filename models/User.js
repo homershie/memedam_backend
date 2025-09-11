@@ -180,7 +180,7 @@ const UserSchema = new mongoose.Schema(
     role: {
       type: String,
       default: 'user',
-      enum: ['user', 'admin', 'auditor', 'manager'],
+      enum: ['user', 'admin', 'vip', 'manager'],
       validate: {
         validator(value) {
           return ['user', 'vip', 'admin', 'manager'].includes(value)
