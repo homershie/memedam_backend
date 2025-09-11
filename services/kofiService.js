@@ -621,6 +621,8 @@ class KofiService {
       c4043b71a4: 'soy',
       b7e4575bf6: 'chicken',
       '25678099a7': 'coffee',
+      '1a2b3c4d5e': 'coffee',
+      a1b2c3d4e5: 'coffee',
     }
     return levelMap[directLinkCode] || 'soy'
   }

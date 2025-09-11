@@ -10,6 +10,7 @@ import {
   handleKofiShopOrderWebhook,
   getSupportedCurrencies,
   convertCurrency,
+  getLatestSuccessSponsor,
   getExchangeRateCacheStats,
   clearExchangeRateCache,
   updateExchangeRate,
@@ -664,6 +665,80 @@ const router = express.Router()
 
 /**
  * @swagger
+ * /api/sponsors/me/latest-success:
+ *   get:
+ *     summary: 獲取用戶最近一筆成功贊助
+ *     tags: [Sponsors]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功取得最近一筆成功贊助
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Sponsor'
+ *                 error:
+ *                   type: string
+ *                   example: null
+ *       401:
+ *         description: 用戶未登入
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 data:
+ *                   type: string
+ *                   example: null
+ *                 error:
+ *                   type: string
+ *                   example: "用戶未登入"
+ *       404:
+ *         description: 找不到成功贊助記錄
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 data:
+ *                   type: string
+ *                   example: null
+ *                 error:
+ *                   type: string
+ *                   example: "找不到成功贊助記錄"
+ *       500:
+ *         description: 伺服器錯誤
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 data:
+ *                   type: string
+ *                   example: null
+ *                 error:
+ *                   type: string
+ *                   example: "伺服器內部錯誤"
+ */
+
+/**
+ * @swagger
  * /api/sponsors/currencies/supported:
  *   get:
  *     summary: 獲取支援的幣別列表
@@ -973,6 +1048,8 @@ router.put('/:id', token, isUser, updateSponsor)
 router.delete('/:id', token, isManager, deleteSponsor)
 // 根據交易ID取得贊助資訊（無需認證）
 router.get('/transaction/:transaction_id', getSponsorByTransactionId)
+// 獲取用戶最近一筆成功贊助（需要登入）
+router.get('/me/latest-success', token, isUser, getLatestSuccessSponsor)
 // 記錄贊助頁面訪問（無需認證）
 router.post('/log-access', logSponsorPageAccess)
 

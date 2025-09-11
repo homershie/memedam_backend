@@ -184,8 +184,8 @@ describe('贊助控制器單元測試', () => {
   describe('getSponsors', () => {
     test('應該成功取得贊助列表', async () => {
       const mockSponsors = [
-        { _id: 'sponsor_1', amount: 100, user_id: { nickname: 'User1' } },
-        { _id: 'sponsor_2', amount: 200, user_id: { nickname: 'User2' } },
+        { _id: 'sponsor_1', amount: 100, user_id: { username: 'user1', display_name: 'User1' } },
+        { _id: 'sponsor_2', amount: 200, user_id: { username: 'user2', display_name: 'User2' } },
       ]
 
       const mockQuery = {
@@ -201,7 +201,7 @@ describe('贊助控制器單元測試', () => {
       await getSponsors(mockReq, mockRes)
 
       expect(Sponsor.find).toHaveBeenCalledWith({})
-      expect(mockQuery.populate).toHaveBeenCalledWith('user_id', 'nickname avatar')
+      expect(mockQuery.populate).toHaveBeenCalledWith('user_id', 'username display_name avatar')
       expect(mockQuery.sort).toHaveBeenCalledWith({ createdAt: -1 })
       expect(mockQuery.skip).toHaveBeenCalledWith(0)
       expect(mockQuery.limit).toHaveBeenCalledWith(20)
@@ -280,7 +280,7 @@ describe('贊助控制器單元測試', () => {
     test('應該成功取得單一贊助', async () => {
       const mockSponsor = {
         _id: 'sponsor_123',
-        user_id: { _id: 'user_123', nickname: 'TestUser' },
+        user_id: { _id: 'user_123', username: 'testuser', display_name: 'TestUser' },
         amount: 100,
       }
 
@@ -318,7 +318,7 @@ describe('贊助控制器單元測試', () => {
     test('應該拒絕無權限的用戶', async () => {
       const mockSponsor = {
         _id: 'sponsor_123',
-        user_id: { _id: 'different_user', nickname: 'OtherUser' },
+        user_id: { _id: 'different_user', username: 'otheruser', display_name: 'OtherUser' },
         amount: 100,
       }
 
@@ -342,7 +342,7 @@ describe('贊助控制器單元測試', () => {
     test('應該允許管理員查詢任何贊助', async () => {
       const mockSponsor = {
         _id: 'sponsor_123',
-        user_id: { _id: 'different_user', nickname: 'OtherUser' },
+        user_id: { _id: 'different_user', username: 'otheruser', display_name: 'OtherUser' },
         amount: 100,
       }
 
@@ -545,7 +545,7 @@ describe('贊助控制器單元測試', () => {
         _id: 'sponsor_123',
         transaction_id: 'txn_123',
         amount: 100,
-        user_id: { nickname: 'TestUser' },
+        user_id: { username: 'testuser', display_name: 'TestUser' },
       }
 
       mockReq.params.transaction_id = 'txn_123'

@@ -75,7 +75,7 @@ export const getSponsors = async (req, res) => {
     }
     // 查詢
     const sponsors = await Sponsor.find(filter)
-      .populate('user_id', 'nickname avatar')
+      .populate('user_id', 'username display_name avatar')
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -99,7 +99,10 @@ export const getSponsors = async (req, res) => {
 // 取得單一贊助
 export const getSponsorById = async (req, res) => {
   try {
-    const sponsor = await Sponsor.findById(req.params.id).populate('user_id', 'nickname avatar')
+    const sponsor = await Sponsor.findById(req.params.id).populate(
+      'user_id',
+      'username display_name avatar',
+    )
     if (!sponsor) return res.status(404).json({ success: false, data: null, error: '找不到贊助' })
     // 僅本人或管理員可查
     if (
@@ -227,7 +230,10 @@ export const getSponsorByTransactionId = async (req, res) => {
       })
     }
 
-    const sponsor = await Sponsor.findOne({ transaction_id }).populate('user_id', 'nickname avatar')
+    const sponsor = await Sponsor.findOne({ transaction_id }).populate(
+      'user_id',
+      'username display_name avatar',
+    )
 
     if (!sponsor) {
       return res.status(404).json({
@@ -832,6 +838,51 @@ function getCurrencyRegion(currency) {
     GBP: '歐洲',
   }
   return regions[currency] || '其他'
+}
+
+// 獲取用戶最近一筆成功贊助
+export const getLatestSuccessSponsor = async (req, res) => {
+  try {
+    const userId = req.user._id
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        data: null,
+        error: '用戶未登入',
+      })
+    }
+
+    // 查詢用戶最近一筆成功贊助
+    const latestSponsor = await Sponsor.findOne({
+      user_id: userId,
+      status: 'success',
+    })
+      .sort({ createdAt: -1 })
+      .populate('user_id', 'username display_name avatar')
+      .select('-__v')
+
+    if (!latestSponsor) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: '找不到成功贊助記錄',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: latestSponsor,
+      error: null,
+    })
+  } catch (error) {
+    logger.error('獲取用戶最近成功贊助失敗:', error)
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: error.message,
+    })
+  }
 }
 
 // 獲取匯率快取統計資訊
