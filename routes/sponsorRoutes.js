@@ -1038,18 +1038,18 @@ const router = express.Router()
 
 // 建立贊助
 router.post('/', token, isUser, createSponsor)
-// 取得所有贊助
-router.get('/', token, isUser, getSponsors)
+// 取得所有贊助（公開端點，用於首頁顯示）
+router.get('/', getSponsors)
+// 根據交易ID取得贊助資訊（無需認證）
+router.get('/transaction/:transaction_id', getSponsorByTransactionId)
+// 獲取用戶最近一筆成功贊助（需要登入）
+router.get('/me/latest-success', token, isUser, getLatestSuccessSponsor)
 // 取得單一贊助
 router.get('/:id', token, isUser, getSponsorById)
 // 更新贊助
 router.put('/:id', token, isUser, updateSponsor)
 // 刪除贊助
 router.delete('/:id', token, isManager, deleteSponsor)
-// 根據交易ID取得贊助資訊（無需認證）
-router.get('/transaction/:transaction_id', getSponsorByTransactionId)
-// 獲取用戶最近一筆成功贊助（需要登入）
-router.get('/me/latest-success', token, isUser, getLatestSuccessSponsor)
 // 記錄贊助頁面訪問（無需認證）
 router.post('/log-access', logSponsorPageAccess)
 

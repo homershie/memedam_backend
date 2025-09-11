@@ -1,3 +1,4 @@
+import mongoose from 'mongoose'
 import Sponsor from '../models/Sponsor.js'
 import { logger } from '../utils/logger.js'
 import kofiService from '../services/kofiService.js'
@@ -63,32 +64,71 @@ export const getSponsors = async (req, res) => {
       filter.amount = { ...filter.amount, $gte: Number(req.query.min_amount) }
     if (req.query.max_amount)
       filter.amount = { ...filter.amount, $lte: Number(req.query.max_amount) }
+
+    // 如果是公開端點（沒有認證），只返回成功的贊助和一年內的記錄
+    if (!req.user) {
+      filter.status = 'success'
+      // 添加一年內的日期過濾，使用 mongoose.trusted 避免 sanitizeFilter 問題
+      const oneYearAgo = new Date()
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+      filter.createdAt = mongoose.trusted({ $gte: oneYearAgo })
+    }
+
     // 分頁
     const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 20
-    const skip = (page - 1) * limit
+    const limit = req.query.limit ? parseInt(req.query.limit) : !req.user ? 0 : 20
+    const skip = limit > 0 ? (page - 1) * limit : 0
+
     // 排序
     let sort = { createdAt: -1 }
     if (req.query.sort_by) {
       const dir = req.query.sort_dir === 'asc' ? 1 : -1
       sort = { [req.query.sort_by]: dir }
     }
+
     // 查詢
-    const sponsors = await Sponsor.find(filter)
-      .populate('user_id', 'username display_name avatar')
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
+    let query = Sponsor.find(filter).populate('user_id', 'username display_name avatar').sort(sort)
+
+    if (limit > 0) {
+      query = query.skip(skip).limit(limit)
+    }
+
+    const sponsors = await query
     const total = await Sponsor.countDocuments(filter)
+
+    // 如果是公開端點，過濾敏感信息
+    let publicSponsors = sponsors
+    if (!req.user) {
+      publicSponsors = sponsors.map((sponsor) => ({
+        _id: sponsor._id,
+        from_name: sponsor.from_name,
+        display_name: sponsor.display_name,
+        amount: sponsor.amount,
+        message: sponsor.message,
+        avatar: sponsor.avatar,
+        sponsor_level: sponsor.sponsor_level,
+        amount_twd: sponsor.amount_twd,
+        amount_usd: sponsor.amount_usd,
+        currency_original: sponsor.currency_original,
+        user: sponsor.user_id
+          ? {
+              username: sponsor.user_id.username,
+              avatar: sponsor.user_id.avatar,
+            }
+          : null,
+        createdAt: sponsor.createdAt,
+      }))
+    }
+
     res.json({
       success: true,
-      data: sponsors,
+      data: publicSponsors,
       error: null,
       pagination: {
         page,
-        limit,
+        limit: limit > 0 ? limit : total,
         total,
-        pages: Math.ceil(total / limit),
+        pages: limit > 0 ? Math.ceil(total / limit) : 1,
       },
     })
   } catch (err) {
