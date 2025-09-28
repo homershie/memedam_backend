@@ -1,6 +1,5 @@
 import passport from 'passport'
 import { StatusCodes } from 'http-status-codes'
-import jwt from 'jsonwebtoken'
 import Report from '../models/Report.js'
 import Meme from '../models/Meme.js'
 import Comment from '../models/Comment.js'
@@ -46,33 +45,27 @@ export const token = (req, res, next) => {
     })
   }
 
-  passport.authenticate('jwt', { session: false }, (err, data, info) => {
+  passport.authenticate('jwt', { session: false }, async (err, data, info) => {
     if (!data || err) {
-      // 未帶 token 或 Passport 回報缺少 token
-      if (info && typeof info.message === 'string' && /no auth token/i.test(info.message)) {
-        return res.status(StatusCodes.UNAUTHORIZED).json({
-          success: false,
-          message: '未提供授權 token',
-        })
+      // 統一以 401 回應未授權，並盡量保留錯誤內容在日誌
+      const reason =
+        (info && (info.message || info.toString())) ||
+        (err && (err.message || err.toString())) ||
+        '未授權'
+
+      // 記錄詳細錯誤
+      try {
+        const { logger } = await import('../utils/logger.js')
+        logger.info('JWT 未授權', { reason })
+      } catch (error) {
+        // 忽略 logger 導入失敗，不影響主要功能
+        console.error('Logger 導入失敗:', error.message)
       }
 
-      // 是不是 JWT 錯誤，可能是過期、格式錯誤、SECRET 錯誤等
-      if (info instanceof jwt.JsonWebTokenError) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          success: false,
-          message: '無效的 token',
-        })
-      } else if (info) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          success: false,
-          message: info.message,
-        })
-      } else {
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          message: '伺服器內部錯誤',
-        })
-      }
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: reason,
+      })
     }
     // 如果驗證成功
     // 將查詢到的使用者資料放入 req 給後續的 middleware 或 controller 使用
