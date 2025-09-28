@@ -46,7 +46,9 @@ export const batchUpdateHotScores = async (options = {}) => {
     }
 
     // 取得需要更新的迷因總數
-    const totalCount = await Meme.countDocuments(mongoose.trusted(query))
+    const totalCount = await Meme.countDocuments(mongoose.trusted(query)).setOptions({
+      sanitizeFilter: false,
+    })
     logger.info(`找到 ${totalCount} 個迷因需要更新熱門分數`)
 
     if (totalCount === 0) {
@@ -68,6 +70,7 @@ export const batchUpdateHotScores = async (options = {}) => {
 
       try {
         const memes = await Meme.find(mongoose.trusted(query))
+          .setOptions({ sanitizeFilter: false })
           .skip(skip)
           .limit(batchSize)
           .sort({ updatedAt: -1 })
