@@ -48,6 +48,13 @@ import { signToken } from '../utils/jwt.js'
 import { logger } from '../utils/logger.js'
 import User from '../models/User.js' // 新增 User 模型導入
 import jwt from 'jsonwebtoken'
+// 相容性：巢狀 follow 別名
+import {
+  followUser,
+  unfollowUser,
+  getFollowers,
+  getFollowing,
+} from '../controllers/followController.js'
 
 const router = express.Router()
 
@@ -2120,6 +2127,45 @@ router.delete('/batch-delete', token, isManager, batchSoftDeleteUsers)
 
 // 檢查使用者是否已設定密碼狀態
 router.get('/password-status', token, checkPasswordStatus)
+
+// ================= 相容性巢狀別名（供整合測試使用） =================
+// 關注/取消關注: POST/DELETE /api/users/:id/follow
+router.post('/:id/follow', token, async (req, res, next) => {
+  try {
+    req.body = { ...(req.body || {}), user_id: req.params.id }
+    return followUser(req, res)
+  } catch (e) {
+    next(e)
+  }
+})
+router.delete('/:id/follow', token, async (req, res, next) => {
+  try {
+    req.body = { ...(req.body || {}), user_id: req.params.id }
+    return unfollowUser(req, res)
+  } catch (e) {
+    next(e)
+  }
+})
+
+// 粉絲列表: GET /api/users/:id/followers
+router.get('/:id/followers', async (req, res, next) => {
+  try {
+    req.params = { ...(req.params || {}), user_id: req.params.id }
+    return getFollowers(req, res)
+  } catch (e) {
+    next(e)
+  }
+})
+
+// 關注中列表: GET /api/users/:id/following
+router.get('/:id/following', async (req, res, next) => {
+  try {
+    req.params = { ...(req.params || {}), user_id: req.params.id }
+    return getFollowing(req, res)
+  } catch (e) {
+    next(e)
+  }
+})
 
 /**
  * @swagger

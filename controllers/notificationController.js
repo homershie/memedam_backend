@@ -392,7 +392,7 @@ export const deleteNotifications = async (req, res) => {
     }
 
     // 批次軟刪除
-    const result = await batchSoftDeleteReceipts(userId, {
+    const deletedCount = await batchSoftDeleteReceipts(userId, {
       ids,
       olderThan,
       unreadOnly,
@@ -418,7 +418,7 @@ export const deleteNotifications = async (req, res) => {
 
     res.json({
       success: true,
-      data: { deletedCount: result.modifiedCount },
+      data: { deletedCount },
       error: null,
     })
   } catch (error) {
@@ -540,13 +540,13 @@ export const hardDeleteNotification = async (req, res) => {
 // 清理孤兒收件記錄（管理員功能）
 export const cleanupOrphanReceiptsController = async (req, res) => {
   try {
-    const result = await cleanupOrphanReceipts()
+    const deletedCount = await cleanupOrphanReceipts()
 
     res.json({
       success: true,
       data: {
         message: '孤兒收件記錄清理完成',
-        deletedCount: result.deletedCount,
+        deletedCount,
       },
       error: null,
     })

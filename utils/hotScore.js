@@ -7,6 +7,12 @@
 import cacheVersionManager from './cacheVersionManager.js'
 import redisCache from '../config/redis.js'
 
+// 測試環境預設關閉此檔內的冗長 console.log，除非顯式開啟 DEBUG_HOT_SCORE
+const DEBUG_HOT = process.env.DEBUG_HOT_SCORE === '1' && process.env.NODE_ENV !== 'production'
+const debugLog = (...args) => {
+  if (DEBUG_HOT) console.log(...args)
+}
+
 /**
  * 安全的JSON序列化函數，避免"[object Object]"問題
  * @param {any} data - 要序列化的數據
@@ -358,7 +364,7 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
     const cacheResult = await hotScoreCacheProcessor.processWithVersion(
       cacheKey,
       async () => {
-        console.log(`快取未命中，重新計算迷因熱門分數，ID: ${memeId}...`)
+        debugLog(`快取未命中，重新計算迷因熱門分數，ID: ${memeId}...`)
 
         // 安全地提取數值，確保都是數字類型
         const like_count = Math.max(0, parseInt(memeData.like_count) || 0)
@@ -368,7 +374,7 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
         const collection_count = Math.max(0, parseInt(memeData.collection_count) || 0)
         const share_count = Math.max(0, parseInt(memeData.share_count) || 0)
 
-        console.log(
+        debugLog(
           `熱門分數計算輸入 - like: ${like_count}, dislike: ${dislike_count}, views: ${views}, comment: ${comment_count}, collection: ${collection_count}, share: ${share_count}`,
         )
 
@@ -454,11 +460,11 @@ export const calculateMemeHotScore = async (memeData, now = new Date()) => {
 
     // 如果是從快取取得的數據，直接返回
     if (cacheResult.fromCache) {
-      console.log(`從快取取得迷因熱門分數，ID: ${memeId}`)
+      debugLog(`從快取取得迷因熱門分數，ID: ${memeId}`)
       return cacheResult.data
     }
 
-    console.log(`迷因熱門分數計算完成並已快取，ID: ${memeId}`)
+    debugLog(`迷因熱門分數計算完成並已快取，ID: ${memeId}`)
     return cacheResult.data
   } catch (error) {
     // 記錄錯誤並返回預設值
@@ -500,7 +506,7 @@ export const batchUpdateHotScores = async (memes, now = new Date()) => {
     const cacheResult = await hotScoreCacheProcessor.processWithVersion(
       cacheKey,
       async () => {
-        console.log(`快取未命中，重新計算批次熱門分數，數量: ${memes.length}...`)
+        debugLog(`快取未命中，重新計算批次熱門分數，數量: ${memes.length}...`)
 
         // 並行計算所有迷因的熱門分數
         const updatedMemes = await Promise.all(
@@ -530,11 +536,11 @@ export const batchUpdateHotScores = async (memes, now = new Date()) => {
 
     // 如果是從快取取得的數據，直接返回
     if (cacheResult.fromCache) {
-      console.log(`從快取取得批次熱門分數，數量: ${memes.length}`)
+      debugLog(`從快取取得批次熱門分數，數量: ${memes.length}`)
       return cacheResult.data
     }
 
-    console.log(`批次熱門分數計算完成並已快取，數量: ${memes.length}`)
+    debugLog(`批次熱門分數計算完成並已快取，數量: ${memes.length}`)
     return cacheResult.data
   } catch (error) {
     console.error('批次更新熱門分數時發生錯誤:', error)

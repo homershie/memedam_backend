@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import validator from 'validator'
 import { calculateMemeHotScore, getHotScoreLevel } from '../utils/hotScore.js'
 import { toSlug } from '../utils/slugify.js'
+import { validateAndSanitizeCountFields } from '../middleware/dataValidation.js'
 
 const MemeSchema = new mongoose.Schema(
   {
@@ -212,42 +213,71 @@ const MemeSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: [0, '瀏覽次數不能為負數'],
+      set: (v) => {
+        const num = parseInt(v, 10)
+        return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0
+      },
       // 瀏覽次數（快取用，方便熱門排序）
     },
     comment_count: {
       type: Number,
       default: 0,
       min: [0, '留言數不能為負數'],
+      set: (v) => {
+        const num = parseInt(v, 10)
+        return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0
+      },
       // 留言數（快取用）
     },
     like_count: {
       type: Number,
       default: 0,
       min: [0, '按讚數不能為負數'],
+      set: (v) => {
+        const num = parseInt(v, 10)
+        return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0
+      },
       // 按讚數（快取用）
     },
     dislike_count: {
       type: Number,
       default: 0,
       min: [0, '按噓數不能為負數'],
+      set: (v) => {
+        const num = parseInt(v, 10)
+        return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0
+      },
       // 按噓/不喜歡數（快取用）
     },
     collection_count: {
       type: Number,
       default: 0,
       min: [0, '收藏數不能為負數'],
+      set: (v) => {
+        const num = parseInt(v, 10)
+        return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0
+      },
       // 收藏數（快取用）
     },
     share_count: {
       type: Number,
       default: 0,
       min: [0, '分享數不能為負數'],
+      set: (v) => {
+        const num = parseInt(v, 10)
+        return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0
+      },
       // 分享數（快取用）
     },
     hot_score: {
       type: Number,
       default: 0,
       min: [0, '熱門分數不能為負數'],
+      set: (v) => {
+        const num = parseFloat(v)
+        if (!Number.isFinite(num)) return 0
+        return Math.max(0, num)
+      },
       // 熱門分數，依照自訂算法計算，用於熱門榜單排序
     },
     tags_cache: {
@@ -483,6 +513,9 @@ const MemeSchema = new mongoose.Schema(
     timestamps: true,
   },
 )
+
+// 數據驗證和清理中間件 - 防止計數字段類型錯誤
+MemeSchema.pre('save', validateAndSanitizeCountFields)
 
 // 自動更新 updated_at 欄位 & 處理三層模型資料一致性
 MemeSchema.pre('save', async function (next) {

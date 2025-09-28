@@ -3,8 +3,10 @@
  * 提供自動化更新熱門分數的功能
  */
 
+import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import { calculateMemeHotScore, getHotScoreLevel } from './hotScore.js'
+import hotScoreQueue from '../services/hotScoreQueue.js'
 import { logger } from './logger.js'
 import { preOperationHealthCheck } from './dbHealthCheck.js'
 
@@ -36,10 +38,10 @@ export const batchUpdateHotScores = async (options = {}) => {
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
       query.$or = [
-        { modified_at: { $gte: oneWeekAgo } },
-        { createdAt: { $gte: oneWeekAgo } },
-        { hot_score: { $exists: false } },
-        { hot_score: 0 },
+        mongoose.trusted({ modified_at: { $gte: oneWeekAgo } }),
+        mongoose.trusted({ createdAt: { $gte: oneWeekAgo } }),
+        mongoose.trusted({ hot_score: { $exists: false } }),
+        mongoose.trusted({ hot_score: 0 }),
       ]
     }
 
@@ -105,24 +107,24 @@ export const batchUpdateHotScores = async (options = {}) => {
           } catch (error) {
             logger.error(`更新迷因 ${meme._id} 熱門分數失敗:`, {
               error: error.message,
-              stack: error.stack,
+              name: error.name,
               meme_id: meme._id,
-              meme_data: {
-                like_count: meme.like_count,
-                dislike_count: meme.dislike_count,
-                views: meme.views,
-                comment_count: meme.comment_count,
-                collection_count: meme.collection_count,
-                share_count: meme.share_count,
-                createdAt: meme.createdAt,
-                modified_at: meme.modified_at,
-              },
             })
-            errors.push({
-              meme_id: meme._id,
-              error: error.message,
-              stack: error.stack,
-            })
+            errors.push({ meme_id: meme._id, name: error.name, message: error.message })
+
+            // 將失敗的項目加入重試佇列（最佳努力）
+            try {
+              await hotScoreQueue.addRetry(meme._id.toString(), {
+                lastError: error.message,
+                lastErrorName: error.name,
+              })
+            } catch (enqueueError) {
+              logger.warn('加入 Hot score 重試佇列失敗（忽略）', {
+                meme_id: meme._id,
+                error: enqueueError.message,
+              })
+            }
+
             batchProcessedCount++
           }
         }

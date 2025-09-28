@@ -257,6 +257,15 @@ app.use((req, res, next) => {
   next()
 })
 
+// 降噪：基本 robots.txt 與 favicon
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send('User-agent: *\nDisallow:')
+})
+app.get('/favicon.ico', (req, res) => {
+  // 傳回 204，避免 404 噪音
+  res.status(204).end()
+})
+
 // 速率限制中間件
 // 迷因相關 API 暫時移除速率限制以解決 429 問題
 // app.use('/api/memes', memeApiLimiter)
