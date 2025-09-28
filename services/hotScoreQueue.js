@@ -65,21 +65,28 @@ class HotScoreQueueService {
       })
 
       this.queue.on('completed', (job) => {
-        logger.info('Hot score 重試完成', {
-          jobId: job.id,
-          memeId: job.data.memeId,
-          event: 'hot_score_retry_completed',
-        })
+        logger.info(
+          {
+            jobId: job.id,
+            memeId: job.data.memeId,
+            event: 'hot_score_retry_completed',
+          },
+          'Hot score 重試完成',
+        )
       })
 
       this.queue.on('failed', (job, err) => {
-        logger.warn('Hot score 重試失敗', {
-          jobId: job?.id,
-          memeId: job?.data?.memeId,
-          error: err?.message,
-          name: err?.name,
-          event: 'hot_score_retry_failed',
-        })
+        logger.warn(
+          {
+            jobId: job?.id,
+            memeId: job?.data?.memeId,
+            error: err?.message,
+            name: err?.name,
+            stack: err?.stack,
+            event: 'hot_score_retry_failed',
+          },
+          'Hot score 重試失敗',
+        )
       })
 
       this.queue.process('retry', async (job) => {
@@ -108,7 +115,7 @@ class HotScoreQueueService {
       this.isInitialized = true
       logger.info('Hot score 佇列初始化成功')
     } catch (error) {
-      logger.error('Hot score 佇列初始化失敗:', error)
+      logger.error({ error: error.message, stack: error.stack }, 'Hot score 佇列初始化失敗')
       throw error
     }
   }
@@ -117,18 +124,25 @@ class HotScoreQueueService {
     try {
       if (!this.isInitialized) await this.initialize()
       const job = await this.queue.add('retry', { memeId, ...meta }, { priority: 4 })
-      logger.info('已加入 Hot score 重試佇列', {
-        jobId: job.id,
-        memeId,
-        event: 'hot_score_retry_enqueued',
-      })
+      logger.info(
+        {
+          jobId: job.id,
+          memeId,
+          event: 'hot_score_retry_enqueued',
+        },
+        '已加入 Hot score 重試佇列',
+      )
       return job
     } catch (error) {
-      logger.warn('加入 Hot score 重試佇列失敗（跳過）：', {
-        memeId,
-        error: error.message,
-        name: error.name,
-      })
+      logger.warn(
+        {
+          memeId,
+          error: error.message,
+          name: error.name,
+          stack: error.stack,
+        },
+        '加入 Hot score 重試佇列失敗（跳過）',
+      )
       return null
     }
   }

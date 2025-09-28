@@ -105,11 +105,15 @@ export const batchUpdateHotScores = async (options = {}) => {
               logger.info(`已處理 ${processedCount}/${Math.min(totalCount, limit)} 個迷因`)
             }
           } catch (error) {
-            logger.error(`更新迷因 ${meme._id} 熱門分數失敗:`, {
-              error: error.message,
-              name: error.name,
-              meme_id: meme._id,
-            })
+            logger.error(
+              {
+                error: error.message,
+                name: error.name,
+                meme_id: meme._id,
+                stack: error.stack,
+              },
+              `更新迷因 ${meme._id} 熱門分數失敗`,
+            )
             errors.push({ meme_id: meme._id, name: error.name, message: error.message })
 
             // 將失敗的項目加入重試佇列（最佳努力）
@@ -119,10 +123,14 @@ export const batchUpdateHotScores = async (options = {}) => {
                 lastErrorName: error.name,
               })
             } catch (enqueueError) {
-              logger.warn('加入 Hot score 重試佇列失敗（忽略）', {
-                meme_id: meme._id,
-                error: enqueueError.message,
-              })
+              logger.warn(
+                {
+                  meme_id: meme._id,
+                  error: enqueueError.message,
+                  stack: enqueueError.stack,
+                },
+                '加入 Hot score 重試佇列失敗（忽略）',
+              )
             }
 
             batchProcessedCount++
@@ -140,15 +148,18 @@ export const batchUpdateHotScores = async (options = {}) => {
         }
       } catch (batchError) {
         const currentBatchNumber = Math.floor(skip / batchSize) + 1
-        logger.error(`批次 ${currentBatchNumber} 處理失敗:`, {
-          error: batchError.message,
-          stack: batchError.stack,
-          skip,
-          batchSize,
-          batch_number: currentBatchNumber,
-          batch_updated: batchUpdatedCount,
-          batch_processed: batchProcessedCount,
-        })
+        logger.error(
+          {
+            error: batchError.message,
+            stack: batchError.stack,
+            skip,
+            batchSize,
+            batch_number: currentBatchNumber,
+            batch_updated: batchUpdatedCount,
+            batch_processed: batchProcessedCount,
+          },
+          `批次 ${currentBatchNumber} 處理失敗`,
+        )
         errors.push({
           batch_error: true,
           skip,
@@ -172,11 +183,14 @@ export const batchUpdateHotScores = async (options = {}) => {
       message: `成功更新 ${updatedCount} 個迷因的熱門分數`,
     }
   } catch (error) {
-    logger.error('批次更新熱門分數失敗:', {
-      error: error.message,
-      stack: error.stack,
-      options,
-    })
+    logger.error(
+      {
+        error: error.message,
+        stack: error.stack,
+        options,
+      },
+      '批次更新熱門分數失敗',
+    )
     throw error
   }
 }
