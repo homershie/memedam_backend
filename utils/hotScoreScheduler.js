@@ -3,6 +3,7 @@
  * 提供自動化更新熱門分數的功能
  */
 
+import mongoose from 'mongoose'
 import Meme from '../models/Meme.js'
 import { calculateMemeHotScore, getHotScoreLevel } from './hotScore.js'
 import { logger } from './logger.js'
@@ -36,10 +37,10 @@ export const batchUpdateHotScores = async (options = {}) => {
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
       query.$or = [
-        { modified_at: { $gte: oneWeekAgo } },
-        { createdAt: { $gte: oneWeekAgo } },
-        { hot_score: { $exists: false } },
-        { hot_score: 0 },
+        mongoose.trusted({ modified_at: { $gte: oneWeekAgo } }),
+        mongoose.trusted({ createdAt: { $gte: oneWeekAgo } }),
+        mongoose.trusted({ hot_score: { $exists: false } }),
+        mongoose.trusted({ hot_score: 0 }),
       ]
     }
 

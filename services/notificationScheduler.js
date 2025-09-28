@@ -21,10 +21,12 @@ const getHotMemes = async (hoursAgo = 24, limit = 5) => {
     const cutoffTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000)
 
     // 獲取熱門迷因（基於讚數、留言數和觀看數的綜合熱度）
-    const rawMemes = await Meme.find({
-      createdAt: { $gte: cutoffTime },
-      like_count: { $gte: 5 }, // 至少5個讚
-    })
+    const rawMemes = await Meme.find(
+      mongoose.trusted({
+        createdAt: { $gte: cutoffTime },
+        like_count: { $gte: 5 }, // 至少5個讚
+      }),
+    )
       .select('_id title author_id like_count comment_count view_count createdAt')
       .sort({ createdAt: -1 })
       .limit(limit * 2) // 多取一些，用於排序

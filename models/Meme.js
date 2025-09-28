@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import validator from 'validator'
 import { calculateMemeHotScore, getHotScoreLevel } from '../utils/hotScore.js'
 import { toSlug } from '../utils/slugify.js'
+import { validateAndSanitizeCountFields } from '../middleware/dataValidation.js'
 
 const MemeSchema = new mongoose.Schema(
   {
@@ -483,6 +484,9 @@ const MemeSchema = new mongoose.Schema(
     timestamps: true,
   },
 )
+
+// 數據驗證和清理中間件 - 防止計數字段類型錯誤
+MemeSchema.pre('save', validateAndSanitizeCountFields)
 
 // 自動更新 updated_at 欄位 & 處理三層模型資料一致性
 MemeSchema.pre('save', async function (next) {
