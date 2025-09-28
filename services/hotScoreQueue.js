@@ -11,6 +11,19 @@ class HotScoreQueueService {
   }
 
   async initialize() {
+    // 在測試環境停用佇列，避免外部連線與背景工作導致測試卡住
+    if (process.env.NODE_ENV === 'test') {
+      this.isInitialized = true
+      this.queue = {
+        add: async () => null,
+        addBulk: async () => [],
+        process: () => {},
+        on: () => {},
+        close: async () => {},
+      }
+      logger.info('Hot score 佇列在測試環境下已被停用（mock）')
+      return
+    }
     if (this.isInitialized) return
 
     try {

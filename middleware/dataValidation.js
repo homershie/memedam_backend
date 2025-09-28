@@ -3,8 +3,6 @@
  * 防止數據庫中出現類型錯誤的計數字段
  */
 
-import mongoose from 'mongoose'
-
 /**
  * 驗證計數字段的數據類型
  * @param {Object} data - 要驗證的數據物件

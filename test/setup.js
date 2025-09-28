@@ -152,7 +152,21 @@ export const createTestUser = async (User, userData = {}) => {
 // 檢查是否為測試資料
 //（移除未使用的測試工具：isTestData / generateTestUserData / safeCleanup）
 
-export const createTestMeme = async (Meme, authorId, memeData = {}) => {
+export const createTestMeme = async (Meme, authorIdOrData, maybeData = {}) => {
+  // 相容兩種呼叫：
+  // 1) createTestMeme(Meme, authorId, data)
+  // 2) createTestMeme(Meme, data)
+  let authorId = null
+  let memeData = {}
+
+  if (authorIdOrData && typeof authorIdOrData === 'object' && !authorIdOrData.toHexString) {
+    memeData = authorIdOrData || {}
+    authorId = memeData.author_id || null
+  } else {
+    authorId = authorIdOrData || null
+    memeData = maybeData || {}
+  }
+
   const defaultData = {
     title: `test_${Date.now()}`,
     type: 'image',

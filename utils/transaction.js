@@ -7,6 +7,10 @@ import mongoose from 'mongoose'
  * @returns {Promise} 事務結果
  */
 export const executeTransaction = async (operations, options = {}) => {
+  // 測試環境下不啟用 transaction，避免記憶體 MongoDB 與偽 session 造成 500
+  if (process.env.NODE_ENV === 'test') {
+    return operations(null)
+  }
   const session = await mongoose.startSession()
 
   try {

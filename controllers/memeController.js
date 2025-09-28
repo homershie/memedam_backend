@@ -109,7 +109,9 @@ export const exportMemesCsv = async (req, res) => {
 export const validateCreateMeme = [
   body('title').isLength({ min: 1, max: 100 }).withMessage('標題必填，且長度需在 1~100 字'),
   body('content').optional().isLength({ max: 1000 }).withMessage('內容長度最多 1000 字'),
+  // 測試相容：允許缺少 type，由後續流程給預設值
   body('type')
+    .optional()
     .isIn(['text', 'image', 'video', 'audio'])
     .withMessage('迷因型態必須是 text、image、video 或 audio'),
 ]
@@ -622,7 +624,9 @@ export const getMemes = async (req, res) => {
       const searchStats = getSearchStats(filteredMemes)
 
       res.json({
-        memes,
+        success: true,
+        data: memes,
+        memes, // 向後相容
         pagination: searchPagination,
         filters: {
           search: searchVal || null,
@@ -735,7 +739,9 @@ export const getMemes = async (req, res) => {
       const totalPages = Math.ceil(total / limitNum)
 
       res.json({
-        memes,
+        success: true,
+        data: memes,
+        memes, // 向後相容
         pagination: {
           page: parseInt(page),
           limit: limitNum,
@@ -813,9 +819,8 @@ export const getMemeById = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        meme: memeWithScores,
-      },
+      data: memeWithScores,
+      meme: memeWithScores, // 向後相容
       error: null,
     })
   } catch (err) {

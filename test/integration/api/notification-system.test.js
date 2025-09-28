@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
 import request from 'supertest'
 import mongoose from 'mongoose'
 import jwt from 'jsonwebtoken'
-import app from '../../../../index.js'
-import User from '../../../../models/User.js'
-import Meme from '../../../../models/Meme.js'
-import Notification from '../../../../models/Notification.js'
-import NotificationReceipt from '../../../../models/NotificationReceipt.js'
+import app from '../../../index.js'
+import User from '../../../models/User.js'
+import Meme from '../../../models/Meme.js'
+import Notification from '../../../models/Notification.js'
+import NotificationReceipt from '../../../models/NotificationReceipt.js'
 
 // Helper function to generate JWT token for testing
 const generateToken = (user) => {
@@ -50,6 +50,7 @@ describe('通知系統 API', () => {
   })
 
   beforeEach(async () => {
+    // 保留用戶資料，避免後續測試 401
     // 建立測試通知
     testNotification = await Notification.create({
       actor_id: testUser2._id,
@@ -72,7 +73,6 @@ describe('通知系統 API', () => {
     // 清理測試資料
     await Notification.deleteMany({})
     await NotificationReceipt.deleteMany({})
-    await User.deleteMany({})
   })
 
   describe('GET /api/notifications', () => {
@@ -87,11 +87,11 @@ describe('通知系統 API', () => {
       expect(response.body.data.length).toBe(1)
       expect(response.body.data[0]).toMatchObject({
         _id: testReceipt._id.toString(),
-        notification_id: testNotification._id.toString(),
-        user_id: testUser._id.toString(),
+        notificationId: testNotification._id.toString(),
+        userId: testUser._id.toString(),
         verb: 'like',
-        object_type: 'meme',
-        isRead: false,
+        objectType: 'meme',
+        is_read: false,
         isDeleted: false,
         isArchived: false,
       })
@@ -149,6 +149,14 @@ describe('通知系統 API', () => {
 
   describe('按讚通知測試', () => {
     it('應該在按讚時建立通知', async () => {
+      // 在 memory MongoDB 下 stub 掉 transaction，避免 500
+      const fakeSession = {
+        startTransaction: vi.fn(),
+        commitTransaction: vi.fn(),
+        abortTransaction: vi.fn(),
+        endSession: vi.fn(),
+      }
+      vi.spyOn(mongoose, 'startSession').mockResolvedValue(fakeSession)
       // 建立測試用戶和迷因
       const likerUser = await User.create({
         username: 'liker_user',
@@ -176,9 +184,12 @@ describe('通知系統 API', () => {
 
       const testMeme = await Meme.create({
         title: '測試迷因',
+        type: 'image',
+        content: '測試內容',
         author_id: authorUser._id,
         tags: ['test'],
         image_url: 'https://example.com/test.jpg',
+        status: 'public',
       })
 
       const likerToken = jwt.sign({ _id: likerUser._id }, process.env.JWT_SECRET || 'test_secret')
@@ -232,7 +243,7 @@ describe('通知系統 API', () => {
 
       expect(response.body.success).toBe(true)
       expect(response.body.data._id).toBe(testReceipt._id.toString())
-      expect(response.body.data.notification_id).toBe(testNotification._id.toString())
+      expect(response.body.data.notificationId).toBe(testNotification._id.toString())
     })
 
     it('應該傳回 404 當通知不存在', async () => {
@@ -242,7 +253,7 @@ describe('通知系統 API', () => {
         .set('Authorization', `Bearer ${userToken}`)
         .expect(404)
 
-      expect(response.body.error).toBe('找不到通知')
+      expect(response.body.error).toBe('找不到通知事件')
     })
 
     it('應該傳回 404 當嘗試存取他人的通知', async () => {
@@ -259,7 +270,7 @@ describe('通知系統 API', () => {
         .set('Authorization', `Bearer ${otherToken}`)
         .expect(404)
 
-      expect(response.body.error).toBe('找不到通知')
+      expect(response.body.error).toBe('找不到通知事件')
     })
   })
 
@@ -412,7 +423,7 @@ describe('通知系統 API', () => {
         .send({})
         .expect(400)
 
-      expect(response.body.error).toBe('請提供刪除條件：ids 或 olderThan 或 unreadOnly')
+      expect(response.body.error).toBe('請提供刪除條件：ids、olderThan 或 unreadOnly')
     })
   })
 

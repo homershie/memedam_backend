@@ -143,6 +143,14 @@ class RedisCache {
     }
 
     try {
+      // 支援萬用字元樣式：若包含 * 則改用 keys+del 批量刪除
+      if (typeof key === 'string' && key.includes('*')) {
+        const keys = await this.client.keys(key)
+        if (keys.length > 0) {
+          await this.client.del(...keys)
+        }
+        return true
+      }
       await this.client.del(key)
       return true
     } catch (error) {
@@ -169,6 +177,25 @@ class RedisCache {
     } catch (error) {
       logger.error('Redis 批量刪除快取失敗:', error)
       return false
+    }
+  }
+
+  /**
+   * 取得符合模式的鍵清單
+   * @param {string} pattern
+   * @returns {Promise<string[]>}
+   */
+  async keys(pattern) {
+    if (!this.isEnabled || !this.isConnected || !this.client) {
+      return []
+    }
+
+    try {
+      const keys = await this.client.keys(pattern)
+      return keys
+    } catch (error) {
+      logger.error('Redis keys 指令失敗:', error)
+      return []
     }
   }
 
