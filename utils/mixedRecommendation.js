@@ -377,10 +377,14 @@ const checkColdStartStatus = async (userId) => {
  * @returns {Object} 調整後的權重
  */
 const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights = {}) => {
+  const safeColdStart = coldStartStatus || {
+    isColdStart: true,
+    activityScore: { level: 'inactive' },
+  }
   const weights = { ...ALGORITHM_WEIGHTS, ...customWeights }
 
   // 如果是冷啟動狀態，增加熱門推薦權重
-  if (coldStartStatus.isColdStart) {
+  if (safeColdStart.isColdStart) {
     weights.hot = COLD_START_CONFIG.fallbackWeight
     weights.latest = 0.15
     weights.updated = 0.05
@@ -389,7 +393,7 @@ const adjustAlgorithmWeights = (coldStartStatus, userPreferences, customWeights 
     weights.social_collaborative_filtering = 0
   } else {
     // 根據用戶活躍度調整權重
-    const activityLevel = coldStartStatus.activityScore.level
+    const activityLevel = safeColdStart?.activityScore?.level || 'inactive'
     switch (activityLevel) {
       case 'very_active':
         weights.content_based = 0.28
