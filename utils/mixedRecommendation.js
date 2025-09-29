@@ -1026,21 +1026,24 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
 
     // 調試：輸出混合推薦的主要上下文
     try {
-      logger.info('mixed-recs start', {
-        userId: userId ? String(userId) : null,
-        adjustedLimit,
-        includeDiversity,
-        includeColdStartAnalysis,
-        includeSocialScores,
-        includeRecommendationReasons,
-        useCache,
-        tagsCount: tags?.length || 0,
-        type,
-        types,
-        page,
-        excludeIdsCount: excludeIds?.length || 0,
-        cacheKey,
-      })
+      logger.info(
+        {
+          userId: userId ? String(userId) : null,
+          adjustedLimit,
+          includeDiversity,
+          includeColdStartAnalysis,
+          includeSocialScores,
+          includeRecommendationReasons,
+          useCache,
+          tagsCount: tags?.length || 0,
+          type,
+          types,
+          page,
+          excludeIdsCount: excludeIds?.length || 0,
+          cacheKey,
+        },
+        'mixed-recs start',
+      )
     } catch {
       // no-op
     }
@@ -1308,13 +1311,16 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
 
     // 調試：輸出結果摘要（非快取）
     try {
-      logger.info('mixed-recs result (fresh)', {
-        page,
-        limit,
-        total: mergedRecommendations.length,
-        pageCount: result.pagination?.totalPages,
-        returned: result.recommendations?.length,
-      })
+      logger.info(
+        {
+          page,
+          limit,
+          total: mergedRecommendations.length,
+          pageCount: result.pagination?.totalPages,
+          returned: result.recommendations?.length,
+        },
+        'mixed-recs result (fresh)',
+      )
     } catch {
       // no-op
     }
@@ -1323,10 +1329,13 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
   } catch (error) {
     performanceMonitor.end('mixed_recommendations')
     try {
-      logger.error('混合推薦失敗:', {
-        message: error?.message,
-        stack: error?.stack,
-      })
+      logger.error(
+        {
+          message: error?.message,
+          stack: error?.stack,
+        },
+        '混合推薦失敗:',
+      )
     } catch {
       // no-op
     }
@@ -1518,14 +1527,17 @@ export const getInfiniteScrollRecommendations = async (userId = null, options = 
     performanceMonitor.end('infinite_scroll_recommendations')
 
     try {
-      logger.info('infinite-scroll result', {
-        userId: userId ? String(userId) : null,
-        page,
-        limit,
-        total: infiniteScrollResult.pagination?.total,
-        returned: infiniteScrollResult.recommendations?.length,
-        hasMore: infiniteScrollResult.pagination?.hasMore,
-      })
+      logger.info(
+        {
+          userId: userId ? String(userId) : null,
+          page,
+          limit,
+          total: infiniteScrollResult.pagination?.total,
+          returned: infiniteScrollResult.recommendations?.length,
+          hasMore: infiniteScrollResult.pagination?.hasMore,
+        },
+        'infinite-scroll result',
+      )
     } catch {
       // no-op
     }
@@ -1534,12 +1546,15 @@ export const getInfiniteScrollRecommendations = async (userId = null, options = 
   } catch (error) {
     performanceMonitor.end('infinite_scroll_recommendations')
     try {
-      logger.error('無限捲動推薦失敗:', {
-        message: error?.message,
-        stack: error?.stack,
-        userId: userId ? String(userId) : null,
-        options,
-      })
+      logger.error(
+        {
+          message: error?.message,
+          stack: error?.stack,
+          userId: userId ? String(userId) : null,
+          options,
+        },
+        '無限捲動推薦失敗:',
+      )
     } catch {
       // no-op
     }
