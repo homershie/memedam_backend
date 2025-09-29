@@ -22,6 +22,12 @@ export const batchUpdateHotScores = async (options = {}) => {
   const { limit = 1000, force = false, batchSize = 100 } = options || {}
 
   try {
+    // 暫時關閉全域 sanitizeFilter，避免 $ne 等運算子被清理
+    const prevSanitizeFilter = mongoose.get('sanitizeFilter')
+    if (prevSanitizeFilter === true) {
+      mongoose.set('sanitizeFilter', false)
+    }
+
     logger.info('開始批次更新熱門分數...')
 
     // 執行資料庫健康檢查
@@ -198,6 +204,18 @@ export const batchUpdateHotScores = async (options = {}) => {
       '批次更新熱門分數失敗',
     )
     throw error
+  } finally {
+    // 還原全域 sanitizeFilter 設定
+    const current = mongoose.get('sanitizeFilter')
+    if (current === false) {
+      try {
+        mongoose.set('sanitizeFilter', true)
+      } catch (restoreError) {
+        logger.warn('恢復 sanitizeFilter 設定失敗（忽略）', {
+          error: restoreError?.message,
+        })
+      }
+    }
   }
 }
 
