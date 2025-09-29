@@ -117,8 +117,7 @@ class VersionedCacheProcessor {
 
         if (cachedData !== null) {
           try {
-            const parsedData =
-              typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
+            const parsedData = typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
 
             // 如果快取包含版本資訊且版本匹配，返回快取數據
             if (parsedData.version && parsedData.version === currentVersion) {
@@ -159,7 +158,13 @@ class VersionedCacheProcessor {
 
       // 降級到普通快取處理
       try {
-        return await cacheProcessor.processWithCache(cacheKey, fetchFunction, options)
+        const fallback = await cacheProcessor.processWithCache(cacheKey, fetchFunction, options)
+        // 將降級回傳統一包裝為與 processWithVersion 相同結構
+        return {
+          data: fallback,
+          version: await cacheVersionManager.getVersion(cacheKey),
+          fromCache: false,
+        }
       } catch (fallbackError) {
         logger.error('降級快取處理也失敗:', fallbackError)
         throw error

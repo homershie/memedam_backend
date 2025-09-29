@@ -65,31 +65,42 @@ class NotificationQueueService {
       }
 
       // 建立通知隊列
+      // 若提供 REDIS_URL，使用 ioredis 連線字串，避免 Bull 對 host/port 物件的解析歧義
+      const bullRedisOptions = redisClient
+        ? { client: redisClient }
+        : redisConfig.url
+          ? {
+              redis: redisConfig.url,
+            }
+          : {
+              redis: {
+                ...redisConfig,
+                lazyConnect: true,
+                showFriendlyErrorStack: process.env.NODE_ENV === 'development',
+                retryDelayOnFailover: 100,
+                retryDelayOnClusterDown: 300,
+                enableOfflineQueue: true,
+                maxRetriesPerRequest: 3,
+                connectTimeout: 5000,
+                commandTimeout: 5000,
+              },
+            }
+
       this.queue = new Queue('notifications', {
-        redis: redisClient || {
-          ...redisConfig,
-          lazyConnect: true,
-          showFriendlyErrorStack: process.env.NODE_ENV === 'development',
-          retryDelayOnFailover: 100,
-          retryDelayOnClusterDown: 300,
-          enableOfflineQueue: true,
-          maxRetriesPerRequest: 3, // 與主 Redis 配置保持一致
-          connectTimeout: 5000,
-          commandTimeout: 5000,
-        },
+        ...bullRedisOptions,
         defaultJobOptions: {
-          removeOnComplete: 50, // 保留最近50個完成的工作
-          removeOnFail: 20, // 保留最近20個失敗的工作
-          attempts: 3, // 最多重試3次
+          removeOnComplete: 50,
+          removeOnFail: 20,
+          attempts: 3,
           backoff: {
-            type: 'exponential', // 指數退避
-            delay: 5000, // 初始延遲5秒
+            type: 'exponential',
+            delay: 5000,
           },
         },
         settings: {
-          lockDuration: 30000, // 鎖定持續時間30秒
-          stalledInterval: 30000, // 檢查停滯工作的間隔
-          maxStalledCount: 2, // 最大停滯次數
+          lockDuration: 30000,
+          stalledInterval: 30000,
+          maxStalledCount: 2,
         },
       })
 
@@ -118,16 +129,19 @@ class NotificationQueueService {
     })
 
     this.queue.on('error', (error) => {
-      // 只記錄非預期的錯誤，避免過度記錄
-      if (
-        error.message &&
-        !error.message.includes('Connection is closed') &&
-        !error.message.includes('ECONNREFUSED') &&
-        !error.message.includes('Redis connection lost')
-      ) {
-        logger.error('通知隊列錯誤:', error)
+      // 僅在非預期錯誤時升級為 error，常見重連類型降級為 warn 以避免日誌泛濫
+      const msg = (error && error.message) || String(error)
+      const isTransient =
+        msg.includes('ECONNREFUSED') ||
+        msg.includes('Connection is closed') ||
+        msg.includes('Redis connection lost') ||
+        msg.includes('Timeout') ||
+        msg.includes('getaddrinfo ENOTFOUND')
+
+      if (isTransient) {
+        logger.warn('通知隊列連線暫時性問題 (自動重試中):', msg)
       } else {
-        logger.debug('通知隊列連線問題 (正常重連中):', error.message)
+        logger.error('通知隊列錯誤:', error)
       }
     })
 
