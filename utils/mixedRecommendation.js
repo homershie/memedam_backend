@@ -1024,6 +1024,27 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     // 快取鍵（不包含分頁資訊，只快取完整的推薦列表）
     const cacheKey = `mixed_recommendations:${userId || 'anonymous'}:${adjustedLimit}:${JSON.stringify(customWeights)}:${JSON.stringify(tags)}`
 
+    // 調試：輸出混合推薦的主要上下文
+    try {
+      logger.info('mixed-recs start', {
+        userId: userId ? String(userId) : null,
+        adjustedLimit,
+        includeDiversity,
+        includeColdStartAnalysis,
+        includeSocialScores,
+        includeRecommendationReasons,
+        useCache,
+        tagsCount: tags?.length || 0,
+        type,
+        types,
+        page,
+        excludeIdsCount: excludeIds?.length || 0,
+        cacheKey,
+      })
+    } catch {
+      // no-op
+    }
+
     if (useCache) {
       // 使用版本控制的快取處理
       const cacheResult = await versionedCacheProcessor.processWithVersion(
@@ -1053,7 +1074,7 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       )
 
       // 從快取中取得完整的推薦列表，然後進行分頁處理
-      let cachedRecommendations = cacheResult.data.recommendations || []
+      let cachedRecommendations = cacheResult?.data?.recommendations || []
 
       // 排除已顯示的項目
       if (excludeIds && excludeIds.length > 0) {
@@ -1150,6 +1171,20 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
       }
 
       performanceMonitor.end('mixed_recommendations')
+
+      // 調試：輸出結果摘要
+      try {
+        logger.info('mixed-recs result (cache)', {
+          page,
+          limit,
+          total: cachedRecommendations.length,
+          pageCount: result.pagination?.totalPages,
+          returned: result.recommendations?.length,
+        })
+      } catch {
+        // no-op
+      }
+
       return result
     }
 
@@ -1270,10 +1305,31 @@ export const getMixedRecommendations = async (userId = null, options = {}) => {
     }
 
     performanceMonitor.end('mixed_recommendations')
+
+    // 調試：輸出結果摘要（非快取）
+    try {
+      logger.info('mixed-recs result (fresh)', {
+        page,
+        limit,
+        total: mergedRecommendations.length,
+        pageCount: result.pagination?.totalPages,
+        returned: result.recommendations?.length,
+      })
+    } catch {
+      // no-op
+    }
+
     return result
   } catch (error) {
     performanceMonitor.end('mixed_recommendations')
-    logger.error('混合推薦失敗:', error)
+    try {
+      logger.error('混合推薦失敗:', {
+        message: error?.message,
+        stack: error?.stack,
+      })
+    } catch {
+      // no-op
+    }
     throw error
   }
 }
@@ -1460,10 +1516,33 @@ export const getInfiniteScrollRecommendations = async (userId = null, options = 
     }
 
     performanceMonitor.end('infinite_scroll_recommendations')
+
+    try {
+      logger.info('infinite-scroll result', {
+        userId: userId ? String(userId) : null,
+        page,
+        limit,
+        total: infiniteScrollResult.pagination?.total,
+        returned: infiniteScrollResult.recommendations?.length,
+        hasMore: infiniteScrollResult.pagination?.hasMore,
+      })
+    } catch {
+      // no-op
+    }
+
     return infiniteScrollResult
   } catch (error) {
     performanceMonitor.end('infinite_scroll_recommendations')
-    logger.error('無限捲動推薦失敗:', error)
+    try {
+      logger.error('無限捲動推薦失敗:', {
+        message: error?.message,
+        stack: error?.stack,
+        userId: userId ? String(userId) : null,
+        options,
+      })
+    } catch {
+      // no-op
+    }
     throw error
   }
 }

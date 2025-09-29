@@ -2124,6 +2124,28 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
     } = req.query
     const userId = req.user?._id
 
+    // 調試：輸出請求參數與使用者資訊
+    try {
+      logger.info('infinite-scroll params', {
+        userId: userId ? String(userId) : null,
+        page: String(page),
+        limit: String(limit),
+        type,
+        types,
+        exclude_ids_sample: Array.isArray(exclude_ids)
+          ? exclude_ids.slice(0, 5)
+          : typeof exclude_ids === 'string'
+            ? exclude_ids.split(',').slice(0, 5)
+            : null,
+        tags,
+        include_social_scores,
+        include_recommendation_reasons,
+        clear_cache,
+      })
+    } catch {
+      // no-op
+    }
+
     // 如果需要清除快取
     if (clear_cache === 'true') {
       await clearMixedRecommendationCache(userId)
@@ -2232,6 +2254,18 @@ export const getInfiniteScrollRecommendationsController = async (req, res) => {
       error: null,
     })
   } catch (err) {
+    // 調試：輸出錯誤與上下文
+    try {
+      logger.error('infinite-scroll controller error', {
+        errorMessage: err?.message,
+        errorStack: err?.stack,
+        userId: req.user?._id ? String(req.user._id) : null,
+        query: req.query,
+      })
+    } catch {
+      // no-op
+    }
+
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: err.message,
