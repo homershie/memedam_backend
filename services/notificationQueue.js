@@ -130,18 +130,22 @@ class NotificationQueueService {
 
     this.queue.on('error', (error) => {
       // 僅在非預期錯誤時升級為 error，常見重連類型降級為 warn 以避免日誌泛濫
-      const msg = (error && error.message) || String(error)
+      const msg = (error && (error.message || error.toString())) || 'unknown error'
       const isTransient =
         msg.includes('ECONNREFUSED') ||
         msg.includes('Connection is closed') ||
         msg.includes('Redis connection lost') ||
+        msg.includes('ETIMEDOUT') ||
         msg.includes('Timeout') ||
         msg.includes('getaddrinfo ENOTFOUND')
 
       if (isTransient) {
-        logger.warn('通知隊列連線暫時性問題 (自動重試中):', msg)
+        logger.warn(`通知隊列連線暫時性問題 (自動重試中): ${msg}`)
       } else {
-        logger.error('通知隊列錯誤:', error)
+        logger.error('通知隊列錯誤:', {
+          message: msg,
+          stack: error?.stack,
+        })
       }
     })
 

@@ -159,14 +159,15 @@ class VersionedCacheProcessor {
       // 降級到普通快取處理
       try {
         const fallback = await cacheProcessor.processWithCache(cacheKey, fetchFunction, options)
-        // 將降級回傳統一包裝為與 processWithVersion 相同結構
+        // CacheProcessor 會直接回傳 Redis 的字串；這裡統一解析為物件
+        const parsed = typeof fallback === 'string' ? JSON.parse(fallback) : fallback
         return {
-          data: fallback,
+          data: parsed,
           version: await cacheVersionManager.getVersion(cacheKey),
           fromCache: false,
         }
       } catch (fallbackError) {
-        logger.error('降級快取處理也失敗:', fallbackError)
+        logger.error(`降級快取處理也失敗: ${fallbackError?.message || fallbackError}`)
         throw error
       }
     }
